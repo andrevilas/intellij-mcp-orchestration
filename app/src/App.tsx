@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import './App.css';
 import type { ProviderSummary, Session } from './api';
 import { createSession, fetchProviders, fetchSessions } from './api';
+import CommandPalette from './components/CommandPalette';
 import Dashboard from './pages/Dashboard';
 import FinOps from './pages/FinOps';
 import Keys from './pages/Keys';
@@ -17,6 +18,47 @@ export interface Feedback {
 
 const DEFAULT_CLIENT = 'console-web';
 
+const VIEW_DEFINITIONS = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    description: 'Visão executiva com KPIs e alertas operacionais',
+    keywords: ['home', 'overview', 'resumo'],
+  },
+  {
+    id: 'servers',
+    label: 'Servidores',
+    description: 'Controle de lifecycle e telemetria dos MCP servers',
+    keywords: ['start', 'stop', 'restart', 'logs'],
+  },
+  {
+    id: 'keys',
+    label: 'Chaves',
+    description: 'Gestão de credenciais e testes de conectividade',
+    keywords: ['credentials', 'access', 'tokens'],
+  },
+  {
+    id: 'policies',
+    label: 'Políticas',
+    description: 'Templates, rollouts e histórico de políticas',
+    keywords: ['guardrails', 'templates', 'rollback'],
+  },
+  {
+    id: 'routing',
+    label: 'Routing',
+    description: 'Simulações what-if e gestão de estratégias de roteamento',
+    keywords: ['rota', 'failover', 'latência'],
+  },
+  {
+    id: 'finops',
+    label: 'FinOps',
+    description: 'Análises de custo, séries temporais e pareto',
+    keywords: ['custos', 'financeiro', 'pareto'],
+  },
+] as const;
+
+type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
+
 function App() {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -24,9 +66,8 @@ function App() {
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<
-    'dashboard' | 'servers' | 'keys' | 'policies' | 'routing' | 'finops'
-  >('dashboard');
+  const [activeView, setActiveView] = useState<ViewId>('dashboard');
+  const [isPaletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,6 +133,35 @@ function App() {
     }
   }
 
+  const handleNavigate = useCallback((view: ViewId) => {
+    setActiveView(view);
+    setPaletteOpen(false);
+  }, []);
+
+  const commandOptions = useMemo(
+    () =>
+      VIEW_DEFINITIONS.map((view) => ({
+        id: view.id,
+        title: view.label,
+        subtitle: view.description,
+        keywords: view.keywords,
+        onSelect: () => handleNavigate(view.id),
+      })),
+    [handleNavigate],
+  );
+
+  useEffect(() => {
+    function handleGlobalShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((current) => !current);
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalShortcut);
+    return () => window.removeEventListener('keydown', handleGlobalShortcut);
+  }, []);
+
   return (
     <div className="app-shell">
       <header className="app-shell__header">
@@ -99,56 +169,31 @@ function App() {
           <span className="app-shell__eyebrow">MCP Console</span>
           <h1>Operações unificadas</h1>
         </div>
-        <nav aria-label="Navegação principal" className="app-shell__nav">
+        <div className="app-shell__actions">
+          <nav aria-label="Navegação principal" className="app-shell__nav">
+            {VIEW_DEFINITIONS.map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                className={activeView === view.id ? 'nav-button nav-button--active' : 'nav-button'}
+                aria-pressed={activeView === view.id}
+                onClick={() => handleNavigate(view.id)}
+              >
+                {view.label}
+              </button>
+            ))}
+          </nav>
           <button
             type="button"
-            className={activeView === 'dashboard' ? 'nav-button nav-button--active' : 'nav-button'}
-            aria-pressed={activeView === 'dashboard'}
-            onClick={() => setActiveView('dashboard')}
+            className="command-button"
+            aria-haspopup="dialog"
+            aria-expanded={isPaletteOpen}
+            onClick={() => setPaletteOpen(true)}
           >
-            Dashboard
+            <span className="command-button__text">Command palette</span>
+            <kbd aria-hidden="true">⌘K</kbd>
           </button>
-          <button
-            type="button"
-            className={activeView === 'servers' ? 'nav-button nav-button--active' : 'nav-button'}
-            aria-pressed={activeView === 'servers'}
-            onClick={() => setActiveView('servers')}
-          >
-            Servidores
-          </button>
-          <button
-            type="button"
-            className={activeView === 'keys' ? 'nav-button nav-button--active' : 'nav-button'}
-            aria-pressed={activeView === 'keys'}
-            onClick={() => setActiveView('keys')}
-          >
-            Chaves
-          </button>
-          <button
-            type="button"
-            className={activeView === 'policies' ? 'nav-button nav-button--active' : 'nav-button'}
-            aria-pressed={activeView === 'policies'}
-            onClick={() => setActiveView('policies')}
-          >
-            Políticas
-          </button>
-          <button
-            type="button"
-            className={activeView === 'routing' ? 'nav-button nav-button--active' : 'nav-button'}
-            aria-pressed={activeView === 'routing'}
-            onClick={() => setActiveView('routing')}
-          >
-            Routing
-          </button>
-          <button
-            type="button"
-            className={activeView === 'finops' ? 'nav-button nav-button--active' : 'nav-button'}
-            aria-pressed={activeView === 'finops'}
-            onClick={() => setActiveView('finops')}
-          >
-            FinOps
-          </button>
-        </nav>
+        </div>
       </header>
       <div className="app-shell__content" role="region" aria-live="polite">
         {activeView === 'dashboard' && (
@@ -176,6 +221,11 @@ function App() {
           <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
         )}
       </div>
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={commandOptions}
+      />
     </div>
   );
 }

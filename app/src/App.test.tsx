@@ -318,6 +318,39 @@ describe('App provider orchestration flow', () => {
     }
   });
 
+  it('permite alternar superfícies pelo command palette', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+
+    const paletteButton = screen.getByRole('button', { name: /Command palette/i });
+    expect(paletteButton).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(paletteButton);
+
+    const palette = await screen.findByRole('dialog', { name: 'Ações rápidas' });
+    expect(paletteButton).toHaveAttribute('aria-expanded', 'true');
+    const searchbox = within(palette).getByRole('searchbox', { name: 'Buscar comando' });
+
+    await user.type(searchbox, 'Routing');
+
+    const routingOption = await within(palette).findByRole('option', { name: /Routing/i });
+
+    await user.click(routingOption);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Ações rápidas' })).not.toBeInTheDocument();
+      expect(paletteButton).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    await screen.findByRole('heading', { name: /Simulador “what-if” de roteamento/i });
+  });
+
   it('permite aplicar templates de política e executar rollback', async () => {
     const user = userEvent.setup();
 
