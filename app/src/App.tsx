@@ -4,6 +4,7 @@ import './App.css';
 import type { ProviderSummary, Session } from './api';
 import { createSession, fetchProviders, fetchSessions } from './api';
 import Dashboard from './pages/Dashboard';
+import Keys from './pages/Keys';
 import Servers from './pages/Servers';
 
 export interface Feedback {
@@ -20,7 +21,7 @@ function App() {
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'dashboard' | 'servers'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'servers' | 'keys'>('dashboard');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -110,10 +111,18 @@ function App() {
           >
             Servidores
           </button>
+          <button
+            type="button"
+            className={activeView === 'keys' ? 'nav-button nav-button--active' : 'nav-button'}
+            aria-pressed={activeView === 'keys'}
+            onClick={() => setActiveView('keys')}
+          >
+            Chaves
+          </button>
         </nav>
       </header>
       <div className="app-shell__content" role="region" aria-live="polite">
-        {activeView === 'dashboard' ? (
+        {activeView === 'dashboard' && (
           <Dashboard
             providers={providers}
             sessions={sessions}
@@ -123,9 +132,11 @@ function App() {
             provisioningId={provisioningId}
             onProvision={handleProvision}
           />
-        ) : (
+        )}
+        {activeView === 'servers' && (
           <Servers providers={providers} sessions={sessions} isLoading={isLoading} initialError={initialError} />
         )}
+        {activeView === 'keys' && <Keys providers={providers} isLoading={isLoading} initialError={initialError} />}
       </div>
     </div>
   );

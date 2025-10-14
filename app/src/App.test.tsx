@@ -174,4 +174,39 @@ describe('App provider orchestration flow', () => {
       { timeout: 2000 },
     );
   });
+
+  it('executes connectivity checks from the keys view', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const keysTab = screen.getByRole('button', { name: 'Chaves' });
+    await user.click(keysTab);
+
+    await screen.findByRole('heading', { name: /Chaves MCP/i });
+
+    const keyHeading = await screen.findByRole('heading', { level: 2, name: /Produção/ });
+    const keyCard = keyHeading.closest('article');
+    expect(keyCard).not.toBeNull();
+
+    const scoped = within(keyCard as HTMLElement);
+    const testButton = scoped.getByRole('button', { name: 'Testar conectividade' });
+    await user.click(testButton);
+
+    expect(testButton).toBeDisabled();
+
+    await waitFor(
+      () => {
+        expect(scoped.getByText('Ativa')).toBeInTheDocument();
+        expect(scoped.getByText(/316 ms/)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    expect(testButton).not.toBeDisabled();
+  });
 });

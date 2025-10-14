@@ -44,7 +44,7 @@
   - Status UP/DOWN, start/stop/restart, log tail, uptime
   - **Artefatos:** `app/src/pages/Servers.tsx`, `components/ServerActions.tsx`
 
-- [ ] **TASK-UI-103 — Keys 2.0**
+- [x] **TASK-UI-103 — Keys 2.0**
   - Tela de chaves com teste de conectividade
   - **Artefatos:** `app/src/pages/Keys.tsx`
 
