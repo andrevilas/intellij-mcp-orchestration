@@ -35,12 +35,12 @@
 ---
 
 ## Sprint UI-1 — Dashboard & Servers
-- [ ] **TASK-UI-101 — Dashboard Executivo**
+- [x] **TASK-UI-101 — Dashboard Executivo**
   - KPIs de custo, tokens, latência, top modelos
   - Alertas visuais e heatmap Recharts
   - **Artefatos:** `app/src/pages/Dashboard.tsx`, `components/KpiCard.tsx`
 
-- [ ] **TASK-UI-102 — Servers 2.0**
+- [x] **TASK-UI-102 — Servers 2.0**
   - Status UP/DOWN, start/stop/restart, log tail, uptime
   - **Artefatos:** `app/src/pages/Servers.tsx`, `components/ServerActions.tsx`
 
