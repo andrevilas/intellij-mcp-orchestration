@@ -16,3 +16,4 @@
 4) **Documentação (Doc)**
    - Input: PR final + diffs
    - Output: README/ADR/Changelog + resumo FinOps (tokens/latência)
+   - Capture telemetria do `glm46-mcp-server` (`~/.mcp/logs/glm46/*.jsonl`) para o relatório de custos.

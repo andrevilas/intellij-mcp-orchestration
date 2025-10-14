@@ -1,6 +1,6 @@
 {
   "defaults": {
-    "MAX_TOKENS": 8000,
+    "MAX_TOKENS": 16000,
     "TIMEOUT_S": 60,
     "MAX_COST_USD": 0.5,
     "MAX_STEPS": 6

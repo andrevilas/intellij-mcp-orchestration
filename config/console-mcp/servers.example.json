@@ -1,0 +1,40 @@
+{
+  "providers": [
+    {
+      "id": "gemini",
+      "name": "Gemini MCP",
+      "description": "Google Gemini router exposed via local MCP bridge",
+      "command": "~/.local/bin/gemini-mcp",
+      "capabilities": ["chat", "tools"],
+      "tags": ["llm", "google"],
+      "transport": "stdio"
+    },
+    {
+      "id": "codex",
+      "name": "Codex CLI",
+      "description": "OpenAI-compatible MCP CLI optimized for iterative coding",
+      "command": "~/.local/bin/codex-mcp",
+      "capabilities": ["chat", "exec"],
+      "tags": ["llm", "openai"],
+      "transport": "stdio"
+    },
+    {
+      "id": "glm46",
+      "name": "GLM-4.6",
+      "description": "Zhipu AI GLM-4.6 stdio MCP server with guardrails",
+      "command": "~/.local/bin/glm46-mcp",
+      "capabilities": ["chat", "embedding", "token_count"],
+      "tags": ["llm", "zhipu"],
+      "transport": "stdio"
+    },
+    {
+      "id": "claude",
+      "name": "Claude MCP",
+      "description": "Claude environment orchestration via CLI",
+      "command": "~/.local/bin/claude-mcp",
+      "capabilities": ["chat"],
+      "tags": ["llm", "anthropic"],
+      "transport": "stdio"
+    }
+  ]
+}
