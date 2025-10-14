@@ -30,6 +30,8 @@ bash scripts/bootstrap-mcp.sh
 - **[Configuração do Ambiente VS Code](docs/environments/VSCode.md)**: Guia de configuração para o VS Code.
 
 ## Pastas
+- `app/` – futuro frontend do Console MCP (SPA para operar e inspecionar servers locais/remotos).
+- `server/` – backend/API do Console MCP alinhado ao protocolo JSON-RPC do MCP.
 - `scripts/` – instalação, preflight e wrappers.
 - `config/` – templates de configuração (AI Assistant MCP, policies de roteamento).
 - `docs/` – playbooks por fase (Análise → Planejamento → Execução+Testes → Documentação) + guias de ambientes IntelliJ/VS Code.
