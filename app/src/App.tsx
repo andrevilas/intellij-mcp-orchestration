@@ -1,15 +1,63 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import './App.css';
 import type { ProviderSummary, Session } from './api';
-import { apiBase, createSession, fetchProviders, fetchSessions } from './api';
+import { createSession, fetchProviders, fetchSessions } from './api';
+import CommandPalette from './components/CommandPalette';
+import Dashboard from './pages/Dashboard';
+import FinOps from './pages/FinOps';
+import Keys from './pages/Keys';
+import Policies from './pages/Policies';
+import Routing from './pages/Routing';
+import Servers from './pages/Servers';
 
-interface Feedback {
+export interface Feedback {
   kind: 'success' | 'error';
   text: string;
 }
 
 const DEFAULT_CLIENT = 'console-web';
+
+const VIEW_DEFINITIONS = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    description: 'Visão executiva com KPIs e alertas operacionais',
+    keywords: ['home', 'overview', 'resumo'],
+  },
+  {
+    id: 'servers',
+    label: 'Servidores',
+    description: 'Controle de lifecycle e telemetria dos MCP servers',
+    keywords: ['start', 'stop', 'restart', 'logs'],
+  },
+  {
+    id: 'keys',
+    label: 'Chaves',
+    description: 'Gestão de credenciais e testes de conectividade',
+    keywords: ['credentials', 'access', 'tokens'],
+  },
+  {
+    id: 'policies',
+    label: 'Políticas',
+    description: 'Templates, rollouts e histórico de políticas',
+    keywords: ['guardrails', 'templates', 'rollback'],
+  },
+  {
+    id: 'routing',
+    label: 'Routing',
+    description: 'Simulações what-if e gestão de estratégias de roteamento',
+    keywords: ['rota', 'failover', 'latência'],
+  },
+  {
+    id: 'finops',
+    label: 'FinOps',
+    description: 'Análises de custo, séries temporais e pareto',
+    keywords: ['custos', 'financeiro', 'pareto'],
+  },
+] as const;
+
+type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
 
 function App() {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
@@ -18,8 +66,8 @@ function App() {
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
-
-  const formattedApiBase = useMemo(() => apiBase || '/api/v1', []);
+  const [activeView, setActiveView] = useState<ViewId>('dashboard');
+  const [isPaletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -85,126 +133,100 @@ function App() {
     }
   }
 
-  const hasProviders = providers.length > 0;
-  const hasSessions = sessions.length > 0;
+  const handleNavigate = useCallback((view: ViewId) => {
+    setActiveView(view);
+    setPaletteOpen(false);
+  }, []);
+
+  const commandOptions = useMemo(
+    () =>
+      VIEW_DEFINITIONS.map((view) => ({
+        id: view.id,
+        title: view.label,
+        subtitle: view.description,
+        keywords: view.keywords,
+        onSelect: () => handleNavigate(view.id),
+      })),
+    [handleNavigate],
+  );
+
+  useEffect(() => {
+    function handleGlobalShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((current) => !current);
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalShortcut);
+    return () => window.removeEventListener('keydown', handleGlobalShortcut);
+  }, []);
 
   return (
-    <main className="app">
-      <section className="hero">
-        <h1>MCP Console</h1>
-        <p>
-          Interface web para orquestrar servidores MCP locais. Esta etapa conecta o frontend ao protótipo FastAPI e permite
-          testar provisionamentos em memória.
-        </p>
-        <small className="api-endpoint">API base atual: {formattedApiBase}</small>
-      </section>
-
-      <section className="providers">
-        <header className="section-header">
-          <div>
-            <h2>Provedores registrados</h2>
-            <p>Lista carregada do manifesto versionado em {"config/console-mcp/servers.example.json"}.</p>
-          </div>
-        </header>
-
-        {isLoading && <p className="info">Carregando provedores…</p>}
-        {initialError && <p className="error">{initialError}</p>}
-
-        {!isLoading && !initialError && !hasProviders && (
-          <p className="info">Nenhum provedor configurado ainda. Ajuste o manifesto e recarregue.</p>
-        )}
-
-        <div className="provider-grid">
-          {providers.map((provider) => (
-            <article key={provider.id} className="provider-card">
-              <header>
-                <div>
-                  <h3>{provider.name}</h3>
-                  <p className="provider-description">{provider.description || 'Sem descrição fornecida.'}</p>
-                </div>
-                <span className={`availability ${provider.is_available ? 'online' : 'offline'}`}>
-                  {provider.is_available ? 'Disponível' : 'Indisponível'}
-                </span>
-              </header>
-
-              <dl className="provider-meta">
-                <div>
-                  <dt>Identificador</dt>
-                  <dd>{provider.id}</dd>
-                </div>
-                <div>
-                  <dt>Comando</dt>
-                  <dd>
-                    <code>{provider.command}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Transporte</dt>
-                  <dd>{provider.transport}</dd>
-                </div>
-              </dl>
-
-              <div className="badges">
-                {provider.capabilities.map((capability) => (
-                  <span key={capability} className="badge capability">
-                    {capability}
-                  </span>
-                ))}
-                {provider.tags.map((tag) => (
-                  <span key={tag} className="badge tag">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-
-              <button
-                className="provision-button"
-                onClick={() => handleProvision(provider)}
-                disabled={provisioningId === provider.id}
-              >
-                {provisioningId === provider.id ? 'Provisionando…' : 'Criar sessão de provisionamento'}
-              </button>
-            </article>
-          ))}
+    <div className="app-shell">
+      <header className="app-shell__header">
+        <div>
+          <span className="app-shell__eyebrow">MCP Console</span>
+          <h1>Operações unificadas</h1>
         </div>
-      </section>
-
-      {feedback && <div className={`feedback ${feedback.kind}`}>{feedback.text}</div>}
-
-      <section className="sessions">
-        <header className="section-header">
-          <div>
-            <h2>Histórico recente de sessões</h2>
-            <p>Dados retornados pelo endpoint `/api/v1/sessions`.</p>
-          </div>
-        </header>
-
-        {!hasSessions && <p className="info">Ainda não há sessões registradas nesta execução.</p>}
-
-        {hasSessions && (
-          <ul className="session-list">
-            {sessions.map((session) => (
-              <li key={session.id} className="session-item">
-                <div className="session-header">
-                  <span className="session-id">{session.id}</span>
-                  <span className="session-status">{session.status}</span>
-                </div>
-                <div className="session-meta">
-                  <span>
-                    Provedor: <strong>{session.provider_id}</strong>
-                  </span>
-                  <span>
-                    Criado em: {new Date(session.created_at).toLocaleString()}
-                  </span>
-                  {session.reason && <span>Motivo: {session.reason}</span>}
-                  {session.client && <span>Cliente: {session.client}</span>}
-                </div>
-              </li>
+        <div className="app-shell__actions">
+          <nav aria-label="Navegação principal" className="app-shell__nav">
+            {VIEW_DEFINITIONS.map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                className={activeView === view.id ? 'nav-button nav-button--active' : 'nav-button'}
+                aria-pressed={activeView === view.id}
+                onClick={() => handleNavigate(view.id)}
+              >
+                {view.label}
+              </button>
             ))}
-          </ul>
+          </nav>
+          <button
+            type="button"
+            className="command-button"
+            aria-haspopup="dialog"
+            aria-expanded={isPaletteOpen}
+            onClick={() => setPaletteOpen(true)}
+          >
+            <span className="command-button__text">Command palette</span>
+            <kbd aria-hidden="true">⌘K</kbd>
+          </button>
+        </div>
+      </header>
+      <div className="app-shell__content" role="region" aria-live="polite">
+        {activeView === 'dashboard' && (
+          <Dashboard
+            providers={providers}
+            sessions={sessions}
+            isLoading={isLoading}
+            initialError={initialError}
+            feedback={feedback}
+            provisioningId={provisioningId}
+            onProvision={handleProvision}
+          />
         )}
-      </section>
-    </main>
+        {activeView === 'servers' && (
+          <Servers providers={providers} sessions={sessions} isLoading={isLoading} initialError={initialError} />
+        )}
+        {activeView === 'keys' && <Keys providers={providers} isLoading={isLoading} initialError={initialError} />}
+        {activeView === 'policies' && (
+          <Policies providers={providers} isLoading={isLoading} initialError={initialError} />
+        )}
+        {activeView === 'routing' && (
+          <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
+        )}
+        {activeView === 'finops' && (
+          <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
+        )}
+      </div>
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={commandOptions}
+      />
+    </div>
   );
 }
 
