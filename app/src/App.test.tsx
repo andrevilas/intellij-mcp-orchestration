@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import App from './App';
@@ -131,5 +131,47 @@ describe('App provider orchestration flow', () => {
       reason: 'Provisionamento disparado pela Console MCP',
       client: 'console-web',
     });
+  });
+
+  it('allows controlling servers from the servers view', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const serversTab = screen.getByRole('button', { name: 'Servidores' });
+    await user.click(serversTab);
+
+    await screen.findByRole('heading', { name: /Servidores MCP/i });
+
+    const serverHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
+    const serverCard = serverHeading.closest('article');
+    expect(serverCard).not.toBeNull();
+
+    const scoped = within(serverCard as HTMLElement);
+
+    const stopButton = await scoped.findByRole('button', { name: 'Parar' });
+    await user.click(stopButton);
+    expect(stopButton).toBeDisabled();
+
+    await waitFor(
+      () => {
+        expect(scoped.getByText('Offline')).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    const startButton = scoped.getByRole('button', { name: 'Iniciar' });
+    await user.click(startButton);
+
+    await waitFor(
+      () => {
+        expect(scoped.getByText('Online')).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
   });
 });

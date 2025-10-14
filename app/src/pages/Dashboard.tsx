@@ -4,6 +4,7 @@ import { ResponsiveContainer, ScatterChart, CartesianGrid, XAxis, YAxis, Tooltip
 import type { ProviderSummary, Session } from '../api';
 import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
+import { hashString } from '../utils/hash';
 
 export interface DashboardProps {
   providers: ProviderSummary[];
@@ -51,15 +52,6 @@ const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function normalizeDateToLocalDay(date: Date): string {
   return DAY_NAMES[date.getDay()];
-}
-
-function hashString(value: string): number {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(index);
-    hash |= 0;
-  }
-  return Math.abs(hash);
 }
 
 function aggregateMetrics(providers: ProviderSummary[], sessions: Session[]): AggregatedMetrics {

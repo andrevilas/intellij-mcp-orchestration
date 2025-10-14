@@ -40,7 +40,7 @@
   - Alertas visuais e heatmap Recharts
   - **Artefatos:** `app/src/pages/Dashboard.tsx`, `components/KpiCard.tsx`
 
-- [ ] **TASK-UI-102 — Servers 2.0**
+- [x] **TASK-UI-102 — Servers 2.0**
   - Status UP/DOWN, start/stop/restart, log tail, uptime
   - **Artefatos:** `app/src/pages/Servers.tsx`, `components/ServerActions.tsx`
 
