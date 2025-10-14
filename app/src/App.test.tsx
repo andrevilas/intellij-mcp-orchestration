@@ -209,4 +209,36 @@ describe('App provider orchestration flow', () => {
 
     expect(testButton).not.toBeDisabled();
   });
+
+  it('permite aplicar templates de política e executar rollback', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const policiesTab = screen.getByRole('button', { name: 'Políticas' });
+    await user.click(policiesTab);
+
+    await screen.findByRole('heading', { name: /Políticas MCP/i });
+    expect(screen.getByRole('heading', { level: 2, name: 'Equilíbrio' })).toBeInTheDocument();
+
+    const turboOption = screen.getByRole('radio', { name: 'Template Turbo' });
+    await user.click(turboOption);
+
+    const applyButton = screen.getByRole('button', { name: 'Aplicar template' });
+    await user.click(applyButton);
+
+    await screen.findByText('Turbo ativado para toda a frota.');
+    await screen.findByRole('heading', { level: 2, name: 'Turbo' });
+
+    const rollbackButton = screen.getByRole('button', { name: 'Rollback imediato' });
+    expect(rollbackButton).not.toBeDisabled();
+    await user.click(rollbackButton);
+
+    await screen.findByText('Rollback concluído para Equilíbrio.');
+    await screen.findByRole('heading', { level: 2, name: 'Equilíbrio' });
+  });
 });

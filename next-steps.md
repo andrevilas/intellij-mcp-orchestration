@@ -51,7 +51,7 @@
 ---
 
 ## Sprint UI-2 — Policies & Routing
-- [ ] **TASK-UI-201 — Policies 2.0**
+- [x] **TASK-UI-201 — Policies 2.0**
   - Templates (Economy/Balanced/Turbo), rollback
   - **Artefatos:** `pages/Policies.tsx`, `components/PolicyTemplatePicker.tsx`
 
