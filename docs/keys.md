@@ -1,13 +1,8 @@
+# Aquisição e Configuração de Chaves de API
 
-# Chaves Necessárias
+Para utilizar os agentes de IA, você precisa adquirir as chaves de API de cada provedor. O script `scripts/get-keys.sh` irá ajudá-lo a armazená-las de forma segura.
 
-Armazenamento: `~/.mcp/.env` (permissão 600). Exemplo:
-```
-GEMINI_API_KEY=
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-ZHIPU_API_KEY=
-```
+## Passo a Passo
 
 Use o script:
 ```bash
