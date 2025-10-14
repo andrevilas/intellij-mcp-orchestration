@@ -1,11 +1,28 @@
 # MCP Console — Frontend App
 
-This directory will host the browser-based Console MCP UI. The goal is to provide a lightweight client for local development and validation of MCP servers, sharing the same repository as the orchestration scripts.
+O diretório `app/` agora contém o bootstrap oficial do Console MCP, baseado em **Vite + React + TypeScript**. A stack prioriza
+DX rápida para iterações curtas e integração direta com os servidores MCP locais expostos pelo projeto.
 
-## Planned Structure
+## Requisitos
 
-- `src/`: React or other SPA source code (to be defined in later tasks).
-- `public/`: Static assets.
-- `package.json`: Front-end tooling (to be introduced once the framework is selected).
+- Node.js >= 18.18
+- npm >= 9
 
-For now, the folder acts as a placeholder so future tasks can bootstrap the actual application without refactoring the repository layout again.
+## Scripts Disponíveis
+
+```bash
+npm install    # instala dependências
+npm run dev    # inicia Vite em http://127.0.0.1:5173 com HMR
+npm run build  # gera artefatos prontos para deploy estático
+npm run preview # serve o build final localmente
+```
+
+## Estrutura
+
+- `index.html` – entrypoint SPA tratado pelo Vite.
+- `src/main.tsx` – bootstrap React.
+- `src/App.tsx` – landing page inicial descrevendo a stack e próximos passos.
+- `vite.config.ts` – configuração mínima incluindo porta/host padronizados.
+- `tsconfig*.json` – regras de compilação TypeScript compartilhadas.
+
+Os próximos incrementos (TASK-OPS-003+) adicionarão roteamento, chamadas ao backend e componentes para orquestrar MCP servers.

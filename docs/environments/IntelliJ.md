@@ -35,6 +35,7 @@ Após a configuração, os agentes estarão disponíveis como contextos no chat 
 
 Para cenários de "teleoperação" (onde outro sistema, como o Claude Desktop, se conecta ao seu IDE), você pode habilitar o servidor MCP integrado do IntelliJ:
 
-1.  Vá em `Settings → Tools → MCP Server`.
-2.  Marque a opção `Enable`.
-3.  A opção `Auto-Configure` pode ser usada para facilitar a conexão com clientes compatíveis.
+3) **Políticas & Guardrails**
+   - Limites de tokens/tempo por servidor respeitam `~/.mcp/cost-policy.json`.
+   - Telemetria de chamadas GLM em `~/.mcp/logs/glm46/<data>.jsonl` (tokens, custo estimado, status).
+   - Roteamento por contexto/latência ajustável em `config/ai-assistant-mcp.json`.

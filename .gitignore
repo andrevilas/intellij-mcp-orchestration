@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 node_modules/
+dist/
 .env
 .mcp/
 .vscode/

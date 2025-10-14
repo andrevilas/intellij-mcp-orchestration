@@ -30,7 +30,7 @@ bash scripts/bootstrap-mcp.sh
 - **[Configuração do Ambiente VS Code](docs/environments/VSCode.md)**: Guia de configuração para o VS Code.
 
 ## Pastas
-- `app/` – futuro frontend do Console MCP (SPA para operar e inspecionar servers locais/remotos).
+- `app/` – frontend do Console MCP, agora iniciado com Vite + React + TypeScript.
 - `server/` – backend/API do Console MCP alinhado ao protocolo JSON-RPC do MCP.
 - `scripts/` – instalação, preflight e wrappers.
 - `config/` – templates de configuração (AI Assistant MCP, policies de roteamento).
@@ -41,6 +41,17 @@ bash scripts/bootstrap-mcp.sh
 - Guardrails FinOps seguindo `~/.mcp/cost-policy.json` (default copiado de `config/cost-policy.json`).
 - Telemetria de chamadas GLM em `~/.mcp/logs/glm46/<data>.jsonl` com tokens, custo estimado e status.
 - `make doctor` validando handshake stdio e presença do policy file.
+
+## Console MCP Frontend (`app/`)
+
+```bash
+cd app
+npm install
+npm run dev    # acessível em http://127.0.0.1:5173
+```
+
+Stack escolhida: **Vite 5 + React 18 + TypeScript** para maximizar DX. O scaffold inicial exibe um landing orientando os
+próximos passos enquanto o backend do Console é desenvolvido.
 
 ## Guardrails
 - `.env` em `~/.mcp/.env` com `chmod 600` (não versionar). Veja `.env.example`.
