@@ -241,6 +241,72 @@ describe('App provider orchestration flow', () => {
     await screen.findByText('Nenhuma rota disponível para o cenário escolhido.');
   });
 
+  it('apresenta filtros de FinOps e exporta CSV da série temporal', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const finopsTab = screen.getByRole('button', { name: 'FinOps' });
+    await user.click(finopsTab);
+
+    await screen.findByRole('heading', { name: /Séries temporais/i });
+
+    const exportButton = await screen.findByRole('button', { name: 'Exportar CSV' });
+    expect(exportButton).toBeEnabled();
+
+    const providerSelect = screen.getByLabelText('Provedor');
+    await user.selectOptions(providerSelect, provider.id);
+
+    const periodButton = screen.getByRole('button', { name: '7 dias' });
+    await user.click(periodButton);
+
+    const metricButton = screen.getByRole('button', { name: 'Tokens' });
+    await user.click(metricButton);
+
+    const table = await screen.findByRole('table');
+    expect(table).toBeInTheDocument();
+
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+
+    if (typeof URL.createObjectURL !== 'function') {
+      (URL as unknown as { createObjectURL: (blob: Blob) => string }).createObjectURL = () => 'blob:mock';
+    }
+
+    if (typeof URL.revokeObjectURL !== 'function') {
+      (URL as unknown as { revokeObjectURL: (url: string) => void }).revokeObjectURL = () => {};
+    }
+
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:finops');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    try {
+      await user.click(exportButton);
+
+      expect(createObjectURLSpy).toHaveBeenCalled();
+      expect(anchorClickSpy).toHaveBeenCalled();
+    } finally {
+      anchorClickSpy.mockRestore();
+      createObjectURLSpy.mockRestore();
+      revokeObjectURLSpy.mockRestore();
+      if (originalCreateObjectURL) {
+        (URL as unknown as { createObjectURL: typeof originalCreateObjectURL }).createObjectURL = originalCreateObjectURL;
+      } else {
+        delete (URL as unknown as { createObjectURL?: typeof originalCreateObjectURL }).createObjectURL;
+      }
+      if (originalRevokeObjectURL) {
+        (URL as unknown as { revokeObjectURL: typeof originalRevokeObjectURL }).revokeObjectURL = originalRevokeObjectURL;
+      } else {
+        delete (URL as unknown as { revokeObjectURL?: typeof originalRevokeObjectURL }).revokeObjectURL;
+      }
+    }
+  });
+
   it('permite aplicar templates de política e executar rollback', async () => {
     const user = userEvent.setup();
 

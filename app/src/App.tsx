@@ -4,6 +4,7 @@ import './App.css';
 import type { ProviderSummary, Session } from './api';
 import { createSession, fetchProviders, fetchSessions } from './api';
 import Dashboard from './pages/Dashboard';
+import FinOps from './pages/FinOps';
 import Keys from './pages/Keys';
 import Policies from './pages/Policies';
 import Routing from './pages/Routing';
@@ -23,7 +24,9 @@ function App() {
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'dashboard' | 'servers' | 'keys' | 'policies' | 'routing'>('dashboard');
+  const [activeView, setActiveView] = useState<
+    'dashboard' | 'servers' | 'keys' | 'policies' | 'routing' | 'finops'
+  >('dashboard');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -137,6 +140,14 @@ function App() {
           >
             Routing
           </button>
+          <button
+            type="button"
+            className={activeView === 'finops' ? 'nav-button nav-button--active' : 'nav-button'}
+            aria-pressed={activeView === 'finops'}
+            onClick={() => setActiveView('finops')}
+          >
+            FinOps
+          </button>
         </nav>
       </header>
       <div className="app-shell__content" role="region" aria-live="polite">
@@ -160,6 +171,9 @@ function App() {
         )}
         {activeView === 'routing' && (
           <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
+        )}
+        {activeView === 'finops' && (
+          <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
         )}
       </div>
     </div>
