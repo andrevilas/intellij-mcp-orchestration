@@ -1,5 +1,6 @@
 import { act } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -13,10 +14,20 @@ function createFetchResponse<T>(payload: T): Promise<Response> {
   } as unknown as Response);
 }
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 describe('App provider orchestration flow', () => {
-  const originalFetch = global.fetch;
+  const originalFetch = globalThis.fetch;
   const originalConsoleError = console.error;
-  let fetchMock: vi.Mock;
+  let fetchMock: Mock;
+
+  beforeAll(() => {
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserverMock }).ResizeObserver = ResizeObserverMock;
+  });
 
   const provider = {
     id: 'gemini',
@@ -49,7 +60,7 @@ describe('App provider orchestration flow', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn();
-    global.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
     vi.spyOn(console, 'error').mockImplementation((message?: unknown, ...optionalParams: unknown[]) => {
       if (typeof message === 'string' && message.includes('not wrapped in act')) {
         return;
@@ -64,7 +75,7 @@ describe('App provider orchestration flow', () => {
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
     console.error = originalConsoleError;
   });
