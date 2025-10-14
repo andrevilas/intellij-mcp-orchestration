@@ -50,8 +50,13 @@ npm install
 npm run dev    # acessível em http://127.0.0.1:5173
 ```
 
-Stack escolhida: **Vite 5 + React 18 + TypeScript** para maximizar DX. O scaffold inicial exibe um landing orientando os
-próximos passos enquanto o backend do Console é desenvolvido.
+Stack escolhida: **Vite 5 + React 18 + TypeScript** para maximizar DX. A interface agora consome os endpoints do servidor
+do Console MCP (`/api/v1/providers` e `/api/v1/sessions`), exibe as capacidades do manifesto versionado e permite disparar
+provisionamentos em memória diretamente da UI.
+
+Variáveis de ambiente úteis (Vite):
+- `VITE_CONSOLE_API_BASE` — sobrescreve o path base usado pelo frontend (default: `/api/v1`).
+- `CONSOLE_MCP_API_PROXY` — ajusta o destino do proxy local do Vite durante `npm run dev` (default: `http://127.0.0.1:8000`).
 
 ## Console MCP Server (`server/`)
 
@@ -68,6 +73,18 @@ O protótipo expõe rotas REST (`/api/v1/*`) que retornam os MCP servers definid
 de descoberta e provisionamento de sessões. Use `console-mcp-server` para um processo
 sem auto-reload (bind em `0.0.0.0:8000`) e ajuste o manifest via `CONSOLE_MCP_SERVERS_PATH`
 se quiser apontar para outro arquivo.
+
+Variáveis de ambiente úteis:
+- `CONSOLE_MCP_CORS_ORIGINS` — lista separada por vírgulas para definir origens permitidas (default inclui `http://127.0.0.1:5173` e `http://localhost:5173`).
+- `CONSOLE_MCP_SERVERS_PATH` — caminho alternativo para o manifest de provedores.
+
+## Execução integrada (app + server)
+
+1. Inicie o backend em um terminal: `console-mcp-server-dev` (porta 8000).
+2. Em outro terminal, rode `npm run dev` dentro de `app/`. O proxy do Vite encaminha `/api/*` para o backend.
+3. Acesse `http://127.0.0.1:5173` e teste o provisionamento direto da lista de provedores. Cada ação também pode ser observada em `/api/v1/sessions`.
+
+> Dica: personalize as origens CORS ou o proxy do Vite caso exponha o Console MCP em hosts diferentes.
 
 ## Guardrails
 - `.env` em `~/.mcp/.env` com `chmod 600` (não versionar). Veja `.env.example`.

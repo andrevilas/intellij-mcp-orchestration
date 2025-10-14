@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .routes import router as api_router
 
 logger = logging.getLogger("console_mcp_server")
+
+DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]
+CORS_ENV_VAR = "CONSOLE_MCP_CORS_ORIGINS"
 
 app = FastAPI(
     title="Console MCP Server",
@@ -18,6 +23,20 @@ app = FastAPI(
     version="0.1.0",
 )
 app.include_router(api_router)
+
+cors_origins_raw = os.getenv(CORS_ENV_VAR)
+cors_origins = (
+    [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+    if cors_origins_raw
+    else DEFAULT_CORS_ORIGINS
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")

@@ -7,7 +7,7 @@ Este roteiro consolida as atividades planejadas para o Console MCP e define o fl
 - [x] **TASK-OPS-001 — Criar monorepo ou diretório dual (`/app` e `/server`)**
 - [x] **TASK-OPS-002 — Definir stack do frontend e bootstrap inicial**
 - [x] **TASK-OPS-003 — Prototipar API do Console MCP Server**
-- [ ] **TASK-OPS-004 — Integração inicial Console ↔️ MCP servers existentes**
+- [x] **TASK-OPS-004 — Integração inicial Console ↔️ MCP servers existentes**
 
 ### TASK-OPS-001 — Criar monorepo ou diretório dual (`/app` e `/server`)
 

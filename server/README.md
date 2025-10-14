@@ -1,36 +1,36 @@
 # MCP Console — Server API Prototype
 
-This directory now contains the **FastAPI** prototype for the Console MCP backend.
-It exposes lightweight endpoints that the frontend can use to discover available
-MCP providers and bootstrap interactive sessions.
+Este diretório contém o **FastAPI** prototype para o Console MCP backend. Ele expõe endpoints leves que o frontend usa para
+descobrir provedores MCP e iniciar sessões lógicas em memória.
 
 ## Features
 
 - `/api/v1/healthz` — liveness/metadata endpoint.
-- `/api/v1/providers` — lists MCP providers from `config/console-mcp/servers.example.json`.
-- `/api/v1/providers/{id}/sessions` — provisions an in-memory session and echoes context.
-- `/api/v1/sessions` — inspects the sessions created during the process lifetime.
+- `/api/v1/providers` — lista MCP providers a partir de `config/console-mcp/servers.example.json`.
+- `/api/v1/providers/{id}/sessions` — provisiona uma sessão em memória e ecoa o contexto.
+- `/api/v1/sessions` — inspeciona as sessões criadas durante o ciclo de vida do processo.
 
-The prototype uses in-memory registries so it is safe to restart or adapt quickly
-while the orchestration flows evolve.
-
-## Running locally
+## Rodando localmente
 
 ```bash
 cd server
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
-console-mcp-server-dev  # starts uvicorn with auto-reload on http://127.0.0.1:8000
+console-mcp-server-dev  # inicia uvicorn com auto-reload em http://127.0.0.1:8000
 ```
 
-The production-style entrypoint (`console-mcp-server`) binds to `0.0.0.0:8000`
-sem auto-reload. Ajuste o manifest copiando `config/console-mcp/servers.example.json`
-para outro local e definindo `CONSOLE_MCP_SERVERS_PATH=/caminho/novo.json` antes de
-iniciar o servidor.
+O entrypoint de produção (`console-mcp-server`) faz bind em `0.0.0.0:8000` sem auto-reload. Ajuste o manifest copiando
+`config/console-mcp/servers.example.json` para outro local e definindo `CONSOLE_MCP_SERVERS_PATH=/caminho/novo.json`
+antes de iniciar o servidor.
 
-## Next steps
+### Configuração de CORS
 
-Upcoming roadmap items will connect these endpoints to real MCP server lifecycle
-management, including spawning stdio processes, tracking telemetry, and exposing
-event streams for the Console frontend.
+Por padrão, o backend libera `http://127.0.0.1:5173` e `http://localhost:5173` para desenvolvimento. Para ampliar ou
+restringir a lista, defina `CONSOLE_MCP_CORS_ORIGINS` com origens separadas por vírgula (ex.:
+`CONSOLE_MCP_CORS_ORIGINS=http://127.0.0.1:4173,https://console.internal`).
+
+## Próximos passos
+
+Os próximos itens do roadmap conectarão essas rotas a lifecycle real de MCP servers, incluindo spawn de processos stdio,
+telemetria contínua e event streaming para o frontend.
