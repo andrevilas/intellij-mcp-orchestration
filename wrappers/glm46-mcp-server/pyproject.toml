@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glm46-mcp-server"
+version = "0.2.0"
+description = "Model Context Protocol (MCP) stdio server for GLM-4.6 (Zhipu)"
+authors = [
+  { name = "IntelliJ MCP Orchestration" }
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "httpx>=0.27",
+  "pydantic>=2.7"
+]
+license = { text = "MIT" }
+
+[project.scripts]
+glm46-mcp-server = "glm46_mcp_server.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["glm46_mcp_server*"]
