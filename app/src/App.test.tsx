@@ -210,6 +210,37 @@ describe('App provider orchestration flow', () => {
     expect(testButton).not.toBeDisabled();
   });
 
+  it('permite explorar cenários de routing e simular falhas', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const routingTab = screen.getByRole('button', { name: 'Routing' });
+    await user.click(routingTab);
+
+    await screen.findByRole('heading', { name: /Simulador “what-if” de roteamento/i });
+
+    const focusBadge = await screen.findByTestId('routing-focus');
+    expect(focusBadge).toHaveTextContent('Redução de custo');
+
+    const latencyOption = screen.getByRole('radio', { name: /Latência prioritária/i });
+    await user.click(latencyOption);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('routing-focus')).toHaveTextContent('Resposta em milissegundos');
+    });
+
+    const failoverSelect = screen.getByLabelText('Falha simulada');
+    await user.selectOptions(failoverSelect, provider.name);
+
+    await screen.findByText('Tráfego realocado após falha');
+    await screen.findByText('Nenhuma rota disponível para o cenário escolhido.');
+  });
+
   it('permite aplicar templates de política e executar rollback', async () => {
     const user = userEvent.setup();
 

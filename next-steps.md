@@ -55,7 +55,7 @@
   - Templates (Economy/Balanced/Turbo), rollback
   - **Artefatos:** `pages/Policies.tsx`, `components/PolicyTemplatePicker.tsx`
 
-- [ ] **TASK-UI-202 — Routing Lab**
+- [x] **TASK-UI-202 — Routing Lab**
   - Simulador “what-if” com estimativa de custo
   - **Artefatos:** `pages/Routing.tsx`
 
