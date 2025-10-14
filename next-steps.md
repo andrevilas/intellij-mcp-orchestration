@@ -64,7 +64,7 @@
 ## Sprint UI-3 — FinOps
 - [x] **TASK-UI-301 — Séries temporais e filtros**
   - Gráficos, filtros por período/server, export CSV
-- [ ] **TASK-UI-302 — Pareto & Drill-down**
+- [x] **TASK-UI-302 — Pareto & Drill-down**
   - Pareto de custo por modelo/rota + detalhe de runs
 
 ---

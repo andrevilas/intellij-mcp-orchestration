@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -23,6 +23,8 @@ type MetricOption = 'cost' | 'tokens';
 
 type ProviderSelection = 'all' | string;
 
+type LaneCategory = 'economy' | 'balanced' | 'turbo';
+
 interface TimeSeriesPoint {
   date: string;
   label: string;
@@ -36,6 +38,36 @@ interface AggregatedMetrics {
   totalTokens: number;
   averageLatency: number;
   costPerMillion: number;
+}
+
+interface RouteCostBreakdown {
+  id: string;
+  providerId: string;
+  providerName: string;
+  label: string;
+  lane: LaneCategory;
+  costUsd: number;
+  tokensMillions: number;
+  runs: number;
+  successRate: number;
+  avgLatencyMs: number;
+}
+
+interface ParetoEntry extends RouteCostBreakdown {
+  share: number;
+  cumulativeShare: number;
+}
+
+type RunStatus = 'success' | 'retry' | 'error';
+
+interface RunDrilldownEntry {
+  id: string;
+  timestamp: string;
+  tokensThousands: number;
+  costUsd: number;
+  latencyMs: number;
+  status: RunStatus;
+  consumer: string;
 }
 
 const RANGE_TO_DAYS: Record<RangeOption, number> = {
@@ -58,6 +90,17 @@ const METRIC_CONFIG: Record<MetricOption, { label: string; accessor: keyof TimeS
       formatter: (value: number) => `${value.toFixed(1)} mi`,
     },
   };
+
+const MODEL_VARIANTS = ['Chat', 'Instruct', 'Ops', 'Research', 'Batch', 'Vision', 'Guard'];
+
+const LANE_CONFIG: Record<
+  LaneCategory,
+  { label: string; costMultiplier: number; tokenMultiplier: number; latencyDivider: number }
+> = {
+  economy: { label: 'Economy', costMultiplier: 0.82, tokenMultiplier: 1.1, latencyDivider: 0.85 },
+  balanced: { label: 'Balanced', costMultiplier: 1, tokenMultiplier: 1, latencyDivider: 1 },
+  turbo: { label: 'Turbo', costMultiplier: 1.18, tokenMultiplier: 0.92, latencyDivider: 1.25 },
+};
 
 function normalizeDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -162,6 +205,145 @@ function formatLatency(latencyMs: number): string {
   return `${latencyMs} ms`;
 }
 
+function formatPercent(value: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 }).format(value);
+}
+
+function formatTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+function buildRouteBreakdown(
+  providers: ProviderSummary[],
+  days: number,
+  providerSelection: ProviderSelection,
+): RouteCostBreakdown[] {
+  const selectedProviders =
+    providerSelection === 'all'
+      ? providers
+      : providers.filter((provider) => provider.id === providerSelection);
+
+  const entries: RouteCostBreakdown[] = [];
+
+  selectedProviders.forEach((provider) => {
+    const variantCount = 3 + seededMod(`${provider.id}-variants`, 3);
+
+    for (let index = 0; index < variantCount; index += 1) {
+      const lane = (['economy', 'balanced', 'turbo'] as LaneCategory[])[
+        seededMod(`${provider.id}-lane-${index}`, 3)
+      ];
+      const laneConfig = LANE_CONFIG[lane];
+      const variantName = MODEL_VARIANTS[seededMod(`${provider.id}-variant-${index}`, MODEL_VARIANTS.length)];
+      const providerPrefix = provider.name.split(' ')[0] ?? provider.name;
+      const label = `${providerPrefix} ${variantName}`;
+      const baseDailyCost = 8 + seededMod(`${provider.id}-base-cost-${index}`, 18);
+      const seasonality = 0.85 + seededMod(`${provider.id}-seasonality-${index}`, 30) / 100;
+      const costUsd = Number(
+        (baseDailyCost * laneConfig.costMultiplier * seasonality * (days / 7)).toFixed(2),
+      );
+      const baseTokens = 3 + seededMod(`${provider.id}-base-token-${index}`, 9) / 2;
+      const tokensMillions = Number(
+        (baseTokens * laneConfig.tokenMultiplier * (days / 7)).toFixed(2),
+      );
+      const runsBase = 50 + seededMod(`${provider.id}-base-run-${index}`, 70);
+      const runs = Math.max(12, Math.round((runsBase * days) / 14));
+      const successRate = Number(
+        (0.9 + seededMod(`${provider.id}-success-${index}`, 8) / 100).toFixed(3),
+      );
+      const avgLatencySeed = 700 + seededMod(`${provider.id}-lat-${index}`, 600);
+      const avgLatencyMs = Math.max(180, Math.round(avgLatencySeed / laneConfig.latencyDivider));
+
+      entries.push({
+        id: `${provider.id}-${index}`,
+        providerId: provider.id,
+        providerName: provider.name,
+        label,
+        lane,
+        costUsd,
+        tokensMillions,
+        runs,
+        successRate,
+        avgLatencyMs,
+      });
+    }
+  });
+
+  return entries.sort((a, b) => b.costUsd - a.costUsd);
+}
+
+function computePareto(entries: RouteCostBreakdown[]): ParetoEntry[] {
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const totalCost = entries.reduce((sum, entry) => sum + entry.costUsd, 0);
+  let cumulative = 0;
+
+  return entries.map((entry) => {
+    const share = totalCost === 0 ? 0 : entry.costUsd / totalCost;
+    cumulative += share;
+
+    return {
+      ...entry,
+      share,
+      cumulativeShare: Math.min(1, cumulative),
+    };
+  });
+}
+
+function buildRunDrilldown(entry: RouteCostBreakdown, days: number): RunDrilldownEntry[] {
+  const runCount = Math.min(12, Math.max(6, Math.round((entry.runs / days) * 4)));
+  const now = new Date();
+  const runs: RunDrilldownEntry[] = [];
+
+  for (let index = 0; index < runCount; index += 1) {
+    const timestamp = new Date(now);
+    const minutesAgo = (index + 1) * (30 + seededMod(`${entry.id}-mins-${index}`, 60));
+    timestamp.setMinutes(timestamp.getMinutes() - minutesAgo);
+
+    const statusSeed = seededMod(`${entry.id}-status-${index}`, 100);
+    const status: RunStatus = statusSeed > 88 ? 'error' : statusSeed > 72 ? 'retry' : 'success';
+
+    const tokensThousands = Number(
+      (
+        ((entry.tokensMillions * 1000) / Math.max(1, entry.runs)) *
+        (0.75 + seededMod(`${entry.id}-tokens-${index}`, 30) / 50)
+      ).toFixed(1),
+    );
+
+    const costUsd = Number(
+      (
+        (entry.costUsd / Math.max(1, entry.runs)) *
+        (0.8 + seededMod(`${entry.id}-cost-${index}`, 30) / 50)
+      ).toFixed(2),
+    );
+
+    const latencyMs = Math.max(
+      120,
+      Math.round(entry.avgLatencyMs * (0.75 + seededMod(`${entry.id}-latency-${index}`, 40) / 80)),
+    );
+
+    runs.push({
+      id: `${entry.id}-run-${index}`,
+      timestamp: timestamp.toISOString(),
+      tokensThousands,
+      costUsd,
+      latencyMs,
+      status,
+      consumer: `Projeto ${String.fromCharCode(65 + seededMod(`${entry.id}-consumer-${index}`, 6))}`,
+    });
+  }
+
+  return runs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+const RUN_STATUS_LABEL: Record<RunStatus, string> = {
+  success: 'Sucesso',
+  retry: 'Retry',
+  error: 'Falha',
+};
+
 function exportCsv(data: TimeSeriesPoint[]): void {
   const header = ['data', 'custo_usd', 'tokens_milhoes', 'latencia_ms'];
   const rows = data.map((point) =>
@@ -181,6 +363,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [selectedRange, setSelectedRange] = useState<RangeOption>('30d');
   const [selectedMetric, setSelectedMetric] = useState<MetricOption>('cost');
   const [selectedProvider, setSelectedProvider] = useState<ProviderSelection>('all');
+  const [selectedParetoId, setSelectedParetoId] = useState<string | null>(null);
 
   const hasProviders = providers.length > 0;
 
@@ -210,6 +393,46 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const aggregatedMetrics = useMemo(() => computeMetrics(availableSeries), [availableSeries]);
 
   const metricConfig = METRIC_CONFIG[selectedMetric];
+
+  const breakdownEntries = useMemo(() => {
+    const days = RANGE_TO_DAYS[selectedRange];
+    if (!hasProviders) {
+      return [];
+    }
+
+    return buildRouteBreakdown(providers, days, selectedProvider);
+  }, [hasProviders, providers, selectedProvider, selectedRange]);
+
+  const paretoEntries = useMemo(() => computePareto(breakdownEntries), [breakdownEntries]);
+
+  const totalParetoCost = useMemo(
+    () => breakdownEntries.reduce((sum, entry) => sum + entry.costUsd, 0),
+    [breakdownEntries],
+  );
+
+  useEffect(() => {
+    if (paretoEntries.length === 0) {
+      setSelectedParetoId(null);
+      return;
+    }
+
+    setSelectedParetoId((current) => {
+      if (!current) {
+        return paretoEntries[0]?.id ?? null;
+      }
+      return paretoEntries.some((entry) => entry.id === current) ? current : paretoEntries[0].id;
+    });
+  }, [paretoEntries]);
+
+  const selectedParetoEntry = useMemo(
+    () => paretoEntries.find((entry) => entry.id === selectedParetoId) ?? null,
+    [paretoEntries, selectedParetoId],
+  );
+
+  const drilldownRuns = useMemo(
+    () => (selectedParetoEntry ? buildRunDrilldown(selectedParetoEntry, RANGE_TO_DAYS[selectedRange]) : []),
+    [selectedParetoEntry, selectedRange],
+  );
 
   if (isLoading) {
     return (
@@ -382,7 +605,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           <p>As 10 datas mais recentes dentro do filtro selecionado.</p>
         </header>
         <div className="finops__table-scroll">
-          <table>
+          <table aria-label="Resumo diário filtrado">
             <thead>
               <tr>
                 <th scope="col">Data</th>
@@ -407,6 +630,145 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           </table>
         </div>
       </section>
+
+      <div className="finops__breakdowns">
+        <section className="finops__pareto" aria-label="Pareto de custo por modelo">
+          <header className="finops__pareto-header">
+            <div>
+              <h3>Pareto de custo</h3>
+              <p>Identifique rotas que concentram o gasto acumulado na janela atual.</p>
+            </div>
+            <span className="finops__pareto-total" aria-label="Custo total considerado">
+              {METRIC_CONFIG.cost.formatter(totalParetoCost)}
+            </span>
+          </header>
+
+          {paretoEntries.length === 0 ? (
+            <p className="finops__state">Sem rotas suficientes para gerar o Pareto.</p>
+          ) : (
+            <div className="finops__pareto-list" role="radiogroup" aria-label="Rotas ordenadas por custo">
+              {paretoEntries.map((entry) => {
+                const laneConfig = LANE_CONFIG[entry.lane];
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selectedParetoId === entry.id}
+                    className={
+                      selectedParetoId === entry.id
+                        ? 'finops__pareto-button finops__pareto-button--active'
+                        : 'finops__pareto-button'
+                    }
+                    onClick={() => setSelectedParetoId(entry.id)}
+                  >
+                    <div className="finops__pareto-top">
+                      <div className="finops__pareto-route">
+                        <strong>{entry.label}</strong>
+                        <span>{entry.providerName}</span>
+                      </div>
+                      <div className="finops__pareto-metric">
+                        <span>{METRIC_CONFIG.cost.formatter(entry.costUsd)}</span>
+                        <span>{formatPercent(entry.share)} do total</span>
+                      </div>
+                    </div>
+                    <div className="finops__pareto-track" aria-hidden="true">
+                      <span
+                        className="finops__pareto-track-fill"
+                        style={{ width: `${Math.min(100, entry.share * 100)}%` }}
+                      />
+                    </div>
+                    <div className="finops__pareto-meta">
+                      <span className={`finops__lane finops__lane--${entry.lane}`}>{laneConfig.label}</span>
+                      <span>{entry.tokensMillions.toFixed(1)} mi tokens</span>
+                      <span>{entry.runs} runs</span>
+                      <span>{formatPercent(entry.cumulativeShare)} cumulativo</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="finops__drilldown" aria-label="Drill-down da rota selecionada">
+          <header className="finops__drilldown-header">
+            <div>
+              <h3>Drill-down de runs</h3>
+              <p>Detalhe determinístico das execuções mais recentes para a rota destacada.</p>
+            </div>
+          </header>
+
+          {!selectedParetoEntry ? (
+            <p className="finops__state">Selecione uma rota na lista ao lado para visualizar os runs.</p>
+          ) : (
+            <>
+              <div className="finops__drilldown-meta">
+                <div>
+                  <h4>{selectedParetoEntry.label}</h4>
+                  <p>{selectedParetoEntry.providerName}</p>
+                </div>
+                <div className="finops__drilldown-stats">
+                  <div className="finops__drilldown-stat">
+                    <span>Custo na janela</span>
+                    <strong>{METRIC_CONFIG.cost.formatter(selectedParetoEntry.costUsd)}</strong>
+                  </div>
+                  <div className="finops__drilldown-stat">
+                    <span>Tokens</span>
+                    <strong>{selectedParetoEntry.tokensMillions.toFixed(2)} mi</strong>
+                  </div>
+                  <div className="finops__drilldown-stat">
+                    <span>Runs</span>
+                    <strong>{selectedParetoEntry.runs}</strong>
+                  </div>
+                  <div className="finops__drilldown-stat">
+                    <span>Taxa de sucesso</span>
+                    <strong>{formatPercent(selectedParetoEntry.successRate)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {drilldownRuns.length === 0 ? (
+                <p className="finops__state">Sem execuções registradas para esta combinação.</p>
+              ) : (
+                <div className="finops__drilldown-table">
+                  <table aria-label="Runs da rota selecionada">
+                    <thead>
+                      <tr>
+                        <th scope="col">Execução</th>
+                        <th scope="col">Horário</th>
+                        <th scope="col">Tokens (mil)</th>
+                        <th scope="col">Custo (USD)</th>
+                        <th scope="col">Latência</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Projeto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drilldownRuns.map((run) => (
+                        <tr key={run.id}>
+                          <th scope="row">{run.id.split('-').pop()}</th>
+                          <td>{formatTimestamp(run.timestamp)}</td>
+                          <td>{run.tokensThousands.toFixed(1)}</td>
+                          <td>{METRIC_CONFIG.cost.formatter(run.costUsd)}</td>
+                          <td>{formatLatency(run.latencyMs)}</td>
+                          <td>
+                            <span className={`finops__status finops__status--${run.status}`}>
+                              <span className="finops__status-dot" />
+                              {RUN_STATUS_LABEL[run.status]}
+                            </span>
+                          </td>
+                          <td>{run.consumer}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      </div>
     </section>
   );
 }

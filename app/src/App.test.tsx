@@ -267,8 +267,19 @@ describe('App provider orchestration flow', () => {
     const metricButton = screen.getByRole('button', { name: 'Tokens' });
     await user.click(metricButton);
 
-    const table = await screen.findByRole('table');
-    expect(table).toBeInTheDocument();
+    const summaryTable = await screen.findByRole('table', { name: /Resumo diário filtrado/i });
+    expect(summaryTable).toBeInTheDocument();
+
+    const paretoGroup = await screen.findByRole('radiogroup', { name: /Rotas ordenadas por custo/i });
+    const paretoOptions = within(paretoGroup).getAllByRole('radio');
+    expect(paretoOptions.length).toBeGreaterThan(1);
+
+    const secondOption = paretoOptions[1];
+    await user.click(secondOption);
+    expect(secondOption).toHaveAttribute('aria-checked', 'true');
+
+    const runsTable = await screen.findByRole('table', { name: /Runs da rota selecionada/i });
+    expect(within(runsTable).getAllByRole('row').length).toBeGreaterThan(1);
 
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
