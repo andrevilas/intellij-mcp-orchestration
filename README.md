@@ -22,6 +22,13 @@ bash scripts/bootstrap-mcp.sh
 - **GLM‑4.6 (Zhipu)** – janela de **200K tokens** para refactors amplos e planning profundo. Agora com **MCP server stdio próprio** (`glm46-mcp-server`) incluindo guardrails de custo/tokens, telemetria JSON e estimativa de custo por chamada.
 - **Claude** – opcional; quando IDE exposto como MCP server para sessões de teleoperação.
 
+## Documentação
+
+- **[Agente Gemini (GEMINI.md)](GEMINI.md)**: Detalhes sobre o uso do agente Gemini.
+- **[Aquisição de Chaves de API](docs/keys.md)**: Como obter e configurar as chaves de API necessárias.
+- **[Configuração do Ambiente IntelliJ](docs/environments/IntelliJ.md)**: Guia de configuração para o IntelliJ AI Assistant.
+- **[Configuração do Ambiente VS Code](docs/environments/VSCode.md)**: Guia de configuração para o VS Code.
+
 ## Pastas
 - `app/` – frontend do Console MCP, agora iniciado com Vite + React + TypeScript.
 - `server/` – backend/API do Console MCP alinhado ao protocolo JSON-RPC do MCP.

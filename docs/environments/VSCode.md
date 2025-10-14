@@ -1,3 +1,4 @@
+# VS Code — Configuração
 
 # VS Code — Configuração (Copilot MCP + Cline opcional)
 
