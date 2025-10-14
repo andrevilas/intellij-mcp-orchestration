@@ -11,6 +11,7 @@
    - Settings → Tools → MCP Server → **Enable**
    - Auto-Configure no Claude Desktop (quando quiser teleoperação).
 
-3) **Políticas**
-   - Limites de tokens/tempo por servidor.
-   - Roteamento por contexto/latência.
+3) **Políticas & Guardrails**
+   - Limites de tokens/tempo por servidor respeitam `~/.mcp/cost-policy.json`.
+   - Telemetria de chamadas GLM em `~/.mcp/logs/glm46/<data>.jsonl` (tokens, custo estimado, status).
+   - Roteamento por contexto/latência ajustável em `config/ai-assistant-mcp.json`.

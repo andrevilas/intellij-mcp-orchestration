@@ -16,3 +16,7 @@ Adicione em `settings.json`:
 
 ## 2) Cline (opcional)
 Cadastra os mesmos MCP servers pela UI da extensão e use o modo Agent para execução “fim-a-fim”.
+
+> Template pronto em `config/cline.config.json`.
+
+> Guardrails: `glm46-mcp-server` consome `~/.mcp/cost-policy.json` e registra telemetria em `~/.mcp/logs/glm46/`.

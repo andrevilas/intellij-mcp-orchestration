@@ -1,0 +1,7 @@
+{
+  "mcpServers": [
+    { "name": "Gemini (FastMCP)", "command": "~/.local/bin/gemini-mcp", "args": [] },
+    { "name": "Codex (OpenAI)",   "command": "~/.local/bin/codex-mcp",  "args": [] },
+    { "name": "GLM-4.6 (Zhipu)",  "command": "~/.local/bin/glm46-mcp", "args": [] }
+  ]
+}
