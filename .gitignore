@@ -1,8 +1,11 @@
 
 # Python / Node / Env
 __pycache__/
+**/.venv/
 *.pyc
+*.egg-info/
 node_modules/
+dist/
 .env
 .mcp/
 .vscode/

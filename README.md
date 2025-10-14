@@ -8,6 +8,7 @@
 git clone <seu-fork-ou-este-repo>.git intellij-mcp-orchestration
 cd intellij-mcp-orchestration
 bash scripts/bootstrap-mcp.sh
+# opcional: make doctor   # valida glm46-mcp-server, PATH e cost-policy
 # IntelliJ → Settings → Tools → AI Assistant → MCP → Add → Command
 #  - ~/.local/bin/gemini-mcp
 #  - ~/.local/bin/codex-mcp
@@ -18,13 +19,65 @@ bash scripts/bootstrap-mcp.sh
 ## Stack
 - **Gemini** via FastMCP (rotas stdio/http) – custo/latência amigáveis para throughput alto.
 - **Codex (OpenAI compat.)** via MCP server CLI – DX forte para “read‑modify‑run”.
-- **GLM‑4.6 (Zhipu)** – janela de **200K tokens** para refactors amplos e planning profundo.
+- **GLM‑4.6 (Zhipu)** – janela de **200K tokens** para refactors amplos e planning profundo. Agora com **MCP server stdio próprio** (`glm46-mcp-server`) incluindo guardrails de custo/tokens, telemetria JSON e estimativa de custo por chamada.
 - **Claude** – opcional; quando IDE exposto como MCP server para sessões de teleoperação.
 
 ## Pastas
+- `app/` – frontend do Console MCP, agora iniciado com Vite + React + TypeScript.
+- `server/` – backend/API do Console MCP alinhado ao protocolo JSON-RPC do MCP.
 - `scripts/` – instalação, preflight e wrappers.
 - `config/` – templates de configuração (AI Assistant MCP, policies de roteamento).
-- `docs/` – playbooks por fase (Análise → Planejamento → Execução+Testes → Documentação).
+- `docs/` – playbooks por fase (Análise → Planejamento → Execução+Testes → Documentação) + guias de ambientes IntelliJ/VS Code.
+
+## Novidades (v0.2.0)
+- `glm46-mcp-server` em Python, integrado ao bootstrap (`pipx install --force wrappers/glm46-mcp-server`).
+- Guardrails FinOps seguindo `~/.mcp/cost-policy.json` (default copiado de `config/cost-policy.json`).
+- Telemetria de chamadas GLM em `~/.mcp/logs/glm46/<data>.jsonl` com tokens, custo estimado e status.
+- `make doctor` validando handshake stdio e presença do policy file.
+
+## Console MCP Frontend (`app/`)
+
+```bash
+cd app
+npm install
+npm run dev    # acessível em http://127.0.0.1:5173
+```
+
+Stack escolhida: **Vite 5 + React 18 + TypeScript** para maximizar DX. A interface agora consome os endpoints do servidor
+do Console MCP (`/api/v1/providers` e `/api/v1/sessions`), exibe as capacidades do manifesto versionado e permite disparar
+provisionamentos em memória diretamente da UI.
+
+Variáveis de ambiente úteis (Vite):
+- `VITE_CONSOLE_API_BASE` — sobrescreve o path base usado pelo frontend (default: `/api/v1`).
+- `CONSOLE_MCP_API_PROXY` — ajusta o destino do proxy local do Vite durante `npm run dev` (default: `http://127.0.0.1:8000`).
+
+## Console MCP Server (`server/`)
+
+```bash
+cd server
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+console-mcp-server-dev  # FastAPI + Uvicorn em http://127.0.0.1:8000
+```
+
+O protótipo expõe rotas REST (`/api/v1/*`) que retornam os MCP servers definidos em
+`config/console-mcp/servers.example.json`, permitindo que o frontend experimente fluxos
+de descoberta e provisionamento de sessões. Use `console-mcp-server` para um processo
+sem auto-reload (bind em `0.0.0.0:8000`) e ajuste o manifest via `CONSOLE_MCP_SERVERS_PATH`
+se quiser apontar para outro arquivo.
+
+Variáveis de ambiente úteis:
+- `CONSOLE_MCP_CORS_ORIGINS` — lista separada por vírgulas para definir origens permitidas (default inclui `http://127.0.0.1:5173` e `http://localhost:5173`).
+- `CONSOLE_MCP_SERVERS_PATH` — caminho alternativo para o manifest de provedores.
+
+## Execução integrada (app + server)
+
+1. Inicie o backend em um terminal: `console-mcp-server-dev` (porta 8000).
+2. Em outro terminal, rode `npm run dev` dentro de `app/`. O proxy do Vite encaminha `/api/*` para o backend.
+3. Acesse `http://127.0.0.1:5173` e teste o provisionamento direto da lista de provedores. Cada ação também pode ser observada em `/api/v1/sessions`.
+
+> Dica: personalize as origens CORS ou o proxy do Vite caso exponha o Console MCP em hosts diferentes.
 
 ## Guardrails
 - `.env` em `~/.mcp/.env` com `chmod 600` (não versionar). Veja `.env.example`.
@@ -56,7 +109,7 @@ bash scripts/bootstrap-mcp.sh    # idempotente, com preflight e self‑heal de P
 ```
 Depois, no IntelliJ (Ultimate): **AI Assistant → MCP → Add → Command** apontando para os binários em `~/.local/bin`.
 
-> Dica: use `make doctor` e `make reset` para checkup/rollback rápido (ver `Makefile`).
+> Dica: use `make doctor` e `make reset` para checkup/rollback rápido (ver `Makefile`). Logs ficam em `~/.mcp/logs/glm46/`.
 
 ## Notas de Produção
 - Para ambientes travados (sem apt/sem internet), veja `scripts/offline-notes.md` e configure mirrors/artefatos internos.
