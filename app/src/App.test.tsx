@@ -1,6 +1,7 @@
 import { act } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import App from './App';
@@ -13,10 +14,20 @@ function createFetchResponse<T>(payload: T): Promise<Response> {
   } as unknown as Response);
 }
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 describe('App provider orchestration flow', () => {
-  const originalFetch = global.fetch;
+  const originalFetch = globalThis.fetch;
   const originalConsoleError = console.error;
-  let fetchMock: vi.Mock;
+  let fetchMock: Mock;
+
+  beforeAll(() => {
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserverMock }).ResizeObserver = ResizeObserverMock;
+  });
 
   const provider = {
     id: 'gemini',
@@ -49,7 +60,7 @@ describe('App provider orchestration flow', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn();
-    global.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
     vi.spyOn(console, 'error').mockImplementation((message?: unknown, ...optionalParams: unknown[]) => {
       if (typeof message === 'string' && message.includes('not wrapped in act')) {
         return;
@@ -64,7 +75,7 @@ describe('App provider orchestration flow', () => {
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
     console.error = originalConsoleError;
   });
@@ -120,5 +131,114 @@ describe('App provider orchestration flow', () => {
       reason: 'Provisionamento disparado pela Console MCP',
       client: 'console-web',
     });
+  });
+
+  it('allows controlling servers from the servers view', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const serversTab = screen.getByRole('button', { name: 'Servidores' });
+    await user.click(serversTab);
+
+    await screen.findByRole('heading', { name: /Servidores MCP/i });
+
+    const serverHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
+    const serverCard = serverHeading.closest('article');
+    expect(serverCard).not.toBeNull();
+
+    const scoped = within(serverCard as HTMLElement);
+
+    const stopButton = await scoped.findByRole('button', { name: 'Parar' });
+    await user.click(stopButton);
+    expect(stopButton).toBeDisabled();
+
+    await waitFor(
+      () => {
+        expect(scoped.getByText('Offline')).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    const startButton = scoped.getByRole('button', { name: 'Iniciar' });
+    await user.click(startButton);
+
+    await waitFor(
+      () => {
+        expect(scoped.getByText('Online')).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+  });
+
+  it('executes connectivity checks from the keys view', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const keysTab = screen.getByRole('button', { name: 'Chaves' });
+    await user.click(keysTab);
+
+    await screen.findByRole('heading', { name: /Chaves MCP/i });
+
+    const keyHeading = await screen.findByRole('heading', { level: 2, name: /Produção/ });
+    const keyCard = keyHeading.closest('article');
+    expect(keyCard).not.toBeNull();
+
+    const scoped = within(keyCard as HTMLElement);
+    const testButton = scoped.getByRole('button', { name: 'Testar conectividade' });
+    await user.click(testButton);
+
+    expect(testButton).toBeDisabled();
+
+    await waitFor(
+      () => {
+        expect(scoped.getByText('Ativa')).toBeInTheDocument();
+        expect(scoped.getByText(/316 ms/)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    expect(testButton).not.toBeDisabled();
+  });
+
+  it('permite aplicar templates de política e executar rollback', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const policiesTab = screen.getByRole('button', { name: 'Políticas' });
+    await user.click(policiesTab);
+
+    await screen.findByRole('heading', { name: /Políticas MCP/i });
+    expect(screen.getByRole('heading', { level: 2, name: 'Equilíbrio' })).toBeInTheDocument();
+
+    const turboOption = screen.getByRole('radio', { name: 'Template Turbo' });
+    await user.click(turboOption);
+
+    const applyButton = screen.getByRole('button', { name: 'Aplicar template' });
+    await user.click(applyButton);
+
+    await screen.findByText('Turbo ativado para toda a frota.');
+    await screen.findByRole('heading', { level: 2, name: 'Turbo' });
+
+    const rollbackButton = screen.getByRole('button', { name: 'Rollback imediato' });
+    expect(rollbackButton).not.toBeDisabled();
+    await user.click(rollbackButton);
+
+    await screen.findByText('Rollback concluído para Equilíbrio.');
+    await screen.findByRole('heading', { level: 2, name: 'Equilíbrio' });
   });
 });
