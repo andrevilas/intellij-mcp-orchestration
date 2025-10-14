@@ -6,7 +6,7 @@ Este roteiro consolida as atividades planejadas para o Console MCP e define o fl
 
 - [x] **TASK-OPS-001 — Criar monorepo ou diretório dual (`/app` e `/server`)**
 - [x] **TASK-OPS-002 — Definir stack do frontend e bootstrap inicial**
-- [ ] **TASK-OPS-003 — Prototipar API do Console MCP Server**
+- [x] **TASK-OPS-003 — Prototipar API do Console MCP Server**
 - [ ] **TASK-OPS-004 — Integração inicial Console ↔️ MCP servers existentes**
 
 ### TASK-OPS-001 — Criar monorepo ou diretório dual (`/app` e `/server`)
@@ -45,6 +45,47 @@ com comandos padronizados.
 - `app/` com dependências e scripts (`npm run dev/build/preview`) funcionando.
 - Código-fonte inicial (`src/`) exibindo landing page da Console MCP.
 - Documentação atualizada refletindo a stack escolhida e instruções de uso.
+
+### TASK-OPS-003 — Prototipar API do Console MCP Server
+
+**Objetivo**
+
+Fornecer um backend mínimo para o Console MCP capaz de listar MCP servers conhecidos e
+iniciar sessões lógicas em memória, preparando o terreno para orquestração real.
+
+**Passos sugeridos**
+
+1. Selecionar framework HTTP (FastAPI recomendado) e estruturar `server/` como pacote instalável.
+2. Ler manifest de provedores (ex.: `config/console-mcp/servers.example.json`) e expor
+   endpoints REST para health check, listagem e criação de sessões.
+3. Publicar entrypoints (`console-mcp-server`, `console-mcp-server-dev`) e documentar execução local.
+4. Atualizar README/roadmap com instruções de uso e checklist da tarefa.
+
+**Definition of Done (DoD)**
+
+- FastAPI (ou equivalente) rodando com endpoints `/api/v1/healthz`, `/providers`, `/sessions`.
+- Manifesto de provedores versionado e carregado pelo backend.
+- Entry points disponíveis via `pyproject.toml` com instruções claras no README.
+- `next-steps.md` atualizado marcando a tarefa como concluída.
+
+### TASK-OPS-004 — Integração inicial Console ↔️ MCP servers existentes
+
+**Objetivo**
+
+Conectar o frontend ao backend prototipado, habilitando descoberta de provedores e teste de provisionamento.
+
+**Passos sugeridos**
+
+1. Criar client HTTP no frontend para consumir `/api/v1/providers`.
+2. Exibir lista e detalhes dos provedores na UI (estado e filtro básico).
+3. Invocar `/providers/{id}/sessions` a partir de interações da interface e apresentar feedback.
+4. Ajustar documentação ensinando a executar app + server em paralelo.
+
+**Definition of Done (DoD)**
+
+- Frontend consome API local e renderiza provedores.
+- Ações de provisionamento registram sessão (mock) e retornam mensagem ao usuário.
+- Docs atualizadas com fluxo completo (app + server).
 
 ## Instruções para o Agente (Codex)
 

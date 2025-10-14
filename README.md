@@ -53,6 +53,22 @@ npm run dev    # acessível em http://127.0.0.1:5173
 Stack escolhida: **Vite 5 + React 18 + TypeScript** para maximizar DX. O scaffold inicial exibe um landing orientando os
 próximos passos enquanto o backend do Console é desenvolvido.
 
+## Console MCP Server (`server/`)
+
+```bash
+cd server
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+console-mcp-server-dev  # FastAPI + Uvicorn em http://127.0.0.1:8000
+```
+
+O protótipo expõe rotas REST (`/api/v1/*`) que retornam os MCP servers definidos em
+`config/console-mcp/servers.example.json`, permitindo que o frontend experimente fluxos
+de descoberta e provisionamento de sessões. Use `console-mcp-server` para um processo
+sem auto-reload (bind em `0.0.0.0:8000`) e ajuste o manifest via `CONSOLE_MCP_SERVERS_PATH`
+se quiser apontar para outro arquivo.
+
 ## Guardrails
 - `.env` em `~/.mcp/.env` com `chmod 600` (não versionar). Veja `.env.example`.
 - Limites de custo/tempo por servidor (definidos em wrappers e políticas).
