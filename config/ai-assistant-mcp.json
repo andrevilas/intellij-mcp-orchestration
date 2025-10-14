@@ -1,0 +1,34 @@
+{
+  "servers": [
+    {
+      "name": "Gemini (FastMCP)",
+      "type": "command",
+      "command": "~/.local/bin/gemini-mcp",
+      "args": []
+    },
+    {
+      "name": "Codex (OpenAI)",
+      "type": "command",
+      "command": "~/.local/bin/codex-mcp",
+      "args": []
+    },
+    {
+      "name": "GLM-4.6 (Zhipu)",
+      "type": "command",
+      "command": "~/.local/bin/glm46-mcp",
+      "args": []
+    },
+    {
+      "name": "Claude Bridge",
+      "type": "command",
+      "command": "~/.local/bin/claude-mcp",
+      "args": []
+    }
+  ],
+  "routingPolicy": {
+    "analysis": "gemini",
+    "longContext": "glm46",
+    "handsOnCoding": "codex",
+    "ultraLong": "claude"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "chat.mcp.access": "all",
+  "chat.mcp.servers": [
+    {
+      "name": "Gemini (FastMCP)",
+      "type": "command",
+      "command": "~/.local/bin/gemini-mcp",
+      "args": []
+    },
+    {
+      "name": "Codex (OpenAI)",
+      "type": "command",
+      "command": "~/.local/bin/codex-mcp",
+      "args": []
+    },
+    {
+      "name": "GLM-4.6 (Zhipu)",
+      "type": "command",
+      "command": "~/.local/bin/glm46-mcp",
+      "args": []
+    }
+  ]
+}

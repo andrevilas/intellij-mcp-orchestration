@@ -1,0 +1,16 @@
+
+# Python / Node / Env
+__pycache__/
+*.pyc
+node_modules/
+.env
+.mcp/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Logs
+logs/
+*.log

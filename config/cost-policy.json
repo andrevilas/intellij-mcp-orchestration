@@ -1,0 +1,26 @@
+{
+  "defaults": {
+    "MAX_TOKENS": 8000,
+    "TIMEOUT_S": 60,
+    "MAX_COST_USD": 0.5,
+    "MAX_STEPS": 6
+  },
+  "routes": {
+    "analysis": {
+      "server": "gemini",
+      "MAX_TOKENS": 4000
+    },
+    "longContext": {
+      "server": "glm46",
+      "MAX_TOKENS": 16000
+    },
+    "handsOnCoding": {
+      "server": "codex",
+      "MAX_TOKENS": 8000
+    },
+    "ultraLong": {
+      "server": "claude",
+      "MAX_TOKENS": 32000
+    }
+  }
+}
