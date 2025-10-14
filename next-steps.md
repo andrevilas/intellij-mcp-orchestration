@@ -35,27 +35,27 @@
 ---
 
 ## Sprint UI-1 — Dashboard & Servers
-- [ ] **TASK-UI-101 — Dashboard Executivo**
+- [x] **TASK-UI-101 — Dashboard Executivo**
   - KPIs de custo, tokens, latência, top modelos
   - Alertas visuais e heatmap Recharts
   - **Artefatos:** `app/src/pages/Dashboard.tsx`, `components/KpiCard.tsx`
 
-- [ ] **TASK-UI-102 — Servers 2.0**
+- [x] **TASK-UI-102 — Servers 2.0**
   - Status UP/DOWN, start/stop/restart, log tail, uptime
   - **Artefatos:** `app/src/pages/Servers.tsx`, `components/ServerActions.tsx`
 
-- [ ] **TASK-UI-103 — Keys 2.0**
+- [x] **TASK-UI-103 — Keys 2.0**
   - Tela de chaves com teste de conectividade
   - **Artefatos:** `app/src/pages/Keys.tsx`
 
 ---
 
 ## Sprint UI-2 — Policies & Routing
-- [ ] **TASK-UI-201 — Policies 2.0**
+- [x] **TASK-UI-201 — Policies 2.0**
   - Templates (Economy/Balanced/Turbo), rollback
   - **Artefatos:** `pages/Policies.tsx`, `components/PolicyTemplatePicker.tsx`
 
-- [ ] **TASK-UI-202 — Routing Lab**
+- [x] **TASK-UI-202 — Routing Lab**
   - Simulador “what-if” com estimativa de custo
   - **Artefatos:** `pages/Routing.tsx`
 
