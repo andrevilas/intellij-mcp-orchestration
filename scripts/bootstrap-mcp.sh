@@ -132,6 +132,37 @@ install_lightweight_sdks() {
   ok "SDKs levinhos ok"
 }
 
+install_glm46_mcp_server() {
+  info "Instalando glm46-mcp-server…"
+  local repo_root package_path
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+  package_path="${repo_root}/wrappers/glm46-mcp-server"
+  if command -v pipx >/dev/null 2>&1; then
+    pipx install --force "$package_path" >/dev/null 2>&1 || {
+      warn "pipx install falhou, tentando via pip --user"
+      python3 -m pip install --user --upgrade "$package_path"
+    }
+  else
+    python3 -m pip install --user --upgrade "$package_path"
+  fi
+  ok "glm46-mcp-server disponível (glm46-mcp-server --stdio)"
+}
+
+sync_cost_policy() {
+  local repo_root src dest
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+  src="${repo_root}/config/cost-policy.json"
+  dest="${MCP_HOME}/cost-policy.json"
+  if [ -f "$src" ]; then
+    if [ ! -f "$dest" ] || ! cmp -s "$src" "$dest"; then
+      cp "$src" "$dest"
+      ok "cost-policy sincronizada em ${dest}"
+    else
+      ok "cost-policy já atualizada"
+    fi
+  fi
+}
+
 write_wrapper() {
   local name="$1" body="$2" path="${BIN_DIR}/${name}"
   printf '%s\n' "$body" > "$path"; chmod +x "$path"; echo "[Wrapper] ${path}"
@@ -179,12 +210,11 @@ ${ENV_EXPORT}
 [ -z \"${ZHIPU_API_KEY:-}\" ] && { echo '[ERROR] Configure ZHIPU_API_KEY em ~/.mcp/.env'; exit 1; }
 # Procura um servidor MCP local para GLM-4.6 (placeholder)
 if command -v glm46-mcp-server >/dev/null 2>&1; then
-  exec glm46-mcp-server --stdio --api-key \"${ZHIPU_API_KEY}\"
+  exec glm46-mcp-server --stdio
 elif command -v zhipu-mcp-server >/dev/null 2>&1; then
   exec zhipu-mcp-server --stdio --api-key \"${ZHIPU_API_KEY}\"
 else
-  echo '[ERROR] Nenhum servidor MCP para GLM-4.6 encontrado.'
-  echo '        Forneça um server stdio/http (wrapper Node/Python) que chame a API GLM-4.6 e atualize este wrapper.'
+  echo '[ERROR] glm46-mcp-server ausente. Rode bash scripts/bootstrap-mcp.sh para provisionar.'
   exit 2
 fi
 "
@@ -206,7 +236,36 @@ smoke_tests() {
   echo "[Smoke] Testando chamadas…"
   ~/.local/bin/gemini-mcp --help >/dev/null 2>&1 || echo "[Warn] gemini-mcp ainda depende do fastmcp real."
   ~/.local/bin/codex-mcp --help >/dev/null 2>&1 || echo "[Warn] codex-mcp requer CLI do Codex/OpenAI MCP."
-  ~/.local/bin/glm46-mcp --help >/dev/null 2>&1 || echo "[Warn] glm46-mcp requer server MCP p/ GLM‑4.6."
+  if command -v glm46-mcp-server >/dev/null 2>&1; then
+    local payload response
+    if [ -f "$HOME/.mcp/.env" ]; then
+      set -a
+      # shellcheck disable=SC1090
+      . "$HOME/.mcp/.env"
+      set +a
+    fi
+    payload="$(python3 - <<'PY'
+import json
+import sys
+
+def frame(obj):
+    body = json.dumps(obj)
+    return f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}"
+
+sys.stdout.write(frame({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}))
+sys.stdout.write(frame({"jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": {}}))
+PY
+)"
+    response=$(printf "%s" "$payload" | glm46-mcp-server --stdio | head -n 6 || true)
+    if echo "$response" | grep -q 'glm46-mcp-server'; then
+      echo "[OK] glm46-mcp-server handshake ok"
+    else
+      echo "[Warn] glm46-mcp-server handshake não confirmou."; echo "$response"
+    fi
+  else
+    echo "[Warn] glm46-mcp-server ausente."
+  fi
+  ~/.local/bin/glm46-mcp --help >/dev/null 2>&1 || echo "[Warn] glm46-mcp wrapper não executou." 
   echo "[Smoke] OK (invocação)"
 }
 
@@ -233,6 +292,8 @@ main() {
   preflight
   ensure_env
   install_lightweight_sdks
+  install_glm46_mcp_server
+  sync_cost_policy
   generate_wrappers
   smoke_tests
   post_guidance
