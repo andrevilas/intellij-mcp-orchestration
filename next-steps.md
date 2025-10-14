@@ -1,96 +1,145 @@
-# MCP Console — Next Steps
+# MCP Console — Next Steps (Node + Vite)
+**Status do plano:** atualizado
+**Missão:** console unificado para **gerenciar MCP servers**, **chaves/policies**, e **FinOps** com foco **custo/benefício** e **DX**.
 
-Este roteiro consolida as atividades planejadas para o Console MCP e define o fluxo de trabalho esperado para cada entrega.
+## North Star & KPIs
+- **Lead time por PR**: -40% (30 dias)
+- **Custo por PR**: -25% vs. baseline
+- **Cobertura de testes**: +15 p.p. (60 dias)
+- **Intervenções humanas**: apenas validações/merge
 
-## Roadmap de Tarefas
+---
 
+## Roadmap de Tarefas (Visão Macro)
+### Já concluídas
 - [x] **TASK-OPS-001 — Criar monorepo ou diretório dual (`/app` e `/server`)**
 - [x] **TASK-OPS-002 — Definir stack do frontend e bootstrap inicial**
-- [x] **TASK-OPS-003 — Prototipar API do Console MCP Server**
-- [x] **TASK-OPS-004 — Integração inicial Console ↔️ MCP servers existentes**
+- [x] **TASK-OPS-003 — Prototipar API mínima do Console MCP Server**
+- [x] **TASK-OPS-004 — Integração inicial Console ↔ MCP servers existentes**
 
-### TASK-OPS-001 — Criar monorepo ou diretório dual (`/app` e `/server`)
+### Pendentes (principais trilhas)
+- **Frontend/UI (Sprint UI-1 a UI-4)**
+- **Backend/API (Sprint BE-1 a BE-3)**
+- **Policies & Routing (Sprint PR-1)**
+- **Observabilidade & FinOps (Sprint FO-1 a FO-2)**
+- **Operações/DevEx (Sprint OPS-2 a OPS-4)**
 
-**Objetivo**
+---
 
-Preparar a estrutura do repositório para acomodar, lado a lado, os componentes de aplicação (`app/`) e serviços (`server/`), evitando refatorações futuras quando o desenvolvimento da interface e do backend avançarem.
+## Convenções (para Codex e equipe)
+- **Branch:** `feat/<TASK_ID>-slug-curto`
+- **Commits:** prefixo `TASK_ID`
+- **PR:** descrição com prints/logs
+- **Checklist:** marcar `[x]` neste arquivo ao concluir
 
-**Passos sugeridos**
+---
 
-1. Criar os diretórios `app/` e `server/` na raiz do repositório.
-2. Adicionar arquivos de documentação mínima explicando o propósito de cada diretório.
-3. Atualizar o roteiro (`next-steps.md`) marcando a tarefa como concluída e mantendo o contexto para as próximas atividades.
+## Sprint UI-1 — Dashboard & Servers
+- [ ] **TASK-UI-101 — Dashboard Executivo**
+  - KPIs de custo, tokens, latência, top modelos
+  - Alertas visuais e heatmap Recharts
+  - **Artefatos:** `app/src/pages/Dashboard.tsx`, `components/KpiCard.tsx`
 
-**Definition of Done (DoD)**
+- [ ] **TASK-UI-102 — Servers 2.0**
+  - Status UP/DOWN, start/stop/restart, log tail, uptime
+  - **Artefatos:** `app/src/pages/Servers.tsx`, `components/ServerActions.tsx`
 
-- Estrutura de diretórios `app/` e `server/` versionada.
-- Documentação básica em cada diretório descrevendo o uso planejado.
-- `next-steps.md` atualizado com a tarefa marcada como concluída e roadmap preservado.
+- [ ] **TASK-UI-103 — Keys 2.0**
+  - Tela de chaves com teste de conectividade
+  - **Artefatos:** `app/src/pages/Keys.tsx`
 
-### TASK-OPS-002 — Definir stack do frontend e bootstrap inicial
+---
 
-**Objetivo**
+## Sprint UI-2 — Policies & Routing
+- [ ] **TASK-UI-201 — Policies 2.0**
+  - Templates (Economy/Balanced/Turbo), rollback
+  - **Artefatos:** `pages/Policies.tsx`, `components/PolicyTemplatePicker.tsx`
 
-Selecionar a stack do Console MCP frontend, instalar o tooling base e garantir que o projeto possa ser iniciado localmente
-com comandos padronizados.
+- [ ] **TASK-UI-202 — Routing Lab**
+  - Simulador “what-if” com estimativa de custo
+  - **Artefatos:** `pages/Routing.tsx`
 
-**Passos sugeridos**
+---
 
-1. Escolher framework/build tool (ex.: Vite + React + TypeScript) alinhado ao foco SPA.
-2. Versionar `package.json`, configs do bundler e landing page inicial em `app/`.
-3. Documentar scripts de execução e requisitos mínimos (Node/npm) no `README` do diretório e no README principal.
+## Sprint UI-3 — FinOps
+- [ ] **TASK-UI-301 — Séries temporais e filtros**
+  - Gráficos, filtros por período/server, export CSV
+- [ ] **TASK-UI-302 — Pareto & Drill-down**
+  - Pareto de custo por modelo/rota + detalhe de runs
 
-**Definition of Done (DoD)**
+---
 
-- `app/` com dependências e scripts (`npm run dev/build/preview`) funcionando.
-- Código-fonte inicial (`src/`) exibindo landing page da Console MCP.
-- Documentação atualizada refletindo a stack escolhida e instruções de uso.
+## Sprint UI-4 — UX/A11y
+- [ ] **TASK-UI-401 — Command Palette**
+- [ ] **TASK-UI-402 — Notifications**
+- [ ] **TASK-UI-403 — A11y & Keyboard-first**
 
-### TASK-OPS-003 — Prototipar API do Console MCP Server
+---
 
-**Objetivo**
+## Sprint BE-1 — Backend Base
+- [ ] **TASK-BE-101 — Secrets**
+- [ ] **TASK-BE-102 — SQLite + migrations**
+- [ ] **TASK-BE-103 — MCP Servers CRUD**
+- [ ] **TASK-BE-104 — Supervisor de processos**
 
-Fornecer um backend mínimo para o Console MCP capaz de listar MCP servers conhecidos e
-iniciar sessões lógicas em memória, preparando o terreno para orquestração real.
+---
 
-**Passos sugeridos**
+## Sprint BE-2 — Policies & Routing
+- [ ] **TASK-BE-201 — Cost Policy CRUD**
+- [ ] **TASK-BE-202 — Price Table**
+- [ ] **TASK-BE-203 — Routing Simulator**
 
-1. Selecionar framework HTTP (FastAPI recomendado) e estruturar `server/` como pacote instalável.
-2. Ler manifest de provedores (ex.: `config/console-mcp/servers.example.json`) e expor
-   endpoints REST para health check, listagem e criação de sessões.
-3. Publicar entrypoints (`console-mcp-server`, `console-mcp-server-dev`) e documentar execução local.
-4. Atualizar README/roadmap com instruções de uso e checklist da tarefa.
+---
 
-**Definition of Done (DoD)**
+## Sprint BE-3 — Observabilidade
+- [ ] **TASK-BE-301 — Ingestão JSONL**
+- [ ] **TASK-BE-302 — Métricas agregadas**
+- [ ] **TASK-BE-303 — Export CSV/HTML**
 
-- FastAPI (ou equivalente) rodando com endpoints `/api/v1/healthz`, `/providers`, `/sessions`.
-- Manifesto de provedores versionado e carregado pelo backend.
-- Entry points disponíveis via `pyproject.toml` com instruções claras no README.
-- `next-steps.md` atualizado marcando a tarefa como concluída.
+---
 
-### TASK-OPS-004 — Integração inicial Console ↔️ MCP servers existentes
+## Sprint PR-1 — Guardrails
+- [ ] **TASK-PR-101 — Templates de política**
+- [ ] **TASK-PR-102 — Overrides por rota/projeto**
+- [ ] **TASK-PR-103 — Dry-run de custo**
 
-**Objetivo**
+---
 
-Conectar o frontend ao backend prototipado, habilitando descoberta de provedores e teste de provisionamento.
+## Sprint FO-1 — Telemetria
+- [ ] **TASK-FO-101 — Modelo de log unificado**
+- [ ] **TASK-FO-102 — Alertas básicos**
 
-**Passos sugeridos**
+## Sprint FO-2 — FinOps+
+- [ ] **TASK-FO-201 — Pareto e hotspots**
+- [ ] **TASK-FO-202 — Relatórios por sprint/PR**
 
-1. Criar client HTTP no frontend para consumir `/api/v1/providers`.
-2. Exibir lista e detalhes dos provedores na UI (estado e filtro básico).
-3. Invocar `/providers/{id}/sessions` a partir de interações da interface e apresentar feedback.
-4. Ajustar documentação ensinando a executar app + server em paralelo.
+---
 
-**Definition of Done (DoD)**
+## Sprint OPS-2 — DX & Automação
+- [ ] **TASK-OPS-205 — Script `dev:all`**
+- [ ] **TASK-OPS-206 — Make targets e Doctor**
+- [ ] **TASK-OPS-207 — CI básico**
 
-- Frontend consome API local e renderiza provedores.
-- Ações de provisionamento registram sessão (mock) e retornam mensagem ao usuário.
-- Docs atualizadas com fluxo completo (app + server).
+## Sprint OPS-3 — Segurança
+- [ ] **TASK-OPS-301 — Segredos**
+- [ ] **TASK-OPS-302 — Operações seguras**
 
-## Instruções para o Agente (Codex)
+## Sprint OPS-4 — Packaging
+- [ ] **TASK-OPS-401 — Build local**
+- [ ] **TASK-OPS-402 — Electron (opcional)**
 
-1. Sempre iniciar o trabalho criando um branch com o padrão `feat/<TASK_ID>-<slug-curto>` a partir da `main`.
-2. Implementar a tarefa seguindo os passos e o DoD da seção correspondente.
-3. Ao finalizar, atualizar este arquivo marcando a checkbox da tarefa entregue.
-4. Commits devem referenciar explicitamente o `TASK_ID` na mensagem (ex.: `TASK-OPS-001: ...`).
-5. Após os testes relevantes, abrir um PR seguindo o template padrão e anexar evidências quando aplicável.
+---
+
+## Critérios de Aceite
+- Funcionar com `pnpm i && pnpm -r dev`
+- MCP servers start/stop/health OK
+- Policies aplicáveis e simulador ativo
+- FinOps exportável
+- Zero segredos em git
+
+---
+
+## Dependências
+- Wrappers MCP: `~/.local/bin/*-mcp`
+- Chaves: `~/.mcp/.env` (600) + keytar
+- Logs: `~/.mcp/logs/*.jsonl`
