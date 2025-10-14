@@ -351,6 +351,76 @@ describe('App provider orchestration flow', () => {
     await screen.findByRole('heading', { name: /Simulador “what-if” de roteamento/i });
   });
 
+  it('exibe a central de notificações e permite triagem rápida', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+
+    const notificationsButton = await screen.findByRole('button', {
+      name: /Abrir central de notificações/i,
+    });
+    expect(notificationsButton).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(notificationsButton);
+
+    const notificationCenter = await screen.findByRole('dialog', {
+      name: 'Status operacionais e FinOps',
+    });
+
+    expect(notificationsButton).toHaveAttribute('aria-expanded', 'true');
+
+    const notificationList = within(notificationCenter).getByRole('list', {
+      name: 'Lista de notificações',
+    });
+    const allNotifications = within(notificationList).getAllByRole('listitem');
+    expect(allNotifications.length).toBeGreaterThan(1);
+    const totalBefore = allNotifications.length;
+
+    const firstNotification = allNotifications[0];
+    const firstTitle = within(firstNotification).getByRole('heading', { level: 3 }).textContent ?? '';
+    const toggleButton = within(firstNotification).getByRole('button', { name: 'Marcar como lida' });
+    await user.click(toggleButton);
+    await waitFor(() => {
+      expect(toggleButton).toHaveTextContent('Marcar como não lida');
+    });
+
+    const unreadFilter = within(notificationCenter).getByRole('radio', { name: /Não lidas/ });
+    await user.click(unreadFilter);
+
+    const unreadNotifications = within(notificationList).getAllByRole('listitem');
+    expect(unreadNotifications.length).toBeLessThan(totalBefore);
+    unreadNotifications.forEach((notification) => {
+      expect(within(notification).queryByRole('heading', { level: 3, name: firstTitle })).toBeNull();
+    });
+
+    const markAllButton = within(notificationCenter).getByRole('button', { name: 'Marcar tudo como lido' });
+    await user.click(markAllButton);
+    await waitFor(() => {
+      expect(markAllButton).toBeDisabled();
+    });
+
+    await within(notificationList).findByText('Nenhuma notificação encontrada para o filtro selecionado.');
+
+    const summary = within(notificationCenter).getByText(/Nenhuma notificação pendente/i);
+    expect(summary).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(notificationsButton).toHaveAccessibleName(/sem pendências/i);
+    });
+
+    const closeButton = within(notificationCenter).getByRole('button', { name: 'Fechar' });
+    await user.click(closeButton);
+
+    await waitFor(() => {
+      expect(notificationsButton).toHaveAttribute('aria-expanded', 'false');
+    });
+  });
+
   it('permite aplicar templates de política e executar rollback', async () => {
     const user = userEvent.setup();
 

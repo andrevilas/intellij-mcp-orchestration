@@ -71,7 +71,7 @@
 
 ## Sprint UI-4 — UX/A11y
 - [x] **TASK-UI-401 — Command Palette**
-- [ ] **TASK-UI-402 — Notifications**
+- [x] **TASK-UI-402 — Notifications**
 - [ ] **TASK-UI-403 — A11y & Keyboard-first**
 
 ---
