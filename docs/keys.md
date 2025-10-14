@@ -13,3 +13,5 @@ Use o script:
 ```bash
 bash scripts/get-keys.sh
 ```
+
+> Após salvar as chaves, rode `make doctor` para validar handshake do `glm46-mcp-server`.
