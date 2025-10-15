@@ -1,0 +1,137 @@
+@use 'sass:map';
+@use './_tokens' as tokens;
+@use './_themes';
+
+$palette: tokens.$color-palette;
+$primary-color: map.get($palette, 'accent-primary');
+$secondary-color: map.get($palette, 'neutral-500');
+$success-color: map.get($palette, 'accent-success');
+$danger-color: map.get($palette, 'accent-danger');
+$warning-color: map.get($palette, 'accent-warning');
+$info-color: map.get($palette, 'accent-info');
+$body-bg-color: map.get($palette, 'neutral-0');
+$body-text-color: map.get($palette, 'neutral-800');
+$heading-color: map.get($palette, 'neutral-900');
+$surface-color: map.get($palette, 'neutral-50');
+$border-subtle-color: map.get($palette, 'neutral-100');
+$border-strong-color: map.get($palette, 'neutral-200');
+
+$primary: $primary-color;
+$secondary: $secondary-color;
+$success: $success-color;
+$danger: $danger-color;
+$warning: $warning-color;
+$info: $info-color;
+
+$font-family-sans-serif: var(--font-family-sans);
+$body-font-family: var(--font-family-sans);
+$body-bg: $body-bg-color;
+$body-color: $body-text-color;
+$link-color: $primary-color;
+$link-hover-color: map.get($palette, 'accent-secondary');
+$headings-color: $heading-color;
+$input-bg: $surface-color;
+$input-color: $body-text-color;
+$input-border-color: $border-subtle-color;
+$input-focus-border-color: $primary-color;
+$input-focus-box-shadow: var(--focus-ring);
+$border-radius: var(--radius-md);
+$border-radius-lg: var(--radius-lg);
+$border-radius-sm: var(--radius-sm);
+$border-radius-pill: var(--radius-pill);
+$btn-border-radius: var(--radius-md);
+$btn-border-radius-lg: var(--radius-lg);
+$btn-border-radius-sm: var(--radius-sm);
+$btn-font-weight: 600;
+$btn-padding-y: 0.5rem;
+$btn-padding-x: 1rem;
+$enable-shadows: true;
+$box-shadow: var(--shadow-sm);
+$box-shadow-lg: var(--shadow-lg);
+$box-shadow-sm: var(--shadow-sm);
+$card-bg: $surface-color;
+$card-border-color: $border-subtle-color;
+$modal-content-bg: $surface-color;
+$modal-content-border-color: $border-strong-color;
+$navbar-dark-color: rgba(255, 255, 255, 0.85);
+$navbar-dark-hover-color: #ffffff;
+$navbar-light-color: var(--color-text-default);
+$navbar-light-hover-color: var(--color-heading);
+$spinner-width: 1.25rem;
+$spinner-height: 1.25rem;
+$spinner-border-width: 0.2em;
+$input-btn-focus-box-shadow: var(--focus-ring);
+$tooltip-color: $surface-color;
+$tooltip-bg: $body-text-color;
+$tooltip-opacity: 0.94;
+$tooltip-arrow-color: $body-text-color;
+
+@import 'bootstrap/scss/functions';
+@import 'bootstrap/scss/variables';
+@import 'bootstrap/scss/maps';
+@import 'bootstrap/scss/mixins';
+@import 'bootstrap/scss/root';
+@import 'bootstrap/scss/reboot';
+@import 'bootstrap/scss/grid';
+@import 'bootstrap/scss/utilities';
+@import 'bootstrap/scss/buttons';
+@import 'bootstrap/scss/nav';
+@import 'bootstrap/scss/navbar';
+@import 'bootstrap/scss/dropdown';
+@import 'bootstrap/scss/forms';
+@import 'bootstrap/scss/card';
+@import 'bootstrap/scss/modal';
+@import 'bootstrap/scss/toasts';
+@import 'bootstrap/scss/alert';
+@import 'bootstrap/scss/spinners';
+@import 'bootstrap/scss/utilities/api';
+
+body {
+  font-family: var(--font-family-sans);
+  background-color: var(--color-bg-body);
+  color: var(--color-text-default);
+}
+
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.sidebar {
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-dark .dropdown-menu {
+  background-color: var(--color-bg-surface);
+  border-color: var(--color-border-strong);
+}
+
+.theme-dark .dropdown-item {
+  color: var(--color-text-default);
+}
+
+.theme-dark .dropdown-item:hover,
+.theme-dark .dropdown-item:focus {
+  background-color: rgba(99, 102, 241, 0.16);
+}
+
+.theme-dark .form-control,
+.theme-dark .form-select,
+.theme-dark .form-check-input {
+  background-color: rgba(15, 23, 42, 0.65);
+  color: var(--color-text-default);
+  border-color: var(--color-border-strong);
+}
+
+.theme-dark .form-control:focus,
+.theme-dark .form-select:focus,
+.theme-dark .form-check-input:focus {
+  border-color: var(--color-accent);
+}
+
+.theme-dark .card,
+.theme-dark .modal-content,
+.theme-dark .toast {
+  background-color: rgba(15, 23, 42, 0.92);
+  color: var(--color-text-default);
+}

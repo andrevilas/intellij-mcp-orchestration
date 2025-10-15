@@ -39,15 +39,15 @@
 ## Sprints (planejamento macro)
 
 ### M1 — Fundamentos & Shell (UI) · 1,5–2,0 semanas
-- Setup Bootstrap/FA com **SCSS seletivo** (TASK-UI-BS-000)
-- **Tokens & Temas Light/Dark** (TASK-UI-BS-001)
-- AppShell (Navbar+Sidebar) e Navegação (Breadcrumbs/Pagination) (TASK-UI-SH-010/ UI-NAV-011)
+- [x] Setup Bootstrap/FA com **SCSS seletivo** (TASK-UI-BS-000)
+- [x] **Tokens & Temas Light/Dark** (TASK-UI-BS-001)
+- [x] AppShell (Navbar+Sidebar) e Navegação (Breadcrumbs/Pagination) (TASK-UI-SH-010/ UI-NAV-011)
 
 ### M2 — Ações & Feedback (UI) · 1,0–1,5 semanas
-- Buttons & Groups (TASK-UI-ACT-020)
-- Dropdowns/Tooltips (TASK-UI-ACT-021)
-- Alerts/Toasts (TASK-UI-FB-022)
-- Modals (Confirm/Form) (TASK-UI-MOD-023)
+- [x] Buttons & Groups (TASK-UI-ACT-020)
+- [x] Dropdowns/Tooltips (TASK-UI-ACT-021)
+- [ ] Alerts/Toasts (TASK-UI-FB-022)
+- [ ] Modals (Confirm/Form) (TASK-UI-MOD-023)
 
 ### M3 — Dados & Estruturas (UI) · 1,5 semanas
 - Cards KPI/Lista/Detalhe (TASK-UI-DATA-030)

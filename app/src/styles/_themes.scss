@@ -1,0 +1,82 @@
+@use 'sass:map';
+@use './_tokens' as tokens;
+
+$palette: tokens.$color-palette;
+
+@function color($name) {
+  @return map.get($palette, $name);
+}
+
+:root {
+  color-scheme: light;
+  --color-bg-body: #{color('neutral-0')};
+  --color-bg-surface: #{color('neutral-50')};
+  --color-border-subtle: #{color('neutral-100')};
+  --color-border-strong: #{color('neutral-200')};
+  --color-text-default: #{color('neutral-800')};
+  --color-text-subtle: #{color('neutral-500')};
+  --color-heading: #{color('neutral-900')};
+  --color-accent: #{color('accent-primary')};
+  --color-accent-strong: #{color('accent-secondary')};
+  --color-success: #{color('accent-success')};
+  --color-danger: #{color('accent-danger')};
+  --color-warning: #{color('accent-warning')};
+  --color-info: #{color('accent-info')};
+  --focus-ring: 0 0 0 0.25rem #{color('accent-focus')};
+
+  --bs-body-font-family: var(--font-family-sans);
+  --bs-body-color: var(--color-text-default);
+  --bs-body-bg: var(--color-bg-body);
+  --bs-border-color: var(--color-border-subtle);
+  --bs-heading-color: var(--color-heading);
+  --bs-link-color: var(--color-accent);
+  --bs-link-hover-color: var(--color-accent-strong);
+  --bs-focus-ring-color: #{color('accent-focus')};
+  --bs-code-color: var(--color-accent);
+  --bs-primary: #{color('accent-primary')};
+  --bs-secondary: #{color('neutral-500')};
+  --bs-success: #{color('accent-success')};
+  --bs-danger: #{color('accent-danger')};
+  --bs-warning: #{color('accent-warning')};
+  --bs-info: #{color('accent-info')};
+}
+
+.theme-dark {
+  color-scheme: dark;
+  --color-bg-body: #{color('neutral-900')};
+  --color-bg-surface: #{color('neutral-800')};
+  --color-border-subtle: rgba(148, 163, 184, 0.24);
+  --color-border-strong: rgba(148, 163, 184, 0.45);
+  --color-text-default: #{color('neutral-0')};
+  --color-text-subtle: rgba(226, 232, 240, 0.72);
+  --color-heading: #ffffff;
+  --color-accent: #{color('accent-secondary')};
+  --color-accent-strong: #{color('accent-primary')};
+  --color-success: #{color('accent-success')};
+  --color-danger: #{color('accent-danger')};
+  --color-warning: #fbbf24;
+  --color-info: #{color('accent-info')};
+  --focus-ring: 0 0 0 0.25rem #{color('accent-focus-dark')};
+
+  --bs-body-color: var(--color-text-default);
+  --bs-body-bg: var(--color-bg-body);
+  --bs-border-color: var(--color-border-subtle);
+  --bs-heading-color: var(--color-heading);
+  --bs-link-color: var(--color-accent);
+  --bs-link-hover-color: var(--color-accent-strong);
+  --bs-focus-ring-color: #{color('accent-focus-dark')};
+}
+
+body {
+  background-color: var(--color-bg-body);
+  color: var(--color-text-default);
+  transition: background-color 0.24s ease, color 0.24s ease;
+}
+
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

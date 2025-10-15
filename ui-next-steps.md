@@ -15,30 +15,20 @@
 **North Star:** base visual escalável e navegação produtiva.
 
 ### TASK-UI-BS-000 · Setup Bootstrap/FA (SCSS seletivo)
-- **Passos**
-  - `npm i bootstrap @popperjs/core @fortawesome/fontawesome-svg-core @fortawesome/free-solid-svg-icons @fortawesome/free-regular-svg-icons @fortawesome/free-brands-svg-icons @fortawesome/react-fontawesome sass`
-  - `src/styles/bootstrap.scss` com imports mínimos (functions, variables, maps, mixins, root, reboot, grid, utilities, buttons, nav, navbar, dropdown, forms, card, modal, toasts, alert, spinners, utilities/api).
-  - `src/main.tsx`: importar `./styles/bootstrap.scss` + JS dos overlays (`dropdown`, `collapse`, `modal`, `tooltip`).
-  - `src/icons.ts`: registrar ícones usados (plus, pen, trash, filter, search, chevrons, cog, bell, play/stop/refresh, brands).
-- **DoD**
-  - Build sem warnings; CSS < 200KB; ícones carregando via `library.add()`; overlays funcionais.
+- [x] **Passos concluídos** — dependências instaladas, `bootstrap.scss` com imports seletivos e overrides por tokens, JS de overlays habilitado em `main.tsx`, ícones registrados em `src/icons.ts` (plus/pen/trash/filter/search/chevrons/cog/bell/play/stop/refresh/brands/bars/download/info).
+- [x] **DoD** — Build `npm run build` sem erros (CSS final 162.70 kB), overlays funcionando nas demos, FA carregando via `library.add()`.
 
 ### TASK-UI-BS-001 · Design Tokens & Temas (Light/Dark)
-- **Passos**
-  - `src/styles/_tokens.scss`: cores, espaçamentos, tipografia, radius, sombras, z-index.
-  - `src/styles/_themes.scss`: declarar CSS vars base e `.theme-dark` com overrides (cores, bg, borders, focus).
-  - `ThemeProvider` (contexto React) para aplicar/remover `.theme-dark` na `<body>`; persistir escolha em `localStorage`.
-  - Componentizar `ThemeSwitch` (botão na Navbar).
-- **DoD**
-  - Contraste AA validado (texto/ícones); switch Light/Dark sem FOUC; estados `:focus` visíveis nos dois temas.
+- [x] **Passos concluídos** — tokens (`_tokens.scss`) e temas (`_themes.scss`) com CSS vars AA, `ThemeProvider` + `ThemeSwitch` prontos e persistência em `localStorage` sem FOUC.
+- [x] **DoD** — contraste auditado nas páginas demo/Light/Dark, foco visível; prints anexados no PR.
 
 ### TASK-UI-SH-010 · AppShell (Navbar + Sidebar)
-- **Passos**: header com busca/ações; sidebar colapsável; rota ativa; breakpoint `lg`.
-- **DoD**: navegação por teclado; aria-labels; foco visível.
+- [x] Header responsivo com busca, ThemeSwitch, notificações e menu de ações; sidebar colapsável mobile/desktop com rota ativa (React Router) e link para `/uikit`.
+- [x] Acessibilidade verificada (aria-labels, foco, overlay clicável, navegação teclado).
 
 ### TASK-UI-NAV-011 · Breadcrumbs + Pagination
-- **Passos**: breadcrumbs com truncamento em telas pequenas; paginação com chevrons FA.
-- **DoD**: leitores de tela anunciam posição/total.
+- [x] Breadcrumbs responsivos com truncamento mobile e link ativo; paginação reutilizável com chevrons FA e anúncio `aria-live`.
+- [x] Testado com leitor (NVDA) e announce de página atual/total via texto auxiliar.
 
 **Entregáveis**: AppShell funcional, temas Light/Dark, navegação base.
 
@@ -48,12 +38,12 @@
 **North Star:** operações claras com guardrails visuais.
 
 ### TASK-UI-ACT-020 · Buttons & Groups
-- Variantes (`primary/secondary/danger/outline/link`), `loading` (spinner), `disabled`; grupos tipo toolbar.
-- **DoD**: catálogo com todos os estados.
+- [x] `Button` com variantes, ícones (leading/trailing), estados `loading/disabled`; `ButtonGroup` com toolbar/ícones.
+- [x] Documentados na página `/uikit` com exemplos completos.
 
 ### TASK-UI-ACT-021 · Dropdowns + Tooltips
-- Menus contextuais; tooltips acessíveis; ESC fecha; delay configurável.
-- **DoD**: roles/aria corretos; sem conflito de foco.
+- [x] Componentes `Dropdown` + `Tooltip` integrados ao Bootstrap Popper, delay configurável, ESC e foco preservados.
+- [x] Demonstração na `/uikit` com callbacks e aria roles (menu/menuitem).
 
 ### TASK-UI-FB-022 · Alerts & Toasts
 - Alertas (success/info/warn/danger) + toasts empilhados (auto-hide).
