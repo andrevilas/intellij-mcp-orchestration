@@ -35,52 +35,52 @@
 ---
 
 ## Sprint UI-1 — Dashboard & Servers
-- [ ] **TASK-UI-101 — Dashboard Executivo**
+- [x] **TASK-UI-101 — Dashboard Executivo**
   - KPIs de custo, tokens, latência, top modelos
   - Alertas visuais e heatmap Recharts
   - **Artefatos:** `app/src/pages/Dashboard.tsx`, `components/KpiCard.tsx`
 
-- [ ] **TASK-UI-102 — Servers 2.0**
+- [x] **TASK-UI-102 — Servers 2.0**
   - Status UP/DOWN, start/stop/restart, log tail, uptime
   - **Artefatos:** `app/src/pages/Servers.tsx`, `components/ServerActions.tsx`
 
-- [ ] **TASK-UI-103 — Keys 2.0**
+- [x] **TASK-UI-103 — Keys 2.0**
   - Tela de chaves com teste de conectividade
   - **Artefatos:** `app/src/pages/Keys.tsx`
 
 ---
 
 ## Sprint UI-2 — Policies & Routing
-- [ ] **TASK-UI-201 — Policies 2.0**
+- [x] **TASK-UI-201 — Policies 2.0**
   - Templates (Economy/Balanced/Turbo), rollback
   - **Artefatos:** `pages/Policies.tsx`, `components/PolicyTemplatePicker.tsx`
 
-- [ ] **TASK-UI-202 — Routing Lab**
+- [x] **TASK-UI-202 — Routing Lab**
   - Simulador “what-if” com estimativa de custo
   - **Artefatos:** `pages/Routing.tsx`
 
 ---
 
 ## Sprint UI-3 — FinOps
-- [ ] **TASK-UI-301 — Séries temporais e filtros**
+- [x] **TASK-UI-301 — Séries temporais e filtros**
   - Gráficos, filtros por período/server, export CSV
-- [ ] **TASK-UI-302 — Pareto & Drill-down**
+- [x] **TASK-UI-302 — Pareto & Drill-down**
   - Pareto de custo por modelo/rota + detalhe de runs
 
 ---
 
 ## Sprint UI-4 — UX/A11y
-- [ ] **TASK-UI-401 — Command Palette**
-- [ ] **TASK-UI-402 — Notifications**
-- [ ] **TASK-UI-403 — A11y & Keyboard-first**
+- [x] **TASK-UI-401 — Command Palette**
+- [x] **TASK-UI-402 — Notifications**
+- [x] **TASK-UI-403 — A11y & Keyboard-first**
 
 ---
 
 ## Sprint BE-1 — Backend Base
-- [ ] **TASK-BE-101 — Secrets**
-- [ ] **TASK-BE-102 — SQLite + migrations**
-- [ ] **TASK-BE-103 — MCP Servers CRUD**
-- [ ] **TASK-BE-104 — Supervisor de processos**
+- [x] **TASK-BE-101 — Secrets**
+- [x] **TASK-BE-102 — SQLite + migrations**
+- [x] **TASK-BE-103 — MCP Servers CRUD**
+- [x] **TASK-BE-104 — Supervisor de processos**
 
 ---
 
