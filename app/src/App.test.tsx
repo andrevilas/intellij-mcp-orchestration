@@ -4,7 +4,7 @@ import type { Mock } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import App from './App';
+import App, { NOTIFICATION_READ_STATE_KEY } from './App';
 
 function createFetchResponse<T>(payload: T): Promise<Response> {
   return Promise.resolve({
@@ -85,6 +85,7 @@ describe('App provider orchestration flow', () => {
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
     console.error = originalConsoleError;
+    window.localStorage.clear();
   });
 
   it('lists providers and provisions a session on demand', async () => {
@@ -510,5 +511,64 @@ describe('App provider orchestration flow', () => {
 
     await screen.findByText('Rollback concluído para Equilíbrio.');
     await screen.findByRole('heading', { level: 2, name: 'Equilíbrio' });
+  });
+
+  it('persists notification read state across reloads', async () => {
+    const user = userEvent.setup();
+
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
+      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
+      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
+      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }));
+
+    let firstRender: ReturnType<typeof render> | undefined;
+    await act(async () => {
+      firstRender = render(<App />);
+      await Promise.resolve();
+    });
+
+    if (!firstRender) {
+      throw new Error('Failed to render component');
+    }
+
+    const notificationButton = await screen.findByRole('button', {
+      name: /Abrir central de notificações/i,
+    });
+    await user.click(notificationButton);
+
+    const markAllButton = await screen.findByRole('button', { name: 'Marcar tudo como lido' });
+    await user.click(markAllButton);
+
+    await waitFor(() => expect(markAllButton).toBeDisabled());
+
+    const storedState = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
+    expect(storedState).not.toBeNull();
+    const parsedState = JSON.parse(storedState!);
+    expect(Object.values(parsedState).some((value) => value === true)).toBe(true);
+
+    firstRender.unmount();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    const notificationButtonAfterReload = await screen.findByRole('button', {
+      name: /Abrir central de notificações/i,
+    });
+    await user.click(notificationButtonAfterReload);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Marcar tudo como lido' })).toBeDisabled(),
+    );
+
+    const toggleButtons = await screen.findAllByRole('button', {
+      name: 'Marcar como não lida',
+    });
+    expect(toggleButtons.length).toBeGreaterThan(0);
   });
 });
