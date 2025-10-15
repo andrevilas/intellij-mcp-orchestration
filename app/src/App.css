@@ -1363,6 +1363,35 @@ body {
   min-height: 1.5rem;
 }
 
+.key-card__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.key-edit-button {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.6rem 1.4rem;
+  background: rgba(15, 23, 42, 0.08);
+  color: #1f2937;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.key-edit-button:hover {
+  background: rgba(30, 64, 175, 0.16);
+  transform: translateY(-1px);
+}
+
+.key-edit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .key-test-button {
   align-self: flex-start;
   border: none;
@@ -1386,6 +1415,99 @@ body {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.key-form__label {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.key-form__input {
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.key-form__input:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.4);
+  outline-offset: 2px;
+}
+
+.key-form__hint {
+  margin: 0;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.key-form__error {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.key-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.key-form__primary {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.6rem 1.4rem;
+  background: #2563eb;
+  color: #f8fafc;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.key-form__primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.key-form__primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.key-remove-button {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.55rem 1.2rem;
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.key-remove-button:hover {
+  background: rgba(220, 38, 38, 0.22);
+  transform: translateY(-1px);
+}
+
+.key-remove-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .routing-lab {

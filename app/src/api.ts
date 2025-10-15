@@ -64,6 +64,22 @@ export interface SessionCreatePayload {
   client?: string;
 }
 
+export interface SecretMetadata {
+  provider_id: string;
+  has_secret: boolean;
+  updated_at?: string | null;
+}
+
+interface SecretsResponsePayload {
+  secrets: SecretMetadata[];
+}
+
+export interface SecretValue {
+  provider_id: string;
+  value: string;
+  updated_at: string;
+}
+
 const DEFAULT_API_BASE = '/api/v1';
 const API_BASE = (import.meta.env.VITE_CONSOLE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '');
 
@@ -81,7 +97,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(body || `Request failed with status ${response.status}`);
   }
 
-  return response.json() as Promise<T>;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 export async function fetchProviders(signal?: AbortSignal): Promise<ProviderSummary[]> {
@@ -92,6 +116,31 @@ export async function fetchProviders(signal?: AbortSignal): Promise<ProviderSumm
 export async function fetchSessions(signal?: AbortSignal): Promise<Session[]> {
   const data = await request<SessionsResponse>('/sessions', { signal });
   return data.sessions;
+}
+
+export async function fetchSecrets(signal?: AbortSignal): Promise<SecretMetadata[]> {
+  const data = await request<SecretsResponsePayload>('/secrets', { signal });
+  return data.secrets;
+}
+
+export async function readSecret(providerId: string, signal?: AbortSignal): Promise<SecretValue> {
+  return request<SecretValue>(`/secrets/${providerId}`, { signal });
+}
+
+export async function upsertSecret(
+  providerId: string,
+  value: string,
+  signal?: AbortSignal,
+): Promise<SecretValue> {
+  return request<SecretValue>(`/secrets/${providerId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value }),
+    signal,
+  });
+}
+
+export async function deleteSecret(providerId: string, signal?: AbortSignal): Promise<void> {
+  await request<void>(`/secrets/${providerId}`, { method: 'DELETE', signal });
 }
 
 export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<PolicyTemplate[]> {
