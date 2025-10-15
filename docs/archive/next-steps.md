@@ -1,4 +1,4 @@
-# MCP Console — Next Steps (Node + Vite)
+# Promenade Agent Hub — Next Steps (Node + Vite)
 **Status do plano:** atualizado
 **Missão:** console unificado para **gerenciar MCP servers**, **chaves/policies**, e **FinOps** com foco **custo/benefício** e **DX**.
 

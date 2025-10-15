@@ -566,7 +566,7 @@ function App() {
       </a>
       <header className="app-shell__header">
         <div>
-          <span className="app-shell__eyebrow">MCP Console</span>
+          <span className="app-shell__eyebrow">Promenade Agent Hub</span>
           <h1>Operações unificadas</h1>
         </div>
         <div className="app-shell__actions">
@@ -691,6 +691,9 @@ function App() {
           </section>
         )}
       </main>
+      <footer className="app-shell__footer">
+        © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
+      </footer>
       <NotificationCenter
         isOpen={isNotificationOpen}
         notifications={notifications}

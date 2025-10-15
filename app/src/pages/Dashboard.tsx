@@ -285,7 +285,7 @@ export function Dashboard({
   return (
     <main className="dashboard">
       <section className="dashboard__hero">
-        <h1>MCP Console · Dashboard Executivo</h1>
+        <h1>Promenade Agent Hub · Dashboard Executivo</h1>
         <p>
           Monitoramento unificado de custo, tokens e latência para servidores MCP roteados pela console. Dados são agregados dos
           provisionamentos recentes.

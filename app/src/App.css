@@ -39,6 +39,7 @@ body {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(14, 116, 144, 0.04));
   display: flex;
   flex-direction: column;
+  padding-bottom: 4.5rem;
 }
 
 .app-shell__header {
@@ -541,6 +542,21 @@ body {
 .app-shell__content {
   flex: 1;
   width: 100%;
+}
+
+.app-shell__footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  text-align: center;
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.2);
+  z-index: 900;
 }
 
 .keys {

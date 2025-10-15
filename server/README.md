@@ -1,4 +1,4 @@
-# MCP Console — Server API Prototype
+# Promenade Agent Hub — Server API Prototype
 
 Este diretório contém o **FastAPI** prototype para o Console MCP backend. Ele expõe endpoints leves que o frontend usa para
 descobrir provedores MCP e iniciar sessões lógicas em memória.
