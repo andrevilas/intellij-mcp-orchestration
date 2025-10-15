@@ -131,6 +131,61 @@ interface TelemetryHeatmapResponsePayload {
 
 interface TelemetryMetricsResponsePayload extends TelemetryMetrics {}
 
+export interface TelemetryTimeseriesPoint {
+  day: string;
+  provider_id: string;
+  run_count: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+  success_count: number;
+}
+
+interface TelemetryTimeseriesResponsePayload {
+  items: TelemetryTimeseriesPoint[];
+  next_cursor?: string | null;
+}
+
+export interface TelemetryRouteBreakdownEntry {
+  id: string;
+  provider_id: string;
+  provider_name: string;
+  route: string | null;
+  lane: 'economy' | 'balanced' | 'turbo';
+  run_count: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+  success_rate: number;
+}
+
+interface TelemetryParetoResponsePayload {
+  items: TelemetryRouteBreakdownEntry[];
+  next_cursor?: string | null;
+}
+
+export interface TelemetryRunEntry {
+  id: number;
+  provider_id: string;
+  provider_name: string;
+  route: string | null;
+  lane: 'economy' | 'balanced' | 'turbo' | null;
+  ts: string;
+  tokens_in: number;
+  tokens_out: number;
+  duration_ms: number;
+  status: string;
+  cost_usd: number;
+  metadata: Record<string, unknown>;
+}
+
+interface TelemetryRunsResponsePayload {
+  items: TelemetryRunEntry[];
+  next_cursor?: string | null;
+}
+
 export interface TelemetryMetricsFilters {
   start?: Date | string;
   end?: Date | string;
@@ -139,6 +194,20 @@ export interface TelemetryMetricsFilters {
 }
 
 export interface TelemetryHeatmapFilters extends TelemetryMetricsFilters {}
+
+export interface TelemetryTimeseriesFilters extends TelemetryMetricsFilters {
+  lane?: string;
+}
+
+export interface TelemetryParetoFilters extends TelemetryMetricsFilters {
+  lane?: string;
+}
+
+export interface TelemetryRunsFilters extends TelemetryMetricsFilters {
+  lane?: string;
+  limit?: number;
+  cursor?: string;
+}
 
 const DEFAULT_API_BASE = '/api/v1';
 const API_BASE = (import.meta.env.VITE_CONSOLE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '');
@@ -284,6 +353,48 @@ export async function fetchTelemetryHeatmap(
   });
   const data = await request<TelemetryHeatmapResponsePayload>(`/telemetry/heatmap${query}`, { signal });
   return data.buckets;
+}
+
+export async function fetchTelemetryTimeseries(
+  filters?: TelemetryTimeseriesFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryTimeseriesResponsePayload> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    lane: filters?.lane,
+  });
+  return request<TelemetryTimeseriesResponsePayload>(`/telemetry/timeseries${query}`, { signal });
+}
+
+export async function fetchTelemetryPareto(
+  filters?: TelemetryParetoFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryParetoResponsePayload> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    lane: filters?.lane,
+  });
+  return request<TelemetryParetoResponsePayload>(`/telemetry/pareto${query}`, { signal });
+}
+
+export async function fetchTelemetryRuns(
+  filters?: TelemetryRunsFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryRunsResponsePayload> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    lane: filters?.lane,
+    route: filters?.route,
+    limit: filters?.limit ? String(filters.limit) : undefined,
+    cursor: filters?.cursor,
+  });
+  return request<TelemetryRunsResponsePayload>(`/telemetry/runs${query}`, { signal });
 }
 
 export const apiBase = API_BASE;

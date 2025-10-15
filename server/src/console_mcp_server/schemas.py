@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import Enum
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -459,3 +459,70 @@ class TelemetryHeatmapResponse(BaseModel):
     """Envelope returned when requesting telemetry heatmap aggregates."""
 
     buckets: List[TelemetryHeatmapBucket]
+
+
+class TelemetryTimeseriesPoint(BaseModel):
+    """Aggregated metrics for a provider on a specific day."""
+
+    day: date
+    provider_id: str
+    run_count: int
+    tokens_in: int
+    tokens_out: int
+    cost_usd: float
+    avg_latency_ms: float
+    success_count: int
+
+
+class TelemetryTimeseriesResponse(BaseModel):
+    """Envelope returned when querying telemetry time series."""
+
+    items: List[TelemetryTimeseriesPoint]
+    next_cursor: Optional[str] = None
+
+
+class TelemetryRouteBreakdownEntry(BaseModel):
+    """Aggregated metrics grouped by provider and route."""
+
+    id: str
+    provider_id: str
+    provider_name: str
+    route: Optional[str] = None
+    lane: Literal["economy", "balanced", "turbo"]
+    run_count: int
+    tokens_in: int
+    tokens_out: int
+    cost_usd: float
+    avg_latency_ms: float
+    success_rate: float
+
+
+class TelemetryParetoResponse(BaseModel):
+    """Envelope returned for Pareto style route breakdowns."""
+
+    items: List[TelemetryRouteBreakdownEntry]
+    next_cursor: Optional[str] = None
+
+
+class TelemetryRunEntry(BaseModel):
+    """Individual telemetry executions suitable for drill-down tables."""
+
+    id: int
+    provider_id: str
+    provider_name: str
+    route: Optional[str] = None
+    lane: Optional[Literal["economy", "balanced", "turbo"]] = None
+    ts: datetime
+    tokens_in: int
+    tokens_out: int
+    duration_ms: int
+    status: str
+    cost_usd: float
+    metadata: Dict[str, Any]
+
+
+class TelemetryRunsResponse(BaseModel):
+    """Envelope returned when listing individual telemetry runs."""
+
+    items: List[TelemetryRunEntry]
+    next_cursor: Optional[str] = None

@@ -118,6 +118,98 @@ describe('App provider orchestration flow', () => {
       ],
     };
 
+    const timeseriesPayload = {
+      items: [
+        {
+          day: '2024-03-06',
+          provider_id: provider.id,
+          run_count: 2,
+          tokens_in: 1600,
+          tokens_out: 800,
+          cost_usd: 1.8,
+          avg_latency_ms: 910,
+          success_count: 1,
+        },
+        {
+          day: '2024-03-07',
+          provider_id: provider.id,
+          run_count: 1,
+          tokens_in: 900,
+          tokens_out: 400,
+          cost_usd: 0.95,
+          avg_latency_ms: 870,
+          success_count: 1,
+        },
+      ],
+      next_cursor: null,
+    };
+
+    const paretoPayload = {
+      items: [
+        {
+          id: `${provider.id}:default`,
+          provider_id: provider.id,
+          provider_name: provider.name,
+          route: 'default',
+          lane: 'balanced',
+          run_count: 3,
+          tokens_in: 2600,
+          tokens_out: 1200,
+          cost_usd: 2.75,
+          avg_latency_ms: 900,
+          success_rate: 0.66,
+        },
+        {
+          id: `${provider.id}:fallback`,
+          provider_id: provider.id,
+          provider_name: provider.name,
+          route: 'fallback',
+          lane: 'turbo',
+          run_count: 2,
+          tokens_in: 1400,
+          tokens_out: 700,
+          cost_usd: 1.6,
+          avg_latency_ms: 780,
+          success_rate: 0.5,
+        },
+      ],
+      next_cursor: null,
+    };
+
+    const runsPayload = {
+      items: [
+        {
+          id: 1,
+          provider_id: provider.id,
+          provider_name: provider.name,
+          route: 'default',
+          lane: 'balanced',
+          ts: '2024-03-07T12:30:00.000Z',
+          tokens_in: 800,
+          tokens_out: 300,
+          duration_ms: 840,
+          status: 'success',
+          cost_usd: 0.9,
+          metadata: { consumer: 'squad-a' },
+        },
+        {
+          id: 2,
+          provider_id: provider.id,
+          provider_name: provider.name,
+          route: 'default',
+          lane: 'balanced',
+          ts: '2024-03-07T11:50:00.000Z',
+          tokens_in: 600,
+          tokens_out: 200,
+          duration_ms: 920,
+          status: 'retry',
+          cost_usd: 0.7,
+          metadata: { project: 'beta' },
+        },
+      ],
+      next_cursor: null,
+    };
+
     applyDefaultFetchMock = () => {
       fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : input.toString();
@@ -143,6 +235,15 @@ describe('App provider orchestration flow', () => {
       }
       if (url.startsWith('/api/v1/telemetry/heatmap')) {
         return createFetchResponse(heatmapPayload);
+      }
+      if (url.startsWith('/api/v1/telemetry/timeseries')) {
+        return createFetchResponse(timeseriesPayload);
+      }
+      if (url.startsWith('/api/v1/telemetry/pareto')) {
+        return createFetchResponse(paretoPayload);
+      }
+      if (url.startsWith('/api/v1/telemetry/runs')) {
+        return createFetchResponse(runsPayload);
       }
 
       if (method === 'DELETE') {

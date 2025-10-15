@@ -17,6 +17,9 @@ from sqlalchemy.engine import Connection
 
 from .database import bootstrap_database
 from .log_model import TelemetryLogRecord
+from .prices import list_price_entries
+from .registry import provider_registry
+from .routing import build_routes
 
 DEFAULT_LOGS_DIR = Path("~/.mcp/logs")
 LOGS_ENV_VAR = "CONSOLE_MCP_LOGS_DIR"
@@ -223,6 +226,12 @@ __all__ = [
     "aggregate_metrics",
     "TelemetryAggregates",
     "TelemetryProviderAggregate",
+    "TelemetryTimeseriesPoint",
+    "TelemetryRouteBreakdown",
+    "TelemetryRunRecord",
+    "query_timeseries",
+    "query_route_breakdown",
+    "query_runs",
     "render_telemetry_export",
 ]
 
@@ -286,6 +295,162 @@ class TelemetryHeatmapBucket:
     day: date
     provider_id: str
     run_count: int
+
+
+@dataclass(frozen=True)
+class TelemetryTimeseriesPoint:
+    """Aggregated metrics grouped by day for a provider."""
+
+    day: date
+    provider_id: str
+    run_count: int
+    tokens_in: int
+    tokens_out: int
+    cost_usd: float
+    avg_latency_ms: float
+    success_count: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "day": self.day,
+            "provider_id": self.provider_id,
+            "run_count": self.run_count,
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
+            "cost_usd": self.cost_usd,
+            "avg_latency_ms": self.avg_latency_ms,
+            "success_count": self.success_count,
+        }
+
+
+@dataclass(frozen=True)
+class TelemetryRouteBreakdown:
+    """Aggregated route level metrics used for Pareto analysis."""
+
+    route_id: str
+    provider_id: str
+    provider_name: str
+    route: str | None
+    lane: str
+    run_count: int
+    tokens_in: int
+    tokens_out: int
+    cost_usd: float
+    avg_latency_ms: float
+    success_rate: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.route_id,
+            "provider_id": self.provider_id,
+            "provider_name": self.provider_name,
+            "route": self.route,
+            "lane": self.lane,
+            "run_count": self.run_count,
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
+            "cost_usd": self.cost_usd,
+            "avg_latency_ms": self.avg_latency_ms,
+            "success_rate": self.success_rate,
+        }
+
+
+@dataclass(frozen=True)
+class TelemetryRunRecord:
+    """Individual telemetry execution enriched for drill-down views."""
+
+    record_id: int
+    provider_id: str
+    provider_name: str
+    route: str | None
+    lane: str | None
+    ts: str
+    tokens_in: int
+    tokens_out: int
+    duration_ms: int
+    status: str
+    cost_usd: float
+    metadata: dict[str, object]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.record_id,
+            "provider_id": self.provider_id,
+            "provider_name": self.provider_name,
+            "route": self.route,
+            "lane": self.lane,
+            "ts": self.ts,
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
+            "duration_ms": self.duration_ms,
+            "status": self.status,
+            "cost_usd": self.cost_usd,
+            "metadata": self.metadata,
+        }
+
+
+def _provider_lane_index() -> dict[str, str]:
+    return {route.id: route.lane for route in build_routes(provider_registry.providers)}
+
+
+def _provider_name_index() -> dict[str, str]:
+    return {provider.id: provider.name for provider in provider_registry.providers}
+
+
+def _providers_for_lane(lane: str | None) -> tuple[str, ...]:
+    if lane is None:
+        return tuple()
+    normalized = lane.lower()
+    return tuple(
+        provider_id
+        for provider_id, provider_lane in _provider_lane_index().items()
+        if provider_lane == normalized
+    )
+
+
+def _price_index() -> dict[str, dict[str, float | None]]:
+    index: dict[str, dict[str, float | None]] = {}
+    for entry in list_price_entries():
+        provider_prices = index.setdefault(entry.provider_id, {"input": None, "output": None})
+        if entry.input_cost_per_1k is not None:
+            cost = float(entry.input_cost_per_1k)
+            current = provider_prices["input"]
+            provider_prices["input"] = cost if current is None else min(current, cost)
+        if entry.output_cost_per_1k is not None:
+            cost = float(entry.output_cost_per_1k)
+            current = provider_prices["output"]
+            provider_prices["output"] = cost if current is None else min(current, cost)
+    return index
+
+
+def _augment_cost(
+    provider_id: str,
+    base_cost: float,
+    missing_tokens_in: int,
+    missing_tokens_out: int,
+) -> float:
+    prices = _price_index().get(provider_id)
+    cost = float(base_cost)
+    if not prices:
+        return cost
+    if missing_tokens_in and prices.get("input") is not None:
+        cost += (missing_tokens_in / 1000.0) * float(prices["input"])
+    if missing_tokens_out and prices.get("output") is not None:
+        cost += (missing_tokens_out / 1000.0) * float(prices["output"])
+    return cost
+
+
+def _coerce_date(value: object) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
 
 def aggregate_metrics(
@@ -413,6 +578,211 @@ def aggregate_heatmap(
     return tuple(buckets)
 
 
+def query_timeseries(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    lane: str | None = None,
+) -> tuple[TelemetryTimeseriesPoint, ...]:
+    lane_providers = _providers_for_lane(lane) if lane else None
+    if lane and lane_providers is not None and not lane_providers:
+        return tuple()
+
+    _, _, where_clause, params = _prepare_filters(
+        start=start,
+        end=end,
+        provider_id=provider_id,
+        route=None,
+        allowed_provider_ids=lane_providers,
+    )
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = _fetch_timeseries(connection, where_clause, params)
+
+    items: list[TelemetryTimeseriesPoint] = []
+    for row in rows:
+        provider = str(row["provider_id"])
+        day = _coerce_date(row["day"]) or date.today()
+        run_count = int(row["run_count"] or 0)
+        tokens_in = int(row["tokens_in"] or 0)
+        tokens_out = int(row["tokens_out"] or 0)
+        avg_latency = float(row["avg_latency_ms"] or 0.0)
+        success_count = int(row["success_count"] or 0)
+        base_cost = float(row["cost_usd"] or 0.0)
+        missing_tokens_in = int(row["missing_tokens_in"] or 0)
+        missing_tokens_out = int(row["missing_tokens_out"] or 0)
+        cost = _augment_cost(provider, base_cost, missing_tokens_in, missing_tokens_out)
+
+        items.append(
+            TelemetryTimeseriesPoint(
+                day=day,
+                provider_id=provider,
+                run_count=run_count,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=round(cost, 6),
+                avg_latency_ms=avg_latency,
+                success_count=success_count,
+            )
+        )
+
+    return tuple(sorted(items, key=lambda item: (item.day, item.provider_id)))
+
+
+def query_route_breakdown(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    lane: str | None = None,
+) -> tuple[TelemetryRouteBreakdown, ...]:
+    lane_providers = _providers_for_lane(lane) if lane else None
+    if lane and lane_providers is not None and not lane_providers:
+        return tuple()
+
+    _, _, where_clause, params = _prepare_filters(
+        start=start,
+        end=end,
+        provider_id=provider_id,
+        route=None,
+        allowed_provider_ids=lane_providers,
+    )
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = _fetch_route_breakdown(connection, where_clause, params)
+
+    provider_names = _provider_name_index()
+    provider_lanes = _provider_lane_index()
+
+    breakdown: list[TelemetryRouteBreakdown] = []
+    for row in rows:
+        provider = str(row["provider_id"])
+        route_name = row["route"] if row["route"] is not None else None
+        run_count = int(row["run_count"] or 0)
+        tokens_in = int(row["tokens_in"] or 0)
+        tokens_out = int(row["tokens_out"] or 0)
+        avg_latency = float(row["avg_latency_ms"] or 0.0)
+        success_count = int(row["success_count"] or 0)
+        base_cost = float(row["cost_usd"] or 0.0)
+        missing_tokens_in = int(row["missing_tokens_in"] or 0)
+        missing_tokens_out = int(row["missing_tokens_out"] or 0)
+        cost = _augment_cost(provider, base_cost, missing_tokens_in, missing_tokens_out)
+        success_rate = (success_count / run_count) if run_count else 0.0
+        lane_value = provider_lanes.get(provider)
+        if lane and lane_value and lane_value != lane.lower():
+            continue
+
+        breakdown.append(
+            TelemetryRouteBreakdown(
+                route_id=f"{provider}:{route_name or 'default'}",
+                provider_id=provider,
+                provider_name=provider_names.get(provider, provider),
+                route=route_name,
+                lane=lane_value or "balanced",
+                run_count=run_count,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=round(cost, 6),
+                avg_latency_ms=avg_latency,
+                success_rate=success_rate,
+            )
+        )
+
+    return tuple(sorted(breakdown, key=lambda item: item.cost_usd, reverse=True))
+
+
+def query_runs(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    lane: str | None = None,
+    route: str | None = None,
+    limit: int = 20,
+    cursor: str | None = None,
+) -> tuple[tuple[TelemetryRunRecord, ...], str | None]:
+    lane_providers = _providers_for_lane(lane) if lane else None
+    if lane and lane_providers is not None and not lane_providers:
+        return tuple(), None
+
+    _, _, where_clause, params = _prepare_filters(
+        start=start,
+        end=end,
+        provider_id=provider_id,
+        route=route,
+        allowed_provider_ids=lane_providers,
+    )
+
+    resolved_limit = max(1, min(limit, 100))
+    try:
+        offset = max(0, int(cursor) if cursor is not None else 0)
+    except ValueError:
+        offset = 0
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = _fetch_runs(
+            connection,
+            where_clause,
+            params,
+            limit=resolved_limit + 1,
+            offset=offset,
+        )
+
+    provider_names = _provider_name_index()
+    provider_lanes = _provider_lane_index()
+
+    has_more = len(rows) > resolved_limit
+    selected_rows = rows[:resolved_limit]
+
+    items: list[TelemetryRunRecord] = []
+    for row in selected_rows:
+        provider = str(row["provider_id"])
+        metadata_raw = row.get("metadata")
+        metadata: dict[str, object]
+        if isinstance(metadata_raw, str):
+            try:
+                metadata = json.loads(metadata_raw)
+            except json.JSONDecodeError:
+                metadata = {}
+        elif isinstance(metadata_raw, dict):
+            metadata = metadata_raw
+        else:
+            metadata = {}
+
+        base_cost = float(row["cost_estimated_usd"] or 0.0)
+        if row.get("cost_estimated_usd") is None:
+            missing_tokens_in = int(row["tokens_in"] or 0)
+            missing_tokens_out = int(row["tokens_out"] or 0)
+        else:
+            missing_tokens_in = 0
+            missing_tokens_out = 0
+        cost = _augment_cost(provider, base_cost, missing_tokens_in, missing_tokens_out)
+
+        items.append(
+            TelemetryRunRecord(
+                record_id=int(row["id"]),
+                provider_id=provider,
+                provider_name=provider_names.get(provider, provider),
+                route=row.get("route"),
+                lane=provider_lanes.get(provider),
+                ts=str(row["ts"]),
+                tokens_in=int(row["tokens_in"] or 0),
+                tokens_out=int(row["tokens_out"] or 0),
+                duration_ms=int(row["duration_ms"] or 0),
+                status=str(row["status"] or "unknown").lower(),
+                cost_usd=round(cost, 6),
+                metadata=metadata,
+            )
+        )
+
+    next_cursor = str(offset + len(items)) if has_more else None
+    return tuple(items), next_cursor
+
+
 def _fetch_summary(
     connection: Connection, where_clause: str, params: dict[str, object]
 ):
@@ -455,6 +825,88 @@ def _fetch_provider_breakdown(
         """
     )
     return connection.execute(statement, dict(params)).mappings().all()
+
+
+def _fetch_timeseries(
+    connection: Connection, where_clause: str, params: dict[str, object]
+):
+    statement = text(
+        f"""
+        SELECT
+            DATE(ts) AS day,
+            provider_id,
+            COUNT(*) AS run_count,
+            SUM(tokens_in) AS tokens_in,
+            SUM(tokens_out) AS tokens_out,
+            AVG(duration_ms) AS avg_latency_ms,
+            SUM(CASE WHEN LOWER(status) = 'success' THEN 1 ELSE 0 END) AS success_count,
+            SUM(COALESCE(cost_estimated_usd, 0)) AS cost_usd,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_in ELSE 0 END) AS missing_tokens_in,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_out ELSE 0 END) AS missing_tokens_out
+        FROM telemetry_events
+        {where_clause}
+        GROUP BY DATE(ts), provider_id
+        ORDER BY DATE(ts) ASC, provider_id ASC
+        """
+    )
+    return connection.execute(statement, dict(params)).mappings().all()
+
+
+def _fetch_route_breakdown(
+    connection: Connection, where_clause: str, params: dict[str, object]
+):
+    statement = text(
+        f"""
+        SELECT
+            provider_id,
+            route,
+            COUNT(*) AS run_count,
+            SUM(tokens_in) AS tokens_in,
+            SUM(tokens_out) AS tokens_out,
+            AVG(duration_ms) AS avg_latency_ms,
+            SUM(CASE WHEN LOWER(status) = 'success' THEN 1 ELSE 0 END) AS success_count,
+            SUM(COALESCE(cost_estimated_usd, 0)) AS cost_usd,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_in ELSE 0 END) AS missing_tokens_in,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_out ELSE 0 END) AS missing_tokens_out
+        FROM telemetry_events
+        {where_clause}
+        GROUP BY provider_id, route
+        ORDER BY cost_usd DESC, provider_id ASC
+        """
+    )
+    return connection.execute(statement, dict(params)).mappings().all()
+
+
+def _fetch_runs(
+    connection: Connection,
+    where_clause: str,
+    params: dict[str, object],
+    *,
+    limit: int,
+    offset: int,
+):
+    statement = text(
+        f"""
+        SELECT
+            id,
+            provider_id,
+            route,
+            tokens_in,
+            tokens_out,
+            duration_ms,
+            status,
+            cost_estimated_usd,
+            metadata,
+            ts
+        FROM telemetry_events
+        {where_clause}
+        ORDER BY ts DESC, id DESC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    run_params = dict(params)
+    run_params.update({"limit": limit, "offset": offset})
+    return connection.execute(statement, run_params).mappings().all()
 
 
 def _fetch_heatmap(
@@ -539,6 +991,7 @@ def _prepare_filters(
     end: datetime | None,
     provider_id: str | None,
     route: str | None,
+    allowed_provider_ids: Iterable[str] | None = None,
 ) -> tuple[datetime | None, datetime | None, str, dict[str, object]]:
     normalized_start = _normalize_bound(start) if start else None
     normalized_end = _normalize_bound(end) if end else None
@@ -547,6 +1000,11 @@ def _prepare_filters(
 
     params: dict[str, object] = {}
     clauses: list[str] = []
+    allowed_set = (
+        None
+        if allowed_provider_ids is None
+        else tuple(dict.fromkeys(allowed_provider_ids))
+    )
     if normalized_start:
         params["start"] = normalized_start.isoformat()
         clauses.append("ts >= :start")
@@ -554,8 +1012,19 @@ def _prepare_filters(
         params["end"] = normalized_end.isoformat()
         clauses.append("ts <= :end")
     if provider_id:
+        if allowed_set is not None and provider_id not in allowed_set:
+            return normalized_start, normalized_end, " WHERE 0 = 1", {}
         params["provider_id"] = provider_id
         clauses.append("provider_id = :provider_id")
+    elif allowed_set is not None:
+        if not allowed_set:
+            return normalized_start, normalized_end, " WHERE 0 = 1", {}
+        placeholders: list[str] = []
+        for index, provider in enumerate(allowed_set):
+            key = f"lane_provider_{index}"
+            params[key] = provider
+            placeholders.append(f":{key}")
+        clauses.append(f"provider_id IN ({', '.join(placeholders)})")
     if route:
         params["route"] = route
         clauses.append("route = :route")

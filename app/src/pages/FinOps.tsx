@@ -9,7 +9,17 @@ import {
   YAxis,
 } from 'recharts';
 
-import type { ProviderSummary } from '../api';
+import type {
+  ProviderSummary,
+  TelemetryRouteBreakdownEntry,
+  TelemetryRunEntry,
+  TelemetryTimeseriesPoint,
+} from '../api';
+import {
+  fetchTelemetryPareto,
+  fetchTelemetryRuns,
+  fetchTelemetryTimeseries,
+} from '../api';
 import { seededMod } from '../utils/hash';
 
 export interface FinOpsProps {
@@ -46,6 +56,7 @@ interface RouteCostBreakdown {
   providerName: string;
   label: string;
   lane: LaneCategory;
+  route: string | null;
   costUsd: number;
   tokensMillions: number;
   runs: number;
@@ -173,7 +184,7 @@ function normalizeDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function buildSeriesForProvider(provider: ProviderSummary, days: number): TimeSeriesPoint[] {
+function buildFallbackSeriesForProvider(provider: ProviderSummary, days: number): TimeSeriesPoint[] {
   const seedCost = 40 + seededMod(`${provider.id}-cost`, 25);
   const seedTokens = 55 + seededMod(`${provider.id}-tokens`, 40);
   const seedLatency = 900 + seededMod(`${provider.id}-lat`, 400);
@@ -428,7 +439,100 @@ function buildPullRequestReports(
   });
 }
 
-function buildRouteBreakdown(
+function computeWindowBounds(days: number): { start: Date; end: Date } {
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(end.getDate() - (days - 1));
+  return { start, end };
+}
+
+function buildSeriesFromTelemetry(
+  items: TelemetryTimeseriesPoint[],
+  start: Date,
+  days: number,
+): TimeSeriesPoint[] {
+  const map = new Map(items.map((item) => [item.day, item]));
+  const cursor = new Date(start);
+  const series: TimeSeriesPoint[] = [];
+
+  for (let index = 0; index < days; index += 1) {
+    const dayKey = normalizeDate(cursor);
+    const entry = map.get(dayKey);
+    const cost = entry ? entry.cost_usd : 0;
+    const tokens = entry ? entry.tokens_in + entry.tokens_out : 0;
+    const latency = entry ? Math.round(entry.avg_latency_ms) : 0;
+
+    series.push({
+      date: dayKey,
+      label: new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(cursor),
+      costUsd: Number(cost.toFixed(2)),
+      tokensMillions: Number((tokens / 1_000_000).toFixed(2)),
+      avgLatencyMs: latency,
+    });
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return series;
+}
+
+function buildRouteBreakdownFromTelemetry(
+  entries: TelemetryRouteBreakdownEntry[],
+): RouteCostBreakdown[] {
+  return entries.map((entry) => {
+    const tokensTotal = entry.tokens_in + entry.tokens_out;
+    const lane = entry.lane as LaneCategory;
+    const routeLabel = entry.route ? entry.route : 'default';
+
+    return {
+      id: entry.id,
+      providerId: entry.provider_id,
+      providerName: entry.provider_name,
+      label: `${entry.provider_name} · ${routeLabel}`,
+      lane,
+      route: entry.route,
+      costUsd: Number(entry.cost_usd.toFixed(2)),
+      tokensMillions: Number((tokensTotal / 1_000_000).toFixed(2)),
+      runs: entry.run_count,
+      successRate: entry.success_rate,
+      avgLatencyMs: Math.round(entry.avg_latency_ms),
+    };
+  });
+}
+
+function buildRunsFromTelemetry(entries: TelemetryRunEntry[]): RunDrilldownEntry[] {
+  return entries
+    .map((entry) => {
+      const tokensTotal = entry.tokens_in + entry.tokens_out;
+      const status: RunStatus = entry.status === 'success'
+        ? 'success'
+        : entry.status === 'retry'
+          ? 'retry'
+          : 'error';
+      const metadataConsumer = entry.metadata['consumer'];
+      const metadataProject = entry.metadata['project'];
+      const consumer =
+        typeof metadataConsumer === 'string'
+          ? metadataConsumer
+          : typeof metadataProject === 'string'
+            ? metadataProject
+            : '—';
+
+      return {
+        id: String(entry.id),
+        timestamp: entry.ts,
+        tokensThousands: Number((tokensTotal / 1000).toFixed(1)),
+        costUsd: Number(entry.cost_usd.toFixed(2)),
+        latencyMs: entry.duration_ms,
+        status,
+        consumer,
+      };
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+function buildFallbackRouteBreakdown(
   providers: ProviderSummary[],
   days: number,
   providerSelection: ProviderSelection,
@@ -474,6 +578,7 @@ function buildRouteBreakdown(
         providerName: provider.name,
         label,
         lane,
+        route: null,
         costUsd,
         tokensMillions,
         runs,
@@ -506,7 +611,7 @@ function computePareto(entries: RouteCostBreakdown[]): ParetoEntry[] {
   });
 }
 
-function buildRunDrilldown(entry: RouteCostBreakdown, days: number): RunDrilldownEntry[] {
+function buildFallbackRunDrilldown(entry: RouteCostBreakdown, days: number): RunDrilldownEntry[] {
   const runCount = Math.min(12, Math.max(6, Math.round((entry.runs / days) * 4)));
   const now = new Date();
   const runs: RunDrilldownEntry[] = [];
@@ -587,12 +692,130 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
 
   const hasProviders = providers.length > 0;
 
-  const providerSeriesMap = useMemo(() => {
-    return providers.reduce<Record<string, TimeSeriesPoint[]>>((acc, provider) => {
-      acc[provider.id] = buildSeriesForProvider(provider, 120).slice(-90);
-      return acc;
-    }, {});
-  }, [providers]);
+  const [providerSeriesMap, setProviderSeriesMap] = useState<Record<string, TimeSeriesPoint[]>>({});
+  const [isTelemetryLoading, setIsTelemetryLoading] = useState(false);
+  const [timeseriesError, setTimeseriesError] = useState<string | null>(null);
+  const [routeBreakdownEntries, setRouteBreakdownEntries] = useState<RouteCostBreakdown[]>([]);
+  const [runEntries, setRunEntries] = useState<RunDrilldownEntry[]>([]);
+
+  useEffect(() => {
+    if (!hasProviders) {
+      setProviderSeriesMap({});
+      return;
+    }
+
+    const days = RANGE_TO_DAYS[selectedRange];
+    const { start, end } = computeWindowBounds(days);
+    const controller = new AbortController();
+    let cancelled = false;
+    let hadError = false;
+
+    setIsTelemetryLoading(true);
+
+    (async () => {
+      const results = await Promise.all(
+        providers.map(async (provider) => {
+          try {
+            const response = await fetchTelemetryTimeseries(
+              { start, end, providerId: provider.id },
+              controller.signal,
+            );
+            return [
+              provider.id,
+              buildSeriesFromTelemetry(response.items, new Date(start), days),
+            ] as const;
+          } catch (error) {
+            hadError = true;
+            return [provider.id, buildFallbackSeriesForProvider(provider, days)] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        const nextMap = results.reduce<Record<string, TimeSeriesPoint[]>>((acc, [id, series]) => {
+          acc[id] = series;
+          return acc;
+        }, {});
+        setProviderSeriesMap(nextMap);
+        if (hadError) {
+          setTimeseriesError((current) =>
+            current ?? 'Dados reais indisponíveis no momento. Exibindo estimativas.',
+          );
+        }
+      }
+    })()
+      .catch((error) => {
+        if (!cancelled) {
+          setTimeseriesError(
+            error instanceof Error ? error.message : 'Erro ao carregar telemetria de custo.',
+          );
+          const fallbackMap = providers.reduce<Record<string, TimeSeriesPoint[]>>((acc, provider) => {
+            acc[provider.id] = buildFallbackSeriesForProvider(provider, RANGE_TO_DAYS[selectedRange]);
+            return acc;
+          }, {});
+          setProviderSeriesMap(fallbackMap);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsTelemetryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [hasProviders, providers, selectedRange]);
+
+  useEffect(() => {
+    if (!hasProviders) {
+      setRouteBreakdownEntries([]);
+      return;
+    }
+
+    const days = RANGE_TO_DAYS[selectedRange];
+    const { start, end } = computeWindowBounds(days);
+    const controller = new AbortController();
+    let cancelled = false;
+    let hadError = false;
+
+    const providerFilter = selectedProvider === 'all' ? undefined : selectedProvider;
+
+    fetchTelemetryPareto({ start, end, providerId: providerFilter }, controller.signal)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.items.length) {
+          setRouteBreakdownEntries([]);
+          return;
+        }
+
+        setRouteBreakdownEntries(buildRouteBreakdownFromTelemetry(response.items));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          hadError = true;
+          setRouteBreakdownEntries(
+            buildFallbackRouteBreakdown(providers, days, selectedProvider),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled && hadError) {
+          setTimeseriesError((current) =>
+            current ?? 'Dados reais indisponíveis no momento. Exibindo estimativas.',
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [hasProviders, providers, selectedProvider, selectedRange]);
 
   const availableSeries = useMemo(() => {
     const days = RANGE_TO_DAYS[selectedRange];
@@ -602,8 +825,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     }
 
     if (selectedProvider === 'all') {
-      const seriesCollection = providers.map((provider) => providerSeriesMap[provider.id].slice(-days));
-      return combineSeries(seriesCollection);
+      const seriesCollection = providers.map((provider) => providerSeriesMap[provider.id] ?? []);
+      return combineSeries(seriesCollection.map((series) => series.slice(-days)));
     }
 
     const series = providerSeriesMap[selectedProvider];
@@ -623,14 +846,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     return provider ? provider.name : selectedProvider;
   }, [providers, selectedProvider]);
 
-  const breakdownEntries = useMemo(() => {
-    const days = RANGE_TO_DAYS[selectedRange];
-    if (!hasProviders) {
-      return [];
-    }
-
-    return buildRouteBreakdown(providers, days, selectedProvider);
-  }, [hasProviders, providers, selectedProvider, selectedRange]);
+  const breakdownEntries = routeBreakdownEntries;
 
   const paretoEntries = useMemo(() => computePareto(breakdownEntries), [breakdownEntries]);
 
@@ -885,12 +1101,65 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     [paretoEntries, selectedParetoId],
   );
 
-  const drilldownRuns = useMemo(
-    () => (selectedParetoEntry ? buildRunDrilldown(selectedParetoEntry, RANGE_TO_DAYS[selectedRange]) : []),
-    [selectedParetoEntry, selectedRange],
-  );
+  useEffect(() => {
+    if (!selectedParetoEntry) {
+      setRunEntries([]);
+      return;
+    }
 
-  if (isLoading) {
+    const days = RANGE_TO_DAYS[selectedRange];
+    const { start, end } = computeWindowBounds(days);
+    const controller = new AbortController();
+    let cancelled = false;
+    let hadError = false;
+
+    fetchTelemetryRuns(
+      {
+        start,
+        end,
+        providerId: selectedParetoEntry.providerId,
+        route: selectedParetoEntry.route ?? undefined,
+        limit: 20,
+      },
+      controller.signal,
+    )
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.items.length) {
+          setRunEntries([]);
+          return;
+        }
+
+        setRunEntries(buildRunsFromTelemetry(response.items));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          hadError = true;
+          setRunEntries(buildFallbackRunDrilldown(selectedParetoEntry, days));
+        }
+      })
+      .finally(() => {
+        if (!cancelled && hadError) {
+          setTimeseriesError((current) =>
+            current ?? 'Dados reais indisponíveis no momento. Exibindo estimativas.',
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [selectedParetoEntry, selectedRange]);
+
+  const drilldownRuns = runEntries;
+
+  const isFetching = isLoading || (isTelemetryLoading && Object.keys(providerSeriesMap).length === 0);
+
+  if (isFetching) {
     return (
       <section className="finops" aria-busy="true">
         <header className="finops__header">
@@ -1000,6 +1269,10 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           </button>
         </div>
       </header>
+
+      {timeseriesError && (
+        <p className="finops__state" role="status">{timeseriesError}</p>
+      )}
 
       <section className="finops__alerts" aria-label="Alertas de FinOps">
         <header className="finops__alerts-header">
