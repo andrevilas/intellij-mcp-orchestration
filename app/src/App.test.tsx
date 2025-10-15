@@ -276,6 +276,110 @@ describe('App provider orchestration flow', () => {
           ],
         },
       ],
+      rollout: {
+        generatedAt: '2025-04-15T09:30:00+00:00',
+        plans: [
+          {
+            templateId: 'economy',
+            generatedAt: '2025-02-01T12:00:00+00:00',
+            allocations: [
+              {
+                segment: {
+                  id: 'canary',
+                  name: 'Canário',
+                  description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
+                },
+                coverage: 25,
+                providers: [provider],
+              },
+              {
+                segment: {
+                  id: 'general',
+                  name: 'GA',
+                  description: 'Workloads padrão com fallback automático e monitoramento de custos.',
+                },
+                coverage: 55,
+                providers: [],
+              },
+              {
+                segment: {
+                  id: 'fallback',
+                  name: 'Fallback',
+                  description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
+                },
+                coverage: 20,
+                providers: [],
+              },
+            ],
+          },
+          {
+            templateId: 'balanced',
+            generatedAt: '2025-04-15T09:30:00+00:00',
+            allocations: [
+              {
+                segment: {
+                  id: 'canary',
+                  name: 'Canário',
+                  description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
+                },
+                coverage: 12,
+                providers: [provider],
+              },
+              {
+                segment: {
+                  id: 'general',
+                  name: 'GA',
+                  description: 'Workloads padrão com fallback automático e monitoramento de custos.',
+                },
+                coverage: 62,
+                providers: [],
+              },
+              {
+                segment: {
+                  id: 'fallback',
+                  name: 'Fallback',
+                  description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
+                },
+                coverage: 26,
+                providers: [],
+              },
+            ],
+          },
+          {
+            templateId: 'turbo',
+            generatedAt: '2025-04-20T12:00:00+00:00',
+            allocations: [
+              {
+                segment: {
+                  id: 'canary',
+                  name: 'Canário',
+                  description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
+                },
+                coverage: 40,
+                providers: [provider],
+              },
+              {
+                segment: {
+                  id: 'general',
+                  name: 'GA',
+                  description: 'Workloads padrão com fallback automático e monitoramento de custos.',
+                },
+                coverage: 40,
+                providers: [],
+              },
+              {
+                segment: {
+                  id: 'fallback',
+                  name: 'Fallback',
+                  description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
+                },
+                coverage: 20,
+                providers: [],
+              },
+            ],
+          },
+        ],
+      },
     };
 
     let deploymentsState = [

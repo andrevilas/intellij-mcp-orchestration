@@ -22,7 +22,7 @@ export interface ProvidersResponse {
   providers: ProviderSummary[];
 }
 
-export type PolicyTemplateId = 'economy' | 'balanced' | 'turbo';
+export type PolicyTemplateId = string;
 
 export interface PolicyTemplate {
   id: PolicyTemplateId;
@@ -33,6 +33,34 @@ export interface PolicyTemplate {
   latencyTarget: string;
   guardrailLevel: string;
   features: string[];
+}
+
+export interface PolicyRolloutSegment {
+  id: 'canary' | 'general' | 'fallback';
+  name: string;
+  description: string;
+}
+
+export interface PolicyRolloutAllocation {
+  segment: PolicyRolloutSegment;
+  coverage: number;
+  providers: ProviderSummary[];
+}
+
+export interface PolicyRolloutPlan {
+  templateId: PolicyTemplateId;
+  generatedAt: string;
+  allocations: PolicyRolloutAllocation[];
+}
+
+export interface PolicyRolloutOverview {
+  generatedAt: string;
+  plans: PolicyRolloutPlan[];
+}
+
+export interface PolicyTemplateCatalog {
+  templates: PolicyTemplate[];
+  rollout: PolicyRolloutOverview | null;
 }
 
 export interface CostPolicy {
@@ -176,6 +204,30 @@ interface PolicyTemplatePayload {
 
 interface PolicyTemplatesResponse {
   templates: PolicyTemplatePayload[];
+  rollout?: PolicyRolloutOverviewPayload | null;
+}
+
+interface PolicyRolloutSegmentPayload {
+  id: 'canary' | 'general' | 'fallback';
+  name: string;
+  description: string;
+}
+
+interface PolicyRolloutAllocationPayload {
+  segment: PolicyRolloutSegmentPayload;
+  coverage: number;
+  providers: ProviderSummary[];
+}
+
+interface PolicyRolloutPlanPayload {
+  templateId: string;
+  generatedAt: string;
+  allocations: PolicyRolloutAllocationPayload[];
+}
+
+interface PolicyRolloutOverviewPayload {
+  generatedAt: string;
+  plans: PolicyRolloutPlanPayload[];
 }
 
 interface CostPolicyPayload {
@@ -797,9 +849,9 @@ export async function testSecret(
   });
 }
 
-export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<PolicyTemplate[]> {
+export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<PolicyTemplateCatalog> {
   const data = await request<PolicyTemplatesResponse>('/policies/templates', { signal });
-  return data.templates.map((template) => ({
+  const templates = data.templates.map((template) => ({
     id: template.id,
     name: template.name,
     tagline: template.tagline,
@@ -809,6 +861,29 @@ export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<Policy
     guardrailLevel: template.guardrail_level,
     features: template.features,
   }));
+
+  let rollout: PolicyRolloutOverview | null = null;
+  if (data.rollout) {
+    const plans = data.rollout.plans.map((plan) => ({
+      templateId: plan.templateId as PolicyTemplateId,
+      generatedAt: plan.generatedAt,
+      allocations: plan.allocations.map((allocation) => ({
+        segment: allocation.segment,
+        coverage: allocation.coverage,
+        providers: allocation.providers.map((provider) => ({
+          ...provider,
+          is_available: provider.is_available ?? true,
+        })),
+      })),
+    }));
+
+    rollout = {
+      generatedAt: data.rollout.generatedAt,
+      plans,
+    };
+  }
+
+  return { templates, rollout };
 }
 
 function mapCostPolicy(payload: CostPolicyPayload): CostPolicy {

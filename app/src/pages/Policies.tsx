@@ -6,12 +6,12 @@ import {
   fetchPolicyDeployments,
   fetchPolicyTemplates,
   type PolicyDeployment,
+  type PolicyRolloutAllocation,
   type PolicyTemplate,
   type PolicyTemplateId,
   type ProviderSummary,
 } from '../api';
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
-import { seededMod } from '../utils/hash';
 
 export interface PoliciesProps {
   providers: ProviderSummary[];
@@ -19,89 +19,18 @@ export interface PoliciesProps {
   initialError: string | null;
 }
 
-interface RolloutSegment {
-  id: 'canary' | 'general' | 'fallback';
-  label: string;
-  description: string;
-  range: [number, number];
-}
-
-interface RolloutPlanEntry {
-  segment: RolloutSegment;
-  providers: ProviderSummary[];
-  coverage: number;
-}
-
-const DEFAULT_POLICY_TEMPLATES: PolicyTemplate[] = [
-  {
-    id: 'economy',
-    name: 'Economia',
-    tagline: 'FinOps primeiro',
-    description:
-      'Prioriza custo absoluto e direciona a maior parte do tráfego para modelos econômicos com fallback gradual.',
-    priceDelta: '-22% vs. baseline',
-    latencyTarget: 'até 4.0 s P95',
-    guardrailLevel: 'Nível 2 · Moderado',
-    features: [
-      'Roteia 70% das requisições para modelos Economy e Lite',
-      'Fallback manual para turbos em incidentes de SLA',
-      'Throttling progressivo por projeto e custo acumulado',
-    ],
-  },
-  {
-    id: 'balanced',
-    name: 'Equilíbrio',
-    tagline: 'Balanceamento inteligente',
-    description:
-      'Combina custo/latência com seleção automática do melhor modelo por rota de negócio, incluindo failover automático.',
-    priceDelta: '-12% vs. baseline',
-    latencyTarget: 'até 2.5 s P95',
-    guardrailLevel: 'Nível 3 · Avançado',
-    features: [
-      'Roteamento adaptativo por capacidade e disponibilidade',
-      'Failover automático com circuito aberto em 30s',
-      'Políticas de custo dinâmicas por equipe/projeto',
-    ],
-  },
-  {
-    id: 'turbo',
-    name: 'Turbo',
-    tagline: 'Velocidade máxima',
-    description:
-      'Entrega a menor latência possível e mantém modelos premium sempre quentes, com alertas agressivos de custo.',
-    priceDelta: '+18% vs. baseline',
-    latencyTarget: 'até 900 ms P95',
-    guardrailLevel: 'Nível 4 · Crítico',
-    features: [
-      'Pré-aquecimento de modelos turbo em múltiplas regiões',
-      'Orçamento observável com limites hora a hora',
-      'Expansão automática de capacidade sob demanda',
-    ],
-  },
-];
-
-const ROLLOUT_SEGMENTS: RolloutSegment[] = [
-  {
-    id: 'canary',
-    label: 'Canário · 15%',
-    description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
-    range: [0, 34],
-  },
-  {
-    id: 'general',
-    label: 'GA · 65%',
-    description: 'Workloads padrão com fallback automático e monitoramento de custos.',
-    range: [34, 78],
-  },
-  {
-    id: 'fallback',
-    label: 'Fallback · 20%',
-    description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
-    range: [78, 101],
-  },
-];
-
 const FALLBACK_TEMPLATE_ID: PolicyTemplateId = 'economy';
+
+const EMPTY_TEMPLATE: PolicyTemplate = {
+  id: FALLBACK_TEMPLATE_ID,
+  name: 'Template indisponível',
+  tagline: '—',
+  description: 'Não foi possível carregar os templates de política no momento.',
+  priceDelta: '—',
+  latencyTarget: '—',
+  guardrailLevel: '—',
+  features: [],
+};
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('pt-BR', {
@@ -113,23 +42,10 @@ function formatDateTime(value: string): string {
   });
 }
 
-function buildRolloutPlan(providers: ProviderSummary[], templateId: PolicyTemplateId): RolloutPlanEntry[] {
-  const total = providers.length;
-  return ROLLOUT_SEGMENTS.map((segment) => {
-    const entries = providers.filter((provider) => {
-      const score = seededMod(`${provider.id}-${templateId}-rollout`, 100);
-      return score >= segment.range[0] && score < segment.range[1];
-    });
-
-    const coverage = total === 0 ? 0 : Math.round((entries.length / total) * 100);
-    return { segment, providers: entries, coverage };
-  });
-}
-
 type BannerKind = 'success' | 'info' | 'warning';
 
 export default function Policies({ providers, isLoading, initialError }: PoliciesProps) {
-  const [templates, setTemplates] = useState<PolicyTemplate[]>(DEFAULT_POLICY_TEMPLATES);
+  const [templates, setTemplates] = useState<PolicyTemplate[]>([]);
   const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [deployments, setDeployments] = useState<PolicyDeployment[]>([]);
@@ -139,6 +55,8 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   const [selectedTemplateId, setSelectedTemplateId] = useState<PolicyTemplateId>(FALLBACK_TEMPLATE_ID);
   const [isMutating, setIsMutating] = useState(false);
   const [banner, setBanner] = useState<{ kind: BannerKind; message: string } | null>(null);
+  const [rolloutPlans, setRolloutPlans] = useState<Map<PolicyTemplateId, PolicyRolloutAllocation[]>>(new Map());
+  const [rolloutTimestamp, setRolloutTimestamp] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -148,12 +66,21 @@ export default function Policies({ providers, isLoading, initialError }: Policie
       setIsTemplatesLoading(true);
       setTemplatesError(null);
       try {
-        const remoteTemplates = await fetchPolicyTemplates(controller.signal);
+        const catalog = await fetchPolicyTemplates(controller.signal);
         if (!active) {
           return;
         }
-        if (remoteTemplates.length > 0) {
-          setTemplates(remoteTemplates);
+        setTemplates(catalog.templates);
+        if (catalog.rollout) {
+          const planMap = new Map<PolicyTemplateId, PolicyRolloutAllocation[]>();
+          catalog.rollout.plans.forEach((plan) => {
+            planMap.set(plan.templateId as PolicyTemplateId, plan.allocations);
+          });
+          setRolloutPlans(planMap);
+          setRolloutTimestamp(catalog.rollout.generatedAt);
+        } else {
+          setRolloutPlans(new Map());
+          setRolloutTimestamp(null);
         }
       } catch (error) {
         if (!active) {
@@ -164,7 +91,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         }
         // eslint-disable-next-line no-console
         console.error('Failed to load policy templates', error);
-        setTemplatesError('Não foi possível carregar templates de política. Usando fallback local.');
+        setTemplatesError('Não foi possível carregar templates de política.');
       } finally {
         if (active) {
           setIsTemplatesLoading(false);
@@ -243,7 +170,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     }
   }, [activeDeployment?.templateId]);
 
-  const fallbackTemplate = templates[0] ?? DEFAULT_POLICY_TEMPLATES[0];
+  const fallbackTemplate = templates[0] ?? EMPTY_TEMPLATE;
   const activeTemplate = activeDeployment
     ? templateMap.get(activeDeployment.templateId as PolicyTemplateId) ?? fallbackTemplate
     : fallbackTemplate;
@@ -253,7 +180,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     ? templateMap.get(previousDeployment.templateId as PolicyTemplateId) ?? fallbackTemplate
     : null;
 
-  const rolloutPlan = useMemo(() => buildRolloutPlan(providers, selectedTemplateId), [providers, selectedTemplateId]);
+  const rolloutPlan = rolloutPlans.get(selectedTemplateId) ?? [];
   const activeReliability = activeDeployment
     ? {
         sloP95: activeDeployment.sloP95Ms,
@@ -462,29 +389,41 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             Distribuição sugerida para o template <strong>{selectedTemplate.name}</strong> considerando criticidade e
             capacidade dos servidores MCP cadastrados.
           </p>
+          <span className="rollout-plan__timestamp">
+            Última atualização: {rolloutTimestamp ? formatDateTime(rolloutTimestamp) : '—'}
+          </span>
         </header>
-        <ul className="rollout-plan">
-          {rolloutPlan.map((entry) => (
-            <li key={entry.segment.id} className="rollout-plan__item">
-              <div className="rollout-plan__summary">
-                <h3>{entry.segment.label}</h3>
-                <p>{entry.segment.description}</p>
-                <span className="rollout-plan__coverage">Cobertura: {entry.coverage}%</span>
-              </div>
-              <div className="rollout-plan__providers" aria-live="polite">
-                {entry.providers.length > 0 ? (
-                  entry.providers.map((provider) => (
-                    <span key={provider.id} className="rollout-chip">
-                      {provider.name}
-                    </span>
-                  ))
-                ) : (
-                  <span className="rollout-chip rollout-chip--muted">Sem servidores neste estágio</span>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+        {rolloutPlan.length === 0 ? (
+          <p className="status">
+            Nenhum plano de rollout disponível para o template selecionado.
+            {providers.length > 0 && ' Registre um deploy para gerar a distribuição entre os provedores cadastrados.'}
+          </p>
+        ) : (
+          <ul className="rollout-plan">
+            {rolloutPlan.map((entry) => (
+              <li key={entry.segment.id} className="rollout-plan__item">
+                <div className="rollout-plan__summary">
+                  <h3>
+                    {entry.segment.name}
+                    <span className="rollout-plan__coverage"> · {entry.coverage}%</span>
+                  </h3>
+                  <p>{entry.segment.description}</p>
+                </div>
+                <div className="rollout-plan__providers" aria-live="polite">
+                  {entry.providers.length > 0 ? (
+                    entry.providers.map((provider) => (
+                      <span key={provider.id} className="rollout-chip">
+                        {provider.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="rollout-chip rollout-chip--muted">Sem servidores neste estágio</span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="policies__history">

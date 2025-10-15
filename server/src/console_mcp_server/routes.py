@@ -34,6 +34,7 @@ from .policy_deployments import (
     delete_policy_deployment,
     list_policy_deployments,
 )
+from .policy_rollout import build_rollout_plans
 from .policy_templates import list_policy_templates
 from .prices import (
     PriceEntryAlreadyExistsError,
@@ -66,6 +67,10 @@ from .schemas import (
     PolicyDeploymentCreateRequest,
     PolicyDeploymentResponse,
     PolicyDeploymentsResponse,
+    PolicyRolloutAllocation,
+    PolicyRolloutOverview,
+    PolicyRolloutPlan,
+    PolicyRolloutSegment,
     PolicyTemplateResponse,
     PolicyTemplatesResponse,
     NotificationResponse,
@@ -558,7 +563,37 @@ def list_templates() -> PolicyTemplatesResponse:
         PolicyTemplateResponse.model_validate(template.to_dict())
         for template in list_policy_templates()
     ]
-    return PolicyTemplatesResponse(templates=templates)
+    rollout_plans = build_rollout_plans()
+    if rollout_plans:
+        generated_at = max(plan.generated_at for plan in rollout_plans)
+        rollout = PolicyRolloutOverview(
+            generated_at=generated_at,
+            plans=[
+                PolicyRolloutPlan(
+                    template_id=plan.template_id,
+                    generated_at=plan.generated_at,
+                    allocations=[
+                        PolicyRolloutAllocation(
+                            segment=PolicyRolloutSegment(
+                                id=allocation.segment.id,
+                                name=allocation.segment.name,
+                                description=allocation.segment.description,
+                            ),
+                            coverage=allocation.coverage_pct,
+                            providers=[
+                                provider
+                                for provider in allocation.providers
+                            ],
+                        )
+                        for allocation in plan.allocations
+                    ],
+                )
+                for plan in rollout_plans
+            ],
+        )
+    else:
+        rollout = None
+    return PolicyTemplatesResponse(templates=templates, rollout=rollout)
 
 
 @router.get("/policies/deployments", response_model=PolicyDeploymentsResponse)
