@@ -189,6 +189,39 @@ class PolicyOverridesResponse(BaseModel):
     overrides: List[PolicyOverrideResponse]
 
 
+class PolicyDeploymentCreateRequest(BaseModel):
+    """Payload describing a new deployment of a policy template."""
+
+    template_id: str = Field(..., min_length=1, max_length=128)
+    author: str = Field(default="Console MCP", min_length=1, max_length=128)
+    window: Optional[str] = Field(default=None, max_length=256)
+    note: Optional[str] = Field(default=None, max_length=1024)
+
+
+class PolicyDeploymentResponse(BaseModel):
+    """Representation of a recorded policy deployment."""
+
+    id: str
+    template_id: str
+    deployed_at: datetime
+    author: str
+    window: Optional[str] = None
+    note: Optional[str] = None
+    slo_p95_ms: int
+    budget_usage_pct: int
+    incidents_count: int
+    guardrail_score: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class PolicyDeploymentsResponse(BaseModel):
+    """Envelope returned when listing policy deployments."""
+
+    deployments: List[PolicyDeploymentResponse]
+    active_id: Optional[str] = None
+
+
 class CostDryRunRequest(BaseModel):
     """Payload describing a dry-run request for guardrail evaluation."""
 

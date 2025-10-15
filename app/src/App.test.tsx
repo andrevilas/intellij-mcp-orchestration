@@ -210,6 +210,95 @@ describe('App provider orchestration flow', () => {
       next_cursor: null,
     };
 
+    const templateMetrics = {
+      economy: { slo: 857, budget: 66, incidents: 2, guard: 78 },
+      balanced: { slo: 985, budget: 80, incidents: 0, guard: 70 },
+      turbo: { slo: 569, budget: 74, incidents: 2, guard: 72 },
+    } as const;
+
+    const policyTemplatesPayload = {
+      templates: [
+        {
+          id: 'economy',
+          name: 'Economia',
+          tagline: 'FinOps primeiro',
+          description:
+            'Prioriza custo absoluto e direciona a maior parte do tráfego para modelos econômicos com fallback gradual.',
+          price_delta: '-22% vs. baseline',
+          latency_target: 'até 4.0 s P95',
+          guardrail_level: 'Nível 2 · Moderado',
+          features: [
+            'Roteia 70% das requisições para modelos Economy e Lite',
+            'Fallback manual para turbos em incidentes de SLA',
+            'Throttling progressivo por projeto e custo acumulado',
+          ],
+        },
+        {
+          id: 'balanced',
+          name: 'Equilíbrio',
+          tagline: 'Balanceamento inteligente',
+          description:
+            'Combina custo/latência com seleção automática do melhor modelo por rota de negócio, incluindo failover automático.',
+          price_delta: '-12% vs. baseline',
+          latency_target: 'até 2.5 s P95',
+          guardrail_level: 'Nível 3 · Avançado',
+          features: [
+            'Roteamento adaptativo por capacidade e disponibilidade',
+            'Failover automático com circuito aberto em 30s',
+            'Políticas de custo dinâmicas por equipe/projeto',
+          ],
+        },
+        {
+          id: 'turbo',
+          name: 'Turbo',
+          tagline: 'Velocidade máxima',
+          description:
+            'Entrega a menor latência possível e mantém modelos premium sempre quentes, com alertas agressivos de custo.',
+          price_delta: '+18% vs. baseline',
+          latency_target: 'até 900 ms P95',
+          guardrail_level: 'Nível 4 · Crítico',
+          features: [
+            'Pré-aquecimento de modelos turbo em múltiplas regiões',
+            'Orçamento observável com limites hora a hora',
+            'Expansão automática de capacidade sob demanda',
+          ],
+        },
+      ],
+    };
+
+    let deploymentsState = [
+      {
+        id: 'deploy-economy-20250201',
+        template_id: 'economy',
+        deployed_at: '2025-02-01T12:00:00+00:00',
+        author: 'FinOps Squad',
+        window: 'Canário 5% → 20%',
+        note: 'Piloto para squads orientados a custo.',
+        slo_p95_ms: templateMetrics.economy.slo,
+        budget_usage_pct: templateMetrics.economy.budget,
+        incidents_count: templateMetrics.economy.incidents,
+        guardrail_score: templateMetrics.economy.guard,
+        created_at: '2025-02-01T12:00:00+00:00',
+        updated_at: '2025-02-01T12:00:00+00:00',
+      },
+      {
+        id: 'deploy-balanced-20250415',
+        template_id: 'balanced',
+        deployed_at: '2025-04-15T09:30:00+00:00',
+        author: 'Console MCP',
+        window: 'GA progressivo',
+        note: 'Promoção Q2 liberada para toda a frota.',
+        slo_p95_ms: templateMetrics.balanced.slo,
+        budget_usage_pct: templateMetrics.balanced.budget,
+        incidents_count: templateMetrics.balanced.incidents,
+        guardrail_score: templateMetrics.balanced.guard,
+        created_at: '2025-04-15T09:30:00+00:00',
+        updated_at: '2025-04-15T09:30:00+00:00',
+      },
+    ];
+
+    let deploymentCounter = 0;
+
     applyDefaultFetchMock = () => {
       fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : input.toString();
@@ -244,6 +333,45 @@ describe('App provider orchestration flow', () => {
       }
       if (url.startsWith('/api/v1/telemetry/runs')) {
         return createFetchResponse(runsPayload);
+      }
+      if (url === '/api/v1/policies/templates' && method === 'GET') {
+        return createFetchResponse(policyTemplatesPayload);
+      }
+      if (url === '/api/v1/policies/deployments' && method === 'GET') {
+        const active = deploymentsState.length ? deploymentsState[deploymentsState.length - 1].id : null;
+        return createFetchResponse({ deployments: deploymentsState, active_id: active });
+      }
+      if (url === '/api/v1/policies/deployments' && method === 'POST') {
+        const body = init?.body ? JSON.parse(init.body.toString()) : {};
+        const templateId: keyof typeof templateMetrics = body.template_id ?? 'economy';
+        const metrics = templateMetrics[templateId] ?? templateMetrics.economy;
+        deploymentCounter += 1;
+        const timestamp = `2025-04-20T12:00:${deploymentCounter.toString().padStart(2, '0')}+00:00`;
+        const newDeployment = {
+          id: `deploy-${templateId}-test-${deploymentCounter}`,
+          template_id: templateId,
+          deployed_at: timestamp,
+          author: body.author ?? 'Console MCP',
+          window: body.window ?? null,
+          note: body.note ?? null,
+          slo_p95_ms: metrics.slo,
+          budget_usage_pct: metrics.budget,
+          incidents_count: metrics.incidents,
+          guardrail_score: metrics.guard,
+          created_at: timestamp,
+          updated_at: timestamp,
+        };
+        deploymentsState = [...deploymentsState, newDeployment];
+        return createFetchResponse(newDeployment);
+      }
+      if (url.startsWith('/api/v1/policies/deployments/') && method === 'DELETE') {
+        const deploymentId = url.split('/').pop();
+        deploymentsState = deploymentsState.filter((deployment) => deployment.id !== deploymentId);
+        return Promise.resolve({
+          ok: true,
+          status: 204,
+          json: () => Promise.resolve(undefined),
+        } as Response);
       }
 
       if (method === 'DELETE') {

@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
+  createPolicyDeployment,
+  deletePolicyDeployment,
+  fetchPolicyDeployments,
   fetchPolicyTemplates,
+  type PolicyDeployment,
   type PolicyTemplate,
   type PolicyTemplateId,
   type ProviderSummary,
@@ -13,14 +17,6 @@ export interface PoliciesProps {
   providers: ProviderSummary[];
   isLoading: boolean;
   initialError: string | null;
-}
-
-interface PolicyDeployment {
-  templateId: PolicyTemplateId;
-  deployedAt: string;
-  author: string;
-  window: string;
-  note: string;
 }
 
 interface RolloutSegment {
@@ -105,25 +101,7 @@ const ROLLOUT_SEGMENTS: RolloutSegment[] = [
   },
 ];
 
-function createInitialHistory(): PolicyDeployment[] {
-  const now = Date.now();
-  return [
-    {
-      templateId: 'economy',
-      deployedAt: new Date(now - 1000 * 60 * 60 * 24 * 28).toISOString(),
-      author: 'FinOps Squad',
-      window: 'Canário 5% → 20%',
-      note: 'Piloto para squads orientados a custo.',
-    },
-    {
-      templateId: 'balanced',
-      deployedAt: new Date(now - 1000 * 60 * 60 * 24 * 3).toISOString(),
-      author: 'Console MCP',
-      window: 'GA progressivo',
-      note: 'Promoção Q2 liberada para toda a frota.',
-    },
-  ];
-}
+const FALLBACK_TEMPLATE_ID: PolicyTemplateId = 'economy';
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('pt-BR', {
@@ -148,27 +126,18 @@ function buildRolloutPlan(providers: ProviderSummary[], templateId: PolicyTempla
   });
 }
 
-function computeReliability(templateId: PolicyTemplateId): { sloP95: number; budgetUsage: number; incidents: number } {
-  const sloP95 = 480 + seededMod(`${templateId}-slo`, 520);
-  const budgetUsage = 62 + seededMod(`${templateId}-budget`, 24);
-  const incidents = seededMod(`${templateId}-incidents`, 4);
-  return { sloP95, budgetUsage, incidents };
-}
-
-function computeGuardrailScore(templateId: PolicyTemplateId): number {
-  return 68 + seededMod(`${templateId}-guardrail`, 18);
-}
-
 type BannerKind = 'success' | 'info' | 'warning';
 
 export default function Policies({ providers, isLoading, initialError }: PoliciesProps) {
   const [templates, setTemplates] = useState<PolicyTemplate[]>(DEFAULT_POLICY_TEMPLATES);
   const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
-  const [history, setHistory] = useState<PolicyDeployment[]>(() => createInitialHistory());
-  const [selectedTemplateId, setSelectedTemplateId] = useState<PolicyTemplateId>(
-    () => history[history.length - 1].templateId,
-  );
+  const [deployments, setDeployments] = useState<PolicyDeployment[]>([]);
+  const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<PolicyTemplateId>(FALLBACK_TEMPLATE_ID);
+  const [isMutating, setIsMutating] = useState(false);
   const [banner, setBanner] = useState<{ kind: BannerKind; message: string } | null>(null);
 
   useEffect(() => {
@@ -211,66 +180,160 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     };
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    async function loadDeployments() {
+      setIsHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const summary = await fetchPolicyDeployments(controller.signal);
+        if (!active) {
+          return;
+        }
+        setDeployments(summary.deployments);
+        setActiveDeploymentId(summary.activeId);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        if ((error as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        // eslint-disable-next-line no-console
+        console.error('Failed to load policy deployments', error);
+        setHistoryError('Não foi possível carregar o histórico de deploys.');
+      } finally {
+        if (active) {
+          setIsHistoryLoading(false);
+        }
+      }
+    }
+
+    loadDeployments();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
   const templateMap = useMemo(
     () => new Map(templates.map((template) => [template.id, template])),
     [templates],
   );
 
-  const activeDeployment = history[history.length - 1];
+  const activeDeployment = useMemo(() => {
+    if (deployments.length === 0) {
+      return null;
+    }
+    if (activeDeploymentId) {
+      const match = deployments.find((deployment) => deployment.id === activeDeploymentId);
+      if (match) {
+        return match;
+      }
+    }
+    return deployments[deployments.length - 1];
+  }, [deployments, activeDeploymentId]);
+
+  useEffect(() => {
+    if (activeDeployment) {
+      setSelectedTemplateId(activeDeployment.templateId as PolicyTemplateId);
+    }
+  }, [activeDeployment?.templateId]);
+
   const fallbackTemplate = templates[0] ?? DEFAULT_POLICY_TEMPLATES[0];
-  const activeTemplate = templateMap.get(activeDeployment.templateId) ?? fallbackTemplate;
-  const previousDeployment = history.length > 1 ? history[history.length - 2] : null;
+  const activeTemplate = activeDeployment
+    ? templateMap.get(activeDeployment.templateId as PolicyTemplateId) ?? fallbackTemplate
+    : fallbackTemplate;
+  const activeIndex = activeDeployment ? deployments.findIndex((item) => item.id === activeDeployment.id) : -1;
+  const previousDeployment = activeIndex > 0 ? deployments[activeIndex - 1] : null;
   const previousTemplate = previousDeployment
-    ? templateMap.get(previousDeployment.templateId) ?? fallbackTemplate
+    ? templateMap.get(previousDeployment.templateId as PolicyTemplateId) ?? fallbackTemplate
     : null;
 
   const rolloutPlan = useMemo(() => buildRolloutPlan(providers, selectedTemplateId), [providers, selectedTemplateId]);
-  const activeReliability = useMemo(
-    () => computeReliability(activeDeployment.templateId),
-    [activeDeployment.templateId],
-  );
-  const guardrailScore = useMemo(
-    () => computeGuardrailScore(activeDeployment.templateId),
-    [activeDeployment.templateId],
-  );
+  const activeReliability = activeDeployment
+    ? {
+        sloP95: activeDeployment.sloP95Ms,
+        budgetUsage: activeDeployment.budgetUsagePct,
+        incidents: activeDeployment.incidentsCount,
+      }
+    : null;
+  const guardrailScore = activeDeployment?.guardrailScore ?? null;
 
   useEffect(() => {
-    if (!templateMap.has(selectedTemplateId) && templates.length > 0) {
-      setSelectedTemplateId(templates[templates.length - 1].id);
+    if (templates.length === 0) {
+      return;
     }
-  }, [templateMap, selectedTemplateId, templates]);
+    if (!templateMap.has(selectedTemplateId)) {
+      const fallbackId = (
+        (activeDeployment?.templateId as PolicyTemplateId | undefined) ??
+        templates[templates.length - 1]?.id ??
+        FALLBACK_TEMPLATE_ID
+      ) as PolicyTemplateId;
+      setSelectedTemplateId(fallbackId);
+    }
+  }, [templateMap, selectedTemplateId, templates, activeDeployment?.templateId]);
 
   const selectedTemplate = templateMap.get(selectedTemplateId) ?? fallbackTemplate;
-  const canRollback = Boolean(previousDeployment);
+  const disableActions = isMutating || isTemplatesLoading || isHistoryLoading;
+  const canRollback = Boolean(previousDeployment) && !disableActions;
 
-  function handleApply() {
-    if (selectedTemplateId === activeDeployment.templateId) {
+  async function handleApply() {
+    if (disableActions) {
+      return;
+    }
+
+    if (activeDeployment && selectedTemplateId === (activeDeployment.templateId as PolicyTemplateId)) {
       setBanner({ kind: 'info', message: 'O template selecionado já está ativo na frota MCP.' });
       return;
     }
 
-    const timestamp = new Date().toISOString();
-    setHistory((current) => [
-      ...current,
-      {
-        templateId: selectedTemplateId,
-        deployedAt: timestamp,
-        author: 'Console MCP',
-        window: 'Rollout monitorado',
-        note: `Rollout manual: ${selectedTemplate.name}.`,
-      },
-    ]);
-    setBanner({ kind: 'success', message: `${selectedTemplate.name} ativado para toda a frota.` });
+    setIsMutating(true);
+    setBanner(null);
+    try {
+      const deployment = await createPolicyDeployment(
+        {
+          templateId: selectedTemplateId,
+          author: 'Console MCP',
+          window: 'Rollout monitorado',
+          note: `Rollout manual: ${selectedTemplate.name}.`,
+        },
+      );
+      setDeployments((current) => [...current, deployment]);
+      setActiveDeploymentId(deployment.id);
+      setBanner({ kind: 'success', message: `${selectedTemplate.name} ativado para toda a frota.` });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to apply policy template', error);
+      setBanner({ kind: 'warning', message: 'Não foi possível aplicar o template selecionado. Tente novamente.' });
+    } finally {
+      setIsMutating(false);
+    }
   }
 
-  function handleRollback() {
-    if (!previousDeployment || !previousTemplate) {
+  async function handleRollback() {
+    if (!previousDeployment || !previousTemplate || !activeDeployment || disableActions) {
       return;
     }
 
-    setHistory((current) => current.slice(0, -1));
-    setSelectedTemplateId(previousDeployment.templateId);
-    setBanner({ kind: 'warning', message: `Rollback concluído para ${previousTemplate.name}.` });
+    setIsMutating(true);
+    setBanner(null);
+    try {
+      await deletePolicyDeployment(activeDeployment.id);
+      setDeployments((current) => current.filter((item) => item.id !== activeDeployment.id));
+      setActiveDeploymentId(previousDeployment.id);
+      setSelectedTemplateId(previousDeployment.templateId as PolicyTemplateId);
+      setBanner({ kind: 'warning', message: `Rollback concluído para ${previousTemplate.name}.` });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to rollback policy deployment', error);
+      setBanner({ kind: 'warning', message: 'Falha ao realizar rollback. Tente novamente.' });
+    } finally {
+      setIsMutating(false);
+    }
   }
 
   return (
@@ -293,33 +356,33 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           <dl>
             <div>
               <dt>Último deploy</dt>
-              <dd>{formatDateTime(activeDeployment.deployedAt)}</dd>
+              <dd>{activeDeployment ? formatDateTime(activeDeployment.deployedAt) : '—'}</dd>
             </div>
             <div>
               <dt>Autor</dt>
-              <dd>{activeDeployment.author}</dd>
+              <dd>{activeDeployment ? activeDeployment.author : '—'}</dd>
             </div>
             <div>
               <dt>Janela</dt>
-              <dd>{activeDeployment.window}</dd>
+              <dd>{activeDeployment && activeDeployment.window ? activeDeployment.window : '—'}</dd>
             </div>
           </dl>
           <ul className="policy-overview__metrics">
             <li>
               <span>P95 observado</span>
-              <strong>{activeReliability.sloP95} ms</strong>
+              <strong>{activeReliability ? `${activeReliability.sloP95} ms` : '—'}</strong>
             </li>
             <li>
               <span>Uso de budget</span>
-              <strong>{activeReliability.budgetUsage}%</strong>
+              <strong>{activeReliability ? `${activeReliability.budgetUsage}%` : '—'}</strong>
             </li>
             <li>
               <span>Incidentes em 30 dias</span>
-              <strong>{activeReliability.incidents}</strong>
+              <strong>{activeReliability ? activeReliability.incidents : '—'}</strong>
             </li>
             <li>
               <span>Guardrail score</span>
-              <strong>{guardrailScore}</strong>
+              <strong>{guardrailScore ?? '—'}</strong>
             </li>
           </ul>
         </article>
@@ -345,7 +408,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             </div>
             <div>
               <dt>Nota</dt>
-              <dd>{previousDeployment ? previousDeployment.note : '—'}</dd>
+              <dd>{previousDeployment && previousDeployment.note ? previousDeployment.note : '—'}</dd>
             </div>
           </dl>
         </article>
@@ -369,12 +432,17 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           templates={templates}
           value={selectedTemplateId}
           onChange={setSelectedTemplateId}
-          disabled={isTemplatesLoading || isLoading}
+          disabled={disableActions || isLoading}
         />
       </section>
 
       <div className="policies__actions">
-        <button type="button" className="policy-action policy-action--primary" onClick={handleApply}>
+        <button
+          type="button"
+          className="policy-action policy-action--primary"
+          onClick={handleApply}
+          disabled={disableActions}
+        >
           Aplicar template
         </button>
         <button
@@ -424,23 +492,30 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           <h2>Histórico de deploys</h2>
           <p>Acompanhe os templates aplicados na frota e os motivos registrados.</p>
         </header>
+        {isHistoryLoading && <p className="status">Carregando histórico de deploys…</p>}
+        {historyError && <p className="error">{historyError}</p>}
         <ol className="policy-history">
-          {[...history]
+          {deployments
             .slice()
             .reverse()
             .map((deployment) => {
-              const template = templateMap.get(deployment.templateId) ?? fallbackTemplate;
+              const template = templateMap.get(deployment.templateId as PolicyTemplateId) ?? fallbackTemplate;
               return (
-                <li key={`${deployment.templateId}-${deployment.deployedAt}`}>
+                <li key={`${deployment.id}`}>
                   <div className="policy-history__header">
                     <span className="policy-history__template">{template.name}</span>
                     <time dateTime={deployment.deployedAt}>{formatDateTime(deployment.deployedAt)}</time>
                   </div>
-                  <p>{deployment.note}</p>
-                  <span className="policy-history__meta">{deployment.author} · {deployment.window}</span>
+                  <p>{deployment.note ?? '—'}</p>
+                  <span className="policy-history__meta">
+                    {deployment.author} · {deployment.window ?? '—'}
+                  </span>
                 </li>
               );
             })}
+          {deployments.length === 0 && !isHistoryLoading && !historyError && (
+            <li className="policy-history__empty">Nenhum deploy registrado até o momento.</li>
+          )}
         </ol>
       </section>
     </main>
