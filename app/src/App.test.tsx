@@ -337,6 +337,44 @@ describe('App provider orchestration flow', () => {
       if (url === '/api/v1/policies/templates' && method === 'GET') {
         return createFetchResponse(policyTemplatesPayload);
       }
+      if (url === '/api/v1/routing/simulate' && method === 'POST') {
+        const body = init?.body ? JSON.parse(init.body.toString()) : {};
+        const commonRoute = {
+          id: provider.id,
+          provider,
+          lane: 'balanced',
+          cost_per_million: 20,
+          latency_p95: 940,
+          reliability: 95,
+          capacity_score: 80,
+        };
+        const baseResponse = {
+          total_cost: 210,
+          cost_per_million: 17.5,
+          avg_latency: 880,
+          reliability_score: 95.3,
+          distribution: [
+            {
+              route: commonRoute,
+              share: 0.7,
+              tokens_millions: 8.4,
+              cost: 168,
+            },
+          ],
+          excluded_route: null,
+        };
+        if (body.failover_provider_id) {
+          return createFetchResponse({
+            ...baseResponse,
+            distribution: [],
+            excluded_route: commonRoute,
+          });
+        }
+        return createFetchResponse({
+          ...baseResponse,
+          excluded_route: null,
+        });
+      }
       if (url === '/api/v1/policies/deployments' && method === 'GET') {
         const active = deploymentsState.length ? deploymentsState[deploymentsState.length - 1].id : null;
         return createFetchResponse({ deployments: deploymentsState, active_id: active });
