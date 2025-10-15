@@ -69,7 +69,7 @@ from .servers import (
     list_servers,
     update_server,
 )
-from .telemetry import aggregate_metrics
+from .telemetry import aggregate_metrics, render_telemetry_export
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessNotRunningError,
@@ -141,6 +141,46 @@ def read_telemetry_metrics(
             for provider in aggregates.providers
         ],
     )
+
+
+@router.get("/telemetry/export")
+def export_telemetry(
+    format: str = Query(
+        default="csv",
+        description="Formato de exportação desejado (csv ou html)",
+    ),
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusivo: limite inferior ISO 8601 para filtrar eventos",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusivo: limite superior ISO 8601 para filtrar eventos",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Opcional: filtra por identificador do provedor",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Opcional: filtra por rota",
+    ),
+) -> Response:
+    """Render telemetry exports in CSV or HTML."""
+
+    try:
+        document, media_type = render_telemetry_export(
+            format,
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return Response(content=document, media_type=media_type)
 
 
 @router.get("/policies", response_model=CostPoliciesResponse)

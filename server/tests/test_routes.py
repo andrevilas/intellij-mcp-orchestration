@@ -276,6 +276,83 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
     assert filtered_payload['providers'][0]['provider_id'] == 'gemini'
 
 
+def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> None:
+    from console_mcp_server import database as database_module
+
+    engine = database_module.bootstrap_database()
+    base_ts = datetime(2025, 3, 10, 14, 0, tzinfo=timezone.utc)
+
+    sample = {
+        'provider_id': 'glm46',
+        'tool': 'glm46.chat',
+        'route': 'default',
+        'tokens_in': 100,
+        'tokens_out': 50,
+        'duration_ms': 1000,
+        'status': 'success',
+        'cost_estimated_usd': 0.33,
+        'metadata': '{}',
+        'ts': base_ts.isoformat(),
+        'source_file': 'glm46/sample.jsonl',
+        'ingested_at': base_ts.isoformat(),
+    }
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO telemetry_events (
+                    provider_id,
+                    tool,
+                    route,
+                    tokens_in,
+                    tokens_out,
+                    duration_ms,
+                    status,
+                    cost_estimated_usd,
+                    metadata,
+                    ts,
+                    source_file,
+                    line_number,
+                    ingested_at
+                ) VALUES (
+                    :provider_id,
+                    :tool,
+                    :route,
+                    :tokens_in,
+                    :tokens_out,
+                    :duration_ms,
+                    :status,
+                    :cost_estimated_usd,
+                    :metadata,
+                    :ts,
+                    :source_file,
+                    1,
+                    :ingested_at
+                )
+                """
+            ),
+            sample,
+        )
+
+    csv_response = client.get('/api/v1/telemetry/export')
+    assert csv_response.status_code == 200
+    assert csv_response.headers['content-type'].startswith('text/csv')
+    assert 'glm46' in csv_response.text
+
+    html_response = client.get(
+        '/api/v1/telemetry/export',
+        params={'format': 'html', 'provider_id': 'glm46'},
+    )
+    assert html_response.status_code == 200
+    assert html_response.headers['content-type'].startswith('text/html')
+    assert '<table' in html_response.text
+    assert 'glm46' in html_response.text
+
+    bad_format = client.get('/api/v1/telemetry/export', params={'format': 'xml'})
+    assert bad_format.status_code == 400
+
+
 def test_cost_policies_crud_flow(client: TestClient) -> None:
     list_empty = client.get('/api/v1/policies')
     assert list_empty.status_code == 200
