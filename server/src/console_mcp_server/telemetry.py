@@ -544,7 +544,8 @@ def _fetch_events(
         ORDER BY ts ASC, provider_id ASC, line_number ASC
         """
     )
-    return [dict(row) for row in connection.execute(statement, dict(params))]
+    result = connection.execute(statement, dict(params))
+    return [dict(row) for row in result.mappings()]
 
 
 def _render_csv(rows: list[dict[str, object]]) -> str:

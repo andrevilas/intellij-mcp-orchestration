@@ -102,7 +102,7 @@
 
 ## Sprint PR-1 — Guardrails
 - [x] **TASK-PR-101 — Templates de política**
-- [ ] **TASK-PR-102 — Overrides por rota/projeto**
+- [x] **TASK-PR-102 — Overrides por rota/projeto**
 - [ ] **TASK-PR-103 — Dry-run de custo**
 
 ---

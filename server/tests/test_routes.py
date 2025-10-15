@@ -167,6 +167,70 @@ def test_secret_crud_flow(client: TestClient, tmp_path: Path) -> None:
     assert disk_after_delete['secrets'] == {}
 
 
+def test_policy_override_crud_flow(client: TestClient) -> None:
+    list_response = client.get('/api/v1/policies/overrides')
+    assert list_response.status_code == 200
+    assert list_response.json() == {'overrides': []}
+
+    create_payload = {
+        'id': 'route-ops-balance',
+        'route': 'ops/incident',
+        'project': 'observability',
+        'template_id': 'balanced',
+        'max_latency_ms': 1800,
+        'max_cost_usd': 1.25,
+        'require_manual_approval': True,
+        'notes': 'Incident response route requires manual approval.',
+    }
+
+    create_response = client.post('/api/v1/policies/overrides', json=create_payload)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created['route'] == 'ops/incident'
+    assert created['project'] == 'observability'
+    assert created['template_id'] == 'balanced'
+    assert created['require_manual_approval'] is True
+    created_at = parse_iso(created['created_at'])
+    updated_at = parse_iso(created['updated_at'])
+    assert updated_at >= created_at
+
+    read_response = client.get('/api/v1/policies/overrides/route-ops-balance')
+    assert read_response.status_code == 200
+    assert read_response.json()['notes'] == 'Incident response route requires manual approval.'
+
+    update_payload = {
+        'route': 'ops/incident',
+        'project': 'observability',
+        'template_id': 'turbo',
+        'max_latency_ms': 1200,
+        'max_cost_usd': 2.0,
+        'require_manual_approval': False,
+        'notes': 'Escalated to turbo after review.',
+    }
+
+    update_response = client.put('/api/v1/policies/overrides/route-ops-balance', json=update_payload)
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated['template_id'] == 'turbo'
+    assert updated['require_manual_approval'] is False
+    assert parse_iso(updated['created_at']) == created_at
+    assert parse_iso(updated['updated_at']) > updated_at
+
+    list_after_update = client.get('/api/v1/policies/overrides')
+    assert list_after_update.status_code == 200
+    overrides = list_after_update.json()['overrides']
+    assert len(overrides) == 1
+    assert overrides[0]['id'] == 'route-ops-balance'
+    assert overrides[0]['template_id'] == 'turbo'
+
+    delete_response = client.delete('/api/v1/policies/overrides/route-ops-balance')
+    assert delete_response.status_code == 204
+
+    final_response = client.get('/api/v1/policies/overrides')
+    assert final_response.status_code == 200
+    assert final_response.json()['overrides'] == []
+
+
 def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> None:
     from console_mcp_server import database as database_module
 
