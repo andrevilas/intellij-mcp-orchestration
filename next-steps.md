@@ -2,6 +2,8 @@
 **Status do plano:** atualizado
 **Missão:** console unificado para **gerenciar MCP servers**, **chaves/policies**, e **FinOps** com foco **custo/benefício** e **DX**.
 
+> **Atualização 2025-10-15:** Build validado via suíte de testes (frontend e backend). Próxima frente: iniciar **TASK-BE-203 — Routing Simulator**.
+
 ## North Star & KPIs
 - **Lead time por PR**: -40% (30 dias)
 - **Custo por PR**: -25% vs. baseline
