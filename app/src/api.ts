@@ -337,6 +337,47 @@ interface TelemetryTimeseriesResponsePayload {
   next_cursor?: string | null;
 }
 
+export type ReportStatus = 'on_track' | 'attention' | 'regression';
+
+export interface FinOpsSprintReportPayload {
+  id: string;
+  name: string;
+  period_start: string;
+  period_end: string;
+  total_cost_usd: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
+  avg_latency_ms: number;
+  success_rate: number;
+  cost_delta: number;
+  status: ReportStatus;
+  summary: string;
+}
+
+interface FinOpsSprintReportsResponsePayload {
+  items: FinOpsSprintReportPayload[];
+}
+
+export interface FinOpsPullRequestReportPayload {
+  id: string;
+  provider_id: string;
+  provider_name: string;
+  route: string | null;
+  lane: string | null;
+  title: string;
+  owner: string;
+  merged_at: string | null;
+  cost_impact_usd: number;
+  cost_delta: number;
+  tokens_impact: number;
+  status: ReportStatus;
+  summary: string;
+}
+
+interface FinOpsPullRequestReportsResponsePayload {
+  items: FinOpsPullRequestReportPayload[];
+}
+
 export type RoutingStrategyId = 'balanced' | 'finops' | 'latency' | 'resilience';
 export type RoutingLane = 'economy' | 'balanced' | 'turbo';
 
@@ -1055,6 +1096,53 @@ export async function fetchTelemetryRuns(
     cursor: filters?.cursor,
   });
   return request<TelemetryRunsResponsePayload>(`/telemetry/runs${query}`, { signal });
+}
+
+export interface FinOpsReportsFilters {
+  start?: Date | string;
+  end?: Date | string;
+  providerId?: string;
+  lane?: string;
+  windowDays?: number;
+  limit?: number;
+}
+
+export async function fetchFinOpsSprintReports(
+  filters?: FinOpsReportsFilters,
+  signal?: AbortSignal,
+): Promise<FinOpsSprintReportPayload[]> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    lane: filters?.lane,
+    window_days: filters?.windowDays ? String(filters.windowDays) : undefined,
+    limit: filters?.limit ? String(filters.limit) : undefined,
+  });
+  const data = await request<FinOpsSprintReportsResponsePayload>(
+    `/telemetry/finops/sprints${query}`,
+    { signal },
+  );
+  return data.items;
+}
+
+export async function fetchFinOpsPullRequestReports(
+  filters?: FinOpsReportsFilters,
+  signal?: AbortSignal,
+): Promise<FinOpsPullRequestReportPayload[]> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    lane: filters?.lane,
+    window_days: filters?.windowDays ? String(filters.windowDays) : undefined,
+    limit: filters?.limit ? String(filters.limit) : undefined,
+  });
+  const data = await request<FinOpsPullRequestReportsResponsePayload>(
+    `/telemetry/finops/pull-requests${query}`,
+    { signal },
+  );
+  return data.items;
 }
 
 export const apiBase = API_BASE;

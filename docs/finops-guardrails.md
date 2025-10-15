@@ -13,3 +13,8 @@
 - Medir custo por PR/sprint: tokens de entrada/saída e latência média.
 - Fail-fast em loops improdutivos (limite de iterações).
 - `glm46-mcp-server` lê `~/.mcp/cost-policy.json` (gerado no bootstrap) e grava `~/.mcp/logs/glm46/*.jsonl`.
+
+## APIs consolidadas
+
+- `/api/v1/telemetry/finops/sprints` — agrega custo, tokens, latência e variação versus janela anterior.
+- `/api/v1/telemetry/finops/pull-requests` — expõe rotas com impacto financeiro real e metadados operacionais.

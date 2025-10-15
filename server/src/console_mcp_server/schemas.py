@@ -585,3 +585,53 @@ class TelemetryRunsResponse(BaseModel):
 
     items: List[TelemetryRunEntry]
     next_cursor: Optional[str] = None
+
+
+ReportStatus = Literal["on_track", "attention", "regression"]
+
+
+class FinOpsSprintReport(BaseModel):
+    """Aggregated metrics for uma sprint FinOps."""
+
+    id: str
+    name: str
+    period_start: date
+    period_end: date
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    avg_latency_ms: float
+    success_rate: float
+    cost_delta: float
+    status: ReportStatus
+    summary: str
+
+
+class FinOpsSprintReportsResponse(BaseModel):
+    """Envelope para relatórios de sprint."""
+
+    items: List[FinOpsSprintReport]
+
+
+class FinOpsPullRequestReport(BaseModel):
+    """Resumo de impacto financeiro por rota monitorada."""
+
+    id: str
+    provider_id: str
+    provider_name: str
+    route: Optional[str] = None
+    lane: Optional[Literal["economy", "balanced", "turbo"]] = None
+    title: str
+    owner: str
+    merged_at: Optional[datetime] = None
+    cost_impact_usd: float
+    cost_delta: float
+    tokens_impact: int
+    status: ReportStatus
+    summary: str
+
+
+class FinOpsPullRequestReportsResponse(BaseModel):
+    """Envelope para relatórios estilo pull request."""
+
+    items: List[FinOpsPullRequestReport]

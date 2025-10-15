@@ -690,6 +690,73 @@ def test_telemetry_runs_endpoint_filters_by_lane(
     assert {item['provider_id'] for item in payload['items']} == {'glm46'}
 
 
+def test_finops_sprint_reports_endpoint_returns_aggregates(
+    telemetry_dataset, client: TestClient
+) -> None:
+    base_ts = telemetry_dataset[0].ts
+    response = client.get(
+        '/api/v1/telemetry/finops/sprints',
+        params={
+            'start': (base_ts - timedelta(days=1)).isoformat(),
+            'end': (base_ts + timedelta(days=1)).isoformat(),
+            'window_days': 3,
+            'limit': 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert len(payload['items']) == 1
+    report = payload['items'][0]
+
+    assert report['period_start'] == '2025-04-09'
+    assert report['period_end'] == '2025-04-11'
+    assert report['total_tokens_in'] == 5400
+    assert report['total_tokens_out'] == 2500
+    assert report['total_cost_usd'] == pytest.approx(2.8577, rel=1e-5)
+    assert report['avg_latency_ms'] == pytest.approx(900.0, rel=1e-6)
+    assert report['success_rate'] == pytest.approx(0.5, rel=1e-6)
+    assert report['cost_delta'] == pytest.approx(0.0, rel=1e-6)
+    assert report['status'] == 'on_track'
+    assert 'Custo estável' in report['summary']
+
+
+def test_finops_pull_request_reports_endpoint_uses_latest_runs(
+    telemetry_dataset, client: TestClient
+) -> None:
+    base_ts = telemetry_dataset[0].ts
+    response = client.get(
+        '/api/v1/telemetry/finops/pull-requests',
+        params={
+            'start': (base_ts - timedelta(days=1)).isoformat(),
+            'end': (base_ts + timedelta(days=1)).isoformat(),
+            'window_days': 3,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert len(payload['items']) == 2
+
+    first, second = payload['items']
+    assert first['provider_id'] == 'gemini'
+    assert first['cost_impact_usd'] == pytest.approx(1.75545, rel=1e-5)
+    assert first['tokens_impact'] == 4600
+    assert first['owner'] == 'alpha'
+    assert first['status'] == 'on_track'
+    assert first['merged_at'].startswith('2025-04-11')
+    assert 'Custo estável' in first['summary']
+
+    assert second['provider_id'] == 'glm46'
+    assert second['cost_impact_usd'] == pytest.approx(1.10225, rel=1e-5)
+    assert second['tokens_impact'] == 3300
+    assert second['owner'] == 'beta'
+    assert second['status'] == 'on_track'
+    assert second['merged_at'].startswith('2025-04-10')
+
+
 def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> None:
     from console_mcp_server import database as database_module
 
