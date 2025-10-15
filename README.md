@@ -17,6 +17,7 @@ seus projetos (localmente ou em equipe) sem fricção.
   protocolo MCP.
 - **Empacotamento flexível**: gere desde um bundle estático até um wrapper Electron completo usando os scripts em
   `scripts/` e `desktop/`.
+- **Agents Hub dedicado**: serviço FastAPI em `agents-hub/` que lista e invoca agentes MCP locais via HTTP.
 
 ## Arquitetura em alto nível
 
@@ -30,7 +31,14 @@ seus projetos (localmente ou em equipe) sem fricção.
           | lê                                            | consulta
           v                                                v
    config/console-mcp/servers.*                   Manifests MCP locais
+
 ```
+
+O diretório `agents-hub/` hospeda um serviço FastAPI independente que lê manifests MCP em `app/agents/*`, expõe o catálogo em
+`/agents` e oferece o endpoint `/agents/{name}/invoke`. Ele pode ser iniciado com `cd agents-hub && make dev`. O frontend consome
+esses dados através dos wrappers HTTP centralizados em `app/src/api.ts`, acionados no efeito de carregamento inicial em
+`app/src/App.tsx` (veja o bloco `Promise.all([...fetchProviders(...)...])`), que serve de ponto para plugar chamadas adicionais ao
+hub.
 
 ## Requisitos
 
@@ -69,6 +77,7 @@ seus projetos (localmente ou em equipe) sem fricção.
 
 - Frontend: `pnpm --dir app dev`
 - Backend: `source server/.venv/bin/activate && console-mcp-server-dev`
+- Agents Hub: `cd agents-hub && make dev`
 
 ### Consumindo no IntelliJ
 
@@ -87,6 +96,7 @@ seus projetos (localmente ou em equipe) sem fricção.
 ## Documentação adicional
 
 - [Arquitetura de agentes](docs/agents-and-routing.md)
+- [Criar um novo agente no hub](docs/agents/new-agent.md)
 - [Objetivos e métricas](docs/objectives.md)
 - [Runbook operacional](docs/runbook.md)
 
