@@ -9,7 +9,9 @@
     "dev:frontend": "pnpm --dir app dev",
     "dev:backend": "bash scripts/dev-backend.sh",
     "test": "pnpm -r test",
-    "test:frontend": "pnpm --dir app test"
+    "test:frontend": "pnpm --dir app test",
+    "build": "bash scripts/build-local.sh",
+    "package:electron": "bash scripts/package-electron.sh"
   },
   "engines": {
     "node": ">=18.18.0",

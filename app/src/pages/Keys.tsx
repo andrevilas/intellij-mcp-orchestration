@@ -150,7 +150,7 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
   const keys = useMemo(() => createKeysFromProviders(providers), [providers]);
   const [keyStates, setKeyStates] = useState<Record<string, KeyState>>({});
   const keyStatesRef = useRef<Record<string, KeyState>>({});
-  const pendingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const pendingTimeouts = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     keyStatesRef.current = keyStates;
@@ -158,7 +158,7 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
 
   useEffect(() => {
     return () => {
-      pendingTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+      pendingTimeouts.current.forEach((timeout) => window.clearTimeout(timeout));
       pendingTimeouts.current.clear();
     };
   }, []);
@@ -212,7 +212,7 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
 
     const existingTimeout = pendingTimeouts.current.get(key.id);
     if (existingTimeout) {
-      clearTimeout(existingTimeout);
+      window.clearTimeout(existingTimeout);
       pendingTimeouts.current.delete(key.id);
     }
 

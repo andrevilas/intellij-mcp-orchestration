@@ -37,6 +37,19 @@ bash scripts/bootstrap-mcp.sh
 - `scripts/` – instalação, preflight e wrappers.
 - `config/` – templates de configuração (AI Assistant MCP, policies de roteamento).
 - `docs/` – playbooks por fase (Análise → Planejamento → Execução+Testes → Documentação) + guias de ambientes IntelliJ/VS Code.
+- `desktop/` – shell opcional em Electron para empacotar o frontend como app desktop.
+
+## Packaging (Sprint OPS-4)
+
+```bash
+# Build local bundle (frontend estático + wheel do backend)
+pnpm build
+
+# Empacotar shell Electron (opcional)
+pnpm run package:electron
+```
+
+Detalhes adicionais estão em [`docs/packaging.md`](docs/packaging.md).
 
 ## Novidades (v0.2.0)
 - `glm46-mcp-server` em Python, integrado ao bootstrap (`pipx install --force wrappers/glm46-mcp-server`).

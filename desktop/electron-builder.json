@@ -1,0 +1,25 @@
+{
+  "appId": "com.mcp.console",
+  "productName": "MCP Console",
+  "directories": {
+    "output": "../dist/electron"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json",
+    "resources/**/*"
+  ],
+  "extraMetadata": {
+    "name": "mcp-console-desktop"
+  },
+  "asar": true,
+  "win": {
+    "target": "zip"
+  },
+  "mac": {
+    "target": "dmg"
+  },
+  "linux": {
+    "target": ["AppImage", "tar.gz"]
+  }
+}

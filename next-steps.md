@@ -127,8 +127,8 @@
 - [ ] **TASK-OPS-302 — Operações seguras**
 
 ## Sprint OPS-4 — Packaging
-- [ ] **TASK-OPS-401 — Build local**
-- [ ] **TASK-OPS-402 — Electron (opcional)**
+- [x] **TASK-OPS-401 — Build local**
+- [x] **TASK-OPS-402 — Electron (opcional)**
 
 ---
 

@@ -3,7 +3,9 @@ SHELL := /usr/bin/env bash
 PNPM := pnpm
 PYTHON := python3
 
-.PHONY: doctor bootstrap reset clean install install-frontend install-backend         dev dev-frontend dev-backend test test-frontend test-backend check ci
+.PHONY: doctor bootstrap reset clean install install-frontend install-backend \
+        dev dev-frontend dev-backend test test-frontend test-backend check ci \
+        build package-electron
 
 doctor:
 	bash scripts/doctor.sh
@@ -23,10 +25,16 @@ install-frontend:
 	$(PNPM) install --frozen-lockfile || $(PNPM) install
 
 install-backend:
-	cd server && $(PYTHON) -m pip install --upgrade pip && $(PYTHON) -m pip install -e .[dev]
+        cd server && $(PYTHON) -m pip install --upgrade pip && $(PYTHON) -m pip install -e .[dev]
+
+build:
+        bash scripts/build-local.sh
+
+package-electron:
+        bash scripts/package-electron.sh
 
 dev:
-	bash scripts/dev-all.sh
+        bash scripts/dev-all.sh
 
 dev-frontend:
 	cd app && $(PNPM) dev
