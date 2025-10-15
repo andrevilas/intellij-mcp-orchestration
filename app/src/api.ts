@@ -22,6 +22,34 @@ export interface ProvidersResponse {
   providers: ProviderSummary[];
 }
 
+export type PolicyTemplateId = 'economy' | 'balanced' | 'turbo';
+
+export interface PolicyTemplate {
+  id: PolicyTemplateId;
+  name: string;
+  tagline: string;
+  description: string;
+  priceDelta: string;
+  latencyTarget: string;
+  guardrailLevel: string;
+  features: string[];
+}
+
+interface PolicyTemplatePayload {
+  id: PolicyTemplateId;
+  name: string;
+  tagline: string;
+  description: string;
+  price_delta: string;
+  latency_target: string;
+  guardrail_level: string;
+  features: string[];
+}
+
+interface PolicyTemplatesResponse {
+  templates: PolicyTemplatePayload[];
+}
+
 export interface SessionResponse {
   session: Session;
   provider: ProviderSummary;
@@ -64,6 +92,20 @@ export async function fetchProviders(signal?: AbortSignal): Promise<ProviderSumm
 export async function fetchSessions(signal?: AbortSignal): Promise<Session[]> {
   const data = await request<SessionsResponse>('/sessions', { signal });
   return data.sessions;
+}
+
+export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<PolicyTemplate[]> {
+  const data = await request<PolicyTemplatesResponse>('/policies/templates', { signal });
+  return data.templates.map((template) => ({
+    id: template.id,
+    name: template.name,
+    tagline: template.tagline,
+    description: template.description,
+    priceDelta: template.price_delta,
+    latencyTarget: template.latency_target,
+    guardrailLevel: template.guardrail_level,
+    features: template.features,
+  }));
 }
 
 export async function createSession(
