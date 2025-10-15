@@ -3287,6 +3287,7 @@ main.dashboard {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
 }
 
 .finops__pareto-header,
