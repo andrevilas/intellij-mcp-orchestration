@@ -157,6 +157,80 @@ def test_secret_crud_flow(client: TestClient, tmp_path: Path) -> None:
     assert disk_after_delete['secrets'] == {}
 
 
+def test_cost_policies_crud_flow(client: TestClient) -> None:
+    list_empty = client.get('/api/v1/policies')
+    assert list_empty.status_code == 200
+    assert list_empty.json() == {'policies': []}
+
+    create_payload = {
+        'id': 'global-spend',
+        'name': 'Global Spend Ceiling',
+        'description': 'Cap monthly spend for all providers',
+        'monthly_spend_limit': 1250.50,
+        'currency': 'USD',
+        'tags': ['global', 'finops'],
+    }
+
+    create_response = client.post('/api/v1/policies', json=create_payload)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created['id'] == 'global-spend'
+    assert created['name'] == 'Global Spend Ceiling'
+    assert created['monthly_spend_limit'] == pytest.approx(1250.50)
+    assert created['currency'] == 'USD'
+    assert created['tags'] == ['global', 'finops']
+    assert created['description'] == 'Cap monthly spend for all providers'
+    assert created['created_at']
+    assert created['updated_at']
+
+    duplicate = client.post('/api/v1/policies', json=create_payload)
+    assert duplicate.status_code == 409
+
+    list_after_create = client.get('/api/v1/policies')
+    assert list_after_create.status_code == 200
+    policies = list_after_create.json()['policies']
+    assert len(policies) == 1
+    assert policies[0]['id'] == 'global-spend'
+
+    read_response = client.get('/api/v1/policies/global-spend')
+    assert read_response.status_code == 200
+    assert read_response.json()['name'] == 'Global Spend Ceiling'
+
+    update_payload = {
+        'name': 'Updated Spend Ceiling',
+        'description': 'Refined description',
+        'monthly_spend_limit': 1750.0,
+        'currency': 'EUR',
+        'tags': ['europe'],
+    }
+
+    update_response = client.put('/api/v1/policies/global-spend', json=update_payload)
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated['name'] == 'Updated Spend Ceiling'
+    assert updated['description'] == 'Refined description'
+    assert updated['monthly_spend_limit'] == pytest.approx(1750.0)
+    assert updated['currency'] == 'EUR'
+    assert updated['tags'] == ['europe']
+    assert updated['updated_at'] != updated['created_at']
+
+    missing_update = client.put('/api/v1/policies/missing', json=update_payload)
+    assert missing_update.status_code == 404
+
+    delete_response = client.delete('/api/v1/policies/global-spend')
+    assert delete_response.status_code == 204
+
+    missing_read = client.get('/api/v1/policies/global-spend')
+    assert missing_read.status_code == 404
+
+    delete_missing = client.delete('/api/v1/policies/global-spend')
+    assert delete_missing.status_code == 404
+
+    list_after_delete = client.get('/api/v1/policies')
+    assert list_after_delete.status_code == 200
+    assert list_after_delete.json()['policies'] == []
+
+
 def test_mcp_servers_crud_flow(client: TestClient) -> None:
     list_empty = client.get('/api/v1/servers')
     assert list_empty.status_code == 200

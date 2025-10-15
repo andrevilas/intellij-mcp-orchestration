@@ -47,6 +47,24 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=2,
+        description="add cost policies table",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS cost_policies (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                currency TEXT NOT NULL DEFAULT 'USD',
+                monthly_spend_limit REAL NOT NULL,
+                tags TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None

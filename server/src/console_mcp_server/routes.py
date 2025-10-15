@@ -4,8 +4,21 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Response, status
 
+from .policies import (
+    CostPolicyAlreadyExistsError,
+    CostPolicyNotFoundError,
+    create_policy,
+    delete_policy,
+    get_policy,
+    list_policies,
+    update_policy,
+)
 from .registry import provider_registry, session_registry
 from .schemas import (
+    CostPoliciesResponse,
+    CostPolicyCreateRequest,
+    CostPolicyResponse,
+    CostPolicyUpdateRequest,
     HealthStatus,
     MCPServerCreateRequest,
     MCPServerResponse,
@@ -57,6 +70,84 @@ def list_providers() -> ProvidersResponse:
     """List the configured MCP providers available to the console."""
 
     return ProvidersResponse(providers=provider_registry.providers)
+
+
+@router.get("/policies", response_model=CostPoliciesResponse)
+def list_cost_policies() -> CostPoliciesResponse:
+    """Return the cost policies configured for the console."""
+
+    records = [CostPolicyResponse(**record.to_dict()) for record in list_policies()]
+    return CostPoliciesResponse(policies=records)
+
+
+@router.post("/policies", response_model=CostPolicyResponse, status_code=status.HTTP_201_CREATED)
+def create_cost_policy(payload: CostPolicyCreateRequest) -> CostPolicyResponse:
+    """Persist a new cost policy definition."""
+
+    try:
+        record = create_policy(
+            policy_id=payload.id,
+            name=payload.name,
+            description=payload.description,
+            monthly_spend_limit=payload.monthly_spend_limit,
+            currency=payload.currency,
+            tags=payload.tags,
+        )
+    except CostPolicyAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Policy '{payload.id}' already exists",
+        ) from exc
+    return CostPolicyResponse(**record.to_dict())
+
+
+@router.get("/policies/{policy_id}", response_model=CostPolicyResponse)
+def read_cost_policy(policy_id: str) -> CostPolicyResponse:
+    """Return a single cost policy."""
+
+    try:
+        record = get_policy(policy_id)
+    except CostPolicyNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy '{policy_id}' not found",
+        ) from exc
+    return CostPolicyResponse(**record.to_dict())
+
+
+@router.put("/policies/{policy_id}", response_model=CostPolicyResponse)
+def update_cost_policy(policy_id: str, payload: CostPolicyUpdateRequest) -> CostPolicyResponse:
+    """Update an existing cost policy."""
+
+    try:
+        record = update_policy(
+            policy_id,
+            name=payload.name,
+            description=payload.description,
+            monthly_spend_limit=payload.monthly_spend_limit,
+            currency=payload.currency,
+            tags=payload.tags,
+        )
+    except CostPolicyNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy '{policy_id}' not found",
+        ) from exc
+    return CostPolicyResponse(**record.to_dict())
+
+
+@router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cost_policy(policy_id: str) -> Response:
+    """Remove a cost policy definition."""
+
+    try:
+        delete_policy(policy_id)
+    except CostPolicyNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy '{policy_id}' not found",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/providers/{provider_id}/sessions", response_model=SessionResponse)

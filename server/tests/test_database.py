@@ -37,7 +37,7 @@ def test_bootstrap_creates_expected_tables(database) -> None:
             )
         }
 
-    assert {"schema_migrations", "mcp_servers"} <= tables
+    assert {"schema_migrations", "mcp_servers", "cost_policies"} <= tables
 
 
 def test_repeated_bootstrap_is_idempotent(database) -> None:

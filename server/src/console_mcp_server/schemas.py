@@ -82,6 +82,42 @@ class SecretValueResponse(BaseModel):
     updated_at: datetime
 
 
+class CostPolicyWriteRequest(BaseModel):
+    """Shared attributes required when creating or updating a cost policy."""
+
+    name: str = Field(..., min_length=1, max_length=256)
+    description: Optional[str] = Field(
+        default=None, max_length=1024, description="Optional human friendly summary"
+    )
+    monthly_spend_limit: float = Field(..., ge=0.0, description="Monthly spend ceiling in currency units")
+    currency: str = Field(default="USD", min_length=1, max_length=8)
+    tags: List[str] = Field(default_factory=list)
+
+
+class CostPolicyCreateRequest(CostPolicyWriteRequest):
+    """Payload used when registering a new cost policy."""
+
+    id: str = Field(..., min_length=1, max_length=128)
+
+
+class CostPolicyUpdateRequest(CostPolicyWriteRequest):
+    """Payload used to update an existing cost policy."""
+
+
+class CostPolicyResponse(CostPolicyWriteRequest):
+    """Full representation of a persisted cost policy."""
+
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CostPoliciesResponse(BaseModel):
+    """Envelope returned when listing all cost policies."""
+
+    policies: List[CostPolicyResponse]
+
+
 class MCPServerWriteRequest(BaseModel):
     """Shared attributes required when creating or updating an MCP server."""
 
