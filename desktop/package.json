@@ -9,7 +9,7 @@
     "build": "pnpm run clean && tsc -p tsconfig.json",
     "prepare-frontend": "node scripts/prepare-frontend.mjs",
     "dev": "pnpm --dir ../app dev",
-    "dev:electron": "VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "dev:electron": "node scripts/dev-electron.mjs",
     "launch": "pnpm run prepare-frontend && pnpm run build && electron .",
     "package": "pnpm --dir ../app build && pnpm run prepare-frontend && pnpm run build && electron-builder --dir --config electron-builder.json",
     "package:dist": "pnpm --dir ../app build && pnpm run prepare-frontend && pnpm run build && electron-builder --config electron-builder.json"

@@ -13,7 +13,9 @@ iterações curtas e agora está conectada ao protótipo FastAPI do backend, con
 
 ```bash
 pnpm install   # instala dependências
-pnpm dev       # inicia Vite em http://127.0.0.1:5173 com HMR
+CONSOLE_MCP_FRONTEND_HOST=127.0.0.1 \\
+CONSOLE_MCP_FRONTEND_PORT=5173 \\
+  pnpm dev     # inicia Vite com HMR respeitando as variáveis acima
 pnpm build     # gera artefatos prontos para deploy estático
 pnpm preview   # serve o build final localmente
 ```
@@ -21,12 +23,15 @@ pnpm preview   # serve o build final localmente
 ## Integração com o backend
 
 1. Inicie o servidor FastAPI em outro terminal (`console-mcp-server-dev`).
-2. Rode `pnpm dev` neste diretório. O proxy embutido encaminha chamadas `/api/*` para `http://127.0.0.1:8000`.
+2. Rode `pnpm dev` neste diretório. O proxy embutido encaminha chamadas `/api/*` para o host/porta do backend
+   (`CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`, padrão `127.0.0.1:8000`).
 3. A UI exibirá os provedores do manifesto versionado e permitirá criar sessões mock com um clique.
 
 Variáveis de ambiente úteis:
 - `VITE_CONSOLE_API_BASE`: altera o path base usado pelo fetch do frontend (default: `/api/v1`).
-- `CONSOLE_MCP_API_PROXY`: redefine o destino do proxy HTTP utilizado pelo dev server do Vite.
+- `CONSOLE_MCP_FRONTEND_HOST` / `CONSOLE_MCP_FRONTEND_PORT`: bind do dev server do Vite.
+- `CONSOLE_MCP_API_PROXY`: redefine o destino do proxy HTTP utilizado pelo dev server do Vite (por padrão usa os valores
+  de `CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`).
 
 ## Estrutura
 

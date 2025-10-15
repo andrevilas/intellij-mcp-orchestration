@@ -57,11 +57,11 @@ The command wraps the Vite bundle inside an Electron app via
 ### Development Loop
 
 ```bash
-# Terminal A — Vite dev server
+# Terminal A — Vite dev server (ports configuráveis via CONSOLE_MCP_FRONTEND_HOST/PORT)
 pnpm --dir app dev
 
-# Terminal B — Electron shell hitting the dev server
-VITE_DEV_SERVER_URL=http://localhost:5173 pnpm --dir desktop exec electron .
+# Terminal B — Electron shell apontando para o mesmo host/porta
+pnpm --dir desktop dev:electron
 ```
 
 Artifacts are written to `dist/electron/` and include platform installers where
