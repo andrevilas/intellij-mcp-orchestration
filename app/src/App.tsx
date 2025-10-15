@@ -6,6 +6,7 @@ import type {
   NotificationSummary,
   ProviderSummary,
   SecretMetadata,
+  SecretTestResult,
   SecretValue,
   Session,
   TelemetryHeatmapBucket,
@@ -21,6 +22,7 @@ import {
   fetchTelemetryHeatmap,
   fetchTelemetryMetrics,
   readSecret,
+  testSecret,
   upsertSecret,
 } from './api';
 import CommandPalette from './components/CommandPalette';
@@ -342,6 +344,13 @@ function App() {
     return readSecret(providerId);
   }, []);
 
+  const handleSecretTest = useCallback(
+    async (providerId: string): Promise<SecretTestResult> => {
+      return testSecret(providerId);
+    },
+    [],
+  );
+
   const handleCloseNotification = useCallback(() => {
     setNotificationOpen(false);
     requestAnimationFrame(() => {
@@ -662,6 +671,7 @@ function App() {
               onSecretSave={handleSecretSave}
               onSecretDelete={handleSecretDelete}
               onSecretReveal={handleSecretReveal}
+              onSecretTest={handleSecretTest}
             />
           </section>
         )}

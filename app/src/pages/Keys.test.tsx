@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { SecretValue } from '../api';
+import type { SecretTestResult, SecretValue } from '../api';
 import Keys, { type KeysProps } from './Keys';
 
 describe('Keys secrets management', () => {
@@ -33,6 +33,13 @@ describe('Keys secrets management', () => {
         value: 'sk-live-123',
         updated_at: new Date().toISOString(),
       })),
+      onSecretTest: vi.fn(async () => ({
+        provider_id: provider.id,
+        status: 'healthy',
+        latency_ms: 240,
+        tested_at: new Date().toISOString(),
+        message: `${provider.name} respondeu ao handshake em 240 ms.`,
+      } as SecretTestResult)),
       ...overrides,
     };
 
@@ -132,6 +139,73 @@ describe('Keys secrets management', () => {
     await waitFor(() => {
       expect(onSecretDelete).toHaveBeenCalledWith(provider.id);
     });
+  });
+
+  it('executes connectivity tests and reflects successful responses', async () => {
+    const user = userEvent.setup();
+    const testResult: SecretTestResult = {
+      provider_id: provider.id,
+      status: 'healthy',
+      latency_ms: 312,
+      tested_at: '2024-06-01T12:00:00.000Z',
+      message: `${provider.name} respondeu ao handshake em 312 ms.`,
+    };
+    let resolveTest: (result: SecretTestResult) => void = () => {};
+    const onSecretTest = vi.fn(
+      () =>
+        new Promise<SecretTestResult>((resolve) => {
+          resolveTest = resolve;
+        }),
+    );
+
+    renderComponent({
+      secrets: [
+        { provider_id: provider.id, has_secret: true, updated_at: '2024-01-01T00:00:00.000Z' },
+      ],
+      onSecretTest,
+    });
+
+    const testButton = await screen.findByRole('button', { name: 'Testar conectividade' });
+
+    await user.click(testButton);
+
+    await waitFor(() => {
+      expect(onSecretTest).toHaveBeenCalledWith(provider.id);
+    });
+
+    await screen.findByText('Executando handshake de validação…');
+
+    await act(async () => {
+      resolveTest(testResult);
+    });
+
+    await screen.findByText(testResult.message);
+    expect(screen.getByText('Handshake saudável')).toBeInTheDocument();
+  });
+
+  it('surfaces connectivity errors when validation fails', async () => {
+    const user = userEvent.setup();
+    const onSecretTest = vi.fn(async () => {
+      throw new Error('Falha simulada no handshake');
+    });
+
+    renderComponent({
+      secrets: [
+        { provider_id: provider.id, has_secret: true, updated_at: '2024-01-01T00:00:00.000Z' },
+      ],
+      onSecretTest,
+    });
+
+    const testButton = await screen.findByRole('button', { name: 'Testar conectividade' });
+
+    await user.click(testButton);
+
+    await waitFor(() => {
+      expect(onSecretTest).toHaveBeenCalledWith(provider.id);
+    });
+
+    await screen.findByText('Falha simulada no handshake');
+    expect(screen.getByText('Erro de handshake')).toBeInTheDocument();
   });
 
   it('summarises providers and highlights pending credentials', async () => {

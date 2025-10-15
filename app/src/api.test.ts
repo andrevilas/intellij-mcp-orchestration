@@ -21,6 +21,7 @@ import {
   fetchTelemetryHeatmap,
   fetchTelemetryMetrics,
   readSecret,
+  testSecret,
   upsertSecret,
 } from './api';
 
@@ -201,6 +202,28 @@ describe('api client', () => {
         method: 'DELETE',
       }),
     );
+  });
+
+  it('tests stored secrets via POST to /api/v1/secrets/{id}/test', async () => {
+    const payload = {
+      provider_id: 'gemini',
+      status: 'healthy',
+      latency_ms: 240,
+      tested_at: new Date().toISOString(),
+      message: 'Gemini MCP respondeu ao handshake em 240 ms.',
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const result = await testSecret('gemini');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/secrets/gemini/test',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
+    expect(result).toEqual(payload);
   });
 
   it('lists cost policies and normalizes field names', async () => {

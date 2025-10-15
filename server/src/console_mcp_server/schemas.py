@@ -82,6 +82,14 @@ class SecretValueResponse(BaseModel):
     updated_at: datetime
 
 
+class SecretTestResponse(BaseModel):
+    provider_id: str
+    status: Literal["healthy", "degraded", "error"]
+    latency_ms: int = Field(..., ge=0)
+    tested_at: datetime
+    message: str
+
+
 NotificationSeverity = Literal["info", "success", "warning", "critical"]
 NotificationCategory = Literal["operations", "finops", "policies", "platform"]
 
