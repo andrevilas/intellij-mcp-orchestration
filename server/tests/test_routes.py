@@ -924,6 +924,22 @@ def test_policy_templates_catalog(client: TestClient) -> None:
     assert isinstance(sample['features'], list)
     assert all(isinstance(item, str) for item in sample['features'])
 
+    rollout = payload.get('rollout')
+    assert rollout is not None
+    assert 'plans' in rollout
+    assert isinstance(rollout['plans'], list)
+    assert rollout['plans'], 'rollout plans should not be empty'
+
+    balanced_plan = next((plan for plan in rollout['plans'] if plan['templateId'] == 'balanced'), None)
+    assert balanced_plan is not None
+    assert 'allocations' in balanced_plan
+    assert balanced_plan['allocations'], 'expected allocations for balanced template'
+    allocation = balanced_plan['allocations'][0]
+    assert 'segment' in allocation
+    assert 'coverage' in allocation
+    assert isinstance(allocation['coverage'], int)
+    assert 'providers' in allocation
+
 
 def test_policy_deployments_flow(client: TestClient) -> None:
     list_response = client.get('/api/v1/policies/deployments')

@@ -295,10 +295,48 @@ class PolicyTemplateResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PolicyRolloutSegment(BaseModel):
+    """Static description of a rollout stage."""
+
+    id: Literal["canary", "general", "fallback"]
+    name: str
+    description: str
+
+
+class PolicyRolloutAllocation(BaseModel):
+    """Provider allocation within a rollout segment."""
+
+    segment: PolicyRolloutSegment
+    coverage_pct: int = Field(alias="coverage")
+    providers: List[ProviderSummary]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PolicyRolloutPlan(BaseModel):
+    """Rollout proposal for a specific policy template."""
+
+    template_id: str = Field(alias="templateId")
+    generated_at: datetime = Field(alias="generatedAt")
+    allocations: List[PolicyRolloutAllocation]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PolicyRolloutOverview(BaseModel):
+    """Aggregate rollout plans returned alongside the template catalog."""
+
+    generated_at: datetime = Field(alias="generatedAt")
+    plans: List[PolicyRolloutPlan]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PolicyTemplatesResponse(BaseModel):
     """Envelope returned when listing policy templates."""
 
     templates: List[PolicyTemplateResponse]
+    rollout: Optional[PolicyRolloutOverview] = None
 
 
 class PriceEntryWriteRequest(BaseModel):

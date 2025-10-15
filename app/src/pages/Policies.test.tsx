@@ -4,7 +4,12 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import Policies from './Policies';
-import type { PolicyDeployment, PolicyTemplate, ProviderSummary } from '../api';
+import type {
+  PolicyDeployment,
+  PolicyRolloutOverview,
+  PolicyTemplate,
+  ProviderSummary,
+} from '../api';
 import {
   fetchPolicyTemplates,
   fetchPolicyDeployments,
@@ -107,9 +112,63 @@ describe('Policies page integration with policy APIs', () => {
   const createDeploymentMock = createPolicyDeployment as unknown as Mock;
   const deleteDeploymentMock = deletePolicyDeployment as unknown as Mock;
 
+  const rollout: PolicyRolloutOverview = {
+    generatedAt: '2025-04-20T12:00:00+00:00',
+    plans: [
+      {
+        templateId: 'balanced',
+        generatedAt: '2025-04-15T09:30:00+00:00',
+        allocations: [
+          {
+            segment: {
+              id: 'canary',
+              name: 'Canário',
+              description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
+            },
+            coverage: 20,
+            providers,
+          },
+          {
+            segment: {
+              id: 'general',
+              name: 'GA',
+              description: 'Workloads padrão com fallback automático e monitoramento de custos.',
+            },
+            coverage: 60,
+            providers: [],
+          },
+          {
+            segment: {
+              id: 'fallback',
+              name: 'Fallback',
+              description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
+            },
+            coverage: 20,
+            providers: [],
+          },
+        ],
+      },
+      {
+        templateId: 'turbo',
+        generatedAt: '2025-04-20T12:00:00+00:00',
+        allocations: [
+          {
+            segment: {
+              id: 'canary',
+              name: 'Canário',
+              description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
+            },
+            coverage: 50,
+            providers,
+          },
+        ],
+      },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
-    fetchTemplatesMock.mockResolvedValue(templates);
+    fetchTemplatesMock.mockResolvedValue({ templates, rollout });
     fetchDeploymentsMock.mockResolvedValue({
       deployments: [initialDeployment],
       activeId: initialDeployment.id,
@@ -134,8 +193,9 @@ describe('Policies page integration with policy APIs', () => {
   it('renders deployments and allows applying and rolling back templates', async () => {
     render(<Policies providers={providers} isLoading={false} initialError={null} />);
 
-    await waitFor(() => expect(screen.getByText('Equilíbrio')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Equilíbrio' })).toBeInTheDocument());
     expect(screen.getByText('Promoção Q2 liberada para toda a frota.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Última atualização:/)).toBeInTheDocument());
 
     await userEvent.click(screen.getByLabelText('Template Turbo'));
     await userEvent.click(screen.getByRole('button', { name: 'Aplicar template' }));
