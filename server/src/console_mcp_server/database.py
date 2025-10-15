@@ -88,6 +88,38 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=4,
+        description="add telemetry events table",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS telemetry_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id TEXT NOT NULL,
+                tool TEXT NOT NULL,
+                route TEXT,
+                tokens_in INTEGER NOT NULL,
+                tokens_out INTEGER NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                cost_estimated_usd REAL,
+                metadata TEXT NOT NULL,
+                ts TEXT NOT NULL,
+                source_file TEXT NOT NULL,
+                line_number INTEGER NOT NULL,
+                ingested_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_telemetry_source
+                ON telemetry_events (source_file, line_number)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_telemetry_ts
+                ON telemetry_events (ts)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None
