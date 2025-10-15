@@ -35,6 +35,95 @@ export interface PolicyTemplate {
   features: string[];
 }
 
+export interface CostPolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  monthlySpendLimit: number;
+  currency: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CostPolicyCreateInput {
+  id: string;
+  name: string;
+  description?: string | null;
+  monthlySpendLimit: number;
+  currency: string;
+  tags?: string[];
+}
+
+export interface CostPolicyUpdateInput {
+  name: string;
+  description?: string | null;
+  monthlySpendLimit: number;
+  currency: string;
+  tags?: string[];
+}
+
+export interface PolicyOverride {
+  id: string;
+  route: string;
+  project: string;
+  templateId: string;
+  maxLatencyMs: number | null;
+  maxCostUsd: number | null;
+  requireManualApproval: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyOverrideCreateInput {
+  id: string;
+  route: string;
+  project: string;
+  templateId: string;
+  maxLatencyMs?: number | null;
+  maxCostUsd?: number | null;
+  requireManualApproval?: boolean;
+  notes?: string | null;
+}
+
+export interface PolicyOverrideUpdateInput {
+  route: string;
+  project: string;
+  templateId: string;
+  maxLatencyMs?: number | null;
+  maxCostUsd?: number | null;
+  requireManualApproval?: boolean;
+  notes?: string | null;
+}
+
+export interface PolicyDeployment {
+  id: string;
+  templateId: string;
+  deployedAt: string;
+  author: string;
+  window: string | null;
+  note: string | null;
+  sloP95Ms: number;
+  budgetUsagePct: number;
+  incidentsCount: number;
+  guardrailScore: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyDeploymentCreateInput {
+  templateId: string;
+  author?: string;
+  window?: string | null;
+  note?: string | null;
+}
+
+export interface PolicyDeploymentsSummary {
+  deployments: PolicyDeployment[];
+  activeId: string | null;
+}
+
 interface PolicyTemplatePayload {
   id: PolicyTemplateId;
   name: string;
@@ -48,6 +137,58 @@ interface PolicyTemplatePayload {
 
 interface PolicyTemplatesResponse {
   templates: PolicyTemplatePayload[];
+}
+
+interface CostPolicyPayload {
+  id: string;
+  name: string;
+  description: string | null;
+  monthly_spend_limit: number;
+  currency: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface CostPoliciesResponsePayload {
+  policies: CostPolicyPayload[];
+}
+
+interface PolicyOverridePayload {
+  id: string;
+  route: string;
+  project: string;
+  template_id: string;
+  max_latency_ms: number | null;
+  max_cost_usd: number | null;
+  require_manual_approval: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PolicyOverridesResponsePayload {
+  overrides: PolicyOverridePayload[];
+}
+
+interface PolicyDeploymentPayload {
+  id: string;
+  template_id: string;
+  deployed_at: string;
+  author: string;
+  window: string | null;
+  note: string | null;
+  slo_p95_ms: number;
+  budget_usage_pct: number;
+  incidents_count: number;
+  guardrail_score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PolicyDeploymentsResponsePayload {
+  deployments: PolicyDeploymentPayload[];
+  active_id?: string | null;
 }
 
 export interface SessionResponse {
@@ -288,6 +429,186 @@ export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<Policy
     guardrailLevel: template.guardrail_level,
     features: template.features,
   }));
+}
+
+function mapCostPolicy(payload: CostPolicyPayload): CostPolicy {
+  return {
+    id: payload.id,
+    name: payload.name,
+    description: payload.description ?? null,
+    monthlySpendLimit: payload.monthly_spend_limit,
+    currency: payload.currency,
+    tags: payload.tags ?? [],
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+export async function fetchPolicies(signal?: AbortSignal): Promise<CostPolicy[]> {
+  const data = await request<CostPoliciesResponsePayload>('/policies', { signal });
+  return data.policies.map(mapCostPolicy);
+}
+
+export async function createPolicy(
+  payload: CostPolicyCreateInput,
+  signal?: AbortSignal,
+): Promise<CostPolicy> {
+  const data = await request<CostPolicyPayload>('/policies', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: payload.id,
+      name: payload.name,
+      description: payload.description ?? null,
+      monthly_spend_limit: payload.monthlySpendLimit,
+      currency: payload.currency,
+      tags: payload.tags ?? [],
+    }),
+    signal,
+  });
+  return mapCostPolicy(data);
+}
+
+export async function updatePolicy(
+  policyId: string,
+  payload: CostPolicyUpdateInput,
+  signal?: AbortSignal,
+): Promise<CostPolicy> {
+  const data = await request<CostPolicyPayload>(`/policies/${policyId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: payload.name,
+      description: payload.description ?? null,
+      monthly_spend_limit: payload.monthlySpendLimit,
+      currency: payload.currency,
+      tags: payload.tags ?? [],
+    }),
+    signal,
+  });
+  return mapCostPolicy(data);
+}
+
+export async function deletePolicy(policyId: string, signal?: AbortSignal): Promise<void> {
+  await request<void>(`/policies/${policyId}`, { method: 'DELETE', signal });
+}
+
+function mapPolicyOverride(payload: PolicyOverridePayload): PolicyOverride {
+  return {
+    id: payload.id,
+    route: payload.route,
+    project: payload.project,
+    templateId: payload.template_id,
+    maxLatencyMs: payload.max_latency_ms,
+    maxCostUsd: payload.max_cost_usd,
+    requireManualApproval: payload.require_manual_approval,
+    notes: payload.notes ?? null,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+export async function fetchPolicyOverrides(signal?: AbortSignal): Promise<PolicyOverride[]> {
+  const data = await request<PolicyOverridesResponsePayload>('/policies/overrides', { signal });
+  return data.overrides.map(mapPolicyOverride);
+}
+
+export async function createPolicyOverride(
+  payload: PolicyOverrideCreateInput,
+  signal?: AbortSignal,
+): Promise<PolicyOverride> {
+  const data = await request<PolicyOverridePayload>('/policies/overrides', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: payload.id,
+      route: payload.route,
+      project: payload.project,
+      template_id: payload.templateId,
+      max_latency_ms: payload.maxLatencyMs ?? null,
+      max_cost_usd: payload.maxCostUsd ?? null,
+      require_manual_approval: payload.requireManualApproval ?? false,
+      notes: payload.notes ?? null,
+    }),
+    signal,
+  });
+  return mapPolicyOverride(data);
+}
+
+export async function updatePolicyOverride(
+  overrideId: string,
+  payload: PolicyOverrideUpdateInput,
+  signal?: AbortSignal,
+): Promise<PolicyOverride> {
+  const data = await request<PolicyOverridePayload>(`/policies/overrides/${overrideId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      route: payload.route,
+      project: payload.project,
+      template_id: payload.templateId,
+      max_latency_ms: payload.maxLatencyMs ?? null,
+      max_cost_usd: payload.maxCostUsd ?? null,
+      require_manual_approval: payload.requireManualApproval ?? false,
+      notes: payload.notes ?? null,
+    }),
+    signal,
+  });
+  return mapPolicyOverride(data);
+}
+
+export async function deletePolicyOverride(
+  overrideId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await request<void>(`/policies/overrides/${overrideId}`, { method: 'DELETE', signal });
+}
+
+function mapPolicyDeployment(payload: PolicyDeploymentPayload): PolicyDeployment {
+  return {
+    id: payload.id,
+    templateId: payload.template_id,
+    deployedAt: payload.deployed_at,
+    author: payload.author,
+    window: payload.window ?? null,
+    note: payload.note ?? null,
+    sloP95Ms: payload.slo_p95_ms,
+    budgetUsagePct: payload.budget_usage_pct,
+    incidentsCount: payload.incidents_count,
+    guardrailScore: payload.guardrail_score,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+export async function fetchPolicyDeployments(
+  signal?: AbortSignal,
+): Promise<PolicyDeploymentsSummary> {
+  const data = await request<PolicyDeploymentsResponsePayload>('/policies/deployments', { signal });
+  return {
+    deployments: data.deployments.map(mapPolicyDeployment),
+    activeId: data.active_id ?? null,
+  };
+}
+
+export async function createPolicyDeployment(
+  payload: PolicyDeploymentCreateInput,
+  signal?: AbortSignal,
+): Promise<PolicyDeployment> {
+  const data = await request<PolicyDeploymentPayload>('/policies/deployments', {
+    method: 'POST',
+    body: JSON.stringify({
+      template_id: payload.templateId,
+      author: payload.author ?? 'Console MCP',
+      window: payload.window ?? null,
+      note: payload.note ?? null,
+    }),
+    signal,
+  });
+  return mapPolicyDeployment(data);
+}
+
+export async function deletePolicyDeployment(
+  deploymentId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await request<void>(`/policies/deployments/${deploymentId}`, { method: 'DELETE', signal });
 }
 
 export async function fetchNotifications(signal?: AbortSignal): Promise<NotificationSummary[]> {

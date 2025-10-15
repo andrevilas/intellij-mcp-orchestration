@@ -823,6 +823,52 @@ def test_policy_templates_catalog(client: TestClient) -> None:
     assert all(isinstance(item, str) for item in sample['features'])
 
 
+def test_policy_deployments_flow(client: TestClient) -> None:
+    list_response = client.get('/api/v1/policies/deployments')
+    assert list_response.status_code == 200
+    payload = list_response.json()
+    deployments = payload['deployments']
+    assert len(deployments) >= 2
+    assert payload['active_id'] == deployments[-1]['id']
+
+    create_payload = {
+        'template_id': 'turbo',
+        'author': 'Console MCP',
+        'window': 'Rollout monitorado',
+        'note': 'Rollout manual: Turbo.',
+    }
+
+    create_response = client.post('/api/v1/policies/deployments', json=create_payload)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created['template_id'] == 'turbo'
+    assert created['author'] == 'Console MCP'
+    assert created['window'] == 'Rollout monitorado'
+    assert created['note'] == 'Rollout manual: Turbo.'
+    assert created['slo_p95_ms'] == 569
+    assert created['budget_usage_pct'] == 74
+    assert created['incidents_count'] == 2
+    assert created['guardrail_score'] == 72
+
+    list_after_create = client.get('/api/v1/policies/deployments')
+    assert list_after_create.status_code == 200
+    payload_after = list_after_create.json()
+    assert payload_after['active_id'] == created['id']
+    ids = [item['id'] for item in payload_after['deployments']]
+    assert created['id'] in ids
+
+    delete_response = client.delete(f"/api/v1/policies/deployments/{created['id']}")
+    assert delete_response.status_code == 204
+
+    missing_delete = client.delete(f"/api/v1/policies/deployments/{created['id']}")
+    assert missing_delete.status_code == 404
+
+    bad_create = client.post(
+        '/api/v1/policies/deployments', json={'template_id': 'missing', 'author': 'Ops'}
+    )
+    assert bad_create.status_code == 400
+
+
 def test_price_table_crud_flow(client: TestClient) -> None:
     list_empty = client.get('/api/v1/prices')
     assert list_empty.status_code == 200

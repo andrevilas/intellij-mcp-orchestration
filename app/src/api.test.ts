@@ -3,6 +3,17 @@ import type { Mock } from 'vitest';
 
 import {
   createSession,
+  createPolicy,
+  updatePolicy,
+  deletePolicy,
+  fetchPolicies,
+  fetchPolicyOverrides,
+  createPolicyOverride,
+  updatePolicyOverride,
+  deletePolicyOverride,
+  fetchPolicyDeployments,
+  createPolicyDeployment,
+  deletePolicyDeployment,
   deleteSecret,
   fetchProviders,
   fetchSecrets,
@@ -190,6 +201,278 @@ describe('api client', () => {
         method: 'DELETE',
       }),
     );
+  });
+
+  it('lists cost policies and normalizes field names', async () => {
+    const payload = {
+      policies: [
+        {
+          id: 'global-spend',
+          name: 'Global Spend',
+          description: null,
+          monthly_spend_limit: 1500,
+          currency: 'USD',
+          tags: ['finops'],
+          created_at: '2025-04-01T12:00:00Z',
+          updated_at: '2025-04-02T12:00:00Z',
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const result = await fetchPolicies();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual([
+      {
+        id: 'global-spend',
+        name: 'Global Spend',
+        description: null,
+        monthlySpendLimit: 1500,
+        currency: 'USD',
+        tags: ['finops'],
+        createdAt: '2025-04-01T12:00:00Z',
+        updatedAt: '2025-04-02T12:00:00Z',
+      },
+    ]);
+  });
+
+  it('creates, updates and deletes cost policies', async () => {
+    const createdPayload = {
+      id: 'spend-guard',
+      name: 'Spend Guard',
+      description: 'Monthly cap',
+      monthly_spend_limit: 900,
+      currency: 'EUR',
+      tags: ['ops'],
+      created_at: '2025-04-03T00:00:00Z',
+      updated_at: '2025-04-03T00:00:00Z',
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(createdPayload));
+
+    const created = await createPolicy({
+      id: 'spend-guard',
+      name: 'Spend Guard',
+      description: 'Monthly cap',
+      monthlySpendLimit: 900,
+      currency: 'EUR',
+      tags: ['ops'],
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          id: 'spend-guard',
+          name: 'Spend Guard',
+          description: 'Monthly cap',
+          monthly_spend_limit: 900,
+          currency: 'EUR',
+          tags: ['ops'],
+        }),
+      }),
+    );
+    expect(created.id).toBe('spend-guard');
+
+    const updatedPayload = { ...createdPayload, name: 'Updated Guard', monthly_spend_limit: 950 };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(updatedPayload));
+
+    const updated = await updatePolicy('spend-guard', {
+      name: 'Updated Guard',
+      description: 'Monthly cap',
+      monthlySpendLimit: 950,
+      currency: 'EUR',
+      tags: ['ops'],
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/spend-guard',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          name: 'Updated Guard',
+          description: 'Monthly cap',
+          monthly_spend_limit: 950,
+          currency: 'EUR',
+          tags: ['ops'],
+        }),
+      }),
+    );
+    expect(updated.monthlySpendLimit).toBe(950);
+
+    fetchSpy.mockResolvedValueOnce(mockNoContentResponse());
+
+    await deletePolicy('spend-guard');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/spend-guard',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('manages policy overrides end-to-end', async () => {
+    const overridesPayload = {
+      overrides: [
+        {
+          id: 'route-ops',
+          route: 'ops',
+          project: 'console',
+          template_id: 'balanced',
+          max_latency_ms: 1200,
+          max_cost_usd: 0.8,
+          require_manual_approval: true,
+          notes: 'Pilot',
+          created_at: '2025-04-01T00:00:00Z',
+          updated_at: '2025-04-01T00:00:00Z',
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(overridesPayload));
+
+    const overrides = await fetchPolicyOverrides();
+    expect(overrides[0]).toMatchObject({ templateId: 'balanced', requireManualApproval: true });
+
+    const createdPayload = overridesPayload.overrides[0];
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(createdPayload));
+
+    await createPolicyOverride({
+      id: 'route-ops',
+      route: 'ops',
+      project: 'console',
+      templateId: 'balanced',
+      maxLatencyMs: 1200,
+      maxCostUsd: 0.8,
+      requireManualApproval: true,
+      notes: 'Pilot',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/overrides',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          id: 'route-ops',
+          route: 'ops',
+          project: 'console',
+          template_id: 'balanced',
+          max_latency_ms: 1200,
+          max_cost_usd: 0.8,
+          require_manual_approval: true,
+          notes: 'Pilot',
+        }),
+      }),
+    );
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse({ ...createdPayload, max_latency_ms: 1000 }));
+
+    await updatePolicyOverride('route-ops', {
+      route: 'ops',
+      project: 'console',
+      templateId: 'balanced',
+      maxLatencyMs: 1000,
+      maxCostUsd: 0.8,
+      requireManualApproval: true,
+      notes: 'Pilot',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/overrides/route-ops',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          route: 'ops',
+          project: 'console',
+          template_id: 'balanced',
+          max_latency_ms: 1000,
+          max_cost_usd: 0.8,
+          require_manual_approval: true,
+          notes: 'Pilot',
+        }),
+      }),
+    );
+
+    fetchSpy.mockResolvedValueOnce(mockNoContentResponse());
+    await deletePolicyOverride('route-ops');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/overrides/route-ops',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('fetches and mutates policy deployments', async () => {
+    const deploymentsPayload = {
+      deployments: [
+        {
+          id: 'deploy-1',
+          template_id: 'balanced',
+          deployed_at: '2025-04-01T00:00:00Z',
+          author: 'Console MCP',
+          window: 'GA',
+          note: 'Promoção',
+          slo_p95_ms: 900,
+          budget_usage_pct: 75,
+          incidents_count: 1,
+          guardrail_score: 70,
+          created_at: '2025-04-01T00:00:00Z',
+          updated_at: '2025-04-01T00:00:00Z',
+        },
+      ],
+      active_id: 'deploy-1',
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(deploymentsPayload));
+
+    const summary = await fetchPolicyDeployments();
+    expect(summary.activeId).toBe('deploy-1');
+    expect(summary.deployments[0].guardrailScore).toBe(70);
+
+    const createdPayload = {
+      ...deploymentsPayload.deployments[0],
+      id: 'deploy-2',
+      template_id: 'turbo',
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(createdPayload));
+
+    const created = await createPolicyDeployment({ templateId: 'turbo', author: 'Console MCP' });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/deployments',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          template_id: 'turbo',
+          author: 'Console MCP',
+          window: null,
+          note: null,
+        }),
+      }),
+    );
+    expect(created.templateId).toBe('turbo');
+
+    fetchSpy.mockResolvedValueOnce(mockNoContentResponse());
+    await deletePolicyDeployment('deploy-2');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/deployments/deploy-2',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('propagates API errors when policy creation fails', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Promise.resolve({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve('Invalid payload'),
+      } as unknown as Response),
+    );
+
+    await expect(
+      createPolicy({ id: 'fail', name: 'Fail', monthlySpendLimit: 1, currency: 'USD' }),
+    ).rejects.toThrow(/Invalid payload/);
   });
 
   it('requests telemetry metrics with optional filters', async () => {

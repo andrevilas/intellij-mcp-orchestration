@@ -27,6 +27,13 @@ from .policy_overrides import (
     list_policy_overrides,
     update_policy_override,
 )
+from .policy_deployments import (
+    InvalidPolicyTemplateError,
+    PolicyDeploymentNotFoundError,
+    create_policy_deployment,
+    delete_policy_deployment,
+    list_policy_deployments,
+)
 from .policy_templates import list_policy_templates
 from .prices import (
     PriceEntryAlreadyExistsError,
@@ -52,6 +59,9 @@ from .schemas import (
     PolicyOverrideResponse,
     PolicyOverrideUpdateRequest,
     PolicyOverridesResponse,
+    PolicyDeploymentCreateRequest,
+    PolicyDeploymentResponse,
+    PolicyDeploymentsResponse,
     PolicyTemplateResponse,
     PolicyTemplatesResponse,
     NotificationResponse,
@@ -438,6 +448,18 @@ def list_templates() -> PolicyTemplatesResponse:
     return PolicyTemplatesResponse(templates=templates)
 
 
+@router.get("/policies/deployments", response_model=PolicyDeploymentsResponse)
+def list_policy_deployment_history() -> PolicyDeploymentsResponse:
+    """Return the recorded deployment history for policy templates."""
+
+    records = [
+        PolicyDeploymentResponse(**record.to_dict())
+        for record in list_policy_deployments()
+    ]
+    active_id = records[-1].id if records else None
+    return PolicyDeploymentsResponse(deployments=records, active_id=active_id)
+
+
 @router.post("/policies", response_model=CostPolicyResponse, status_code=status.HTTP_201_CREATED)
 def create_cost_policy(payload: CostPolicyCreateRequest) -> CostPolicyResponse:
     """Persist a new cost policy definition."""
@@ -486,6 +508,31 @@ def create_cost_policy_override(payload: PolicyOverrideCreateRequest) -> PolicyO
     return PolicyOverrideResponse(**record.to_dict())
 
 
+@router.post(
+    "/policies/deployments",
+    response_model=PolicyDeploymentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_policy_deployment_entry(
+    payload: PolicyDeploymentCreateRequest,
+) -> PolicyDeploymentResponse:
+    """Record a new deployment for a guardrail template."""
+
+    try:
+        record = create_policy_deployment(
+            template_id=payload.template_id,
+            author=payload.author,
+            window=payload.window,
+            note=payload.note,
+        )
+    except InvalidPolicyTemplateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown policy template '{payload.template_id}'",
+        ) from exc
+    return PolicyDeploymentResponse(**record.to_dict())
+
+
 @router.get("/policies/{policy_id}", response_model=CostPolicyResponse)
 def read_cost_policy(policy_id: str) -> CostPolicyResponse:
     """Return a single cost policy."""
@@ -512,6 +559,20 @@ def read_cost_policy_override(override_id: str) -> PolicyOverrideResponse:
             detail=f"Policy override '{override_id}' not found",
         ) from exc
     return PolicyOverrideResponse(**record.to_dict())
+
+
+@router.delete("/policies/deployments/{deployment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_policy_deployment_entry(deployment_id: str) -> Response:
+    """Remove a recorded policy deployment (used for rollback)."""
+
+    try:
+        delete_policy_deployment(deployment_id)
+    except PolicyDeploymentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Deployment '{deployment_id}' not found",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/policies/{policy_id}", response_model=CostPolicyResponse)

@@ -144,6 +144,76 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=6,
+        description="track policy deployment history",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS policy_deployments (
+                id TEXT PRIMARY KEY,
+                template_id TEXT NOT NULL,
+                deployed_at TEXT NOT NULL,
+                author TEXT NOT NULL,
+                window TEXT,
+                note TEXT,
+                slo_p95_ms INTEGER NOT NULL,
+                budget_usage_pct INTEGER NOT NULL,
+                incidents_count INTEGER NOT NULL,
+                guardrail_score INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_policy_deployments_deployed_at
+                ON policy_deployments (deployed_at)
+            """,
+            """
+            INSERT OR IGNORE INTO policy_deployments (
+                id,
+                template_id,
+                deployed_at,
+                author,
+                window,
+                note,
+                slo_p95_ms,
+                budget_usage_pct,
+                incidents_count,
+                guardrail_score,
+                created_at,
+                updated_at
+            ) VALUES
+                (
+                    'deploy-economy-20250201',
+                    'economy',
+                    '2025-02-01T12:00:00+00:00',
+                    'FinOps Squad',
+                    'Canário 5% → 20%',
+                    'Piloto para squads orientados a custo.',
+                    857,
+                    66,
+                    2,
+                    78,
+                    '2025-02-01T12:00:00+00:00',
+                    '2025-02-01T12:00:00+00:00'
+                ),
+                (
+                    'deploy-balanced-20250415',
+                    'balanced',
+                    '2025-04-15T09:30:00+00:00',
+                    'Console MCP',
+                    'GA progressivo',
+                    'Promoção Q2 liberada para toda a frota.',
+                    985,
+                    80,
+                    0,
+                    70,
+                    '2025-04-15T09:30:00+00:00',
+                    '2025-04-15T09:30:00+00:00'
+                )
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None
