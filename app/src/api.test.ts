@@ -1,13 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
-import { createSession, fetchProviders, fetchSessions } from './api';
+import {
+  createSession,
+  deleteSecret,
+  fetchProviders,
+  fetchSecrets,
+  fetchSessions,
+  readSecret,
+  upsertSecret,
+} from './api';
 
 function mockFetchResponse<T>(payload: T): Promise<Response> {
   return Promise.resolve({
     ok: true,
     status: 200,
     json: () => Promise.resolve(payload),
+  } as unknown as Response);
+}
+
+function mockNoContentResponse(status = 204): Promise<Response> {
+  return Promise.resolve({
+    ok: true,
+    status,
+    json: () => Promise.resolve(undefined),
   } as unknown as Response);
 }
 
@@ -103,5 +119,74 @@ describe('api client', () => {
       }),
     );
     expect(result).toEqual(payload);
+  });
+
+  it('requests secret metadata from /api/v1/secrets', async () => {
+    const secrets = [
+      { provider_id: 'gemini', has_secret: true, updated_at: new Date().toISOString() },
+    ];
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse({ secrets }));
+
+    const result = await fetchSecrets();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/secrets',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual(secrets);
+  });
+
+  it('reads a secret value from /api/v1/secrets/{id}', async () => {
+    const payload = {
+      provider_id: 'gemini',
+      value: 'sk-live-123',
+      updated_at: new Date().toISOString(),
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const result = await readSecret('gemini');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/secrets/gemini',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
+  it('upserts secrets via PUT to /api/v1/secrets/{id}', async () => {
+    const payload = {
+      provider_id: 'gemini',
+      value: 'sk-live-123',
+      updated_at: new Date().toISOString(),
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const result = await upsertSecret('gemini', 'sk-live-123');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/secrets/gemini',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ value: 'sk-live-123' }),
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
+  it('deletes secrets via DELETE to /api/v1/secrets/{id}', async () => {
+    fetchSpy.mockResolvedValueOnce(mockNoContentResponse());
+
+    await deleteSecret('gemini');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/secrets/gemini',
+      expect.objectContaining({
+        method: 'DELETE',
+      }),
+    );
   });
 });

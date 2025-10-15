@@ -2,8 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import './App.css';
-import type { ProviderSummary, Session } from './api';
-import { createSession, fetchProviders, fetchSessions } from './api';
+import type { ProviderSummary, SecretMetadata, SecretValue, Session } from './api';
+import {
+  createSession,
+  deleteSecret,
+  fetchProviders,
+  fetchSecrets,
+  fetchSessions,
+  readSecret,
+  upsertSecret,
+} from './api';
 import CommandPalette from './components/CommandPalette';
 import NotificationCenter, {
   type NotificationItem,
@@ -250,6 +258,7 @@ type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
 function App() {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [secrets, setSecrets] = useState<SecretMetadata[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -269,9 +278,10 @@ function App() {
     async function bootstrap() {
       try {
         setIsLoading(true);
-        const [providerList, sessionList] = await Promise.all([
+        const [providerList, sessionList, secretList] = await Promise.all([
           fetchProviders(controller.signal),
           fetchSessions(controller.signal),
+          fetchSecrets(controller.signal),
         ]);
 
         setProviders(providerList);
@@ -280,6 +290,7 @@ function App() {
             .slice()
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
         );
+        setSecrets(secretList);
         setInitialError(null);
       } catch (error) {
         if (controller.signal.aborted) {
@@ -339,6 +350,28 @@ function App() {
       setProvisioningId(null);
     }
   }
+
+  const handleSecretSave = useCallback(
+    async (providerId: string, value: string): Promise<SecretValue> => {
+      const record = await upsertSecret(providerId, value);
+      setSecrets((current) => {
+        const next = current.filter((item) => item.provider_id !== providerId);
+        next.push({ provider_id: record.provider_id, has_secret: true, updated_at: record.updated_at });
+        return next;
+      });
+      return record;
+    },
+    [],
+  );
+
+  const handleSecretDelete = useCallback(async (providerId: string): Promise<void> => {
+    await deleteSecret(providerId);
+    setSecrets((current) => current.filter((item) => item.provider_id !== providerId));
+  }, []);
+
+  const handleSecretReveal = useCallback(async (providerId: string): Promise<SecretValue> => {
+    return readSecret(providerId);
+  }, []);
 
   const handleCloseNotification = useCallback(() => {
     setNotificationOpen(false);
@@ -618,7 +651,15 @@ function App() {
         )}
         {activeView === 'keys' && (
           <section role="tabpanel" id="panel-keys" aria-labelledby="tab-keys">
-            <Keys providers={providers} isLoading={isLoading} initialError={initialError} />
+            <Keys
+              providers={providers}
+              secrets={secrets}
+              isLoading={isLoading}
+              initialError={initialError}
+              onSecretSave={handleSecretSave}
+              onSecretDelete={handleSecretDelete}
+              onSecretReveal={handleSecretReveal}
+            />
           </section>
         )}
         {activeView === 'policies' && (

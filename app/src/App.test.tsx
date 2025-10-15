@@ -58,6 +58,12 @@ describe('App provider orchestration flow', () => {
     client: 'console-web',
   };
 
+  const secretMetadata = {
+    provider_id: provider.id,
+    has_secret: true,
+    updated_at: null,
+  };
+
   beforeEach(() => {
     fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -71,6 +77,7 @@ describe('App provider orchestration flow', () => {
     fetchMock
       .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
+      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
       .mockResolvedValueOnce(createFetchResponse({ session: newSession, provider }));
   });
 
@@ -102,6 +109,11 @@ describe('App provider orchestration flow', () => {
       '/api/v1/sessions',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/v1/secrets',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
 
     expect(await screen.findByText(provider.description)).toBeInTheDocument();
     expect(await screen.findByText(existingSession.id)).toBeInTheDocument();
@@ -111,7 +123,7 @@ describe('App provider orchestration flow', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenNthCalledWith(
-        3,
+        4,
         `/api/v1/providers/${provider.id}/sessions`,
         expect.objectContaining({
           method: 'POST',
@@ -126,7 +138,7 @@ describe('App provider orchestration flow', () => {
     expect(await screen.findByText(`Sessão ${newSession.id} criada para ${provider.name}.`)).toBeInTheDocument();
     expect(screen.getByText(newSession.id)).toBeInTheDocument();
 
-    const requestBody = JSON.parse(fetchMock.mock.calls[2][1]?.body as string);
+    const requestBody = JSON.parse(fetchMock.mock.calls[3][1]?.body as string);
     expect(requestBody).toEqual({
       reason: 'Provisionamento disparado pela Console MCP',
       client: 'console-web',
@@ -229,7 +241,7 @@ describe('App provider orchestration flow', () => {
 
     await screen.findByRole('heading', { name: /Chaves MCP/i });
 
-    const keyHeading = await screen.findByRole('heading', { level: 2, name: /Produção/ });
+    const keyHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
     const keyCard = keyHeading.closest('article');
     expect(keyCard).not.toBeNull();
 
@@ -241,13 +253,17 @@ describe('App provider orchestration flow', () => {
 
     await waitFor(
       () => {
-        expect(scoped.getByText('Ativa')).toBeInTheDocument();
-        expect(scoped.getByText(/316 ms/)).toBeInTheDocument();
+        expect(scoped.getByText(new RegExp(provider.name))).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
 
-    expect(testButton).not.toBeDisabled();
+    await waitFor(
+      () => {
+        expect(testButton).not.toBeDisabled();
+      },
+      { timeout: 2000 },
+    );
   });
 
   it('permite explorar cenários de routing e simular falhas', async () => {

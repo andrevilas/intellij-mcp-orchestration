@@ -1,27 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ProviderSummary } from '../api';
+import type { ProviderSummary, SecretMetadata, SecretValue } from '../api';
 import { seededMod } from '../utils/hash';
 
 export interface KeysProps {
   providers: ProviderSummary[];
+  secrets: SecretMetadata[];
   isLoading: boolean;
   initialError: string | null;
+  onSecretSave: (providerId: string, value: string) => Promise<SecretValue>;
+  onSecretDelete: (providerId: string) => Promise<void>;
+  onSecretReveal: (providerId: string) => Promise<SecretValue>;
 }
-
-type KeyVariant = 'prod' | 'staging';
 
 type KeyStatus = 'untested' | 'healthy' | 'degraded' | 'error';
 
-interface ProviderKey {
-  id: string;
-  providerId: string;
-  label: string;
-  environment: 'Produção' | 'Homologação';
-  maskedKey: string;
-  scopes: string[];
-  createdAt: string;
-}
+type ConnectivityStatus = Exclude<KeyStatus, 'untested'>;
 
 interface KeyState {
   status: KeyStatus;
@@ -33,20 +27,22 @@ interface KeyState {
 }
 
 interface ConnectivityOutcome {
-  status: Exclude<KeyStatus, 'untested'>;
+  status: ConnectivityStatus;
   latency: number;
   message: string;
 }
 
-const STATUS_LABELS: Record<KeyStatus, string> = {
-  untested: 'Não testada',
-  healthy: 'Ativa',
-  degraded: 'Instável',
-  error: 'Erro',
-};
+interface ProviderFormState {
+  isEditing: boolean;
+  isLoadingValue: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  hasLoadedValue: boolean;
+  inputValue: string;
+  error: string | null;
+}
 
-const STATUS_CLASS: Record<KeyStatus, string> = {
-  untested: 'key-status-badge--muted',
+const STATUS_CLASS: Record<ConnectivityStatus, string> = {
   healthy: 'key-status-badge--healthy',
   degraded: 'key-status-badge--warning',
   error: 'key-status-badge--error',
@@ -63,57 +59,27 @@ function createDefaultState(): KeyState {
   };
 }
 
-function buildMaskedKey(provider: ProviderSummary, variant: KeyVariant): string {
-  const base = `${provider.id}-${variant}`;
-  const prefix = variant === 'prod' ? 'live' : 'test';
-  const segmentA = seededMod(`${base}-a`, 1_000_000).toString(16).padStart(6, '0');
-  const segmentB = seededMod(`${base}-b`, 1_000_000).toString(16).padStart(6, '0');
-  const lastFour = seededMod(`${base}-last4`, 10_000).toString().padStart(4, '0');
-  return `sk-${prefix}-${segmentA}-${segmentB}-${lastFour}`;
-}
-
-function buildKey(provider: ProviderSummary, variant: KeyVariant): ProviderKey {
-  const environment = variant === 'prod' ? 'Produção' : 'Homologação';
-  const label = `${provider.name} · ${environment}`;
-  const base = `${provider.id}-${variant}`;
-  const createdOffset = seededMod(`${base}-created`, 1000 * 60 * 60 * 24 * 120);
-  const capabilities = provider.capabilities.length > 0 ? provider.capabilities : ['chat'];
-  const scopes = capabilities.slice(0, 3).map((capability) => capability.toLowerCase());
-  if (capabilities.length > 3) {
-    scopes.push('…');
-  }
-
+function createFormState(): ProviderFormState {
   return {
-    id: `${provider.id}-${variant}`,
-    providerId: provider.id,
-    label,
-    environment,
-    maskedKey: buildMaskedKey(provider, variant),
-    scopes,
-    createdAt: new Date(Date.now() - createdOffset).toISOString(),
+    isEditing: false,
+    isLoadingValue: false,
+    isSaving: false,
+    isDeleting: false,
+    hasLoadedValue: false,
+    inputValue: '',
+    error: null,
   };
 }
 
-function createKeysFromProviders(providers: ProviderSummary[]): ProviderKey[] {
-  const keys: ProviderKey[] = [];
-  for (const provider of providers) {
-    keys.push(buildKey(provider, 'prod'));
-    if (provider.capabilities.length > 1 || provider.tags.length > 0) {
-      keys.push(buildKey(provider, 'staging'));
-    }
-  }
-  return keys;
-}
-
-function evaluateConnectivity(keyId: string, attempt: number): ConnectivityOutcome {
-  const score = seededMod(`${keyId}-${attempt}-score`, 100);
-  const latency = 120 + seededMod(`${keyId}-${attempt}-latency`, 520);
+function evaluateConnectivity(provider: ProviderSummary, attempt: number): ConnectivityOutcome {
+  const score = seededMod(`${provider.id}-${attempt}-score`, 100);
+  const latency = 120 + seededMod(`${provider.id}-${attempt}-latency`, 520);
 
   if (score < 65) {
     return {
       status: 'healthy',
       latency,
-      message: 'Handshake concluído com sucesso.',
+      message: `${provider.name} respondeu ao handshake em ${latency} ms.`,
     };
   }
 
@@ -121,18 +87,18 @@ function evaluateConnectivity(keyId: string, attempt: number): ConnectivityOutco
     return {
       status: 'degraded',
       latency,
-      message: 'Latência elevada detectada. Monitorar limitações de uso.',
+      message: `${provider.name} respondeu com latência elevada (${latency} ms). Avalie limites de uso.`,
     };
   }
 
   return {
     status: 'error',
     latency,
-    message: 'Falha na autenticação. Revise permissões e validade da chave.',
+    message: `Falha ao validar credencial em ${provider.name}. Revise permissões ou limites do provedor.`,
   };
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null | undefined): string {
   if (!value) {
     return '—';
   }
@@ -146,15 +112,34 @@ function formatLatency(latency: number | null): string {
   return `${latency} ms`;
 }
 
-export default function Keys({ providers, isLoading, initialError }: KeysProps) {
-  const keys = useMemo(() => createKeysFromProviders(providers), [providers]);
+export default function Keys({
+  providers,
+  secrets,
+  isLoading,
+  initialError,
+  onSecretSave,
+  onSecretDelete,
+  onSecretReveal,
+}: KeysProps) {
+  const metadataByProvider = useMemo(() => {
+    const map = new Map<string, SecretMetadata>();
+    secrets.forEach((item) => map.set(item.provider_id, item));
+    return map;
+  }, [secrets]);
+
   const [keyStates, setKeyStates] = useState<Record<string, KeyState>>({});
   const keyStatesRef = useRef<Record<string, KeyState>>({});
   const pendingTimeouts = useRef<Map<string, number>>(new Map());
+  const [formStates, setFormStates] = useState<Record<string, ProviderFormState>>({});
+  const formStatesRef = useRef<Record<string, ProviderFormState>>({});
 
   useEffect(() => {
     keyStatesRef.current = keyStates;
   }, [keyStates]);
+
+  useEffect(() => {
+    formStatesRef.current = formStates;
+  }, [formStates]);
 
   useEffect(() => {
     return () => {
@@ -166,59 +151,283 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
   useEffect(() => {
     setKeyStates((current) => {
       const next: Record<string, KeyState> = {};
-      for (const key of keys) {
-        next[key.id] = current[key.id] ?? createDefaultState();
+      for (const provider of providers) {
+        next[provider.id] = current[provider.id] ?? createDefaultState();
       }
       return next;
     });
-  }, [keys]);
+  }, [providers]);
+
+  useEffect(() => {
+    setFormStates((current) => {
+      const next: Record<string, ProviderFormState> = {};
+      for (const provider of providers) {
+        if (current[provider.id]) {
+          next[provider.id] = current[provider.id];
+        }
+      }
+      return next;
+    });
+  }, [providers]);
 
   const summary = useMemo(() => {
-    let healthy = 0;
-    let degraded = 0;
-    let error = 0;
+    const total = providers.length;
+    let configured = 0;
+    let attention = 0;
     let tested = 0;
 
-    for (const key of keys) {
-      const state = keyStates[key.id] ?? createDefaultState();
+    for (const provider of providers) {
+      const metadata = metadataByProvider.get(provider.id);
+      const hasSecret = metadata?.has_secret ?? false;
+      const state = keyStates[provider.id] ?? createDefaultState();
+
+      if (hasSecret) {
+        configured += 1;
+      } else {
+        attention += 1;
+      }
+
       if (state.status !== 'untested') {
         tested += 1;
-      }
-      if (state.status === 'healthy') {
-        healthy += 1;
-      }
-      if (state.status === 'degraded') {
-        degraded += 1;
-      }
-      if (state.status === 'error') {
-        error += 1;
+        if (state.status === 'degraded' || state.status === 'error') {
+          attention += 1;
+        }
       }
     }
 
-    return {
-      total: keys.length,
-      healthy,
-      degraded,
-      error,
-      tested,
-    };
-  }, [keyStates, keys]);
+    return { total, configured, attention, tested };
+  }, [providers, metadataByProvider, keyStates]);
 
-  function handleTest(key: ProviderKey) {
-    const previous = keyStatesRef.current[key.id] ?? createDefaultState();
+  function ensureFormState(providerId: string): ProviderFormState {
+    return formStatesRef.current[providerId] ?? createFormState();
+  }
+
+  async function handleEdit(providerId: string, hasSecret: boolean) {
+    const snapshot = ensureFormState(providerId);
+
+    setFormStates((current) => {
+      const existing = current[providerId] ?? createFormState();
+      return {
+        ...current,
+        [providerId]: {
+          ...existing,
+          isEditing: true,
+          error: null,
+        },
+      };
+    });
+
+    if (hasSecret && !snapshot.hasLoadedValue) {
+      setFormStates((current) => {
+        const existing = current[providerId] ?? createFormState();
+        return {
+          ...current,
+          [providerId]: {
+            ...existing,
+            isLoadingValue: true,
+            error: null,
+          },
+        };
+      });
+
+      try {
+        const secret = await onSecretReveal(providerId);
+        setFormStates((current) => {
+          const existing = current[providerId] ?? createFormState();
+          return {
+            ...current,
+            [providerId]: {
+              ...existing,
+              inputValue: secret.value,
+              isLoadingValue: false,
+              hasLoadedValue: true,
+              error: null,
+            },
+          };
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Não foi possível carregar a chave.';
+        setFormStates((current) => {
+          const existing = current[providerId] ?? createFormState();
+          return {
+            ...current,
+            [providerId]: {
+              ...existing,
+              isLoadingValue: false,
+              error: message,
+            },
+          };
+        });
+      }
+    }
+
+    if (!hasSecret) {
+      setFormStates((current) => {
+        const existing = current[providerId] ?? createFormState();
+        return {
+          ...current,
+          [providerId]: {
+            ...existing,
+            inputValue: '',
+            hasLoadedValue: true,
+            isLoadingValue: false,
+            error: null,
+          },
+        };
+      });
+    }
+  }
+
+  function handleCancel(providerId: string) {
+    setFormStates((current) => {
+      const existing = current[providerId] ?? createFormState();
+      return {
+        ...current,
+        [providerId]: {
+          ...existing,
+          isEditing: false,
+          isLoadingValue: false,
+          isSaving: false,
+          isDeleting: false,
+          error: null,
+        },
+      };
+    });
+  }
+
+  function handleInputChange(providerId: string, value: string) {
+    setFormStates((current) => {
+      const existing = current[providerId] ?? createFormState();
+      return {
+        ...current,
+        [providerId]: {
+          ...existing,
+          inputValue: value,
+          hasLoadedValue: true,
+          error: null,
+        },
+      };
+    });
+  }
+
+  async function handleSave(providerId: string) {
+    const snapshot = ensureFormState(providerId);
+    const trimmed = snapshot.inputValue.trim();
+
+    if (!trimmed) {
+      setFormStates((current) => {
+        const existing = current[providerId] ?? createFormState();
+        return {
+          ...current,
+          [providerId]: {
+            ...existing,
+            error: 'Informe uma chave válida.',
+          },
+        };
+      });
+      return;
+    }
+
+    setFormStates((current) => {
+      const existing = current[providerId] ?? createFormState();
+      return {
+        ...current,
+        [providerId]: {
+          ...existing,
+          isSaving: true,
+          error: null,
+        },
+      };
+    });
+
+    try {
+      const record = await onSecretSave(providerId, trimmed);
+      setFormStates((current) => {
+        const existing = current[providerId] ?? createFormState();
+        return {
+          ...current,
+          [providerId]: {
+            ...existing,
+            inputValue: record.value,
+            isSaving: false,
+            isEditing: false,
+            hasLoadedValue: true,
+            error: null,
+          },
+        };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao salvar a chave.';
+      setFormStates((current) => {
+        const existing = current[providerId] ?? createFormState();
+        return {
+          ...current,
+          [providerId]: {
+            ...existing,
+            isSaving: false,
+            error: message,
+          },
+        };
+      });
+    }
+  }
+
+  async function handleRemove(providerId: string) {
+    setFormStates((current) => {
+      const existing = current[providerId] ?? createFormState();
+      return {
+        ...current,
+        [providerId]: {
+          ...existing,
+          isDeleting: true,
+          error: null,
+        },
+      };
+    });
+
+    try {
+      await onSecretDelete(providerId);
+      setFormStates((current) => ({
+        ...current,
+        [providerId]: {
+          ...createFormState(),
+        },
+      }));
+      setKeyStates((current) => ({
+        ...current,
+        [providerId]: createDefaultState(),
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao remover a chave.';
+      setFormStates((current) => {
+        const existing = current[providerId] ?? createFormState();
+        return {
+          ...current,
+          [providerId]: {
+            ...existing,
+            isDeleting: false,
+            error: message,
+          },
+        };
+      });
+    }
+  }
+
+  function handleTest(provider: ProviderSummary) {
+    const previous = keyStatesRef.current[provider.id] ?? createDefaultState();
     const nextAttempt = previous.attempts + 1;
-    const outcome = evaluateConnectivity(key.id, nextAttempt);
-    const delay = 600 + seededMod(`${key.id}-${nextAttempt}-delay`, 220);
+    const outcome = evaluateConnectivity(provider, nextAttempt);
+    const delay = 600 + seededMod(`${provider.id}-${nextAttempt}-delay`, 220);
 
-    const existingTimeout = pendingTimeouts.current.get(key.id);
+    const existingTimeout = pendingTimeouts.current.get(provider.id);
     if (existingTimeout) {
       window.clearTimeout(existingTimeout);
-      pendingTimeouts.current.delete(key.id);
+      pendingTimeouts.current.delete(provider.id);
     }
 
     setKeyStates((current) => ({
       ...current,
-      [key.id]: {
+      [provider.id]: {
         ...previous,
         isTesting: true,
         attempts: nextAttempt,
@@ -228,10 +437,10 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
 
     const timeout = window.setTimeout(() => {
       setKeyStates((current) => {
-        const existing = current[key.id] ?? createDefaultState();
+        const existing = current[provider.id] ?? createDefaultState();
         return {
           ...current,
-          [key.id]: {
+          [provider.id]: {
             ...existing,
             status: outcome.status,
             isTesting: false,
@@ -242,10 +451,10 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
           },
         };
       });
-      pendingTimeouts.current.delete(key.id);
+      pendingTimeouts.current.delete(provider.id);
     }, delay);
 
-    pendingTimeouts.current.set(key.id, timeout);
+    pendingTimeouts.current.set(provider.id, timeout);
   }
 
   const hasProviders = providers.length > 0;
@@ -256,30 +465,30 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
         <h1>Chaves MCP · gestão segura</h1>
         <p>
           Administre chaves de acesso dos servidores MCP e valide conectividade em tempo real sem sair da console.
-          Acompanhe status, escopos e metadados críticos por ambiente.
+          Acompanhe status, escopos e metadados críticos por agente.
         </p>
       </section>
 
-      <section className="keys__summary" aria-label="Resumo de conectividade das chaves">
+      <section className="keys__summary" aria-label="Resumo de credenciais por provedor">
         <div className="key-stat">
           <span className="key-stat__dot key-stat__dot--total" />
           <div>
             <strong>{summary.total}</strong>
-            <span>chaves cadastradas</span>
+            <span>provedores cadastrados</span>
           </div>
         </div>
         <div className="key-stat key-stat--healthy">
           <span className="key-stat__dot key-stat__dot--healthy" />
           <div>
-            <strong>{summary.healthy}</strong>
-            <span>com handshake saudável</span>
+            <strong>{summary.configured}</strong>
+            <span>com credencial ativa</span>
           </div>
         </div>
         <div className="key-stat key-stat--attention">
           <span className="key-stat__dot key-stat__dot--attention" />
           <div>
-            <strong>{summary.degraded + summary.error}</strong>
-            <span>exigindo atenção</span>
+            <strong>{summary.attention}</strong>
+            <span>precisando de atenção</span>
           </div>
         </div>
         <div className="key-stat key-stat--tested">
@@ -293,20 +502,60 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
 
       {isLoading && <p className="info">Sincronizando chaves de acesso…</p>}
       {initialError && <p className="error">{initialError}</p>}
-      {!isLoading && !initialError && !hasProviders && <p className="info">Cadastre servidores MCP para gerar chaves aqui.</p>}
+      {!isLoading && !initialError && !hasProviders && <p className="info">Cadastre servidores MCP para gerir chaves aqui.</p>}
 
       <section className="key-grid" aria-live="polite">
-        {keys.map((key) => {
-          const state = keyStates[key.id] ?? createDefaultState();
-          const statusClass = state.isTesting ? 'key-status-badge--testing' : STATUS_CLASS[state.status];
-          const statusLabel = state.isTesting ? 'Testando…' : STATUS_LABELS[state.status];
+        {providers.map((provider) => {
+          const metadata = metadataByProvider.get(provider.id);
+          const hasSecret = metadata?.has_secret ?? false;
+          const keyState = keyStates[provider.id] ?? createDefaultState();
+          const formState = formStates[provider.id] ?? createFormState();
+          const status: ConnectivityStatus | 'pending' | 'awaiting' = !hasSecret
+            ? 'pending'
+            : keyState.status === 'untested'
+            ? 'awaiting'
+            : keyState.status;
+
+          let statusLabel: string;
+          let statusClass = 'key-status-badge--muted';
+
+          if (keyState.isTesting) {
+            statusLabel = 'Testando…';
+            statusClass = 'key-status-badge--testing';
+          } else if (status === 'pending') {
+            statusLabel = 'Credencial pendente';
+            statusClass = 'key-status-badge--warning';
+          } else if (status === 'awaiting') {
+            statusLabel = 'Aguardando teste';
+            statusClass = 'key-status-badge--muted';
+          } else {
+            statusLabel =
+              status === 'healthy'
+                ? 'Handshake saudável'
+                : status === 'degraded'
+                ? 'Latência elevada'
+                : 'Erro de handshake';
+            statusClass = STATUS_CLASS[status];
+          }
+
+          const capabilities = provider.capabilities.length > 0 ? provider.capabilities : ['chat'];
+          const lastUpdated = formatDate(metadata?.updated_at);
+          const lastTested = formatDate(keyState.lastTested);
+          const latency = formatLatency(keyState.latency);
+          const baseMessage = hasSecret
+            ? 'Sem validações recentes. Execute um teste de conectividade para acompanhar latência.'
+            : 'Cadastre uma chave para habilitar testes e provisionamento.';
+          const message = keyState.message ?? baseMessage;
+          const description = provider.description || provider.command;
+          const isTestDisabled = !hasSecret || formState.isEditing || keyState.isTesting;
+          const editLabel = hasSecret ? 'Atualizar chave' : 'Configurar chave';
 
           return (
-            <article key={key.id} className="key-card">
+            <article key={provider.id} className="key-card">
               <header className="key-card__header">
                 <div>
-                  <h2>{key.label}</h2>
-                  <p className="key-card__meta">Fingerprint · {key.maskedKey}</p>
+                  <h2>{provider.name}</h2>
+                  {description && <p className="key-card__meta">{description}</p>}
                 </div>
                 <span className={`key-status-badge ${statusClass}`} aria-live="polite">
                   {statusLabel}
@@ -318,36 +567,109 @@ export default function Keys({ providers, isLoading, initialError }: KeysProps) 
                   <dt>Escopos</dt>
                   <dd>
                     <ul className="key-card__scopes">
-                      {key.scopes.map((scope) => (
-                        <li key={`${key.id}-${scope}`}>{scope}</li>
+                      {capabilities.slice(0, 3).map((scope) => (
+                        <li key={`${provider.id}-${scope}`}>{scope.toLowerCase()}</li>
                       ))}
+                      {capabilities.length > 3 && <li key={`${provider.id}-more`}>…</li>}
                     </ul>
                   </dd>
                 </div>
                 <div>
-                  <dt>Criada em</dt>
-                  <dd>{formatDate(key.createdAt)}</dd>
+                  <dt>Transporte</dt>
+                  <dd>{provider.transport.toUpperCase()}</dd>
+                </div>
+                <div>
+                  <dt>Atualizada em</dt>
+                  <dd>{lastUpdated}</dd>
                 </div>
                 <div>
                   <dt>Último teste</dt>
-                  <dd>{formatDate(state.lastTested)}</dd>
+                  <dd>{lastTested}</dd>
                 </div>
                 <div>
                   <dt>Latência</dt>
-                  <dd>{formatLatency(state.latency)}</dd>
+                  <dd>{latency}</dd>
                 </div>
               </dl>
 
-              <p className="key-card__message">{state.message ?? 'Sem validações recentes.'}</p>
+              <p className="key-card__message">{message}</p>
 
-              <button
-                type="button"
-                className="key-test-button"
-                onClick={() => handleTest(key)}
-                disabled={state.isTesting}
-              >
-                Testar conectividade
-              </button>
+              {formState.isEditing ? (
+                <form
+                  className="key-form"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    await handleSave(provider.id);
+                  }}
+                  noValidate
+                >
+                  <label className="key-form__label" htmlFor={`secret-${provider.id}`}>
+                    Chave de acesso
+                  </label>
+                  <input
+                    id={`secret-${provider.id}`}
+                    type="password"
+                    className="key-form__input"
+                    value={formState.inputValue}
+                    onChange={(event) => handleInputChange(provider.id, event.target.value)}
+                    placeholder="sk-..."
+                    autoComplete="off"
+                    disabled={formState.isSaving || formState.isLoadingValue}
+                    aria-describedby={`secret-${provider.id}-hint`}
+                  />
+                  {formState.isLoadingValue && (
+                    <p id={`secret-${provider.id}-hint`} className="key-form__hint">
+                      Carregando chave atual…
+                    </p>
+                  )}
+                  {formState.error && <p className="key-form__error">{formState.error}</p>}
+                  <div className="key-form__actions">
+                    <button
+                      type="submit"
+                      className="key-form__primary"
+                      disabled={formState.isSaving || formState.isLoadingValue}
+                    >
+                      {formState.isSaving ? 'Salvando…' : 'Salvar agora'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCancel(provider.id)}
+                      disabled={formState.isSaving || formState.isLoadingValue}
+                    >
+                      Cancelar
+                    </button>
+                    {hasSecret && (
+                      <button
+                        type="button"
+                        className="key-remove-button"
+                        onClick={() => handleRemove(provider.id)}
+                        disabled={formState.isSaving || formState.isLoadingValue || formState.isDeleting}
+                      >
+                        {formState.isDeleting ? 'Removendo…' : 'Remover chave'}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <div className="key-card__toolbar">
+                  <button
+                    type="button"
+                    className="key-edit-button"
+                    onClick={() => handleEdit(provider.id, hasSecret)}
+                    disabled={formState.isSaving || formState.isLoadingValue || formState.isDeleting}
+                  >
+                    {editLabel}
+                  </button>
+                  <button
+                    type="button"
+                    className="key-test-button"
+                    onClick={() => handleTest(provider)}
+                    disabled={isTestDisabled}
+                  >
+                    {keyState.isTesting ? 'Testando…' : 'Testar conectividade'}
+                  </button>
+                </div>
+              )}
             </article>
           );
         })}
