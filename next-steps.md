@@ -2,7 +2,7 @@
 **Status do plano:** atualizado
 **Missão:** console unificado para **gerenciar MCP servers**, **chaves/policies**, e **FinOps** com foco **custo/benefício** e **DX**.
 
-> **Atualização 2025-10-15:** Build validado via suíte de testes (frontend e backend). Próxima frente: iniciar **TASK-BE-203 — Routing Simulator**.
+> Atualização 2025-10-15 08:29: roadmap revisado com **sprints explícitas (M1–M6)** e inclusão de **suporte a temas (Light/Dark)** para a UI. Consulte `ui-next-steps.md` para o detalhamento operacional.
 
 ## North Star & KPIs
 - **Lead time por PR**: -40% (30 dias)
@@ -20,7 +20,7 @@
 - [x] **TASK-OPS-004 — Integração inicial Console ↔ MCP servers existentes**
 
 ### Pendentes (principais trilhas)
-- **Frontend/UI (Sprint UI-1 a UI-4)**
+- **Frontend/UI (Sprint M1–M6)** — ver `ui-next-steps.md`
 - **Backend/API (Sprint BE-1 a BE-3)**
 - **Policies & Routing (Sprint PR-1)**
 - **Observabilidade & FinOps (Sprint FO-1 a FO-2)**
@@ -36,97 +36,86 @@
 
 ---
 
-## Sprint UI-1 — Dashboard & Servers
-- [x] **TASK-UI-101 — Dashboard Executivo**
-  - KPIs de custo, tokens, latência, top modelos
-  - Alertas visuais e heatmap Recharts
-  - **Artefatos:** `app/src/pages/Dashboard.tsx`, `components/KpiCard.tsx`
+## Sprints (planejamento macro)
 
-- [x] **TASK-UI-102 — Servers 2.0**
-  - Status UP/DOWN, start/stop/restart, log tail, uptime
-  - **Artefatos:** `app/src/pages/Servers.tsx`, `components/ServerActions.tsx`
+### M1 — Fundamentos & Shell (UI) · 1,5–2,0 semanas
+- Setup Bootstrap/FA com **SCSS seletivo** (TASK-UI-BS-000)
+- **Tokens & Temas Light/Dark** (TASK-UI-BS-001)
+- AppShell (Navbar+Sidebar) e Navegação (Breadcrumbs/Pagination) (TASK-UI-SH-010/ UI-NAV-011)
 
-- [x] **TASK-UI-103 — Keys 2.0**
-  - Tela de chaves com teste de conectividade
-  - **Artefatos:** `app/src/pages/Keys.tsx`
+### M2 — Ações & Feedback (UI) · 1,0–1,5 semanas
+- Buttons & Groups (TASK-UI-ACT-020)
+- Dropdowns/Tooltips (TASK-UI-ACT-021)
+- Alerts/Toasts (TASK-UI-FB-022)
+- Modals (Confirm/Form) (TASK-UI-MOD-023)
 
----
+### M3 — Dados & Estruturas (UI) · 1,5 semanas
+- Cards KPI/Lista/Detalhe (TASK-UI-DATA-030)
+- Tabela + EmptyState (TASK-UI-DATA-031)
+- Badges & Progress (TASK-UI-DATA-032)
 
-## Sprint UI-2 — Policies & Routing
-- [x] **TASK-UI-201 — Policies 2.0**
-  - Templates (Economy/Balanced/Turbo), rollback
-  - **Artefatos:** `pages/Policies.tsx`, `components/PolicyTemplatePicker.tsx`
+### M4 — Formulários & Validação (UI) · 1,0–1,5 semanas
+- Form Controls (TASK-UI-FORM-040)
+- Validação & Estados (TASK-UI-FORM-041)
+- Upload/Download (TASK-UI-FORM-042)
 
-- [x] **TASK-UI-202 — Routing Lab**
-  - Simulador “what-if” com estimativa de custo
-  - **Artefatos:** `pages/Routing.tsx`
+### M5 — Páginas Core (UI) · 1,5–2,0 semanas
+- Dashboard (TASK-UI-PG-070)
+- Servers (TASK-UI-PG-071)
+- Keys (TASK-UI-PG-072)
+- Policies (TASK-UI-PG-073)
+- Routing Lab (TASK-UI-PG-074)
+- FinOps (TASK-UI-PG-075)
 
----
+### M6 — Theming, Performance & Observabilidade de UI · 1,0 semana
+- Tema Dark refinado (TASK-UI-TH-080)
+- Dieta de bundle e code splitting (TASK-UI-TH-081)
+- UI Kit vivo (TASK-UI-OBS-082)
 
-## Sprint UI-3 — FinOps
-- [x] **TASK-UI-301 — Séries temporais e filtros**
-  - Gráficos, filtros por período/server, export CSV
-- [x] **TASK-UI-302 — Pareto & Drill-down**
-  - Pareto de custo por modelo/rota + detalhe de runs
-
----
-
-## Sprint UI-4 — UX/A11y
-- [x] **TASK-UI-401 — Command Palette**
-- [x] **TASK-UI-402 — Notifications**
-- [x] **TASK-UI-403 — A11y & Keyboard-first**
+> Nota: as sprints de **backend (BE-1 a BE-3)**, **policies/routing (PR-1)**, **observabilidade/finops (FO-1, FO-2)** e **ops (OPS-2 a OPS-4)** seguem plano já descrito anteriormente e podem rodar **paralelamente** às sprints UI quando não houver bloqueios.
 
 ---
 
-## Sprint BE-1 — Backend Base
+## Backlog técnico consolidado
+### Sprint BE-1 — Backend Base
 - [x] **TASK-BE-101 — Secrets**
 - [x] **TASK-BE-102 — SQLite + migrations**
 - [x] **TASK-BE-103 — MCP Servers CRUD**
 - [x] **TASK-BE-104 — Supervisor de processos**
 
----
-
-## Sprint BE-2 — Policies & Routing
+### Sprint BE-2 — Policies & Routing
 - [x] **TASK-BE-201 — Cost Policy CRUD**
- - [x] **TASK-BE-202 — Price Table**
-- [x] **TASK-BE-203 — Routing Simulator**
+- [x] **TASK-BE-202 — Price Table**
+- [ ] **TASK-BE-203 — Routing Simulator**
 
----
-
-## Sprint BE-3 — Observabilidade
+### Sprint BE-3 — Observabilidade
 - [x] **TASK-BE-301 — Ingestão JSONL**
 - [x] **TASK-BE-302 — Métricas agregadas**
 - [x] **TASK-BE-303 — Export CSV/HTML**
 
----
-
-## Sprint PR-1 — Guardrails
+### Sprint PR-1 — Guardrails
 - [x] **TASK-PR-101 — Templates de política**
 - [x] **TASK-PR-102 — Overrides por rota/projeto**
 - [x] **TASK-PR-103 — Dry-run de custo**
 
----
-
-## Sprint FO-1 — Telemetria
+### Sprint FO-1 — Telemetria
 - [x] **TASK-FO-101 — Modelo de log unificado**
 - [x] **TASK-FO-102 — Alertas básicos**
 
-## Sprint FO-2 — FinOps+
+### Sprint FO-2 — FinOps+
 - [x] **TASK-FO-201 — Pareto e hotspots**
 - [x] **TASK-FO-202 — Relatórios por sprint/PR**
 
----
-
-## Sprint OPS-2 — DX & Automação
+### Sprint OPS-2 — DX & Automação
 - [x] **TASK-OPS-205 — Script `dev:all`**
 - [x] **TASK-OPS-206 — Make targets e Doctor**
 - [x] **TASK-OPS-207 — CI básico**
 
-## Sprint OPS-3 — Segurança
+### Sprint OPS-3 — Segurança
 - [ ] **TASK-OPS-301 — Segredos**
 - [ ] **TASK-OPS-302 — Operações seguras**
 
-## Sprint OPS-4 — Packaging
+### Sprint OPS-4 — Packaging
 - [x] **TASK-OPS-401 — Build local**
 - [x] **TASK-OPS-402 — Electron (opcional)**
 
