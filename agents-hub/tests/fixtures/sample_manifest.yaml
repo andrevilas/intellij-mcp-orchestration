@@ -1,0 +1,18 @@
+name: sample-agent
+title: Sample Agent
+version: "0.0.1"
+description: Minimal manifest used for unit tests.
+capabilities:
+  - respond
+tools:
+  - name: default
+    description: Default echo tool for tests.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+      required: []
+model:
+  provider: test
+  name: stub
