@@ -455,7 +455,7 @@ describe('App provider orchestration flow', () => {
       expect(within(notification).queryByRole('heading', { level: 3, name: firstTitle })).toBeNull();
     });
 
-    const markAllButton = within(notificationCenter).getByRole('button', { name: 'Marcar tudo como lido' });
+    const markAllButton = within(notificationCenter).getByRole('button', { name: 'Limpar' });
     await user.click(markAllButton);
     await waitFor(() => {
       expect(markAllButton).toBeDisabled();
@@ -540,7 +540,7 @@ describe('App provider orchestration flow', () => {
     });
     await user.click(notificationButton);
 
-    const markAllButton = await screen.findByRole('button', { name: 'Marcar tudo como lido' });
+    const markAllButton = await screen.findByRole('button', { name: 'Limpar' });
     await user.click(markAllButton);
 
     await waitFor(() => expect(markAllButton).toBeDisabled());
@@ -563,7 +563,7 @@ describe('App provider orchestration flow', () => {
     await user.click(notificationButtonAfterReload);
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Marcar tudo como lido' })).toBeDisabled(),
+      expect(screen.getByRole('button', { name: 'Limpar' })).toBeDisabled(),
     );
 
     const toggleButtons = await screen.findAllByRole('button', {
