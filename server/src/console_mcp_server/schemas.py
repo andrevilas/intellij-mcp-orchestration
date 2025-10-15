@@ -277,3 +277,29 @@ class RoutingSimulationResponse(BaseModel):
     reliability_score: float
     distribution: List[RoutingDistributionEntry]
     excluded_route: Optional[RoutingRouteProfile] = None
+
+
+class TelemetryProviderMetrics(BaseModel):
+    """Aggregated telemetry metrics grouped by provider."""
+
+    provider_id: str
+    run_count: int
+    tokens_in: int
+    tokens_out: int
+    cost_usd: float
+    avg_latency_ms: float
+    success_rate: float
+
+
+class TelemetryMetricsResponse(BaseModel):
+    """Envelope returned when requesting aggregated telemetry metrics."""
+
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
+    total_runs: int
+    total_tokens_in: int
+    total_tokens_out: int
+    total_cost_usd: float
+    avg_latency_ms: float
+    success_rate: float
+    providers: List[TelemetryProviderMetrics]

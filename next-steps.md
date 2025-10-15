@@ -95,7 +95,7 @@
 
 ## Sprint BE-3 — Observabilidade
 - [x] **TASK-BE-301 — Ingestão JSONL**
-- [ ] **TASK-BE-302 — Métricas agregadas**
+- [x] **TASK-BE-302 — Métricas agregadas**
 - [ ] **TASK-BE-303 — Export CSV/HTML**
 
 ---

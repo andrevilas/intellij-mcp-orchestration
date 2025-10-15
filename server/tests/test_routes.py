@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import importlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 def resolve_repo_root(start: Path) -> Path:
     for candidate in (start,) + tuple(start.parents):
@@ -164,6 +165,115 @@ def test_secret_crud_flow(client: TestClient, tmp_path: Path) -> None:
 
     disk_after_delete = json.loads((tmp_path / 'secrets.json').read_text())
     assert disk_after_delete['secrets'] == {}
+
+
+def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> None:
+    from console_mcp_server import database as database_module
+
+    engine = database_module.bootstrap_database()
+    base_ts = datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc)
+
+    events = [
+        {
+            'provider_id': 'glm46',
+            'tool': 'glm46.chat',
+            'route': 'default',
+            'tokens_in': 120,
+            'tokens_out': 60,
+            'duration_ms': 900,
+            'status': 'success',
+            'cost_estimated_usd': 0.42,
+            'metadata': '{}',
+            'ts': base_ts.isoformat(),
+            'source_file': 'glm46/sample.jsonl',
+            'ingested_at': base_ts.isoformat(),
+        },
+        {
+            'provider_id': 'gemini',
+            'tool': 'gemini.chat',
+            'route': 'balanced',
+            'tokens_in': 80,
+            'tokens_out': 40,
+            'duration_ms': 1500,
+            'status': 'error',
+            'cost_estimated_usd': 0.25,
+            'metadata': '{}',
+            'ts': (base_ts + timedelta(minutes=10)).isoformat(),
+            'source_file': 'gemini/sample.jsonl',
+            'ingested_at': (base_ts + timedelta(minutes=1)).isoformat(),
+        },
+    ]
+
+    with engine.begin() as connection:
+        for index, event in enumerate(events, start=1):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO telemetry_events (
+                        provider_id,
+                        tool,
+                        route,
+                        tokens_in,
+                        tokens_out,
+                        duration_ms,
+                        status,
+                        cost_estimated_usd,
+                        metadata,
+                        ts,
+                        source_file,
+                        line_number,
+                        ingested_at
+                    ) VALUES (
+                        :provider_id,
+                        :tool,
+                        :route,
+                        :tokens_in,
+                        :tokens_out,
+                        :duration_ms,
+                        :status,
+                        :cost_estimated_usd,
+                        :metadata,
+                        :ts,
+                        :source_file,
+                        :line_number,
+                        :ingested_at
+                    )
+                    """
+                ),
+                {**event, 'line_number': index},
+            )
+
+    response = client.get('/api/v1/telemetry/metrics')
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload['total_runs'] == 2
+    assert payload['total_tokens_in'] == 200
+    assert payload['total_tokens_out'] == 100
+    assert payload['total_cost_usd'] == pytest.approx(0.67)
+    assert payload['avg_latency_ms'] == pytest.approx((900 + 1500) / 2)
+    assert payload['success_rate'] == pytest.approx(0.5)
+    assert parse_iso(payload['start']) == base_ts
+    assert parse_iso(payload['end']) == base_ts + timedelta(minutes=10)
+
+    providers = {item['provider_id']: item for item in payload['providers']}
+    assert providers['glm46']['run_count'] == 1
+    assert providers['glm46']['success_rate'] == pytest.approx(1.0)
+    assert providers['gemini']['success_rate'] == pytest.approx(0.0)
+
+    filtered = client.get(
+        '/api/v1/telemetry/metrics',
+        params={
+            'start': (base_ts + timedelta(minutes=5)).isoformat(),
+            'end': (base_ts + timedelta(minutes=15)).isoformat(),
+            'provider_id': 'gemini',
+        },
+    )
+    assert filtered.status_code == 200
+
+    filtered_payload = filtered.json()
+    assert filtered_payload['total_runs'] == 1
+    assert filtered_payload['providers'][0]['provider_id'] == 'gemini'
 
 
 def test_cost_policies_crud_flow(client: TestClient) -> None:

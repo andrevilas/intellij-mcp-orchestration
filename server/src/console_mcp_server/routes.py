@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Response, status
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from .policies import (
     CostPolicyAlreadyExistsError,
@@ -43,6 +45,8 @@ from .schemas import (
     RoutingRouteProfile,
     RoutingSimulationRequest,
     RoutingSimulationResponse,
+    TelemetryMetricsResponse,
+    TelemetryProviderMetrics,
     SecretMetadataResponse,
     SecretValueResponse,
     SecretWriteRequest,
@@ -65,6 +69,7 @@ from .servers import (
     list_servers,
     update_server,
 )
+from .telemetry import aggregate_metrics
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessNotRunningError,
@@ -88,6 +93,54 @@ def list_providers() -> ProvidersResponse:
     """List the configured MCP providers available to the console."""
 
     return ProvidersResponse(providers=provider_registry.providers)
+
+
+@router.get("/telemetry/metrics", response_model=TelemetryMetricsResponse)
+def read_telemetry_metrics(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Optional route identifier to filter telemetry events",
+    ),
+) -> TelemetryMetricsResponse:
+    """Return aggregated telemetry metrics for the requested window."""
+
+    try:
+        aggregates = aggregate_metrics(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return TelemetryMetricsResponse(
+        start=aggregates.start,
+        end=aggregates.end,
+        total_runs=aggregates.total_runs,
+        total_tokens_in=aggregates.total_tokens_in,
+        total_tokens_out=aggregates.total_tokens_out,
+        total_cost_usd=aggregates.total_cost_usd,
+        avg_latency_ms=aggregates.avg_latency_ms,
+        success_rate=aggregates.success_rate,
+        providers=[
+            TelemetryProviderMetrics(**provider.to_dict())
+            for provider in aggregates.providers
+        ],
+    )
 
 
 @router.get("/policies", response_model=CostPoliciesResponse)
