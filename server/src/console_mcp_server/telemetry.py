@@ -245,5 +245,226 @@ __all__ = [
     "LOGS_ENV_VAR",
     "TelemetryEvent",
     "ingest_logs",
+    "aggregate_metrics",
+    "TelemetryAggregates",
+    "TelemetryProviderAggregate",
 ]
+
+
+@dataclass(frozen=True)
+class TelemetryProviderAggregate:
+    """Aggregated metrics computed for a single provider."""
+
+    provider_id: str
+    run_count: int
+    tokens_in: int
+    tokens_out: int
+    cost_usd: float
+    avg_latency_ms: float
+    success_rate: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "provider_id": self.provider_id,
+            "run_count": self.run_count,
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
+            "cost_usd": self.cost_usd,
+            "avg_latency_ms": self.avg_latency_ms,
+            "success_rate": self.success_rate,
+        }
+
+
+@dataclass(frozen=True)
+class TelemetryAggregates:
+    """Aggregated metrics computed for telemetry events in a window."""
+
+    start: datetime | None
+    end: datetime | None
+    total_runs: int
+    total_tokens_in: int
+    total_tokens_out: int
+    total_cost_usd: float
+    avg_latency_ms: float
+    success_rate: float
+    providers: tuple[TelemetryProviderAggregate, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "start": self.start,
+            "end": self.end,
+            "total_runs": self.total_runs,
+            "total_tokens_in": self.total_tokens_in,
+            "total_tokens_out": self.total_tokens_out,
+            "total_cost_usd": self.total_cost_usd,
+            "avg_latency_ms": self.avg_latency_ms,
+            "success_rate": self.success_rate,
+            "providers": [provider.to_dict() for provider in self.providers],
+        }
+
+
+def aggregate_metrics(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    route: str | None = None,
+) -> TelemetryAggregates:
+    """Compute aggregated telemetry metrics for the requested window."""
+
+    normalized_start = _normalize_bound(start) if start else None
+    normalized_end = _normalize_bound(end) if end else None
+    if normalized_start and normalized_end and normalized_start > normalized_end:
+        raise ValueError("start must be before end")
+
+    params: dict[str, object] = {}
+    clauses: list[str] = []
+    if normalized_start:
+        params["start"] = normalized_start.isoformat()
+        clauses.append("ts >= :start")
+    if normalized_end:
+        params["end"] = normalized_end.isoformat()
+        clauses.append("ts <= :end")
+    if provider_id:
+        params["provider_id"] = provider_id
+        clauses.append("provider_id = :provider_id")
+    if route:
+        params["route"] = route
+        clauses.append("route = :route")
+
+    where_clause = " WHERE " + " AND ".join(clauses) if clauses else ""
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        summary = _fetch_summary(connection, where_clause, params)
+        providers = _fetch_provider_breakdown(connection, where_clause, params)
+
+    if summary is None or summary["run_count"] is None or summary["run_count"] == 0:
+        return TelemetryAggregates(
+            start=normalized_start,
+            end=normalized_end,
+            total_runs=0,
+            total_tokens_in=0,
+            total_tokens_out=0,
+            total_cost_usd=0.0,
+            avg_latency_ms=0.0,
+            success_rate=0.0,
+            providers=tuple(),
+        )
+
+    total_runs = int(summary["run_count"])
+    total_tokens_in = int(summary["tokens_in"] or 0)
+    total_tokens_out = int(summary["tokens_out"] or 0)
+    total_cost = float(summary["cost_usd"] or 0.0)
+    avg_latency = float(summary["avg_latency_ms"] or 0.0)
+    success_count = int(summary["success_count"] or 0)
+    success_rate = success_count / total_runs if total_runs else 0.0
+
+    observed_start = (
+        _parse_iso(summary["min_ts"])
+        if summary.get("min_ts") and isinstance(summary["min_ts"], str)
+        else normalized_start
+    )
+    observed_end = (
+        _parse_iso(summary["max_ts"])
+        if summary.get("max_ts") and isinstance(summary["max_ts"], str)
+        else normalized_end
+    )
+
+    provider_breakdown = []
+    for row in providers:
+        run_count = int(row["run_count"] or 0)
+        success_count = int(row["success_count"] or 0)
+        provider_breakdown.append(
+            TelemetryProviderAggregate(
+                provider_id=row["provider_id"],
+                run_count=run_count,
+                tokens_in=int(row["tokens_in"] or 0),
+                tokens_out=int(row["tokens_out"] or 0),
+                cost_usd=float(row["cost_usd"] or 0.0),
+                avg_latency_ms=float(row["avg_latency_ms"] or 0.0),
+                success_rate=(success_count / run_count) if run_count else 0.0,
+            )
+        )
+
+    provider_breakdown_tuple = tuple(provider_breakdown)
+
+    return TelemetryAggregates(
+        start=observed_start or normalized_start,
+        end=observed_end or normalized_end,
+        total_runs=total_runs,
+        total_tokens_in=total_tokens_in,
+        total_tokens_out=total_tokens_out,
+        total_cost_usd=total_cost,
+        avg_latency_ms=avg_latency,
+        success_rate=success_rate,
+        providers=provider_breakdown_tuple,
+    )
+
+
+def _fetch_summary(
+    connection: Connection, where_clause: str, params: dict[str, object]
+):
+    statement = text(
+        f"""
+        SELECT
+            COUNT(*) AS run_count,
+            SUM(tokens_in) AS tokens_in,
+            SUM(tokens_out) AS tokens_out,
+            SUM(COALESCE(cost_estimated_usd, 0)) AS cost_usd,
+            AVG(duration_ms) AS avg_latency_ms,
+            SUM(CASE WHEN LOWER(status) = 'success' THEN 1 ELSE 0 END) AS success_count,
+            MIN(ts) AS min_ts,
+            MAX(ts) AS max_ts
+        FROM telemetry_events
+        {where_clause}
+        """
+    )
+    result = connection.execute(statement, dict(params)).mappings().first()
+    return result if result is not None else None
+
+
+def _fetch_provider_breakdown(
+    connection: Connection, where_clause: str, params: dict[str, object]
+):
+    statement = text(
+        f"""
+        SELECT
+            provider_id,
+            COUNT(*) AS run_count,
+            SUM(tokens_in) AS tokens_in,
+            SUM(tokens_out) AS tokens_out,
+            SUM(COALESCE(cost_estimated_usd, 0)) AS cost_usd,
+            AVG(duration_ms) AS avg_latency_ms,
+            SUM(CASE WHEN LOWER(status) = 'success' THEN 1 ELSE 0 END) AS success_count
+        FROM telemetry_events
+        {where_clause}
+        GROUP BY provider_id
+        ORDER BY run_count DESC, provider_id ASC
+        """
+    )
+    return connection.execute(statement, dict(params)).mappings().all()
+
+
+def _normalize_bound(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value
+
+
+def _parse_iso(raw: str) -> datetime | None:
+    candidate = raw.strip()
+    if candidate.endswith("Z"):
+        candidate = candidate[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed
 
