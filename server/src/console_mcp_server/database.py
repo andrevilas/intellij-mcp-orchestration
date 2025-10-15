@@ -120,6 +120,30 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=5,
+        description="add policy overrides table",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS policy_overrides (
+                id TEXT PRIMARY KEY,
+                route TEXT NOT NULL,
+                project TEXT NOT NULL,
+                template_id TEXT NOT NULL,
+                max_latency_ms INTEGER,
+                max_cost_usd REAL,
+                require_manual_approval INTEGER NOT NULL DEFAULT 0,
+                notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_policy_overrides_route_project
+                ON policy_overrides (route, project)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None

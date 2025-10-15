@@ -15,6 +15,15 @@ from .policies import (
     list_policies,
     update_policy,
 )
+from .policy_overrides import (
+    PolicyOverrideAlreadyExistsError,
+    PolicyOverrideNotFoundError,
+    create_policy_override,
+    delete_policy_override,
+    get_policy_override,
+    list_policy_overrides,
+    update_policy_override,
+)
 from .policy_templates import list_policy_templates
 from .prices import (
     PriceEntryAlreadyExistsError,
@@ -32,6 +41,10 @@ from .schemas import (
     CostPolicyCreateRequest,
     CostPolicyResponse,
     CostPolicyUpdateRequest,
+    PolicyOverrideCreateRequest,
+    PolicyOverrideResponse,
+    PolicyOverrideUpdateRequest,
+    PolicyOverridesResponse,
     PolicyTemplateResponse,
     PolicyTemplatesResponse,
     HealthStatus,
@@ -194,6 +207,14 @@ def list_cost_policies() -> CostPoliciesResponse:
     return CostPoliciesResponse(policies=records)
 
 
+@router.get("/policies/overrides", response_model=PolicyOverridesResponse)
+def list_cost_policy_overrides() -> PolicyOverridesResponse:
+    """Return the policy overrides configured for routes and projects."""
+
+    records = [PolicyOverrideResponse(**record.to_dict()) for record in list_policy_overrides()]
+    return PolicyOverridesResponse(overrides=records)
+
+
 @router.get("/policies/templates", response_model=PolicyTemplatesResponse)
 def list_templates() -> PolicyTemplatesResponse:
     """Expose the available guardrail policy templates."""
@@ -226,6 +247,33 @@ def create_cost_policy(payload: CostPolicyCreateRequest) -> CostPolicyResponse:
     return CostPolicyResponse(**record.to_dict())
 
 
+@router.post(
+    "/policies/overrides",
+    response_model=PolicyOverrideResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_cost_policy_override(payload: PolicyOverrideCreateRequest) -> PolicyOverrideResponse:
+    """Persist a new policy override definition."""
+
+    try:
+        record = create_policy_override(
+            override_id=payload.id,
+            route=payload.route,
+            project=payload.project,
+            template_id=payload.template_id,
+            max_latency_ms=payload.max_latency_ms,
+            max_cost_usd=payload.max_cost_usd,
+            require_manual_approval=payload.require_manual_approval,
+            notes=payload.notes,
+        )
+    except PolicyOverrideAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Policy override '{payload.id}' already exists",
+        ) from exc
+    return PolicyOverrideResponse(**record.to_dict())
+
+
 @router.get("/policies/{policy_id}", response_model=CostPolicyResponse)
 def read_cost_policy(policy_id: str) -> CostPolicyResponse:
     """Return a single cost policy."""
@@ -238,6 +286,20 @@ def read_cost_policy(policy_id: str) -> CostPolicyResponse:
             detail=f"Policy '{policy_id}' not found",
         ) from exc
     return CostPolicyResponse(**record.to_dict())
+
+
+@router.get("/policies/overrides/{override_id}", response_model=PolicyOverrideResponse)
+def read_cost_policy_override(override_id: str) -> PolicyOverrideResponse:
+    """Return a single policy override."""
+
+    try:
+        record = get_policy_override(override_id)
+    except PolicyOverrideNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy override '{override_id}' not found",
+        ) from exc
+    return PolicyOverrideResponse(**record.to_dict())
 
 
 @router.put("/policies/{policy_id}", response_model=CostPolicyResponse)
@@ -261,6 +323,31 @@ def update_cost_policy(policy_id: str, payload: CostPolicyUpdateRequest) -> Cost
     return CostPolicyResponse(**record.to_dict())
 
 
+@router.put("/policies/overrides/{override_id}", response_model=PolicyOverrideResponse)
+def update_cost_policy_override(
+    override_id: str, payload: PolicyOverrideUpdateRequest
+) -> PolicyOverrideResponse:
+    """Update an existing policy override."""
+
+    try:
+        record = update_policy_override(
+            override_id,
+            route=payload.route,
+            project=payload.project,
+            template_id=payload.template_id,
+            max_latency_ms=payload.max_latency_ms,
+            max_cost_usd=payload.max_cost_usd,
+            require_manual_approval=payload.require_manual_approval,
+            notes=payload.notes,
+        )
+    except PolicyOverrideNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy override '{override_id}' not found",
+        ) from exc
+    return PolicyOverrideResponse(**record.to_dict())
+
+
 @router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_cost_policy(policy_id: str) -> Response:
     """Remove a cost policy definition."""
@@ -271,6 +358,20 @@ def delete_cost_policy(policy_id: str) -> Response:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Policy '{policy_id}' not found",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/policies/overrides/{override_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cost_policy_override(override_id: str) -> Response:
+    """Remove a policy override definition."""
+
+    try:
+        delete_policy_override(override_id)
+    except PolicyOverrideNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy override '{override_id}' not found",
         ) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

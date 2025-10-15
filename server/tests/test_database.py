@@ -25,6 +25,7 @@ def test_bootstrap_creates_expected_tables(database) -> None:
         "cost_policies",
         "price_entries",
         "telemetry_events",
+        "policy_overrides",
     } <= tables
 
 

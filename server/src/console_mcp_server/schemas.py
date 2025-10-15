@@ -118,6 +118,59 @@ class CostPoliciesResponse(BaseModel):
     policies: List[CostPolicyResponse]
 
 
+class PolicyOverrideWriteRequest(BaseModel):
+    """Shared attributes required when creating or updating a policy override."""
+
+    route: str = Field(..., min_length=1, max_length=128, description="Route identifier")
+    project: str = Field(..., min_length=1, max_length=128, description="Project slug or owner")
+    template_id: str = Field(
+        ..., min_length=1, max_length=128, description="Policy template applied to the override"
+    )
+    max_latency_ms: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Optional latency ceiling (P95) enforced for the route in milliseconds",
+    )
+    max_cost_usd: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="Optional cost ceiling per run expressed in USD",
+    )
+    require_manual_approval: bool = Field(
+        default=False,
+        description="Indicates if manual approval is required before promoting changes",
+    )
+    notes: Optional[str] = Field(
+        default=None,
+        max_length=1024,
+        description="Optional operational notes describing the override",
+    )
+
+
+class PolicyOverrideCreateRequest(PolicyOverrideWriteRequest):
+    """Payload used when registering a new policy override."""
+
+    id: str = Field(..., min_length=1, max_length=128)
+
+
+class PolicyOverrideUpdateRequest(PolicyOverrideWriteRequest):
+    """Payload used to update an existing policy override."""
+
+
+class PolicyOverrideResponse(PolicyOverrideWriteRequest):
+    """Full representation of a persisted policy override."""
+
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class PolicyOverridesResponse(BaseModel):
+    """Envelope returned when listing all policy overrides."""
+
+    overrides: List[PolicyOverrideResponse]
+
+
 class PolicyTemplateResponse(BaseModel):
     """Representation of an available guardrail policy template."""
 
