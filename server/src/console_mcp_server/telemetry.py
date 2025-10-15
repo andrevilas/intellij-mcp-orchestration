@@ -8,7 +8,7 @@ import io
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -279,6 +279,15 @@ class TelemetryAggregates:
         }
 
 
+@dataclass(frozen=True)
+class TelemetryHeatmapBucket:
+    """Aggregated telemetry executions grouped by day and provider."""
+
+    day: date
+    provider_id: str
+    run_count: int
+
+
 def aggregate_metrics(
     *,
     start: datetime | None = None,
@@ -360,6 +369,50 @@ def aggregate_metrics(
     )
 
 
+def aggregate_heatmap(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    route: str | None = None,
+) -> tuple[TelemetryHeatmapBucket, ...]:
+    """Aggregate execution counts by day and provider for the requested window."""
+
+    _, _, where_clause, params = _prepare_filters(
+        start=start, end=end, provider_id=provider_id, route=route
+    )
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = _fetch_heatmap(connection, where_clause, params)
+
+    buckets: list[TelemetryHeatmapBucket] = []
+    for row in rows:
+        raw_day = row["day"]
+        if isinstance(raw_day, datetime):
+            resolved_day = raw_day.date()
+        elif isinstance(raw_day, str):
+            try:
+                resolved_day = date.fromisoformat(raw_day)
+            except ValueError:
+                continue
+        else:
+            continue
+
+        provider = row["provider_id"]
+        if provider is None:
+            continue
+
+        run_count = int(row["run_count"] or 0)
+        buckets.append(
+            TelemetryHeatmapBucket(
+                day=resolved_day, provider_id=str(provider), run_count=run_count
+            )
+        )
+
+    return tuple(buckets)
+
+
 def _fetch_summary(
     connection: Connection, where_clause: str, params: dict[str, object]
 ):
@@ -399,6 +452,24 @@ def _fetch_provider_breakdown(
         {where_clause}
         GROUP BY provider_id
         ORDER BY run_count DESC, provider_id ASC
+        """
+    )
+    return connection.execute(statement, dict(params)).mappings().all()
+
+
+def _fetch_heatmap(
+    connection: Connection, where_clause: str, params: dict[str, object]
+):
+    statement = text(
+        f"""
+        SELECT
+            DATE(ts) AS day,
+            provider_id,
+            COUNT(*) AS run_count
+        FROM telemetry_events
+        {where_clause}
+        GROUP BY DATE(ts), provider_id
+        ORDER BY DATE(ts) ASC, provider_id ASC
         """
     )
     return connection.execute(statement, dict(params)).mappings().all()

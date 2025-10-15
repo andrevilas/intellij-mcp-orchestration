@@ -1,14 +1,15 @@
 import { useMemo } from 'react';
 import { ResponsiveContainer, ScatterChart, CartesianGrid, XAxis, YAxis, Tooltip, ZAxis, Scatter } from 'recharts';
 
-import type { ProviderSummary, Session } from '../api';
+import type { ProviderSummary, Session, TelemetryHeatmapBucket, TelemetryMetrics } from '../api';
 import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
-import { hashString } from '../utils/hash';
 
 export interface DashboardProps {
   providers: ProviderSummary[];
   sessions: Session[];
+  metrics: TelemetryMetrics | null;
+  heatmapBuckets: TelemetryHeatmapBucket[];
   isLoading: boolean;
   initialError: string | null;
   feedback: Feedback | null;
@@ -22,11 +23,11 @@ interface HeatmapPoint {
   value: number;
 }
 
-interface AggregatedMetrics {
+interface DerivedDashboardData {
   cost24h: number;
-  tokens24h: number;
+  tokensTotal: number;
   latencyAvg: number;
-  successRate: number;
+  successRatePercent: number;
   topModel: {
     name: string;
     share: number;
@@ -34,6 +35,7 @@ interface AggregatedMetrics {
   alerts: Array<{ kind: 'warning' | 'error' | 'info'; message: string }>;
   heatmap: HeatmapPoint[];
   maxHeatmapValue: number;
+  heatmapProviderCount: number;
 }
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -54,74 +56,50 @@ function normalizeDateToLocalDay(date: Date): string {
   return DAY_NAMES[date.getDay()];
 }
 
-function aggregateMetrics(providers: ProviderSummary[], sessions: Session[]): AggregatedMetrics {
-  const now = Date.now();
-  const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
-  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-
-  let cost24h = 0;
-  let tokens24h = 0;
-  let latencyAccumulator = 0;
-  let latencyCount = 0;
-  let successfulSessions = 0;
-
-  const providerUsage = new Map<string, number>();
-  const dayProviderUsage = new Map<string, Map<string, number>>();
-
-  for (const session of sessions) {
-    const timestamp = new Date(session.created_at).getTime();
-    const fingerprint = hashString(`${session.id}-${session.provider_id}`);
-    const sessionCost = (fingerprint % 750) / 100 + 0.35;
-    const sessionTokens = (fingerprint % 5000) + 1200;
-    const sessionLatency = (fingerprint % 1200) + 350;
-
-    if (timestamp >= twentyFourHoursAgo) {
-      cost24h += sessionCost;
-      tokens24h += sessionTokens;
-      latencyAccumulator += sessionLatency;
-      latencyCount += 1;
-    }
-
-    if (session.status.toLowerCase().includes('ok') || session.status.toLowerCase().includes('done')) {
-      successfulSessions += 1;
-    }
-
-    const providerCount = providerUsage.get(session.provider_id) ?? 0;
-    providerUsage.set(session.provider_id, providerCount + 1);
-
-    if (timestamp >= sevenDaysAgo) {
-      const day = normalizeDateToLocalDay(new Date(timestamp));
-      const dayUsage = dayProviderUsage.get(day) ?? new Map<string, number>();
-      dayUsage.set(session.provider_id, (dayUsage.get(session.provider_id) ?? 0) + 1);
-      dayProviderUsage.set(day, dayUsage);
+function deriveDashboardData(
+  providers: ProviderSummary[] = [],
+  metrics: TelemetryMetrics | null,
+  heatmapBuckets: TelemetryHeatmapBucket[] = [],
+): DerivedDashboardData {
+  const providerLabelMap = new Map<string, string>();
+  for (const provider of providers) {
+    providerLabelMap.set(provider.id, provider.name);
+  }
+  for (const bucket of heatmapBuckets) {
+    if (!providerLabelMap.has(bucket.provider_id)) {
+      providerLabelMap.set(bucket.provider_id, bucket.provider_id);
     }
   }
 
-  const totalSessions = sessions.length;
-  const successRate = totalSessions > 0 ? Math.round((successfulSessions / totalSessions) * 100) : 0;
-  const latencyAvg = latencyCount > 0 ? latencyAccumulator / latencyCount : 0;
+  const totalRuns = metrics?.total_runs ?? 0;
+  const cost24h = metrics?.total_cost_usd ?? 0;
+  const tokensTotal = (metrics?.total_tokens_in ?? 0) + (metrics?.total_tokens_out ?? 0);
+  const latencyAvg = metrics?.avg_latency_ms ?? 0;
+  const successRatePercent = metrics ? Math.round((metrics.success_rate ?? 0) * 100) : 0;
 
-  let topModel: AggregatedMetrics['topModel'] = null;
-  if (providers.length > 0) {
-    let currentMax = -Infinity;
-    for (const provider of providers) {
-      const usage = providerUsage.get(provider.id) ?? 0;
-      if (usage > currentMax) {
-        currentMax = usage;
-        topModel = {
-          name: provider.name,
-          share: totalSessions > 0 ? Math.round((usage / totalSessions) * 100) : 0,
-        };
-      }
-    }
+  const providerRunCounts = new Map<string, number>();
+  for (const entry of metrics?.providers ?? []) {
+    providerRunCounts.set(entry.provider_id, entry.run_count ?? 0);
+  }
 
-    if (!topModel) {
-      const fallbackProvider = providers[0];
-      topModel = { name: fallbackProvider.name, share: 0 };
+  let topModel: DerivedDashboardData['topModel'] = null;
+  let currentMax = -Infinity;
+  for (const [providerId, runCount] of providerRunCounts) {
+    if (runCount > currentMax) {
+      currentMax = runCount;
+      topModel = {
+        name: providerLabelMap.get(providerId) ?? providerId,
+        share: totalRuns > 0 ? Math.round((runCount / totalRuns) * 100) : 0,
+      };
     }
   }
 
-  const alerts: AggregatedMetrics['alerts'] = [];
+  if (!topModel && providers.length > 0) {
+    const fallbackProvider = providers[0];
+    topModel = { name: fallbackProvider.name, share: 0 };
+  }
+
+  const alerts: DerivedDashboardData['alerts'] = [];
   const offlineProviders = providers.filter((provider) => provider.is_available === false);
   if (offlineProviders.length > 0) {
     alerts.push({
@@ -137,10 +115,10 @@ function aggregateMetrics(providers: ProviderSummary[], sessions: Session[]): Ag
     });
   }
 
-  if (successRate < 80 && totalSessions > 0) {
+  if (totalRuns > 0 && successRatePercent < 80) {
     alerts.push({
       kind: 'warning',
-      message: `Taxa de sucesso em ${successRate}% nas últimas execuções.`,
+      message: `Taxa de sucesso em ${successRatePercent}% nas últimas execuções.`,
     });
   }
 
@@ -151,18 +129,34 @@ function aggregateMetrics(providers: ProviderSummary[], sessions: Session[]): Ag
     });
   }
 
-  const heatmap: HeatmapPoint[] = [];
+  const bucketMap = new Map<string, number>();
+  for (const bucket of heatmapBuckets) {
+    bucketMap.set(`${bucket.day}|${bucket.provider_id}`, bucket.run_count);
+  }
+
+  const heatmapProviders = Array.from(providerLabelMap.entries()).map(([id, name]) => ({ id, name }));
+
+  let lastDayKey: string | null = null;
+  for (const bucket of heatmapBuckets) {
+    if (!lastDayKey || bucket.day > lastDayKey) {
+      lastDayKey = bucket.day;
+    }
+  }
+
+  const referenceEnd = lastDayKey ? new Date(`${lastDayKey}T12:00:00Z`) : new Date();
   const referenceDays = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(now - (6 - index) * 24 * 60 * 60 * 1000);
-    return normalizeDateToLocalDay(date);
+    const date = new Date(referenceEnd.getTime() - (6 - index) * 24 * 60 * 60 * 1000);
+    const isoDay = date.toISOString().slice(0, 10);
+    const label = normalizeDateToLocalDay(new Date(`${isoDay}T00:00:00Z`));
+    return { isoDay, label };
   });
 
+  const heatmap: HeatmapPoint[] = [];
   let maxHeatmapValue = 0;
-  for (const day of referenceDays) {
-    const usage = dayProviderUsage.get(day) ?? new Map<string, number>();
-    for (const provider of providers) {
-      const value = usage.get(provider.id) ?? 0;
-      heatmap.push({ day, provider: provider.name, value });
+  for (const { isoDay, label } of referenceDays) {
+    for (const provider of heatmapProviders) {
+      const value = bucketMap.get(`${isoDay}|${provider.id}`) ?? 0;
+      heatmap.push({ day: label, provider: provider.name, value });
       if (value > maxHeatmapValue) {
         maxHeatmapValue = value;
       }
@@ -170,14 +164,15 @@ function aggregateMetrics(providers: ProviderSummary[], sessions: Session[]): Ag
   }
 
   return {
-    cost24h,
-    tokens24h,
+    cost24h: cost24h,
+    tokensTotal,
     latencyAvg,
-    successRate,
+    successRatePercent,
     topModel,
     alerts,
     heatmap,
     maxHeatmapValue,
+    heatmapProviderCount: heatmapProviders.length,
   };
 }
 
@@ -221,13 +216,18 @@ function createHeatSquareRenderer(max: number) {
 export function Dashboard({
   providers,
   sessions,
+  metrics,
+  heatmapBuckets,
   isLoading,
   initialError,
   feedback,
   provisioningId,
   onProvision,
 }: DashboardProps) {
-  const metrics = useMemo(() => aggregateMetrics(providers, sessions), [providers, sessions]);
+  const derived = useMemo(
+    () => deriveDashboardData(providers, metrics, heatmapBuckets),
+    [providers, metrics, heatmapBuckets],
+  );
 
   const kpis = useMemo(() => {
     const items: Array<{
@@ -239,34 +239,34 @@ export function Dashboard({
       caption?: string;
     }> = [];
 
-    const topModelLabel = metrics.topModel
-      ? `${metrics.topModel.name} (${metrics.topModel.share}% das runs)`
+    const topModelLabel = derived.topModel
+      ? `${derived.topModel.name} (${derived.topModel.share}% das runs)`
       : 'Sem dados suficientes';
 
     items.push({
       id: 'cost',
       label: 'Custo (24h)',
-      value: currencyFormatter.format(metrics.cost24h),
-      trend: metrics.cost24h > 1500 ? 'up' : metrics.cost24h < 400 ? 'down' : 'flat',
-      trendLabel: metrics.cost24h > 0 ? 'vs. base 7d' : undefined,
+      value: currencyFormatter.format(derived.cost24h),
+      trend: derived.cost24h > 1500 ? 'up' : derived.cost24h < 400 ? 'down' : 'flat',
+      trendLabel: derived.cost24h > 0 ? 'vs. base 7d' : undefined,
       caption: 'Budget estimado com base no tráfego das últimas 24h.',
     });
 
     items.push({
       id: 'tokens',
       label: 'Tokens processados',
-      value: `${numberFormatter.format(metrics.tokens24h)} tok`,
-      trend: metrics.tokens24h > 100000 ? 'up' : 'flat',
-      trendLabel: metrics.tokens24h > 0 ? '+18% semana' : undefined,
+      value: `${numberFormatter.format(derived.tokensTotal)} tok`,
+      trend: derived.tokensTotal > 100000 ? 'up' : 'flat',
+      trendLabel: derived.tokensTotal > 0 ? '+18% semana' : undefined,
       caption: 'Tokens contabilizados considerando provisionamentos das últimas 24h.',
     });
 
     items.push({
       id: 'latency',
       label: 'Latência média',
-      value: `${LATENCY_FORMATTER.format(metrics.latencyAvg)} ms`,
-      trend: metrics.latencyAvg > 1200 ? 'down' : 'up',
-      trendLabel: metrics.latencyAvg > 0 ? 'SLA 1.2s' : undefined,
+      value: `${LATENCY_FORMATTER.format(derived.latencyAvg)} ms`,
+      trend: derived.latencyAvg > 1200 ? 'down' : 'up',
+      trendLabel: derived.latencyAvg > 0 ? 'SLA 1.2s' : undefined,
       caption: 'Média ponderada das execuções provisionadas (24h).',
     });
 
@@ -275,12 +275,12 @@ export function Dashboard({
       label: 'Top modelo',
       value: topModelLabel,
       trend: 'up',
-      trendLabel: metrics.topModel ? `${metrics.topModel.share}% share` : undefined,
+      trendLabel: derived.topModel ? `${derived.topModel.share}% share` : undefined,
       caption: 'Distribuição considerando volume recente de execuções.',
     });
 
     return items;
-  }, [metrics]);
+  }, [derived]);
 
   return (
     <main className="dashboard">
@@ -308,7 +308,7 @@ export function Dashboard({
       <section className="dashboard__alerts" aria-label="Alertas operacionais">
         <h2>Alertas</h2>
         <ul>
-          {metrics.alerts.map((alert, index) => (
+          {derived.alerts.map((alert, index) => (
             <li key={`${alert.kind}-${index}`} className={`alert alert--${alert.kind}`}>
               {alert.message}
             </li>
@@ -322,9 +322,9 @@ export function Dashboard({
           <p>Heatmap baseado na distribuição diária de execuções.</p>
         </header>
         <div className="heatmap__container">
-          {providers.length === 0 ? (
+          {derived.heatmapProviderCount === 0 ? (
             <p className="info">Cadastre provedores para visualizar o uso agregado.</p>
-          ) : metrics.heatmap.every((entry) => entry.value === 0) ? (
+          ) : derived.heatmap.every((entry) => entry.value === 0) ? (
             <p className="info">Sem execuções registradas nos últimos 7 dias.</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
@@ -332,12 +332,12 @@ export function Dashboard({
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="category" dataKey="day" />
                 <YAxis type="category" dataKey="provider" width={140} />
-                <ZAxis type="number" dataKey="value" range={[0, metrics.maxHeatmapValue || 1]} />
+                <ZAxis type="number" dataKey="value" range={[0, derived.maxHeatmapValue || 1]} />
                 <Tooltip
                   cursor={{ fill: 'rgba(17, 24, 39, 0.06)' }}
                   formatter={(value, name, entry) => formatHeatmapTooltip(value as number, name, entry)}
                 />
-                <Scatter data={metrics.heatmap} shape={createHeatSquareRenderer(metrics.maxHeatmapValue)} />
+                <Scatter data={derived.heatmap} shape={createHeatSquareRenderer(derived.maxHeatmapValue)} />
               </ScatterChart>
             </ResponsiveContainer>
           )}
