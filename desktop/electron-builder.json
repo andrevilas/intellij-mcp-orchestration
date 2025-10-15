@@ -1,6 +1,6 @@
 {
   "appId": "com.mcp.console",
-  "productName": "MCP Console",
+  "productName": "Promenade Agent Hub",
   "directories": {
     "output": "../dist/electron"
   },

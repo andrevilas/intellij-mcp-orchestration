@@ -8,7 +8,7 @@ const createWindow = () => {
     height: 800,
     minWidth: 960,
     minHeight: 600,
-    title: 'MCP Console',
+    title: 'Promenade Agent Hub',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,

@@ -1,4 +1,4 @@
-# MCP Console — Frontend App
+# Promenade Agent Hub — Frontend App
 
 O diretório `app/` contém o Console MCP web baseado em **Vite + React + TypeScript**. A stack prioriza DX rápida para
 iterações curtas e agora está conectada ao protótipo FastAPI do backend, consumindo os endpoints `/api/v1/providers` e

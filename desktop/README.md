@@ -1,4 +1,4 @@
-# MCP Console — Desktop Shell (Electron)
+# Promenade Agent Hub — Desktop Shell (Electron)
 
 This workspace bundles the Vite frontend inside an Electron shell so the
 console can run as a desktop application. The backend remains an external
