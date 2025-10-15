@@ -16,6 +16,10 @@ from .schemas import (
     SecretValueResponse,
     SecretWriteRequest,
     SecretsResponse,
+    ServerProcessLifecycle,
+    ServerProcessResponse,
+    ServerProcessState,
+    ServerProcessesResponse,
     SessionCreateRequest,
     SessionResponse,
     SessionsResponse,
@@ -29,6 +33,13 @@ from .servers import (
     get_server,
     list_servers,
     update_server,
+)
+from .supervisor import (
+    ProcessAlreadyRunningError,
+    ProcessNotRunningError,
+    ProcessStartError,
+    ProcessSnapshot,
+    process_supervisor,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["console"])
@@ -133,6 +144,16 @@ def list_mcp_servers() -> MCPServersResponse:
     return MCPServersResponse(servers=records)
 
 
+@router.get("/servers/processes", response_model=ServerProcessesResponse)
+def list_server_processes() -> ServerProcessesResponse:
+    """Return snapshots for all supervised MCP server processes."""
+
+    snapshots = process_supervisor.list()
+    return ServerProcessesResponse(
+        processes=[_process_state_from_snapshot(snapshot) for snapshot in snapshots]
+    )
+
+
 @router.post("/servers", response_model=MCPServerResponse, status_code=status.HTTP_201_CREATED)
 def create_mcp_server(payload: MCPServerCreateRequest) -> MCPServerResponse:
     """Persist a new MCP server definition."""
@@ -203,3 +224,97 @@ def delete_mcp_server(server_id: str) -> Response:
             detail=f"Server '{server_id}' not found",
         ) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _process_state_from_snapshot(snapshot: ProcessSnapshot) -> ServerProcessState:
+    return ServerProcessState(
+        server_id=snapshot.server_id,
+        command=snapshot.command,
+        status=ServerProcessLifecycle(snapshot.status.value),
+        pid=snapshot.pid,
+        started_at=snapshot.started_at,
+        stopped_at=snapshot.stopped_at,
+        return_code=snapshot.return_code,
+        last_error=snapshot.last_error,
+    )
+
+
+@router.get("/servers/{server_id}/process", response_model=ServerProcessResponse)
+def read_server_process(server_id: str) -> ServerProcessResponse:
+    """Return the supervisor snapshot for a single MCP server."""
+
+    try:
+        record = get_server(server_id)
+    except MCPServerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Server '{server_id}' not found",
+        ) from exc
+
+    snapshot = process_supervisor.status(server_id, command=record.command)
+    return ServerProcessResponse(process=_process_state_from_snapshot(snapshot))
+
+
+@router.post("/servers/{server_id}/process/start", response_model=ServerProcessResponse)
+def start_server_process(server_id: str) -> ServerProcessResponse:
+    """Start the command configured for an MCP server."""
+
+    try:
+        record = get_server(server_id)
+    except MCPServerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Server '{server_id}' not found",
+        ) from exc
+
+    try:
+        snapshot = process_supervisor.start(server_id, record.command)
+    except ProcessAlreadyRunningError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Server '{server_id}' is already running",
+        ) from exc
+    except ProcessStartError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    return ServerProcessResponse(process=_process_state_from_snapshot(snapshot))
+
+
+@router.post("/servers/{server_id}/process/stop", response_model=ServerProcessResponse)
+def stop_server_process(server_id: str) -> ServerProcessResponse:
+    """Terminate the supervised process associated with an MCP server."""
+
+    try:
+        snapshot = process_supervisor.stop(server_id)
+    except ProcessNotRunningError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Server '{server_id}' is not running",
+        ) from exc
+    return ServerProcessResponse(process=_process_state_from_snapshot(snapshot))
+
+
+@router.post("/servers/{server_id}/process/restart", response_model=ServerProcessResponse)
+def restart_server_process(server_id: str) -> ServerProcessResponse:
+    """Restart the supervised process associated with an MCP server."""
+
+    try:
+        record = get_server(server_id)
+    except MCPServerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Server '{server_id}' not found",
+        ) from exc
+
+    try:
+        snapshot = process_supervisor.restart(server_id, record.command)
+    except ProcessStartError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    return ServerProcessResponse(process=_process_state_from_snapshot(snapshot))

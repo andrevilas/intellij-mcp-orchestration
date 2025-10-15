@@ -80,7 +80,7 @@
 - [x] **TASK-BE-101 — Secrets**
 - [x] **TASK-BE-102 — SQLite + migrations**
 - [x] **TASK-BE-103 — MCP Servers CRUD**
-- [ ] **TASK-BE-104 — Supervisor de processos**
+- [x] **TASK-BE-104 — Supervisor de processos**
 
 ---
 

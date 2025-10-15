@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
-
-import importlib
+import sys
 
 import pytest
 from fastapi.testclient import TestClient
@@ -36,12 +36,14 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     import console_mcp_server.secrets as secrets_module
     import console_mcp_server.database as database_module
     import console_mcp_server.routes as routes_module
+    import console_mcp_server.supervisor as supervisor_module
     import console_mcp_server.main as main_module
 
     config = importlib.reload(config_module)
     registry = importlib.reload(registry_module)
     secrets = importlib.reload(secrets_module)
     database = importlib.reload(database_module)
+    supervisor = importlib.reload(supervisor_module)
     importlib.reload(routes_module)
     main = importlib.reload(main_module)
 
@@ -49,12 +51,15 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     registry.session_registry = registry.SessionRegistry()
     secrets.secret_store = secrets.SecretStore(path=secrets_path)
     database.reset_state()
+    supervisor.process_supervisor.prune(only_finished=False)
 
     with TestClient(main.app) as test_client:
         yield test_client
 
     registry.session_registry = registry.SessionRegistry()
     database.reset_state()
+    supervisor.process_supervisor.stop_all()
+    supervisor.process_supervisor.prune(only_finished=False)
 
 
 def test_healthz_endpoint_reports_ok(client: TestClient) -> None:
@@ -217,3 +222,57 @@ def test_mcp_servers_crud_flow(client: TestClient) -> None:
 
     delete_missing = client.delete('/api/v1/servers/anthropic')
     assert delete_missing.status_code == 404
+
+
+def test_process_supervisor_flow(client: TestClient) -> None:
+    command = f"{sys.executable} -c 'import time; time.sleep(60)'"
+    create_payload = {
+        'id': 'supervisor-test',
+        'name': 'Process Supervisor Fixture',
+        'command': command,
+        'description': 'Long running python sleep command',
+        'tags': ['test'],
+        'capabilities': ['sleep'],
+        'transport': 'stdio',
+    }
+
+    create_response = client.post('/api/v1/servers', json=create_payload)
+    assert create_response.status_code == 201
+
+    status_before = client.get('/api/v1/servers/supervisor-test/process')
+    assert status_before.status_code == 200
+    before_body = status_before.json()['process']
+    assert before_body['status'] == 'stopped'
+    assert before_body['pid'] is None
+
+    start_response = client.post('/api/v1/servers/supervisor-test/process/start')
+    assert start_response.status_code == 200
+    start_body = start_response.json()['process']
+    assert start_body['status'] == 'running'
+    assert isinstance(start_body['pid'], int)
+
+    duplicate_start = client.post('/api/v1/servers/supervisor-test/process/start')
+    assert duplicate_start.status_code == 409
+
+    list_response = client.get('/api/v1/servers/processes')
+    assert list_response.status_code == 200
+    processes = list_response.json()['processes']
+    assert any(proc['server_id'] == 'supervisor-test' for proc in processes)
+
+    stop_response = client.post('/api/v1/servers/supervisor-test/process/stop')
+    assert stop_response.status_code == 200
+    stopped_body = stop_response.json()['process']
+    assert stopped_body['status'] in {'stopped', 'error'}
+
+    second_stop = client.post('/api/v1/servers/supervisor-test/process/stop')
+    assert second_stop.status_code == 409
+
+    restart_response = client.post('/api/v1/servers/supervisor-test/process/restart')
+    assert restart_response.status_code == 200
+    restarted = restart_response.json()['process']
+    assert restarted['status'] == 'running'
+    assert isinstance(restarted['pid'], int)
+
+    final_stop = client.post('/api/v1/servers/supervisor-test/process/stop')
+    assert final_stop.status_code == 200
+    assert final_stop.json()['process']['status'] in {'stopped', 'error'}

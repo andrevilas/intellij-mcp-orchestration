@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -116,3 +117,32 @@ class MCPServersResponse(BaseModel):
     """Envelope returned when listing all MCP servers."""
 
     servers: List[MCPServerResponse]
+
+
+class ServerProcessLifecycle(str, Enum):
+    """Lifecycle states reported for supervised MCP server processes."""
+
+    RUNNING = "running"
+    STOPPED = "stopped"
+    ERROR = "error"
+
+
+class ServerProcessState(BaseModel):
+    """Snapshot returned by the process supervisor."""
+
+    server_id: str
+    status: ServerProcessLifecycle
+    command: str
+    pid: Optional[int] = None
+    started_at: Optional[datetime] = None
+    stopped_at: Optional[datetime] = None
+    return_code: Optional[int] = None
+    last_error: Optional[str] = None
+
+
+class ServerProcessResponse(BaseModel):
+    process: ServerProcessState
+
+
+class ServerProcessesResponse(BaseModel):
+    processes: List[ServerProcessState]
