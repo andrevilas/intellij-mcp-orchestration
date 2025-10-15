@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 
@@ -20,6 +21,14 @@ def resolve_repo_root(start: Path) -> Path:
 
 REPO_ROOT = resolve_repo_root(Path(__file__).resolve().parent)
 MANIFEST_PATH = REPO_ROOT / 'config/console-mcp/servers.example.json'
+
+
+def parse_iso(value: str) -> datetime:
+    """Normalize ISO timestamps that may include a trailing Z."""
+
+    if value.endswith('Z'):
+        value = value[:-1] + '+00:00'
+    return datetime.fromisoformat(value)
 
 
 @pytest.fixture()
@@ -229,6 +238,100 @@ def test_cost_policies_crud_flow(client: TestClient) -> None:
     list_after_delete = client.get('/api/v1/policies')
     assert list_after_delete.status_code == 200
     assert list_after_delete.json()['policies'] == []
+
+
+def test_price_table_crud_flow(client: TestClient) -> None:
+    list_empty = client.get('/api/v1/prices')
+    assert list_empty.status_code == 200
+    assert list_empty.json() == {'entries': []}
+
+    effective_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    create_payload = {
+        'id': 'openai-gpt4-turbo',
+        'provider_id': 'openai',
+        'model': 'gpt-4-turbo',
+        'currency': 'USD',
+        'unit': '1k_tokens',
+        'input_cost_per_1k': 10.0,
+        'output_cost_per_1k': 30.0,
+        'embedding_cost_per_1k': None,
+        'tags': ['chat', 'premium'],
+        'notes': 'For high priority workloads',
+        'effective_at': effective_at.isoformat(),
+    }
+
+    create_response = client.post('/api/v1/prices', json=create_payload)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created['id'] == 'openai-gpt4-turbo'
+    assert created['provider_id'] == 'openai'
+    assert created['model'] == 'gpt-4-turbo'
+    assert created['currency'] == 'USD'
+    assert created['unit'] == '1k_tokens'
+    assert created['input_cost_per_1k'] == pytest.approx(10.0)
+    assert created['output_cost_per_1k'] == pytest.approx(30.0)
+    assert created['embedding_cost_per_1k'] is None
+    assert created['tags'] == ['chat', 'premium']
+    assert created['notes'] == 'For high priority workloads'
+    assert parse_iso(created['effective_at']) == effective_at
+    assert created['created_at']
+    assert created['updated_at']
+
+    duplicate = client.post('/api/v1/prices', json=create_payload)
+    assert duplicate.status_code == 409
+
+    list_after_create = client.get('/api/v1/prices')
+    assert list_after_create.status_code == 200
+    entries = list_after_create.json()['entries']
+    assert len(entries) == 1
+    assert entries[0]['id'] == 'openai-gpt4-turbo'
+
+    read_response = client.get('/api/v1/prices/openai-gpt4-turbo')
+    assert read_response.status_code == 200
+    assert read_response.json()['provider_id'] == 'openai'
+
+    new_effective_at = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    update_payload = {
+        'provider_id': 'openai',
+        'model': 'gpt-4.1-mini',
+        'currency': 'EUR',
+        'unit': '1k_tokens',
+        'input_cost_per_1k': 5.5,
+        'output_cost_per_1k': 11.0,
+        'embedding_cost_per_1k': 0.2,
+        'tags': ['chat'],
+        'notes': 'Repriced tier',
+        'effective_at': new_effective_at.isoformat(),
+    }
+
+    update_response = client.put('/api/v1/prices/openai-gpt4-turbo', json=update_payload)
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated['model'] == 'gpt-4.1-mini'
+    assert updated['currency'] == 'EUR'
+    assert updated['input_cost_per_1k'] == pytest.approx(5.5)
+    assert updated['output_cost_per_1k'] == pytest.approx(11.0)
+    assert updated['embedding_cost_per_1k'] == pytest.approx(0.2)
+    assert updated['tags'] == ['chat']
+    assert updated['notes'] == 'Repriced tier'
+    assert parse_iso(updated['effective_at']) == new_effective_at
+    assert updated['updated_at'] != updated['created_at']
+
+    missing_update = client.put('/api/v1/prices/missing', json=update_payload)
+    assert missing_update.status_code == 404
+
+    delete_response = client.delete('/api/v1/prices/openai-gpt4-turbo')
+    assert delete_response.status_code == 204
+
+    missing_read = client.get('/api/v1/prices/openai-gpt4-turbo')
+    assert missing_read.status_code == 404
+
+    delete_missing = client.delete('/api/v1/prices/openai-gpt4-turbo')
+    assert delete_missing.status_code == 404
+
+    list_after_delete = client.get('/api/v1/prices')
+    assert list_after_delete.status_code == 200
+    assert list_after_delete.json()['entries'] == []
 
 
 def test_mcp_servers_crud_flow(client: TestClient) -> None:

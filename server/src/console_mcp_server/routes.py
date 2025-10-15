@@ -13,6 +13,15 @@ from .policies import (
     list_policies,
     update_policy,
 )
+from .prices import (
+    PriceEntryAlreadyExistsError,
+    PriceEntryNotFoundError,
+    create_price_entry,
+    delete_price_entry,
+    get_price_entry,
+    list_price_entries,
+    update_price_entry,
+)
 from .registry import provider_registry, session_registry
 from .schemas import (
     CostPoliciesResponse,
@@ -20,6 +29,10 @@ from .schemas import (
     CostPolicyResponse,
     CostPolicyUpdateRequest,
     HealthStatus,
+    PriceEntriesResponse,
+    PriceEntryCreateRequest,
+    PriceEntryResponse,
+    PriceEntryUpdateRequest,
     MCPServerCreateRequest,
     MCPServerResponse,
     MCPServerUpdateRequest,
@@ -146,6 +159,94 @@ def delete_cost_policy(policy_id: str) -> Response:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Policy '{policy_id}' not found",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/prices", response_model=PriceEntriesResponse)
+def list_price_table() -> PriceEntriesResponse:
+    """Return the stored price table entries."""
+
+    records = [PriceEntryResponse(**record.to_dict()) for record in list_price_entries()]
+    return PriceEntriesResponse(entries=records)
+
+
+@router.post("/prices", response_model=PriceEntryResponse, status_code=status.HTTP_201_CREATED)
+def create_price_table_entry(payload: PriceEntryCreateRequest) -> PriceEntryResponse:
+    """Persist a new price table entry."""
+
+    try:
+        record = create_price_entry(
+            entry_id=payload.id,
+            provider_id=payload.provider_id,
+            model=payload.model,
+            currency=payload.currency,
+            unit=payload.unit,
+            input_cost_per_1k=payload.input_cost_per_1k,
+            output_cost_per_1k=payload.output_cost_per_1k,
+            embedding_cost_per_1k=payload.embedding_cost_per_1k,
+            tags=payload.tags,
+            notes=payload.notes,
+            effective_at=payload.effective_at,
+        )
+    except PriceEntryAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Price entry '{payload.id}' already exists",
+        ) from exc
+    return PriceEntryResponse(**record.to_dict())
+
+
+@router.get("/prices/{price_id}", response_model=PriceEntryResponse)
+def read_price_table_entry(price_id: str) -> PriceEntryResponse:
+    """Return a single price table entry."""
+
+    try:
+        record = get_price_entry(price_id)
+    except PriceEntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Price entry '{price_id}' not found",
+        ) from exc
+    return PriceEntryResponse(**record.to_dict())
+
+
+@router.put("/prices/{price_id}", response_model=PriceEntryResponse)
+def update_price_table_entry(price_id: str, payload: PriceEntryUpdateRequest) -> PriceEntryResponse:
+    """Update an existing price table entry."""
+
+    try:
+        record = update_price_entry(
+            price_id,
+            provider_id=payload.provider_id,
+            model=payload.model,
+            currency=payload.currency,
+            unit=payload.unit,
+            input_cost_per_1k=payload.input_cost_per_1k,
+            output_cost_per_1k=payload.output_cost_per_1k,
+            embedding_cost_per_1k=payload.embedding_cost_per_1k,
+            tags=payload.tags,
+            notes=payload.notes,
+            effective_at=payload.effective_at,
+        )
+    except PriceEntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Price entry '{price_id}' not found",
+        ) from exc
+    return PriceEntryResponse(**record.to_dict())
+
+
+@router.delete("/prices/{price_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_price_table_entry(price_id: str) -> Response:
+    """Remove a price table entry."""
+
+    try:
+        delete_price_entry(price_id)
+    except PriceEntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Price entry '{price_id}' not found",
         ) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

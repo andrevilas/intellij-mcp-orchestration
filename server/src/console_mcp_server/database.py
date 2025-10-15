@@ -65,6 +65,29 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=3,
+        description="add price entries table",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS price_entries (
+                id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                model TEXT NOT NULL,
+                currency TEXT NOT NULL DEFAULT 'USD',
+                unit TEXT NOT NULL DEFAULT 'tokens',
+                input_cost_per_1k REAL,
+                output_cost_per_1k REAL,
+                embedding_cost_per_1k REAL,
+                tags TEXT NOT NULL DEFAULT '[]',
+                notes TEXT,
+                effective_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None

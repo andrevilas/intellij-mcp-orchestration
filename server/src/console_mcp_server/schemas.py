@@ -118,6 +118,47 @@ class CostPoliciesResponse(BaseModel):
     policies: List[CostPolicyResponse]
 
 
+class PriceEntryWriteRequest(BaseModel):
+    """Shared attributes required when creating or updating a price table entry."""
+
+    provider_id: str = Field(..., min_length=1, max_length=128)
+    model: str = Field(..., min_length=1, max_length=256)
+    currency: str = Field(default="USD", min_length=1, max_length=8)
+    unit: str = Field(default="tokens", min_length=1, max_length=64)
+    input_cost_per_1k: Optional[float] = Field(default=None, ge=0.0)
+    output_cost_per_1k: Optional[float] = Field(default=None, ge=0.0)
+    embedding_cost_per_1k: Optional[float] = Field(default=None, ge=0.0)
+    tags: List[str] = Field(default_factory=list)
+    notes: Optional[str] = Field(default=None, max_length=1024)
+    effective_at: Optional[datetime] = Field(
+        default=None, description="Timestamp indicating when the price becomes effective"
+    )
+
+
+class PriceEntryCreateRequest(PriceEntryWriteRequest):
+    """Payload used when registering a new price table entry."""
+
+    id: str = Field(..., min_length=1, max_length=128)
+
+
+class PriceEntryUpdateRequest(PriceEntryWriteRequest):
+    """Payload used to update an existing price table entry."""
+
+
+class PriceEntryResponse(PriceEntryWriteRequest):
+    """Full representation of a persisted price table entry."""
+
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class PriceEntriesResponse(BaseModel):
+    """Envelope returned when listing all price table entries."""
+
+    entries: List[PriceEntryResponse]
+
+
 class MCPServerWriteRequest(BaseModel):
     """Shared attributes required when creating or updating an MCP server."""
 
