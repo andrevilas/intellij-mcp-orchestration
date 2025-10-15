@@ -112,7 +112,7 @@
 - [x] **TASK-FO-102 — Alertas básicos**
 
 ## Sprint FO-2 — FinOps+
-- [ ] **TASK-FO-201 — Pareto e hotspots**
+- [x] **TASK-FO-201 — Pareto e hotspots**
 - [ ] **TASK-FO-202 — Relatórios por sprint/PR**
 
 ---

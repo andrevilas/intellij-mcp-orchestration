@@ -79,6 +79,39 @@ interface FinOpsAlert {
   description: string;
 }
 
+type HotspotKind = 'cost' | 'latency' | 'reliability' | 'efficiency';
+type HotspotSeverity = 'critical' | 'high' | 'medium';
+
+interface FinOpsHotspot {
+  id: string;
+  kind: HotspotKind;
+  severity: HotspotSeverity;
+  title: string;
+  summary: string;
+  metricLabel: string;
+  metricValue: string;
+  recommendation: string;
+}
+
+const HOTSPOT_KIND_LABEL: Record<HotspotKind, string> = {
+  cost: 'Custo',
+  latency: 'Latência',
+  reliability: 'Confiabilidade',
+  efficiency: 'Eficiência',
+};
+
+const HOTSPOT_SEVERITY_LABEL: Record<HotspotSeverity, string> = {
+  critical: 'Crítico',
+  high: 'Alto',
+  medium: 'Médio',
+};
+
+const HOTSPOT_SEVERITY_WEIGHT: Record<HotspotSeverity, number> = {
+  critical: 3,
+  high: 2,
+  medium: 1,
+};
+
 const RANGE_TO_DAYS: Record<RangeOption, number> = {
   '7d': 7,
   '30d': 30,
@@ -534,6 +567,116 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     return alerts;
   }, [availableSeries, breakdownEntries, paretoEntries, selectedProviderLabel]);
 
+  const finOpsHotspots = useMemo(() => {
+    if (breakdownEntries.length === 0) {
+      return [];
+    }
+
+    const days = RANGE_TO_DAYS[selectedRange];
+    const totalCost = breakdownEntries.reduce((sum, entry) => sum + entry.costUsd, 0);
+    const referenceCostPerMillion = aggregatedMetrics.costPerMillion;
+    const costFormatter = METRIC_CONFIG.cost.formatter;
+
+    const hotspots: (FinOpsHotspot & { weight: number; score: number })[] = [];
+
+    const pushHotspot = (hotspot: FinOpsHotspot, score: number) => {
+      hotspots.push({ ...hotspot, weight: HOTSPOT_SEVERITY_WEIGHT[hotspot.severity], score });
+    };
+
+    breakdownEntries.slice(0, 8).forEach((entry) => {
+      const share = totalCost === 0 ? 0 : entry.costUsd / totalCost;
+
+      if (share >= 0.22) {
+        const severity: HotspotSeverity = share >= 0.5 ? 'critical' : share >= 0.35 ? 'high' : 'medium';
+        pushHotspot(
+          {
+            id: `cost-${entry.id}`,
+            kind: 'cost',
+            severity,
+            title: 'Rota domina o custo',
+            summary: `${entry.label} concentra ${formatPercent(share)} do gasto para ${selectedProviderLabel}.`,
+            metricLabel: 'Share de custo',
+            metricValue: formatPercent(share),
+            recommendation: `Revise limites ou alternativas para reduzir a dependência de ${entry.providerName}.`,
+          },
+          share,
+        );
+      }
+
+      if (entry.successRate < 0.93) {
+        const severity: HotspotSeverity = entry.successRate < 0.86 ? 'critical' : 'high';
+        pushHotspot(
+          {
+            id: `reliability-${entry.id}`,
+            kind: 'reliability',
+            severity,
+            title: 'Queda na confiabilidade',
+            summary: `${entry.label} registrou taxa de sucesso de ${formatPercent(entry.successRate)} nos últimos ${days} dias.`,
+            metricLabel: 'Sucesso',
+            metricValue: formatPercent(entry.successRate),
+            recommendation: 'Investigue falhas recentes e considere failover automático.',
+          },
+          1 - entry.successRate,
+        );
+      }
+
+      if (entry.avgLatencyMs > 1500) {
+        const severity: HotspotSeverity = entry.avgLatencyMs > 2200 ? 'high' : 'medium';
+        pushHotspot(
+          {
+            id: `latency-${entry.id}`,
+            kind: 'latency',
+            severity,
+            title: 'Latência elevada',
+            summary: `${entry.label} mantém latência média de ${formatLatency(entry.avgLatencyMs)} na janela de ${days} dias.`,
+            metricLabel: 'Latência média',
+            metricValue: formatLatency(entry.avgLatencyMs),
+            recommendation: 'Considere rotas turbo ou ajuste de paralelismo.',
+          },
+          entry.avgLatencyMs,
+        );
+      }
+
+      if (referenceCostPerMillion > 0 && entry.tokensMillions > 0) {
+        const costPerMillion = entry.costUsd / entry.tokensMillions;
+        const ratio = costPerMillion / referenceCostPerMillion;
+
+        if (ratio >= 1.2) {
+          const severity: HotspotSeverity = ratio >= 1.45 ? 'high' : 'medium';
+          pushHotspot(
+            {
+              id: `efficiency-${entry.id}`,
+              kind: 'efficiency',
+              severity,
+              title: 'Custo por token acima da média',
+              summary: `${entry.label} custa ${formatSignedPercent(ratio - 1)} versus a média monitorada.`,
+              metricLabel: 'Custo / 1M tokens',
+              metricValue: costFormatter(costPerMillion),
+              recommendation: 'Avalie otimizações de prompt ou modelos mais econômicos.',
+            },
+            ratio,
+          );
+        }
+      }
+    });
+
+    return hotspots
+      .sort((a, b) => {
+        if (b.weight !== a.weight) {
+          return b.weight - a.weight;
+        }
+        return b.score - a.score;
+      })
+      .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index)
+      .slice(0, 4)
+      .map(({ weight, score, ...rest }) => rest);
+  }, [
+    aggregatedMetrics.costPerMillion,
+    breakdownEntries,
+    selectedProviderLabel,
+    selectedRange,
+  ]);
+
   const totalParetoCost = useMemo(
     () => breakdownEntries.reduce((sum, entry) => sum + entry.costUsd, 0),
     [breakdownEntries],
@@ -689,6 +832,51 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="finops__hotspots" aria-label="Hotspots de custo e eficiência">
+        <header className="finops__hotspots-header">
+          <div>
+            <h3>Hotspots prioritários</h3>
+            <p>Focos que combinam concentração de custo, falhas e latência na janela filtrada.</p>
+          </div>
+        </header>
+
+        {finOpsHotspots.length === 0 ? (
+          <p className="finops__state">Nenhum hotspot identificado para os filtros atuais.</p>
+        ) : (
+          <ul className="finops__hotspots-list">
+            {finOpsHotspots.map((hotspot) => (
+              <li
+                key={hotspot.id}
+                className={`finops__hotspot finops__hotspot--${hotspot.severity}`}
+                role="article"
+                aria-label={`${hotspot.title} (${HOTSPOT_SEVERITY_LABEL[hotspot.severity]})`}
+              >
+                <div className="finops__hotspot-header">
+                  <span className={`finops__hotspot-kind finops__hotspot-kind--${hotspot.kind}`}>
+                    {HOTSPOT_KIND_LABEL[hotspot.kind]}
+                  </span>
+                  <span className="finops__hotspot-metric">
+                    <strong>{hotspot.metricValue}</strong>
+                    <span>{hotspot.metricLabel}</span>
+                  </span>
+                </div>
+                <h4>{hotspot.title}</h4>
+                <p>{hotspot.summary}</p>
+                <footer className="finops__hotspot-footer">
+                  <span
+                    className="finops__hotspot-severity"
+                    aria-label={`Severidade: ${HOTSPOT_SEVERITY_LABEL[hotspot.severity]}`}
+                  >
+                    {HOTSPOT_SEVERITY_LABEL[hotspot.severity]}
+                  </span>
+                  <p>{hotspot.recommendation}</p>
+                </footer>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <div className="finops__kpis" role="list">
