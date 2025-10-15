@@ -1,0 +1,25 @@
+name: content-cta
+title: Deterministic CTA Composer
+version: 1.0.0
+description: Crafts repeatable calls-to-action by combining tone-aware templates with product information.
+capabilities:
+  - text-generation
+tools:
+  - name: generate_cta
+    description: Produce a call-to-action line tailored to the provided tone and product title.
+    schema:
+      type: object
+      additionalProperties: false
+      properties:
+        tone:
+          type: string
+          description: Desired communication tone (e.g. playful, formal, urgent).
+        product_title:
+          type: string
+          description: Name of the product highlighted in the CTA.
+        audience:
+          type: string
+          description: Optional target audience segment used to specialise the CTA.
+      required:
+        - tone
+        - product_title
