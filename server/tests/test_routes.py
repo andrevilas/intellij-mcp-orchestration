@@ -334,6 +334,74 @@ def test_price_table_crud_flow(client: TestClient) -> None:
     assert list_after_delete.json()['entries'] == []
 
 
+def test_routing_simulation_uses_price_table(client: TestClient) -> None:
+    premium_payload = {
+        'id': 'gemini-premium',
+        'provider_id': 'gemini',
+        'model': 'flash-premium',
+        'currency': 'USD',
+        'unit': '1k_tokens',
+        'input_cost_per_1k': 0.018,
+        'output_cost_per_1k': 0.022,
+        'embedding_cost_per_1k': None,
+        'tags': ['premium'],
+        'notes': 'High throughput tier',
+        'effective_at': None,
+    }
+
+    economy_payload = {
+        'id': 'gemini-economy',
+        'provider_id': 'gemini',
+        'model': 'flash-economy',
+        'currency': 'USD',
+        'unit': '1k_tokens',
+        'input_cost_per_1k': 0.004,
+        'output_cost_per_1k': 0.006,
+        'embedding_cost_per_1k': None,
+        'tags': ['economy'],
+        'notes': 'Cost optimised',
+        'effective_at': None,
+    }
+
+    for payload in (premium_payload, economy_payload):
+        response = client.post('/api/v1/prices', json=payload)
+        assert response.status_code == 201
+
+    simulation_payload = {
+        'provider_ids': ['gemini', 'codex'],
+        'strategy': 'finops',
+        'failover_provider_id': 'codex',
+        'volume_millions': 10.0,
+    }
+
+    response = client.post('/api/v1/routing/simulate', json=simulation_payload)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body['excluded_route']['id'] == 'codex'
+    assert body['total_cost'] == pytest.approx(100.0)
+    assert body['cost_per_million'] == pytest.approx(10.0)
+    assert body['avg_latency'] > 0
+    assert body['reliability_score'] > 0
+
+    distribution = body['distribution']
+    assert len(distribution) == 1
+    entry = distribution[0]
+    assert entry['route']['id'] == 'gemini'
+    assert entry['route']['cost_per_million'] == pytest.approx(10.0)
+    assert entry['share'] == pytest.approx(1.0)
+    assert entry['tokens_millions'] == pytest.approx(10.0)
+    assert entry['cost'] == pytest.approx(100.0)
+
+
+def test_routing_simulation_rejects_unknown_provider(client: TestClient) -> None:
+    response = client.post(
+        '/api/v1/routing/simulate', json={'provider_ids': ['missing'], 'volume_millions': 5}
+    )
+    assert response.status_code == 404
+    assert 'Providers not found' in response.text
+
+
 def test_mcp_servers_crud_flow(client: TestClient) -> None:
     list_empty = client.get('/api/v1/servers')
     assert list_empty.status_code == 200

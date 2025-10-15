@@ -23,6 +23,7 @@ from .prices import (
     update_price_entry,
 )
 from .registry import provider_registry, session_registry
+from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
 from .schemas import (
     CostPoliciesResponse,
     CostPolicyCreateRequest,
@@ -38,6 +39,10 @@ from .schemas import (
     MCPServerUpdateRequest,
     MCPServersResponse,
     ProvidersResponse,
+    RoutingDistributionEntry,
+    RoutingRouteProfile,
+    RoutingSimulationRequest,
+    RoutingSimulationResponse,
     SecretMetadataResponse,
     SecretValueResponse,
     SecretWriteRequest,
@@ -510,3 +515,62 @@ def restart_server_process(server_id: str) -> ServerProcessResponse:
         ) from exc
 
     return ServerProcessResponse(process=_process_state_from_snapshot(snapshot))
+
+
+def _serialize_route(route: RouteProfile) -> RoutingRouteProfile:
+    return RoutingRouteProfile(
+        id=route.id,
+        provider=route.provider,
+        lane=route.lane,
+        cost_per_million=route.cost_per_million,
+        latency_p95=route.latency_p95,
+        reliability=route.reliability,
+        capacity_score=route.capacity_score,
+    )
+
+
+def _serialize_distribution(entry: DistributionEntry) -> RoutingDistributionEntry:
+    return RoutingDistributionEntry(
+        route=_serialize_route(entry.route),
+        share=entry.share,
+        tokens_millions=entry.tokens_millions,
+        cost=entry.cost,
+    )
+
+
+@router.post("/routing/simulate", response_model=RoutingSimulationResponse)
+def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResponse:
+    """Calculate a routing plan using the deterministic simulator."""
+
+    providers = provider_registry.providers
+    provider_map = {provider.id: provider for provider in providers}
+
+    if payload.provider_ids:
+        requested_ids = set(payload.provider_ids)
+        missing = requested_ids - provider_map.keys()
+        if missing:
+            missing_list = ", ".join(sorted(missing))
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Providers not found: {missing_list}",
+            )
+        selected_providers = [provider_map[provider_id] for provider_id in payload.provider_ids]
+    else:
+        selected_providers = providers
+
+    routes = build_routes(selected_providers)
+    plan = compute_plan(
+        routes,
+        payload.strategy,
+        payload.failover_provider_id,
+        payload.volume_millions,
+    )
+
+    return RoutingSimulationResponse(
+        total_cost=plan.total_cost,
+        cost_per_million=plan.cost_per_million,
+        avg_latency=plan.avg_latency,
+        reliability_score=plan.reliability_score,
+        distribution=[_serialize_distribution(entry) for entry in plan.distribution],
+        excluded_route=_serialize_route(plan.excluded_route) if plan.excluded_route else None,
+    )

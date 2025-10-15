@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -223,3 +223,57 @@ class ServerProcessResponse(BaseModel):
 
 class ServerProcessesResponse(BaseModel):
     processes: List[ServerProcessState]
+
+
+class RoutingSimulationRequest(BaseModel):
+    """Payload describing how a routing plan should be simulated."""
+
+    provider_ids: List[str] = Field(
+        default_factory=list,
+        description="Optional subset of provider identifiers to include in the simulation",
+    )
+    strategy: Literal["balanced", "finops", "latency", "resilience"] = Field(
+        default="balanced",
+        description="Strategy identifier that controls lane weighting",
+    )
+    failover_provider_id: Optional[str] = Field(
+        default=None,
+        description="Optional provider identifier to exclude as a simulated failover",
+    )
+    volume_millions: float = Field(
+        default=10.0,
+        ge=0.0,
+        description="Projected volume in millions of tokens for the planning horizon",
+    )
+
+
+class RoutingRouteProfile(BaseModel):
+    """Route characteristics returned as part of a simulation."""
+
+    id: str
+    provider: ProviderSummary
+    lane: Literal["economy", "balanced", "turbo"]
+    cost_per_million: float
+    latency_p95: float
+    reliability: float
+    capacity_score: float
+
+
+class RoutingDistributionEntry(BaseModel):
+    """Allocation of the simulated volume for a specific route."""
+
+    route: RoutingRouteProfile
+    share: float
+    tokens_millions: float
+    cost: float
+
+
+class RoutingSimulationResponse(BaseModel):
+    """Aggregated outcome returned to the frontend."""
+
+    total_cost: float
+    cost_per_million: float
+    avg_latency: float
+    reliability_score: float
+    distribution: List[RoutingDistributionEntry]
+    excluded_route: Optional[RoutingRouteProfile] = None

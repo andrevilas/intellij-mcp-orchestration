@@ -89,7 +89,7 @@
 ## Sprint BE-2 — Policies & Routing
 - [x] **TASK-BE-201 — Cost Policy CRUD**
  - [x] **TASK-BE-202 — Price Table**
-- [ ] **TASK-BE-203 — Routing Simulator**
+- [x] **TASK-BE-203 — Routing Simulator**
 
 ---
 
