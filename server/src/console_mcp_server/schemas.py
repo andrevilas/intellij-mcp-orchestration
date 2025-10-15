@@ -55,3 +55,27 @@ class ProvidersResponse(BaseModel):
 
 class SessionsResponse(BaseModel):
     sessions: List[Session]
+
+
+class SecretWriteRequest(BaseModel):
+    """Payload used to store or update a provider secret."""
+
+    value: str = Field(..., min_length=1, max_length=8192, description="Opaque secret material")
+
+
+class SecretMetadataResponse(BaseModel):
+    """Response envelope exposing secret metadata."""
+
+    provider_id: str
+    has_secret: bool
+    updated_at: Optional[datetime] = None
+
+
+class SecretsResponse(BaseModel):
+    secrets: List[SecretMetadataResponse]
+
+
+class SecretValueResponse(BaseModel):
+    provider_id: str
+    value: str
+    updated_at: datetime
