@@ -2,25 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import importlib
-
-import pytest
 from sqlalchemy import text
-
-
-@pytest.fixture()
-def database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    db_path = tmp_path / "console.db"
-    monkeypatch.setenv("CONSOLE_MCP_DB_PATH", str(db_path))
-
-    import console_mcp_server.database as database_module
-
-    database = importlib.reload(database_module)
-    database.reset_state()
-    yield database
-    database.reset_state()
 
 
 def test_bootstrap_creates_expected_tables(database) -> None:
@@ -37,7 +19,13 @@ def test_bootstrap_creates_expected_tables(database) -> None:
             )
         }
 
-    assert {"schema_migrations", "mcp_servers", "cost_policies", "price_entries"} <= tables
+    assert {
+        "schema_migrations",
+        "mcp_servers",
+        "cost_policies",
+        "price_entries",
+        "telemetry_events",
+    } <= tables
 
 
 def test_repeated_bootstrap_is_idempotent(database) -> None:
