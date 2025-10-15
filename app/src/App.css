@@ -690,6 +690,16 @@ body {
   outline: none;
 }
 
+.command-palette__agent-hint {
+  margin: -0.35rem 0 0;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.command-palette__agent-hint--error {
+  color: #dc2626;
+}
+
 .command-palette__shortcut {
   font-size: 0.75rem;
   background: rgba(15, 23, 42, 0.08);
@@ -2822,6 +2832,14 @@ main.dashboard {
 
   .command-palette__search svg {
     color: rgba(226, 232, 240, 0.75);
+  }
+
+  .command-palette__agent-hint {
+    color: rgba(226, 232, 240, 0.75);
+  }
+
+  .command-palette__agent-hint--error {
+    color: #fca5a5;
   }
 
   .command-palette__shortcut {

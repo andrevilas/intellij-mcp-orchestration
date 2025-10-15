@@ -33,6 +33,8 @@ const backendPort = parsePort(process.env.CONSOLE_MCP_SERVER_PORT, 8000);
 
 const API_PROXY_TARGET =
   process.env.CONSOLE_MCP_API_PROXY ?? `http://${backendHost}:${backendPort}`;
+const AGENTS_PROXY_TARGET =
+  process.env.CONSOLE_MCP_AGENTS_PROXY ?? API_PROXY_TARGET;
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -43,6 +45,10 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: API_PROXY_TARGET,
+        changeOrigin: true,
+      },
+      '/agents': {
+        target: AGENTS_PROXY_TARGET,
         changeOrigin: true,
       },
     },

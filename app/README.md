@@ -29,9 +29,12 @@ pnpm preview   # serve o build final localmente
 
 Variáveis de ambiente úteis:
 - `VITE_CONSOLE_API_BASE`: altera o path base usado pelo fetch do frontend (default: `/api/v1`).
+- `VITE_CONSOLE_AGENTS_BASE`: redefine o caminho base dos endpoints do hub de agentes (default: `/agents`).
+- `VITE_CONSOLE_API_KEY`: quando definido, injeta o header `X-API-Key` em todas as chamadas HTTP do frontend.
 - `CONSOLE_MCP_FRONTEND_HOST` / `CONSOLE_MCP_FRONTEND_PORT`: bind do dev server do Vite.
 - `CONSOLE_MCP_API_PROXY`: redefine o destino do proxy HTTP utilizado pelo dev server do Vite (por padrão usa os valores
   de `CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`).
+- `CONSOLE_MCP_AGENTS_PROXY`: sobrescreve apenas o alvo do proxy `/agents` quando o hub de agentes roda em host/porta separados.
 
 ## Estrutura
 
@@ -39,7 +42,15 @@ Variáveis de ambiente úteis:
 - `src/main.tsx` – bootstrap React.
 - `src/App.tsx` – tela principal com listagem de provedores e ações de provisionamento.
 - `src/api.ts` – cliente HTTP tipado para `/api/v1` (providers/sessions).
+- `src/hooks/useAgent.ts` – hook reutilizável para acionar agentes via `/agents/{name}/invoke`, com tratamento de fallback.
 - `vite.config.ts` – configuração incluindo proxy `/api` durante o desenvolvimento.
 - `tsconfig*.json` – regras de compilação TypeScript compartilhadas.
 
 Os próximos incrementos expandirão a experiência (ex.: logs em tempo real, estados de conexão e telemetria por sessão).
+
+### Fallback de busca assistida
+
+A busca da home (command palette) agora consulta o agente `catalog-search` através do hook `useAgent`. Quando o hub
+retorna `404` (agente indisponível ou não publicado), o hook sinaliza `isFallback` para que a UI mantenha o catálogo
+legado. Esse estado também é propagado visualmente, informando ao usuário que a busca inteligente está offline e que os
+resultados locais continuam funcionando sem interrupções.

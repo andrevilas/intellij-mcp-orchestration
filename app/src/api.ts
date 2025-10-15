@@ -1,3 +1,5 @@
+import { fetchFromApi, getApiBaseUrl } from './services/httpClient';
+
 export interface ProviderSummary {
   id: string;
   name: string;
@@ -635,9 +637,6 @@ export interface TelemetryRunsFilters extends TelemetryMetricsFilters {
   cursor?: string;
 }
 
-const DEFAULT_API_BASE = '/api/v1';
-const API_BASE = (import.meta.env.VITE_CONSOLE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '');
-
 export class ApiError extends Error {
   readonly status: number;
   readonly body: string;
@@ -651,13 +650,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
+  const response = await fetchFromApi(path, init);
 
   if (!response) {
     throw new Error('Empty response from fetch');
@@ -1220,4 +1213,4 @@ export async function fetchFinOpsPullRequestReports(
   return data.items;
 }
 
-export const apiBase = API_BASE;
+export const apiBase = getApiBaseUrl();
