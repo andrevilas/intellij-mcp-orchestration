@@ -1,0 +1,18 @@
+{
+  "name": "intellij-mcp-orchestration",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.5.2",
+  "scripts": {
+    "dev:all": "bash scripts/dev-all.sh",
+    "dev:frontend": "pnpm --dir app dev",
+    "dev:backend": "bash scripts/dev-backend.sh",
+    "test": "pnpm -r test",
+    "test:frontend": "pnpm --dir app test"
+  },
+  "engines": {
+    "node": ">=18.18.0",
+    "pnpm": ">=8.0.0"
+  }
+}
