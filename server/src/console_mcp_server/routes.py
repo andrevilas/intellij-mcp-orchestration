@@ -51,6 +51,10 @@ from .schemas import (
     CostPolicyCreateRequest,
     CostPolicyResponse,
     CostPolicyUpdateRequest,
+    FinOpsPullRequestReport as FinOpsPullRequestReportModel,
+    FinOpsPullRequestReportsResponse,
+    FinOpsSprintReport as FinOpsSprintReportModel,
+    FinOpsSprintReportsResponse,
     CostDryRunGuardrail,
     CostDryRunPricingReference,
     CostDryRunRequest,
@@ -124,6 +128,8 @@ from .servers import (
 from .telemetry import (
     aggregate_heatmap,
     aggregate_metrics,
+    compute_finops_pull_request_reports,
+    compute_finops_sprint_reports,
     query_route_breakdown,
     query_runs,
     query_timeseries,
@@ -389,6 +395,103 @@ def read_telemetry_runs(
     ]
 
     return TelemetryRunsResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get("/telemetry/finops/sprints", response_model=FinOpsSprintReportsResponse)
+def read_finops_sprint_reports(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) para o período avaliado",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) para o período avaliado",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Identificador opcional de provedor",
+    ),
+    lane: str | None = Query(
+        default=None,
+        description="Lane opcional para filtrar provedores",
+    ),
+    window_days: int = Query(
+        default=7,
+        ge=1,
+        le=90,
+        description="Número de dias por sprint para comparar períodos",
+    ),
+    limit: int = Query(
+        default=4,
+        ge=1,
+        le=12,
+        description="Quantidade máxima de sprints retornados",
+    ),
+) -> FinOpsSprintReportsResponse:
+    try:
+        reports = compute_finops_sprint_reports(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            lane=lane,
+            window_days=window_days,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    items = [FinOpsSprintReportModel(**report.to_dict()) for report in reports]
+    return FinOpsSprintReportsResponse(items=items)
+
+
+@router.get(
+    "/telemetry/finops/pull-requests",
+    response_model=FinOpsPullRequestReportsResponse,
+)
+def read_finops_pull_request_reports(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) para o período avaliado",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) para o período avaliado",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Identificador opcional de provedor",
+    ),
+    lane: str | None = Query(
+        default=None,
+        description="Lane opcional para filtrar provedores",
+    ),
+    window_days: int = Query(
+        default=7,
+        ge=1,
+        le=90,
+        description="Janela usada para comparar com o período anterior",
+    ),
+    limit: int = Query(
+        default=4,
+        ge=1,
+        le=12,
+        description="Quantidade máxima de relatórios retornados",
+    ),
+) -> FinOpsPullRequestReportsResponse:
+    try:
+        reports = compute_finops_pull_request_reports(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            lane=lane,
+            window_days=window_days,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    items = [FinOpsPullRequestReportModel(**report.to_dict()) for report in reports]
+    return FinOpsPullRequestReportsResponse(items=items)
 
 
 @router.get("/telemetry/export")

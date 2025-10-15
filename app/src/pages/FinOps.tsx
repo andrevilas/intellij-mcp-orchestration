@@ -16,11 +16,15 @@ import type {
   TelemetryTimeseriesPoint,
 } from '../api';
 import {
+  fetchFinOpsPullRequestReports,
+  fetchFinOpsSprintReports,
   fetchTelemetryPareto,
   fetchTelemetryRuns,
   fetchTelemetryTimeseries,
+  type FinOpsPullRequestReportPayload,
+  type FinOpsSprintReportPayload,
+  type ReportStatus,
 } from '../api';
-import { seededMod } from '../utils/hash';
 
 export interface FinOpsProps {
   providers: ProviderSummary[];
@@ -80,8 +84,6 @@ interface RunDrilldownEntry {
   status: RunStatus;
   consumer: string;
 }
-
-type ReportStatus = 'on_track' | 'attention' | 'regression';
 
 interface SprintReport {
   id: string;
@@ -169,8 +171,6 @@ const METRIC_CONFIG: Record<MetricOption, { label: string; accessor: keyof TimeS
     },
   };
 
-const MODEL_VARIANTS = ['Chat', 'Instruct', 'Ops', 'Research', 'Batch', 'Vision', 'Guard'];
-
 const LANE_CONFIG: Record<
   LaneCategory,
   { label: string; costMultiplier: number; tokenMultiplier: number; latencyDivider: number }
@@ -182,37 +182,6 @@ const LANE_CONFIG: Record<
 
 function normalizeDate(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function buildFallbackSeriesForProvider(provider: ProviderSummary, days: number): TimeSeriesPoint[] {
-  const seedCost = 40 + seededMod(`${provider.id}-cost`, 25);
-  const seedTokens = 55 + seededMod(`${provider.id}-tokens`, 40);
-  const seedLatency = 900 + seededMod(`${provider.id}-lat`, 400);
-
-  const today = new Date();
-  const series: TimeSeriesPoint[] = [];
-
-  for (let offset = days - 1; offset >= 0; offset -= 1) {
-    const date = new Date(today);
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - offset);
-
-    const mod = seededMod(`${provider.id}-${normalizeDate(date)}`, 20);
-    const seasonal = 1 + (seededMod(`${provider.id}-season-${date.getMonth()}`, 15) - 7) / 100;
-    const tokens = (seedTokens / 10) * (1 + mod / 50) * seasonal;
-    const cost = (seedCost / 10) * (1 + (12 - mod) / 60) * seasonal;
-    const latency = seedLatency * (0.9 + mod / 90);
-
-    series.push({
-      date: normalizeDate(date),
-      label: new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date),
-      costUsd: Number(cost.toFixed(2)),
-      tokensMillions: Number(tokens.toFixed(2)),
-      avgLatencyMs: Math.round(latency),
-    });
-  }
-
-  return series;
 }
 
 function combineSeries(seriesCollection: TimeSeriesPoint[][]): TimeSeriesPoint[] {
@@ -309,136 +278,6 @@ function formatSignedPercent(value: number): string {
   return value >= 0 ? `+${formatted}` : `-${formatted}`;
 }
 
-function buildSprintReports(
-  providerSelection: ProviderSelection,
-  availableSeries: TimeSeriesPoint[],
-  aggregatedMetrics: AggregatedMetrics,
-  selectedRange: RangeOption,
-  selectedProviderLabel: string,
-): SprintReport[] {
-  if (availableSeries.length === 0) {
-    return [];
-  }
-
-  const baseKey = providerSelection === 'all' ? 'all-providers' : providerSelection;
-  const averageDailyCost = availableSeries.length
-    ? aggregatedMetrics.totalCost / availableSeries.length
-    : 0;
-  const averageDailyTokens = availableSeries.length
-    ? aggregatedMetrics.totalTokens / availableSeries.length
-    : 0;
-
-  const sprintWindow = selectedRange === '7d' ? 7 : selectedRange === '30d' ? 14 : 21;
-  const baseSprintNumber = 120 + seededMod(`${baseKey}-sprint-base`, 12);
-
-  return Array.from({ length: 4 }, (_, index) => {
-    const lengthVariation = seededMod(`${baseKey}-sprint-length-${index}`, 5) - 2;
-    const windowLength = Math.max(7, sprintWindow + lengthVariation);
-    const costDelta = (seededMod(`${baseKey}-sprint-delta-${index}`, 25) - 12) / 100;
-    const totalCost = Number(
-      Math.max(0, averageDailyCost * windowLength * (1 + costDelta)).toFixed(2),
-    );
-    const totalTokens = Number(
-      Math.max(0, averageDailyTokens * windowLength * (1 + costDelta / 1.6)).toFixed(2),
-    );
-    const status: ReportStatus =
-      costDelta <= 0.03 ? 'on_track' : costDelta <= 0.08 ? 'attention' : 'regression';
-
-    const endDate = new Date();
-    endDate.setHours(0, 0, 0, 0);
-    endDate.setDate(endDate.getDate() - index * windowLength);
-    const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - (windowLength - 1));
-
-    const periodLabel = `${new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-    }).format(startDate)} – ${new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-    }).format(endDate)}`;
-
-    const summary = costDelta <= 0
-      ? `Queda de ${formatPercent(Math.abs(costDelta))} concentrada no mix ${selectedProviderLabel}.`
-      : `Alta de ${formatPercent(costDelta)} puxada por workloads no mix ${selectedProviderLabel}.`;
-
-    return {
-      id: `sprint-${baseSprintNumber - index}`,
-      name: `Sprint ${baseSprintNumber - index}`,
-      periodLabel,
-      totalCostUsd: totalCost,
-      totalTokensMillions: totalTokens,
-      costDelta,
-      status,
-      summary,
-    };
-  });
-}
-
-function buildPullRequestReports(
-  providerSelection: ProviderSelection,
-  selectedRange: RangeOption,
-  paretoEntries: ParetoEntry[],
-  selectedProviderLabel: string,
-): PullRequestReport[] {
-  if (paretoEntries.length === 0) {
-    return [];
-  }
-
-  const baseKey = providerSelection === 'all' ? 'all-providers' : providerSelection;
-  const basePrNumber = 4200 + seededMod(`${baseKey}-pr-base`, 480);
-
-  const windowLabel =
-    selectedRange === '7d'
-      ? 'na última semana'
-      : selectedRange === '30d'
-        ? 'nos últimos 30 dias'
-        : 'no trimestre recente';
-
-  return paretoEntries.slice(0, 4).map((entry, index) => {
-    const deltaRaw = (seededMod(`${entry.id}-pr-delta-${index}`, 40) - 15) / 100;
-    const status: ReportStatus =
-      deltaRaw <= 0.02 ? 'on_track' : deltaRaw <= 0.07 ? 'attention' : 'regression';
-
-    const impactMultiplier = 0.6 + seededMod(`${entry.id}-impact-${index}`, 30) / 50;
-    const costImpact = Number(
-      Math.max(0, entry.costUsd * 0.12 * impactMultiplier * (1 + deltaRaw)).toFixed(2),
-    );
-    const tokensImpact = Number(
-      Math.max(0, entry.tokensMillions * 0.08 * impactMultiplier).toFixed(2),
-    );
-
-    const mergedDate = new Date();
-    mergedDate.setHours(0, 0, 0, 0);
-    mergedDate.setDate(
-      mergedDate.getDate() - (2 + index + seededMod(`${entry.id}-merged-offset`, 6)),
-    );
-    const mergedAtLabel = new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-    }).format(mergedDate);
-
-    const owner = `squad-${String.fromCharCode(65 + seededMod(`${entry.id}-owner`, 6))}`;
-    const laneLabel = LANE_CONFIG[entry.lane].label;
-
-    const summary = deltaRaw <= 0
-      ? `Redução de ${formatPercent(Math.abs(deltaRaw))} no custo da rota ${entry.label} ${windowLabel} considerando ${selectedProviderLabel}.`
-      : `Impacto de ${formatPercent(deltaRaw)} após ajustes no lane ${laneLabel} ${windowLabel} para ${selectedProviderLabel}.`;
-
-    return {
-      id: `#${basePrNumber - index}`,
-      title: `Ajustes ${entry.label}`,
-      owner,
-      mergedAtLabel,
-      costImpactUsd: costImpact,
-      costDelta: deltaRaw,
-      tokensImpactMillions: tokensImpact,
-      status,
-      summary,
-    };
-  });
-}
-
 function computeWindowBounds(days: number): { start: Date; end: Date } {
   const end = new Date();
   end.setHours(0, 0, 0, 0);
@@ -532,63 +371,45 @@ function buildRunsFromTelemetry(entries: TelemetryRunEntry[]): RunDrilldownEntry
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
-function buildFallbackRouteBreakdown(
-  providers: ProviderSummary[],
-  days: number,
-  providerSelection: ProviderSelection,
-): RouteCostBreakdown[] {
-  const selectedProviders =
-    providerSelection === 'all'
-      ? providers
-      : providers.filter((provider) => provider.id === providerSelection);
+function formatPeriodLabel(startIso: string, endIso: string): string {
+  const formatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+  const startDate = new Date(startIso);
+  const endDate = new Date(endIso);
+  return `${formatter.format(startDate)} – ${formatter.format(endDate)}`;
+}
 
-  const entries: RouteCostBreakdown[] = [];
+function mapSprintReportPayload(payload: FinOpsSprintReportPayload): SprintReport {
+  const tokensTotal = payload.total_tokens_in + payload.total_tokens_out;
+  return {
+    id: payload.id,
+    name: payload.name,
+    periodLabel: formatPeriodLabel(payload.period_start, payload.period_end),
+    totalCostUsd: payload.total_cost_usd,
+    totalTokensMillions: Number((tokensTotal / 1_000_000).toFixed(2)),
+    costDelta: payload.cost_delta,
+    status: payload.status,
+    summary: payload.summary,
+  };
+}
 
-  selectedProviders.forEach((provider) => {
-    const variantCount = 3 + seededMod(`${provider.id}-variants`, 3);
+function mapPullRequestReportPayload(payload: FinOpsPullRequestReportPayload): PullRequestReport {
+  const mergedAtLabel = payload.merged_at
+    ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(
+        new Date(payload.merged_at),
+      )
+    : '—';
 
-    for (let index = 0; index < variantCount; index += 1) {
-      const lane = (['economy', 'balanced', 'turbo'] as LaneCategory[])[
-        seededMod(`${provider.id}-lane-${index}`, 3)
-      ];
-      const laneConfig = LANE_CONFIG[lane];
-      const variantName = MODEL_VARIANTS[seededMod(`${provider.id}-variant-${index}`, MODEL_VARIANTS.length)];
-      const providerPrefix = provider.name.split(' ')[0] ?? provider.name;
-      const label = `${providerPrefix} ${variantName}`;
-      const baseDailyCost = 8 + seededMod(`${provider.id}-base-cost-${index}`, 18);
-      const seasonality = 0.85 + seededMod(`${provider.id}-seasonality-${index}`, 30) / 100;
-      const costUsd = Number(
-        (baseDailyCost * laneConfig.costMultiplier * seasonality * (days / 7)).toFixed(2),
-      );
-      const baseTokens = 3 + seededMod(`${provider.id}-base-token-${index}`, 9) / 2;
-      const tokensMillions = Number(
-        (baseTokens * laneConfig.tokenMultiplier * (days / 7)).toFixed(2),
-      );
-      const runsBase = 50 + seededMod(`${provider.id}-base-run-${index}`, 70);
-      const runs = Math.max(12, Math.round((runsBase * days) / 14));
-      const successRate = Number(
-        (0.9 + seededMod(`${provider.id}-success-${index}`, 8) / 100).toFixed(3),
-      );
-      const avgLatencySeed = 700 + seededMod(`${provider.id}-lat-${index}`, 600);
-      const avgLatencyMs = Math.max(180, Math.round(avgLatencySeed / laneConfig.latencyDivider));
-
-      entries.push({
-        id: `${provider.id}-${index}`,
-        providerId: provider.id,
-        providerName: provider.name,
-        label,
-        lane,
-        route: null,
-        costUsd,
-        tokensMillions,
-        runs,
-        successRate,
-        avgLatencyMs,
-      });
-    }
-  });
-
-  return entries.sort((a, b) => b.costUsd - a.costUsd);
+  return {
+    id: payload.id,
+    title: payload.title,
+    owner: payload.owner || '—',
+    mergedAtLabel,
+    costImpactUsd: payload.cost_impact_usd,
+    costDelta: payload.cost_delta,
+    tokensImpactMillions: Number((payload.tokens_impact / 1_000_000).toFixed(2)),
+    status: payload.status,
+    summary: payload.summary,
+  };
 }
 
 function computePareto(entries: RouteCostBreakdown[]): ParetoEntry[] {
@@ -609,52 +430,6 @@ function computePareto(entries: RouteCostBreakdown[]): ParetoEntry[] {
       cumulativeShare: Math.min(1, cumulative),
     };
   });
-}
-
-function buildFallbackRunDrilldown(entry: RouteCostBreakdown, days: number): RunDrilldownEntry[] {
-  const runCount = Math.min(12, Math.max(6, Math.round((entry.runs / days) * 4)));
-  const now = new Date();
-  const runs: RunDrilldownEntry[] = [];
-
-  for (let index = 0; index < runCount; index += 1) {
-    const timestamp = new Date(now);
-    const minutesAgo = (index + 1) * (30 + seededMod(`${entry.id}-mins-${index}`, 60));
-    timestamp.setMinutes(timestamp.getMinutes() - minutesAgo);
-
-    const statusSeed = seededMod(`${entry.id}-status-${index}`, 100);
-    const status: RunStatus = statusSeed > 88 ? 'error' : statusSeed > 72 ? 'retry' : 'success';
-
-    const tokensThousands = Number(
-      (
-        ((entry.tokensMillions * 1000) / Math.max(1, entry.runs)) *
-        (0.75 + seededMod(`${entry.id}-tokens-${index}`, 30) / 50)
-      ).toFixed(1),
-    );
-
-    const costUsd = Number(
-      (
-        (entry.costUsd / Math.max(1, entry.runs)) *
-        (0.8 + seededMod(`${entry.id}-cost-${index}`, 30) / 50)
-      ).toFixed(2),
-    );
-
-    const latencyMs = Math.max(
-      120,
-      Math.round(entry.avgLatencyMs * (0.75 + seededMod(`${entry.id}-latency-${index}`, 40) / 80)),
-    );
-
-    runs.push({
-      id: `${entry.id}-run-${index}`,
-      timestamp: timestamp.toISOString(),
-      tokensThousands,
-      costUsd,
-      latencyMs,
-      status,
-      consumer: `Projeto ${String.fromCharCode(65 + seededMod(`${entry.id}-consumer-${index}`, 6))}`,
-    });
-  }
-
-  return runs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
 const RUN_STATUS_LABEL: Record<RunStatus, string> = {
@@ -697,10 +472,16 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [timeseriesError, setTimeseriesError] = useState<string | null>(null);
   const [routeBreakdownEntries, setRouteBreakdownEntries] = useState<RouteCostBreakdown[]>([]);
   const [runEntries, setRunEntries] = useState<RunDrilldownEntry[]>([]);
+  const [sprintReports, setSprintReports] = useState<SprintReport[]>([]);
+  const [pullRequestReports, setPullRequestReports] = useState<PullRequestReport[]>([]);
+  const [sprintReportsError, setSprintReportsError] = useState<string | null>(null);
+  const [pullRequestReportsError, setPullRequestReportsError] = useState<string | null>(null);
+  const [drilldownError, setDrilldownError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasProviders) {
       setProviderSeriesMap({});
+      setTimeseriesError(null);
       return;
     }
 
@@ -708,9 +489,10 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     const { start, end } = computeWindowBounds(days);
     const controller = new AbortController();
     let cancelled = false;
-    let hadError = false;
+    let encounteredError = false;
 
     setIsTelemetryLoading(true);
+    setTimeseriesError(null);
 
     (async () => {
       const results = await Promise.all(
@@ -725,8 +507,10 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               buildSeriesFromTelemetry(response.items, new Date(start), days),
             ] as const;
           } catch (error) {
-            hadError = true;
-            return [provider.id, buildFallbackSeriesForProvider(provider, days)] as const;
+            if (!cancelled) {
+              encounteredError = true;
+            }
+            return [provider.id, []] as const;
           }
         }),
       );
@@ -737,23 +521,17 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           return acc;
         }, {});
         setProviderSeriesMap(nextMap);
-        if (hadError) {
-          setTimeseriesError((current) =>
-            current ?? 'Dados reais indisponíveis no momento. Exibindo estimativas.',
-          );
+        if (encounteredError) {
+          setTimeseriesError('Não foi possível carregar todas as séries temporais.');
         }
       }
     })()
       .catch((error) => {
         if (!cancelled) {
           setTimeseriesError(
-            error instanceof Error ? error.message : 'Erro ao carregar telemetria de custo.',
+            error instanceof Error ? error.message : 'Erro ao carregar séries temporais reais.',
           );
-          const fallbackMap = providers.reduce<Record<string, TimeSeriesPoint[]>>((acc, provider) => {
-            acc[provider.id] = buildFallbackSeriesForProvider(provider, RANGE_TO_DAYS[selectedRange]);
-            return acc;
-          }, {});
-          setProviderSeriesMap(fallbackMap);
+          setProviderSeriesMap({});
         }
       })
       .finally(() => {
@@ -778,7 +556,6 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     const { start, end } = computeWindowBounds(days);
     const controller = new AbortController();
     let cancelled = false;
-    let hadError = false;
 
     const providerFilter = selectedProvider === 'all' ? undefined : selectedProvider;
 
@@ -797,18 +574,12 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       })
       .catch(() => {
         if (!cancelled) {
-          hadError = true;
-          setRouteBreakdownEntries(
-            buildFallbackRouteBreakdown(providers, days, selectedProvider),
-          );
+          setRouteBreakdownEntries([]);
+          setTimeseriesError((current) => current ?? 'Não foi possível carregar o Pareto de rotas.');
         }
       })
       .finally(() => {
-        if (!cancelled && hadError) {
-          setTimeseriesError((current) =>
-            current ?? 'Dados reais indisponíveis no momento. Exibindo estimativas.',
-          );
-        }
+        /* no-op */
       });
 
     return () => {
@@ -850,28 +621,67 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
 
   const paretoEntries = useMemo(() => computePareto(breakdownEntries), [breakdownEntries]);
 
-  const sprintReports = useMemo(
-    () =>
-      buildSprintReports(
-        selectedProvider,
-        availableSeries,
-        aggregatedMetrics,
-        selectedRange,
-        selectedProviderLabel,
-      ),
-    [aggregatedMetrics, availableSeries, selectedProvider, selectedProviderLabel, selectedRange],
-  );
+  useEffect(() => {
+    if (!hasProviders) {
+      setSprintReports([]);
+      setPullRequestReports([]);
+      setSprintReportsError(null);
+      setPullRequestReportsError(null);
+      return;
+    }
 
-  const pullRequestReports = useMemo(
-    () =>
-      buildPullRequestReports(
-        selectedProvider,
-        selectedRange,
-        paretoEntries,
-        selectedProviderLabel,
-      ),
-    [paretoEntries, selectedProvider, selectedProviderLabel, selectedRange],
-  );
+    const days = RANGE_TO_DAYS[selectedRange];
+    const { start, end } = computeWindowBounds(days);
+    const providerFilter = selectedProvider === 'all' ? undefined : selectedProvider;
+    const windowDays = selectedRange === '7d' ? 7 : selectedRange === '30d' ? 14 : 21;
+
+    const sprintController = new AbortController();
+    const prController = new AbortController();
+    let cancelled = false;
+
+    setSprintReportsError(null);
+    setPullRequestReportsError(null);
+
+    fetchFinOpsSprintReports(
+      { start, end, providerId: providerFilter, windowDays, limit: 4 },
+      sprintController.signal,
+    )
+      .then((items) => {
+        if (cancelled) {
+          return;
+        }
+        setSprintReports(items.map(mapSprintReportPayload));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSprintReports([]);
+          setSprintReportsError('Não foi possível carregar relatórios de sprint.');
+        }
+      });
+
+    fetchFinOpsPullRequestReports(
+      { start, end, providerId: providerFilter, windowDays, limit: 4 },
+      prController.signal,
+    )
+      .then((items) => {
+        if (cancelled) {
+          return;
+        }
+        setPullRequestReports(items.map(mapPullRequestReportPayload));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPullRequestReports([]);
+          setPullRequestReportsError('Não foi possível carregar relatórios de PR.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      sprintController.abort();
+      prController.abort();
+    };
+  }, [hasProviders, providers, selectedProvider, selectedRange]);
 
   const finOpsAlerts = useMemo(() => {
     const alerts: FinOpsAlert[] = [];
@@ -1104,6 +914,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   useEffect(() => {
     if (!selectedParetoEntry) {
       setRunEntries([]);
+      setDrilldownError(null);
       return;
     }
 
@@ -1111,7 +922,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     const { start, end } = computeWindowBounds(days);
     const controller = new AbortController();
     let cancelled = false;
-    let hadError = false;
+
+    setDrilldownError(null);
 
     fetchTelemetryRuns(
       {
@@ -1137,15 +949,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       })
       .catch(() => {
         if (!cancelled) {
-          hadError = true;
-          setRunEntries(buildFallbackRunDrilldown(selectedParetoEntry, days));
-        }
-      })
-      .finally(() => {
-        if (!cancelled && hadError) {
-          setTimeseriesError((current) =>
-            current ?? 'Dados reais indisponíveis no momento. Exibindo estimativas.',
-          );
+          setRunEntries([]);
+          setDrilldownError('Não foi possível carregar o drill-down da rota selecionada.');
         }
       });
 
@@ -1437,7 +1242,9 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               <h4>Sprints recentes</h4>
               <span>Visão comparativa de custo e volume</span>
             </header>
-            {sprintReports.length === 0 ? (
+            {sprintReportsError ? (
+              <p className="finops__state" role="status">{sprintReportsError}</p>
+            ) : sprintReports.length === 0 ? (
               <p className="finops__state">
                 Gere telemetria suficiente para destravar o comparativo por sprint.
               </p>
@@ -1483,7 +1290,9 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               <h4>PRs monitorados</h4>
               <span>Impacto financeiro estimado</span>
             </header>
-            {pullRequestReports.length === 0 ? (
+            {pullRequestReportsError ? (
+              <p className="finops__state" role="status">{pullRequestReportsError}</p>
+            ) : pullRequestReports.length === 0 ? (
               <p className="finops__state">Nenhum PR relevante encontrado para os filtros atuais.</p>
             ) : (
               <div className="finops__report-table" role="region" aria-label="Tabela de pull requests">
@@ -1623,7 +1432,9 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                 </div>
               </div>
 
-              {drilldownRuns.length === 0 ? (
+              {drilldownError ? (
+                <p className="finops__state" role="status">{drilldownError}</p>
+              ) : drilldownRuns.length === 0 ? (
                 <p className="finops__state">Sem execuções registradas para esta combinação.</p>
               ) : (
                 <div className="finops__drilldown-table">

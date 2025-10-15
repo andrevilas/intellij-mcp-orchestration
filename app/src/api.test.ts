@@ -16,6 +16,8 @@ import {
   createPolicyDeployment,
   deletePolicyDeployment,
   deleteSecret,
+  fetchFinOpsPullRequestReports,
+  fetchFinOpsSprintReports,
   fetchProviders,
   fetchServerCatalog,
   fetchServerProcesses,
@@ -673,5 +675,84 @@ describe('api client', () => {
       }),
     );
     expect(result).toEqual(payload.buckets);
+  });
+
+  it('fetches FinOps sprint reports with normalized filters', async () => {
+    const payload = {
+      items: [
+        {
+          id: 'sprint-2024-12-01',
+          name: 'Sprint 2024-12',
+          period_start: '2024-03-01',
+          period_end: '2024-03-14',
+          total_cost_usd: 42.5,
+          total_tokens_in: 120000,
+          total_tokens_out: 80000,
+          avg_latency_ms: 850,
+          success_rate: 0.92,
+          cost_delta: 0.1,
+          status: 'attention',
+          summary: 'Alta de 10% no custo versus sprint anterior.',
+        },
+      ],
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const start = new Date('2024-03-01T00:00:00Z');
+    const end = '2024-03-14T00:00:00Z';
+
+    const result = await fetchFinOpsSprintReports({
+      start,
+      end,
+      providerId: 'gemini',
+      windowDays: 14,
+      limit: 6,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `/api/v1/telemetry/finops/sprints?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end)}&provider_id=gemini&window_days=14&limit=6`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual(payload.items);
+  });
+
+  it('fetches FinOps pull request reports for a provider', async () => {
+    const payload = {
+      items: [
+        {
+          id: 'gemini:default',
+          provider_id: 'gemini',
+          provider_name: 'Gemini',
+          route: 'default',
+          lane: 'balanced',
+          title: 'Ajustes de custo',
+          owner: 'squad-a',
+          merged_at: '2024-03-05T12:00:00Z',
+          cost_impact_usd: 12.5,
+          cost_delta: -0.12,
+          tokens_impact: 40000,
+          status: 'on_track',
+          summary: 'Redução de custo após ajustes de prompt.',
+        },
+      ],
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const response = await fetchFinOpsPullRequestReports({
+      providerId: 'gemini',
+      windowDays: 7,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/telemetry/finops/pull-requests?provider_id=gemini&window_days=7',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(response).toEqual(payload.items);
   });
 });

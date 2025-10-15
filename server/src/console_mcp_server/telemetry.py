@@ -8,7 +8,7 @@ import io
 import json
 import os
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -386,6 +386,76 @@ class TelemetryRunRecord:
             "status": self.status,
             "cost_usd": self.cost_usd,
             "metadata": self.metadata,
+        }
+
+
+@dataclass(frozen=True)
+class FinOpsSprintReport:
+    """Aggregated metrics for a sprint-sized window used in FinOps dashboards."""
+
+    report_id: str
+    name: str
+    period_start: date
+    period_end: date
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    avg_latency_ms: float
+    success_rate: float
+    cost_delta: float
+    status: str
+    summary: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.report_id,
+            "name": self.name,
+            "period_start": self.period_start,
+            "period_end": self.period_end,
+            "total_cost_usd": self.total_cost_usd,
+            "total_tokens_in": self.total_tokens_in,
+            "total_tokens_out": self.total_tokens_out,
+            "avg_latency_ms": self.avg_latency_ms,
+            "success_rate": self.success_rate,
+            "cost_delta": self.cost_delta,
+            "status": self.status,
+            "summary": self.summary,
+        }
+
+
+@dataclass(frozen=True)
+class FinOpsPullRequestReport:
+    """Summarized cost impact for a monitored route in a FinOps context."""
+
+    report_id: str
+    provider_id: str
+    provider_name: str
+    route: str | None
+    lane: str | None
+    title: str
+    owner: str
+    merged_at: datetime | None
+    cost_impact_usd: float
+    cost_delta: float
+    tokens_impact: int
+    status: str
+    summary: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.report_id,
+            "provider_id": self.provider_id,
+            "provider_name": self.provider_name,
+            "route": self.route,
+            "lane": self.lane,
+            "title": self.title,
+            "owner": self.owner,
+            "merged_at": self.merged_at,
+            "cost_impact_usd": self.cost_impact_usd,
+            "cost_delta": self.cost_delta,
+            "tokens_impact": self.tokens_impact,
+            "status": self.status,
+            "summary": self.summary,
         }
 
 
@@ -781,6 +851,338 @@ def query_runs(
 
     next_cursor = str(offset + len(items)) if has_more else None
     return tuple(items), next_cursor
+
+
+def compute_finops_sprint_reports(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    lane: str | None = None,
+    window_days: int = 7,
+    limit: int = 4,
+) -> tuple[FinOpsSprintReport, ...]:
+    """Produce sprint-style aggregates based on real telemetry timeseries."""
+
+    if window_days <= 0:
+        raise ValueError("window_days must be positive")
+
+    normalized_start = _normalize_bound(start) if start else None
+    normalized_end = _normalize_bound(end) if end else None
+    if normalized_start and normalized_end and normalized_start > normalized_end:
+        raise ValueError("start must be before end")
+
+    points = query_timeseries(
+        start=normalized_start,
+        end=normalized_end,
+        provider_id=provider_id,
+        lane=lane,
+    )
+
+    daily_totals = _aggregate_daily_points(points)
+    if not daily_totals:
+        return tuple()
+
+    observed_days = sorted(daily_totals.keys())
+    first_day = observed_days[0]
+    last_day = observed_days[-1]
+
+    current_start = normalized_start.date() if normalized_start else first_day
+    current_start = max(current_start, first_day)
+    current_end = normalized_end.date() if normalized_end else last_day
+    current_end = max(current_start, min(current_end, last_day))
+
+    reports: list[FinOpsSprintReport] = []
+    cursor_end = current_end
+    window_span = max(1, window_days)
+    while len(reports) < limit and cursor_end >= current_start:
+        window_start = max(current_start, cursor_end - timedelta(days=window_span - 1))
+        totals = _accumulate_window(daily_totals, window_start, cursor_end)
+        if totals["run_count"] == 0 and totals["total_cost_usd"] == 0:
+            cursor_end = window_start - timedelta(days=1)
+            if cursor_end < current_start:
+                break
+            continue
+
+        run_count = int(round(totals["run_count"]))
+        cost_total = round(totals["total_cost_usd"], 6)
+        tokens_in = int(round(totals["tokens_in"]))
+        tokens_out = int(round(totals["tokens_out"]))
+        avg_latency = (
+            totals["duration_total"] / run_count if run_count else 0.0
+        )
+        success_rate = (
+            int(round(totals["success_count"])) / run_count if run_count else 0.0
+        )
+
+        previous_end = window_start - timedelta(days=1)
+        previous_start = previous_end - timedelta(days=window_span - 1)
+        if normalized_start:
+            previous_start = max(previous_start, normalized_start.date())
+        previous_totals = (
+            _accumulate_window(daily_totals, previous_start, previous_end)
+            if previous_end >= first_day
+            else _empty_window_totals()
+        )
+        previous_cost = previous_totals["total_cost_usd"]
+        cost_delta = (
+            (cost_total - previous_cost) / previous_cost
+            if previous_cost > 0
+            else 0.0
+        )
+        status = _classify_report_status(cost_delta)
+        summary = _build_sprint_summary(
+            cost_total,
+            tokens_in + tokens_out,
+            cost_delta,
+            window_start,
+            cursor_end,
+        )
+
+        iso_year, iso_week, _ = cursor_end.isocalendar()
+        report_id = f"sprint-{iso_year}-{iso_week:02d}-{len(reports) + 1}"
+        name = f"Sprint {iso_year}-{iso_week:02d}"
+
+        reports.append(
+            FinOpsSprintReport(
+                report_id=report_id,
+                name=name,
+                period_start=window_start,
+                period_end=cursor_end,
+                total_cost_usd=cost_total,
+                total_tokens_in=tokens_in,
+                total_tokens_out=tokens_out,
+                avg_latency_ms=avg_latency,
+                success_rate=success_rate,
+                cost_delta=cost_delta,
+                status=status,
+                summary=summary,
+            )
+        )
+
+        cursor_end = window_start - timedelta(days=1)
+
+    return tuple(reports)
+
+
+def compute_finops_pull_request_reports(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    lane: str | None = None,
+    window_days: int = 7,
+    limit: int = 4,
+) -> tuple[FinOpsPullRequestReport, ...]:
+    """Summarize per-route cost deltas suitable for PR-style reporting."""
+
+    if window_days <= 0:
+        raise ValueError("window_days must be positive")
+
+    normalized_start = _normalize_bound(start) if start else None
+    normalized_end = _normalize_bound(end) if end else None
+    if normalized_start and normalized_end and normalized_start > normalized_end:
+        raise ValueError("start must be before end")
+
+    current_breakdown = query_route_breakdown(
+        start=normalized_start,
+        end=normalized_end,
+        provider_id=provider_id,
+        lane=lane,
+    )
+    if not current_breakdown:
+        return tuple()
+
+    current_start_date = (
+        normalized_start.date() if normalized_start else _infer_window_start(current_breakdown, window_days)
+    )
+    current_end_date = (
+        normalized_end.date() if normalized_end else current_start_date + timedelta(days=window_days - 1)
+    )
+
+    window_span = max(1, window_days)
+    previous_end = current_start_date - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=window_span - 1)
+    previous_breakdown = query_route_breakdown(
+        start=_combine_date(previous_start, at_end=False),
+        end=_combine_date(previous_end, at_end=True),
+        provider_id=provider_id,
+        lane=lane,
+    )
+    previous_index = {entry.route_id: entry for entry in previous_breakdown}
+
+    reports: list[FinOpsPullRequestReport] = []
+    for entry in current_breakdown[:limit]:
+        previous = previous_index.get(entry.route_id)
+        previous_cost = previous.cost_usd if previous else 0.0
+        delta = (entry.cost_usd - previous_cost) / previous_cost if previous_cost > 0 else 0.0
+        status = _classify_report_status(delta)
+        tokens_total = entry.tokens_in + entry.tokens_out
+        previous_tokens = (
+            (previous.tokens_in + previous.tokens_out) if previous else 0
+        )
+        tokens_delta = tokens_total - previous_tokens
+        owner, merged_at = _resolve_route_owner(
+            provider_id=entry.provider_id,
+            route=entry.route,
+            lane=entry.lane,
+            start=_combine_date(current_start_date, at_end=False),
+            end=_combine_date(current_end_date, at_end=True),
+        )
+        title = f"{entry.provider_name} · {entry.route or 'default'}"
+        summary = _build_pr_summary(delta, entry.provider_name, entry.route)
+
+        reports.append(
+            FinOpsPullRequestReport(
+                report_id=entry.route_id,
+                provider_id=entry.provider_id,
+                provider_name=entry.provider_name,
+                route=entry.route,
+                lane=entry.lane,
+                title=title,
+                owner=owner,
+                merged_at=merged_at,
+                cost_impact_usd=round(max(entry.cost_usd - previous_cost, 0.0), 6),
+                cost_delta=delta,
+                tokens_impact=tokens_delta,
+                status=status,
+                summary=summary,
+            )
+        )
+
+    return tuple(reports)
+
+
+def _aggregate_daily_points(
+    points: Iterable[TelemetryTimeseriesPoint],
+) -> dict[date, dict[str, float]]:
+    daily: dict[date, dict[str, float]] = {}
+    for point in points:
+        entry = daily.setdefault(point.day, _empty_window_totals())
+        entry["tokens_in"] += float(point.tokens_in)
+        entry["tokens_out"] += float(point.tokens_out)
+        entry["total_cost_usd"] += float(point.cost_usd)
+        entry["run_count"] += float(point.run_count)
+        entry["success_count"] += float(point.success_count)
+        entry["duration_total"] += float(point.avg_latency_ms) * float(point.run_count)
+    return daily
+
+
+def _empty_window_totals() -> dict[str, float]:
+    return {
+        "tokens_in": 0.0,
+        "tokens_out": 0.0,
+        "total_cost_usd": 0.0,
+        "run_count": 0.0,
+        "success_count": 0.0,
+        "duration_total": 0.0,
+    }
+
+
+def _accumulate_window(
+    daily_totals: dict[date, dict[str, float]], start: date, end: date
+) -> dict[str, float]:
+    if end < start:
+        return _empty_window_totals()
+    totals = _empty_window_totals()
+    for day, values in daily_totals.items():
+        if start <= day <= end:
+            totals["tokens_in"] += values["tokens_in"]
+            totals["tokens_out"] += values["tokens_out"]
+            totals["total_cost_usd"] += values["total_cost_usd"]
+            totals["run_count"] += values["run_count"]
+            totals["success_count"] += values["success_count"]
+            totals["duration_total"] += values["duration_total"]
+    return totals
+
+
+def _classify_report_status(delta: float) -> str:
+    if delta <= 0.03:
+        return "on_track"
+    if delta <= 0.08:
+        return "attention"
+    return "regression"
+
+
+def _format_percent(value: float) -> str:
+    return f"{abs(value) * 100:.1f}%"
+
+
+def _build_sprint_summary(
+    cost_usd: float, tokens_total: float, delta: float, start: date, end: date
+) -> str:
+    direction = "Alta" if delta > 0 else "Queda" if delta < 0 else "Estabilidade"
+    tokens_millions = tokens_total / 1_000_000 if tokens_total else 0.0
+    delta_text = _format_percent(delta)
+    period = f"{start.isoformat()} – {end.isoformat()}"
+    if direction == "Estabilidade":
+        return (
+            f"Custo estável no período {period} com {tokens_millions:.2f} mi tokens processados."
+        )
+    qualifier = "versus sprint anterior"
+    return (
+        f"{direction} de {delta_text} no custo {qualifier} e {tokens_millions:.2f} mi tokens no período {period}."
+    )
+
+
+def _infer_window_start(
+    breakdown: Iterable[TelemetryRouteBreakdown], window_days: int
+) -> date:
+    reference = date.today()
+    span = max(1, window_days)
+    return reference - timedelta(days=span - 1)
+
+
+def _combine_date(day: date, *, at_end: bool) -> datetime:
+    base_time = time.max if at_end else time.min
+    combined = datetime.combine(day, base_time)
+    if combined.tzinfo is None:
+        combined = combined.replace(tzinfo=timezone.utc)
+    else:
+        combined = combined.astimezone(timezone.utc)
+    return combined
+
+
+def _resolve_route_owner(
+    *,
+    provider_id: str,
+    route: str | None,
+    lane: str | None,
+    start: datetime,
+    end: datetime,
+) -> tuple[str, datetime | None]:
+    records, _ = query_runs(
+        start=start,
+        end=end,
+        provider_id=provider_id,
+        lane=lane,
+        route=route,
+        limit=1,
+    )
+    if not records:
+        return "—", None
+    record = records[0]
+    metadata = record.metadata or {}
+    owner_raw = metadata.get("consumer") or metadata.get("project") or "—"
+    owner = str(owner_raw)
+    merged_at = _parse_iso(record.ts)
+    return owner, merged_at
+
+
+def _build_pr_summary(delta: float, provider_name: str, route: str | None) -> str:
+    route_label = route or "default"
+    delta_percent = _format_percent(delta)
+    if delta > 0:
+        return (
+            f"Alta de {delta_percent} no custo da rota {route_label} ({provider_name}) em relação ao período anterior."
+        )
+    if delta < 0:
+        return (
+            f"Queda de {delta_percent} no custo da rota {route_label} ({provider_name}) frente ao período anterior."
+        )
+    return (
+        f"Custo estável para a rota {route_label} ({provider_name}) quando comparado ao período anterior."
+    )
 
 
 def _fetch_summary(
