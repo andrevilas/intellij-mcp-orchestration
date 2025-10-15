@@ -549,6 +549,26 @@ describe('App provider orchestration flow', () => {
           message: `${provider.name} respondeu ao handshake em 268 ms.`,
         });
       }
+      if (url === '/agents/catalog-search/invoke' && method === 'POST') {
+        const body = init?.body ? JSON.parse(init.body.toString()) : {};
+        const query = body?.input?.query ?? '';
+        if (!query) {
+          return createFetchResponse({ result: { items: [] } });
+        }
+        return createFetchResponse({
+          result: {
+            items: [
+              {
+                sku: 'SKU-ROUTING-01',
+                name: 'Routing Playbook',
+                description: `Sugestões para “${query}”`,
+                category: 'Playbooks',
+                tags: ['agente', 'routing'],
+              },
+            ],
+          },
+        });
+      }
       if (url === '/api/v1/notifications' && method === 'GET') {
         return createFetchResponse({ notifications });
       }
@@ -1028,7 +1048,9 @@ describe('App provider orchestration flow', () => {
 
     await user.type(searchbox, 'Routing');
 
-    const routingOption = await within(palette).findByRole('option', { name: /Routing/i });
+    const routingOptions = await within(palette).findAllByRole('option', { name: /Routing/i });
+    const routingOption =
+      routingOptions.find((option) => within(option).queryByText(/^Routing$/i)) ?? routingOptions[0];
 
     await user.click(routingOption);
 

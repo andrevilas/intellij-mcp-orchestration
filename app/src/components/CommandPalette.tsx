@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useAgent, type AgentError } from '../hooks/useAgent';
+
 export interface CommandOption {
   id: string;
   title: string;
@@ -9,18 +11,117 @@ export interface CommandOption {
   onSelect: () => void;
 }
 
+interface CatalogSearchItem {
+  sku?: string;
+  name?: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  url?: string;
+}
+
+interface CatalogSearchResult {
+  items?: CatalogSearchItem[];
+}
+
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   commands: CommandOption[];
+  onAgentResultSelect?: (item: CatalogSearchItem) => void;
 }
 
-export default function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProps) {
+const HOME_SEARCH_AGENT = 'catalog-search';
+const AGENT_RESULT_LIMIT = 5;
+
+export default function CommandPalette({
+  isOpen,
+  onClose,
+  commands,
+  onAgentResultSelect,
+}: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const itemsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const {
+    data: agentData,
+    error: agentError,
+    isFallback: isAgentFallback,
+    invoke: invokeAgent,
+    reset: resetAgent,
+  } = useAgent<CatalogSearchResult>(HOME_SEARCH_AGENT, {
+    defaultConfig: {
+      metadata: { caller: 'command-palette' },
+    },
+  });
+  const [isAgentUnavailable, setAgentUnavailable] = useState(false);
+
+  useEffect(() => {
+    if (isAgentFallback) {
+      setAgentUnavailable(true);
+    }
+  }, [isAgentFallback]);
+
+  useEffect(() => {
+    const normalized = query.trim();
+
+    if (!normalized) {
+      if (!isAgentUnavailable) {
+        resetAgent({ preserveFallback: true });
+      }
+      return;
+    }
+
+    if (isAgentUnavailable) {
+      return;
+    }
+
+    const controller = new AbortController();
+    invokeAgent({
+      input: { query: normalized, limit: AGENT_RESULT_LIMIT },
+      config: { parameters: { limit: AGENT_RESULT_LIMIT } },
+      signal: controller.signal,
+    }).catch((error: AgentError) => {
+      console.error('Falha ao consultar agente inteligente', error);
+    });
+
+    return () => controller.abort();
+  }, [query, invokeAgent, resetAgent, isAgentUnavailable]);
+
+  const agentCommands = useMemo(() => {
+    const items = agentData?.result?.items ?? [];
+    if (!items || items.length === 0) {
+      return [] as CommandOption[];
+    }
+
+    return items
+      .filter((item) => item && (item.name || item.sku))
+      .map((item, index) => {
+        const title = item.name ?? item.sku ?? `Sugestão ${index + 1}`;
+        const subtitleParts = [item.description, item.category].filter(Boolean) as string[];
+        const subtitle = subtitleParts.length > 0
+          ? subtitleParts.join(' • ')
+          : 'Sugestão do agente de catálogo';
+        const keywords = [...(item.tags ?? []), 'agente'];
+        const normalizedId = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        return {
+          id: `agent-${normalizedId}-${index}`,
+          title,
+          subtitle,
+          keywords,
+          onSelect: () => {
+            onAgentResultSelect?.(item);
+          },
+        } satisfies CommandOption;
+      });
+  }, [agentData, onAgentResultSelect]);
+
+  const mergedCommands = useMemo(
+    () => [...commands, ...agentCommands],
+    [commands, agentCommands],
+  );
 
   useEffect(() => {
     if (!isOpen) {
@@ -41,10 +142,10 @@ export default function CommandPalette({ isOpen, onClose, commands }: CommandPal
     const normalized = query.trim().toLowerCase();
 
     if (!normalized) {
-      return commands;
+      return mergedCommands;
     }
 
-    return commands.filter((command) => {
+    return mergedCommands.filter((command) => {
       const haystack = [command.title, command.subtitle, ...(command.keywords ?? [])]
         .filter(Boolean)
         .join(' ')
@@ -52,7 +153,7 @@ export default function CommandPalette({ isOpen, onClose, commands }: CommandPal
 
       return haystack.includes(normalized);
     });
-  }, [commands, query]);
+  }, [mergedCommands, query]);
 
   useEffect(() => {
     if (activeIndex >= filteredCommands.length) {
@@ -220,6 +321,15 @@ export default function CommandPalette({ isOpen, onClose, commands }: CommandPal
           />
           <span className="command-palette__shortcut">⌘K</span>
         </div>
+        {isAgentUnavailable ? (
+          <p className="command-palette__agent-hint" role="status">
+            {agentError?.message ?? 'Agente de busca indisponível. Revertendo para catálogo local.'}
+          </p>
+        ) : agentError ? (
+          <p className="command-palette__agent-hint command-palette__agent-hint--error" role="status">
+            {agentError.message}
+          </p>
+        ) : null}
         <ul className="command-palette__results" role="listbox">
           {filteredCommands.length === 0 && (
             <li className="command-palette__empty">Nenhum comando encontrado</li>
