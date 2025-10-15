@@ -1,5 +1,6 @@
 """Core utilities for the MCP orchestration backend."""
 
+from .agent_registry import AgentRecord, AgentRegistry
 from .settings import Settings, get_settings
 from .logging import configure_logging, get_logger, request_logger
 from .errors import (
@@ -18,6 +19,8 @@ from .request_context import (
 )
 
 __all__ = [
+    "AgentRecord",
+    "AgentRegistry",
     "Settings",
     "get_settings",
     "configure_logging",
