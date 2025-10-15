@@ -1,8 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 import { createSession, fetchProviders, fetchSessions } from './api';
-
-type FetchMock = ReturnType<typeof vi.fn> & typeof fetch;
 
 function mockFetchResponse<T>(payload: T): Promise<Response> {
   return Promise.resolve({
@@ -13,11 +12,16 @@ function mockFetchResponse<T>(payload: T): Promise<Response> {
 }
 
 describe('api client', () => {
-  let fetchSpy: FetchMock;
+  let fetchSpy: Mock;
+  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     fetchSpy = vi.fn();
-    global.fetch = fetchSpy as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   it('requests the provider list from /api/v1/providers', async () => {
