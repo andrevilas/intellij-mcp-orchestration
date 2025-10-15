@@ -1,17 +1,4 @@
-import type { ReactNode } from 'react';
-
-export type PolicyTemplateId = 'economy' | 'balanced' | 'turbo';
-
-export interface PolicyTemplate {
-  id: PolicyTemplateId;
-  name: string;
-  tagline: string;
-  description: string;
-  priceDelta: string;
-  latencyTarget: string;
-  guardrailLevel: string;
-  features: ReactNode[];
-}
+import type { PolicyTemplate, PolicyTemplateId } from '../api';
 
 export interface PolicyTemplatePickerProps {
   templates: PolicyTemplate[];

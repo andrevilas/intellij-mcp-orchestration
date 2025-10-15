@@ -15,6 +15,7 @@ from .policies import (
     list_policies,
     update_policy,
 )
+from .policy_templates import list_policy_templates
 from .prices import (
     PriceEntryAlreadyExistsError,
     PriceEntryNotFoundError,
@@ -31,6 +32,8 @@ from .schemas import (
     CostPolicyCreateRequest,
     CostPolicyResponse,
     CostPolicyUpdateRequest,
+    PolicyTemplateResponse,
+    PolicyTemplatesResponse,
     HealthStatus,
     PriceEntriesResponse,
     PriceEntryCreateRequest,
@@ -189,6 +192,17 @@ def list_cost_policies() -> CostPoliciesResponse:
 
     records = [CostPolicyResponse(**record.to_dict()) for record in list_policies()]
     return CostPoliciesResponse(policies=records)
+
+
+@router.get("/policies/templates", response_model=PolicyTemplatesResponse)
+def list_templates() -> PolicyTemplatesResponse:
+    """Expose the available guardrail policy templates."""
+
+    templates = [
+        PolicyTemplateResponse.model_validate(template.to_dict())
+        for template in list_policy_templates()
+    ]
+    return PolicyTemplatesResponse(templates=templates)
 
 
 @router.post("/policies", response_model=CostPolicyResponse, status_code=status.HTTP_201_CREATED)

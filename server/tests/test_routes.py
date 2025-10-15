@@ -427,6 +427,23 @@ def test_cost_policies_crud_flow(client: TestClient) -> None:
     assert list_after_delete.json()['policies'] == []
 
 
+def test_policy_templates_catalog(client: TestClient) -> None:
+    response = client.get('/api/v1/policies/templates')
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert 'templates' in payload
+    templates = payload['templates']
+    assert len(templates) >= 3
+    ids = {template['id'] for template in templates}
+    assert {'economy', 'balanced', 'turbo'}.issubset(ids)
+
+    sample = templates[0]
+    assert sample['name']
+    assert isinstance(sample['features'], list)
+    assert all(isinstance(item, str) for item in sample['features'])
+
+
 def test_price_table_crud_flow(client: TestClient) -> None:
     list_empty = client.get('/api/v1/prices')
     assert list_empty.status_code == 200

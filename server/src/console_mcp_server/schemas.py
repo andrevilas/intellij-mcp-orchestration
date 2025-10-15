@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .config import ProviderConfig
 
@@ -116,6 +116,27 @@ class CostPoliciesResponse(BaseModel):
     """Envelope returned when listing all cost policies."""
 
     policies: List[CostPolicyResponse]
+
+
+class PolicyTemplateResponse(BaseModel):
+    """Representation of an available guardrail policy template."""
+
+    id: str
+    name: str
+    tagline: str
+    description: str
+    price_delta: str = Field(alias="priceDelta")
+    latency_target: str = Field(alias="latencyTarget")
+    guardrail_level: str = Field(alias="guardrailLevel")
+    features: List[str]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PolicyTemplatesResponse(BaseModel):
+    """Envelope returned when listing policy templates."""
+
+    templates: List[PolicyTemplateResponse]
 
 
 class PriceEntryWriteRequest(BaseModel):

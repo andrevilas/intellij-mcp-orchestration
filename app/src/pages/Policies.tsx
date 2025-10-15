@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import type { ProviderSummary } from '../api';
-import PolicyTemplatePicker, {
+import {
+  fetchPolicyTemplates,
   type PolicyTemplate,
   type PolicyTemplateId,
-} from '../components/PolicyTemplatePicker';
+  type ProviderSummary,
+} from '../api';
+import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
 import { seededMod } from '../utils/hash';
 
 export interface PoliciesProps {
@@ -34,7 +36,7 @@ interface RolloutPlanEntry {
   coverage: number;
 }
 
-const POLICY_TEMPLATES: PolicyTemplate[] = [
+const DEFAULT_POLICY_TEMPLATES: PolicyTemplate[] = [
   {
     id: 'economy',
     name: 'Economia',
@@ -81,8 +83,6 @@ const POLICY_TEMPLATES: PolicyTemplate[] = [
     ],
   },
 ];
-
-const TEMPLATE_MAP = new Map(POLICY_TEMPLATES.map((template) => [template.id, template]));
 
 const ROLLOUT_SEGMENTS: RolloutSegment[] = [
   {
@@ -162,16 +162,67 @@ function computeGuardrailScore(templateId: PolicyTemplateId): number {
 type BannerKind = 'success' | 'info' | 'warning';
 
 export default function Policies({ providers, isLoading, initialError }: PoliciesProps) {
+  const [templates, setTemplates] = useState<PolicyTemplate[]>(DEFAULT_POLICY_TEMPLATES);
+  const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [history, setHistory] = useState<PolicyDeployment[]>(() => createInitialHistory());
   const [selectedTemplateId, setSelectedTemplateId] = useState<PolicyTemplateId>(
     () => history[history.length - 1].templateId,
   );
   const [banner, setBanner] = useState<{ kind: BannerKind; message: string } | null>(null);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    async function loadTemplates() {
+      setIsTemplatesLoading(true);
+      setTemplatesError(null);
+      try {
+        const remoteTemplates = await fetchPolicyTemplates(controller.signal);
+        if (!active) {
+          return;
+        }
+        if (remoteTemplates.length > 0) {
+          setTemplates(remoteTemplates);
+        }
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        if ((error as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        // eslint-disable-next-line no-console
+        console.error('Failed to load policy templates', error);
+        setTemplatesError('Não foi possível carregar templates de política. Usando fallback local.');
+      } finally {
+        if (active) {
+          setIsTemplatesLoading(false);
+        }
+      }
+    }
+
+    loadTemplates();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
+  const templateMap = useMemo(
+    () => new Map(templates.map((template) => [template.id, template])),
+    [templates],
+  );
+
   const activeDeployment = history[history.length - 1];
-  const activeTemplate = TEMPLATE_MAP.get(activeDeployment.templateId)!;
+  const fallbackTemplate = templates[0] ?? DEFAULT_POLICY_TEMPLATES[0];
+  const activeTemplate = templateMap.get(activeDeployment.templateId) ?? fallbackTemplate;
   const previousDeployment = history.length > 1 ? history[history.length - 2] : null;
-  const previousTemplate = previousDeployment ? TEMPLATE_MAP.get(previousDeployment.templateId)! : null;
+  const previousTemplate = previousDeployment
+    ? templateMap.get(previousDeployment.templateId) ?? fallbackTemplate
+    : null;
 
   const rolloutPlan = useMemo(() => buildRolloutPlan(providers, selectedTemplateId), [providers, selectedTemplateId]);
   const activeReliability = useMemo(
@@ -183,7 +234,13 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     [activeDeployment.templateId],
   );
 
-  const selectedTemplate = TEMPLATE_MAP.get(selectedTemplateId)!;
+  useEffect(() => {
+    if (!templateMap.has(selectedTemplateId) && templates.length > 0) {
+      setSelectedTemplateId(templates[templates.length - 1].id);
+    }
+  }, [templateMap, selectedTemplateId, templates]);
+
+  const selectedTemplate = templateMap.get(selectedTemplateId) ?? fallbackTemplate;
   const canRollback = Boolean(previousDeployment);
 
   function handleApply() {
@@ -306,11 +363,13 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             aplicar.
           </p>
         </header>
+        {isTemplatesLoading && <p className="status">Carregando templates atualizados…</p>}
+        {templatesError && <p className="error">{templatesError}</p>}
         <PolicyTemplatePicker
-          templates={POLICY_TEMPLATES}
+          templates={templates}
           value={selectedTemplateId}
           onChange={setSelectedTemplateId}
-          disabled={isLoading}
+          disabled={isTemplatesLoading || isLoading}
         />
       </section>
 
@@ -370,7 +429,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             .slice()
             .reverse()
             .map((deployment) => {
-              const template = TEMPLATE_MAP.get(deployment.templateId)!;
+              const template = templateMap.get(deployment.templateId) ?? fallbackTemplate;
               return (
                 <li key={`${deployment.templateId}-${deployment.deployedAt}`}>
                   <div className="policy-history__header">
