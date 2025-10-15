@@ -150,3 +150,70 @@ def test_secret_crud_flow(client: TestClient, tmp_path: Path) -> None:
 
     disk_after_delete = json.loads((tmp_path / 'secrets.json').read_text())
     assert disk_after_delete['secrets'] == {}
+
+
+def test_mcp_servers_crud_flow(client: TestClient) -> None:
+    list_empty = client.get('/api/v1/servers')
+    assert list_empty.status_code == 200
+    assert list_empty.json() == {'servers': []}
+
+    create_payload = {
+        'id': 'anthropic',
+        'name': 'Anthropic Claude',
+        'command': '~/.local/bin/claude-mcp',
+        'description': 'Test provider',
+        'tags': ['claude', 'beta'],
+        'capabilities': ['chat', 'tools'],
+        'transport': 'stdio',
+    }
+    create_response = client.post('/api/v1/servers', json=create_payload)
+    assert create_response.status_code == 201
+    body = create_response.json()
+    assert body['id'] == 'anthropic'
+    assert body['name'] == 'Anthropic Claude'
+    assert body['tags'] == ['claude', 'beta']
+    assert body['capabilities'] == ['chat', 'tools']
+    assert body['transport'] == 'stdio'
+    assert body['created_at']
+    assert body['updated_at']
+
+    duplicate = client.post('/api/v1/servers', json=create_payload)
+    assert duplicate.status_code == 409
+
+    read_response = client.get('/api/v1/servers/anthropic')
+    assert read_response.status_code == 200
+    assert read_response.json()['command'] == '~/.local/bin/claude-mcp'
+
+    update_payload = {
+        'name': 'Anthropic Claude 3',
+        'command': '~/.local/bin/claude3-mcp',
+        'description': 'Updated description',
+        'tags': ['claude'],
+        'capabilities': ['chat'],
+        'transport': 'http',
+    }
+    update_response = client.put('/api/v1/servers/anthropic', json=update_payload)
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated['name'] == 'Anthropic Claude 3'
+    assert updated['command'] == '~/.local/bin/claude3-mcp'
+    assert updated['transport'] == 'http'
+    assert updated['tags'] == ['claude']
+    assert updated['capabilities'] == ['chat']
+    assert updated['description'] == 'Updated description'
+    assert updated['updated_at'] != updated['created_at']
+
+    list_after_update = client.get('/api/v1/servers')
+    assert list_after_update.status_code == 200
+    servers = list_after_update.json()['servers']
+    assert len(servers) == 1
+    assert servers[0]['id'] == 'anthropic'
+
+    delete_response = client.delete('/api/v1/servers/anthropic')
+    assert delete_response.status_code == 204
+
+    missing_read = client.get('/api/v1/servers/anthropic')
+    assert missing_read.status_code == 404
+
+    delete_missing = client.delete('/api/v1/servers/anthropic')
+    assert delete_missing.status_code == 404
