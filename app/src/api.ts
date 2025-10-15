@@ -124,6 +124,45 @@ export interface PolicyDeploymentsSummary {
   activeId: string | null;
 }
 
+export interface McpServer {
+  id: string;
+  name: string;
+  command: string;
+  description: string | null;
+  tags: string[];
+  capabilities: string[];
+  transport: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ServerProcessLifecycle = 'running' | 'stopped' | 'error';
+
+export interface ServerProcessLogEntry {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'error';
+  message: string;
+}
+
+export interface ServerProcessStateSnapshot {
+  serverId: string;
+  status: ServerProcessLifecycle;
+  command: string;
+  pid: number | null;
+  startedAt: string | null;
+  stoppedAt: string | null;
+  returnCode: number | null;
+  lastError: string | null;
+  logs: ServerProcessLogEntry[];
+  cursor: string | null;
+}
+
+export interface ServerProcessLogsResult {
+  logs: ServerProcessLogEntry[];
+  cursor: string | null;
+}
+
 interface PolicyTemplatePayload {
   id: PolicyTemplateId;
   name: string;
@@ -431,6 +470,55 @@ interface TelemetryRunsResponsePayload {
   next_cursor?: string | null;
 }
 
+interface McpServerPayload {
+  id: string;
+  name: string;
+  command: string;
+  description: string | null;
+  tags: string[];
+  capabilities: string[];
+  transport: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface McpServersResponsePayload {
+  servers: McpServerPayload[];
+}
+
+interface ServerProcessLogPayload {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'error';
+  message: string;
+}
+
+interface ServerProcessStatePayload {
+  server_id: string;
+  status: ServerProcessLifecycle;
+  command: string;
+  pid?: number | null;
+  started_at?: string | null;
+  stopped_at?: string | null;
+  return_code?: number | null;
+  last_error?: string | null;
+  logs?: ServerProcessLogPayload[];
+  cursor?: string | null;
+}
+
+interface ServerProcessResponsePayload {
+  process: ServerProcessStatePayload;
+}
+
+interface ServerProcessesResponsePayload {
+  processes: ServerProcessStatePayload[];
+}
+
+interface ServerProcessLogsResponsePayload {
+  logs: ServerProcessLogPayload[];
+  cursor?: string | null;
+}
+
 export interface TelemetryMetricsFilters {
   start?: Date | string;
   end?: Date | string;
@@ -457,6 +545,18 @@ export interface TelemetryRunsFilters extends TelemetryMetricsFilters {
 const DEFAULT_API_BASE = '/api/v1';
 const API_BASE = (import.meta.env.VITE_CONSOLE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '');
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: string;
+
+  constructor(message: string, status: number, body: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -472,7 +572,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(body || `Request failed with status ${response.status}`);
+    const message = body || `Request failed with status ${response.status}`;
+    throw new ApiError(message, response.status, body);
   }
 
   if (response.status === 204) {
@@ -486,9 +587,115 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+function mapMcpServer(payload: McpServerPayload): McpServer {
+  return {
+    id: payload.id,
+    name: payload.name,
+    command: payload.command,
+    description: payload.description,
+    tags: payload.tags ?? [],
+    capabilities: payload.capabilities ?? [],
+    transport: payload.transport,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapServerProcessLog(payload: ServerProcessLogPayload): ServerProcessLogEntry {
+  return {
+    id: payload.id,
+    timestamp: payload.timestamp,
+    level: payload.level,
+    message: payload.message,
+  };
+}
+
+function mapServerProcessState(payload: ServerProcessStatePayload): ServerProcessStateSnapshot {
+  return {
+    serverId: payload.server_id,
+    status: payload.status,
+    command: payload.command,
+    pid: payload.pid ?? null,
+    startedAt: payload.started_at ?? null,
+    stoppedAt: payload.stopped_at ?? null,
+    returnCode: payload.return_code ?? null,
+    lastError: payload.last_error ?? null,
+    logs: (payload.logs ?? []).map(mapServerProcessLog),
+    cursor: payload.cursor ?? null,
+  };
+}
+
+export async function fetchServerCatalog(signal?: AbortSignal): Promise<McpServer[]> {
+  const data = await request<McpServersResponsePayload>('/servers', { signal });
+  return data.servers.map(mapMcpServer);
+}
+
+export async function fetchServerProcesses(signal?: AbortSignal): Promise<ServerProcessStateSnapshot[]> {
+  const data = await request<ServerProcessesResponsePayload>('/servers/processes', { signal });
+  return data.processes.map(mapServerProcessState);
+}
+
+async function mutateServerProcess(
+  serverId: string,
+  action: 'start' | 'stop' | 'restart',
+  signal?: AbortSignal,
+): Promise<ServerProcessStateSnapshot> {
+  const payload = await request<ServerProcessResponsePayload>(`/servers/${serverId}/process/${action}`, {
+    method: 'POST',
+    signal,
+  });
+  return mapServerProcessState(payload.process);
+}
+
+export async function startServerProcess(
+  serverId: string,
+  signal?: AbortSignal,
+): Promise<ServerProcessStateSnapshot> {
+  return mutateServerProcess(serverId, 'start', signal);
+}
+
+export async function stopServerProcess(
+  serverId: string,
+  signal?: AbortSignal,
+): Promise<ServerProcessStateSnapshot> {
+  return mutateServerProcess(serverId, 'stop', signal);
+}
+
+export async function restartServerProcess(
+  serverId: string,
+  signal?: AbortSignal,
+): Promise<ServerProcessStateSnapshot> {
+  return mutateServerProcess(serverId, 'restart', signal);
+}
+
+export async function fetchServerProcessLogs(
+  serverId: string,
+  cursor?: string | null,
+  signal?: AbortSignal,
+): Promise<ServerProcessLogsResult> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  const payload = await request<ServerProcessLogsResponsePayload>(
+    `/servers/${serverId}/process/logs${query}`,
+    { signal },
+  );
+  return {
+    logs: payload.logs.map(mapServerProcessLog),
+    cursor: payload.cursor ?? cursor ?? null,
+  };
+}
+
 export async function fetchProviders(signal?: AbortSignal): Promise<ProviderSummary[]> {
-  const data = await request<ProvidersResponse>('/providers', { signal });
-  return data.providers;
+  const servers = await fetchServerCatalog(signal);
+  return servers.map((server) => ({
+    id: server.id,
+    name: server.name,
+    command: server.command,
+    description: server.description ?? undefined,
+    tags: server.tags,
+    capabilities: server.capabilities,
+    transport: server.transport,
+    is_available: true,
+  }));
 }
 
 export async function fetchSessions(signal?: AbortSignal): Promise<Session[]> {

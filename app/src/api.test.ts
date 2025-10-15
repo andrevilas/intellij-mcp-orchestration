@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
 import {
+  ApiError,
   createSession,
   createPolicy,
   updatePolicy,
@@ -16,11 +17,17 @@ import {
   deletePolicyDeployment,
   deleteSecret,
   fetchProviders,
+  fetchServerCatalog,
+  fetchServerProcesses,
+  fetchServerProcessLogs,
   fetchSecrets,
   fetchSessions,
   fetchTelemetryHeatmap,
   fetchTelemetryMetrics,
   readSecret,
+  restartServerProcess,
+  startServerProcess,
+  stopServerProcess,
   testSecret,
   upsertSecret,
 } from './api';
@@ -54,29 +61,150 @@ describe('api client', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('requests the provider list from /api/v1/providers', async () => {
-    const providers = [
+  it('requests the server catalog when fetching providers', async () => {
+    const servers = [
       {
         id: 'gemini',
         name: 'Gemini MCP',
         command: 'gemini',
-        tags: [],
-        capabilities: [],
+        description: 'Provider test',
+        tags: ['search'],
+        capabilities: ['chat'],
         transport: 'stdio',
-        is_available: true,
+        created_at: '2024-05-01T12:00:00Z',
+        updated_at: '2024-05-02T12:00:00Z',
       },
     ];
-    fetchSpy.mockResolvedValueOnce(mockFetchResponse({ providers }));
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse({ servers }));
 
     const result = await fetchProviders();
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/v1/providers',
+      '/api/v1/servers',
       expect.objectContaining({
         headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
       }),
     );
-    expect(result).toEqual(providers);
+    expect(result).toEqual([
+      {
+        id: 'gemini',
+        name: 'Gemini MCP',
+        command: 'gemini',
+        description: 'Provider test',
+        tags: ['search'],
+        capabilities: ['chat'],
+        transport: 'stdio',
+        is_available: true,
+      },
+    ]);
+  });
+
+  it('fetches server processes and mutates lifecycle actions', async () => {
+    const processPayload = {
+      server_id: 'gemini',
+      status: 'running' as const,
+      command: 'gemini',
+      pid: 123,
+      started_at: '2024-05-01T12:00:00Z',
+      stopped_at: null,
+      return_code: null,
+      last_error: null,
+      logs: [
+        { id: '1', timestamp: '2024-05-01T12:00:00Z', level: 'info' as const, message: 'Start requested' },
+      ],
+      cursor: '1',
+    };
+    fetchSpy
+      .mockResolvedValueOnce(mockFetchResponse({ processes: [processPayload] }))
+      .mockResolvedValueOnce(mockFetchResponse({ process: processPayload }))
+      .mockResolvedValueOnce(mockFetchResponse({ process: { ...processPayload, status: 'stopped', pid: null } }))
+      .mockResolvedValueOnce(mockFetchResponse({ process: processPayload }));
+
+    const processes = await fetchServerProcesses();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/servers/processes',
+      expect.any(Object),
+    );
+    expect(processes[0]).toMatchObject({
+      serverId: 'gemini',
+      status: 'running',
+      logs: [expect.objectContaining({ message: 'Start requested' })],
+      cursor: '1',
+    });
+
+    const startResult = await startServerProcess('gemini');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/servers/gemini/process/start',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(startResult.status).toBe('running');
+
+    const stopResult = await stopServerProcess('gemini');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/servers/gemini/process/stop',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(stopResult.status).toBe('stopped');
+
+    await restartServerProcess('gemini');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/servers/gemini/process/restart',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('fetches incremental process logs with cursor fallback', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        mockFetchResponse({
+          logs: [
+            { id: '3', timestamp: '2024-05-01T12:00:02Z', level: 'info', message: 'Process started' },
+          ],
+          cursor: '3',
+        }),
+      )
+      .mockResolvedValueOnce(mockFetchResponse({ logs: [], cursor: null }));
+
+    const first = await fetchServerProcessLogs('gemini', '2');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/servers/gemini/process/logs?cursor=2',
+      expect.any(Object),
+    );
+    expect(first).toEqual({
+      logs: [
+        {
+          id: '3',
+          timestamp: '2024-05-01T12:00:02Z',
+          level: 'info',
+          message: 'Process started',
+        },
+      ],
+      cursor: '3',
+    });
+
+    const second = await fetchServerProcessLogs('gemini', first.cursor);
+    expect(second).toEqual({ logs: [], cursor: first.cursor });
+  });
+
+  it('exposes status information when the API returns an error', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Promise.resolve({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve('conflict'),
+      } as unknown as Response),
+    );
+
+    let captured: ApiError | null = null;
+    await expect(
+      fetchServerCatalog().catch((err) => {
+        captured = err as ApiError;
+        throw err;
+      }),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(captured).not.toBeNull();
+    expect(captured?.status).toBe(409);
+    expect(captured?.body).toBe('conflict');
   });
 
   it('requests sessions from /api/v1/sessions', async () => {

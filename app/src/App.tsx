@@ -658,7 +658,7 @@ function App() {
         )}
         {activeView === 'servers' && (
           <section role="tabpanel" id="panel-servers" aria-labelledby="tab-servers">
-            <Servers providers={providers} sessions={sessions} isLoading={isLoading} initialError={initialError} />
+            <Servers providers={providers} isLoading={isLoading} initialError={initialError} />
           </section>
         )}
         {activeView === 'keys' && (

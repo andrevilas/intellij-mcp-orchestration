@@ -387,6 +387,15 @@ class ServerProcessLifecycle(str, Enum):
     ERROR = "error"
 
 
+class ServerProcessLogEntry(BaseModel):
+    """Structured representation of a supervisor log entry."""
+
+    id: str
+    timestamp: datetime
+    level: Literal["info", "error"]
+    message: str
+
+
 class ServerProcessState(BaseModel):
     """Snapshot returned by the process supervisor."""
 
@@ -398,6 +407,8 @@ class ServerProcessState(BaseModel):
     stopped_at: Optional[datetime] = None
     return_code: Optional[int] = None
     last_error: Optional[str] = None
+    logs: List[ServerProcessLogEntry] = Field(default_factory=list)
+    cursor: Optional[str] = None
 
 
 class ServerProcessResponse(BaseModel):
@@ -406,6 +417,13 @@ class ServerProcessResponse(BaseModel):
 
 class ServerProcessesResponse(BaseModel):
     processes: List[ServerProcessState]
+
+
+class ServerProcessLogsResponse(BaseModel):
+    """Envelope returned when requesting incremental supervisor logs."""
+
+    logs: List[ServerProcessLogEntry]
+    cursor: Optional[str]
 
 
 class RoutingSimulationRequest(BaseModel):

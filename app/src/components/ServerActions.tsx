@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import type { ServerProcessLifecycle } from '../api';
+
 export type ServerAction = 'start' | 'stop' | 'restart';
 
 const ACTION_LABEL: Record<ServerAction, string> = {
@@ -9,7 +11,7 @@ const ACTION_LABEL: Record<ServerAction, string> = {
 };
 
 export interface ServerActionsProps {
-  status: 'up' | 'down';
+  status: ServerProcessLifecycle;
   pendingAction: ServerAction | null;
   onStart(): void;
   onStop(): void;
@@ -40,9 +42,9 @@ export default function ServerActions({
   children,
 }: ServerActionsProps) {
   const pendingLabel = getPendingLabel(pendingAction);
-  const disableStart = status === 'up' || Boolean(pendingAction);
-  const disableStop = status === 'down' || Boolean(pendingAction);
-  const disableRestart = status === 'down' || Boolean(pendingAction);
+  const disableStart = status === 'running' || Boolean(pendingAction);
+  const disableStop = status !== 'running' || Boolean(pendingAction);
+  const disableRestart = Boolean(pendingAction);
 
   return (
     <div className="server-actions" role="group" aria-label="Ações do servidor">
