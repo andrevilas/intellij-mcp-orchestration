@@ -31,6 +31,50 @@ export interface Feedback {
 }
 
 const DEFAULT_CLIENT = 'console-web';
+export const NOTIFICATION_READ_STATE_KEY = 'mcp-notification-read-state';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function loadNotificationReadState(): Record<string, boolean> {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return {};
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
+    if (!rawValue) {
+      return {};
+    }
+
+    const parsed = JSON.parse(rawValue);
+    if (!isRecord(parsed)) {
+      return {};
+    }
+
+    const normalized: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      normalized[key] = value === true;
+    }
+    return normalized;
+  } catch (error) {
+    console.error('Falha ao carregar estado de notificações do armazenamento local', error);
+    return {};
+  }
+}
+
+function persistNotificationReadState(map: Record<string, boolean>): void {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(NOTIFICATION_READ_STATE_KEY, JSON.stringify(map));
+  } catch (error) {
+    console.error('Falha ao persistir estado de notificações no armazenamento local', error);
+  }
+}
 
 type NotificationSeed = Omit<NotificationItem, 'isRead'>;
 
@@ -265,6 +309,9 @@ function App() {
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ViewId>('dashboard');
   const [isPaletteOpen, setPaletteOpen] = useState(false);
+  const [, setNotificationReadState] = useState<Record<string, boolean>>(() =>
+    loadNotificationReadState(),
+  );
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isNotificationOpen, setNotificationOpen] = useState(false);
   const mainRef = useRef<HTMLElement | null>(null);
@@ -312,14 +359,30 @@ function App() {
 
   useEffect(() => {
     const seeds = buildNotificationSeeds(providers, sessions);
-    setNotifications((current) => {
-      const previous = new Map(current.map((item) => [item.id, item]));
-      return seeds
-        .map((seed) => {
-          const existing = previous.get(seed.id);
-          return { ...seed, isRead: existing?.isRead ?? false };
-        })
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    setNotificationReadState((current) => {
+      const next = { ...current };
+      let hasNewEntries = false;
+
+      for (const seed of seeds) {
+        if (!(seed.id in next)) {
+          next[seed.id] = false;
+          hasNewEntries = true;
+        }
+      }
+
+      setNotifications(
+        seeds
+          .map((seed) => ({ ...seed, isRead: next[seed.id] ?? false }))
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+      );
+
+      if (hasNewEntries) {
+        persistNotificationReadState(next);
+        return next;
+      }
+
+      return current;
     });
   }, [providers, sessions]);
 
@@ -489,19 +552,51 @@ function App() {
   );
 
   const handleToggleNotification = useCallback((id: string, nextValue: boolean) => {
-    setNotifications((current) =>
-      current.map((notification) =>
+    setNotifications((current) => {
+      const nextNotifications = current.map((notification) =>
         notification.id === id ? { ...notification, isRead: nextValue } : notification,
-      ),
-    );
+      );
+
+      setNotificationReadState((currentState) => {
+        if (currentState[id] === nextValue) {
+          return currentState;
+        }
+        const nextState = { ...currentState, [id]: nextValue };
+        persistNotificationReadState(nextState);
+        return nextState;
+      });
+
+      return nextNotifications;
+    });
   }, []);
 
   const handleMarkAllRead = useCallback(() => {
-    setNotifications((current) =>
-      current.map((notification) =>
+    setNotifications((current) => {
+      const nextNotifications = current.map((notification) =>
         notification.isRead ? notification : { ...notification, isRead: true },
-      ),
-    );
+      );
+
+      setNotificationReadState((currentState) => {
+        const nextState = { ...currentState };
+        let changed = false;
+
+        for (const notification of nextNotifications) {
+          if (nextState[notification.id] !== true) {
+            nextState[notification.id] = true;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          persistNotificationReadState(nextState);
+          return nextState;
+        }
+
+        return currentState;
+      });
+
+      return nextNotifications;
+    });
   }, []);
 
   useEffect(() => {
