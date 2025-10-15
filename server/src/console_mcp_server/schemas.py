@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import List, Literal, Optional
 
@@ -445,3 +445,17 @@ class TelemetryMetricsResponse(BaseModel):
     avg_latency_ms: float
     success_rate: float
     providers: List[TelemetryProviderMetrics]
+
+
+class TelemetryHeatmapBucket(BaseModel):
+    """Execution counts grouped by provider and day."""
+
+    day: date
+    provider_id: str
+    run_count: int
+
+
+class TelemetryHeatmapResponse(BaseModel):
+    """Envelope returned when requesting telemetry heatmap aggregates."""
+
+    buckets: List[TelemetryHeatmapBucket]

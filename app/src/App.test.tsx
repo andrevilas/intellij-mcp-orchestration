@@ -24,6 +24,8 @@ describe('App provider orchestration flow', () => {
   const originalFetch = globalThis.fetch;
   const originalConsoleError = console.error;
   let fetchMock: Mock;
+  let applyDefaultFetchMock: () => void;
+  let defaultFetchImplementation: ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) | null;
 
   beforeAll(() => {
     (globalThis as unknown as { ResizeObserver: typeof ResizeObserverMock }).ResizeObserver = ResizeObserverMock;
@@ -87,11 +89,76 @@ describe('App provider orchestration flow', () => {
       originalConsoleError(message, ...optionalParams);
     });
 
-    fetchMock
-      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
-      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
-      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
-      .mockResolvedValueOnce(createFetchResponse({ notifications }));
+    const metricsPayload = {
+      start: '2024-03-07T12:00:00.000Z',
+      end: '2024-03-08T12:00:00.000Z',
+      total_runs: 3,
+      total_tokens_in: 900,
+      total_tokens_out: 450,
+      total_cost_usd: 12.34,
+      avg_latency_ms: 850,
+      success_rate: 0.66,
+      providers: [
+        {
+          provider_id: provider.id,
+          run_count: 2,
+          tokens_in: 600,
+          tokens_out: 300,
+          cost_usd: 8.5,
+          avg_latency_ms: 800,
+          success_rate: 0.75,
+        },
+      ],
+    };
+
+    const heatmapPayload = {
+      buckets: [
+        { day: '2024-03-06', provider_id: provider.id, run_count: 1 },
+        { day: '2024-03-07', provider_id: provider.id, run_count: 1 },
+      ],
+    };
+
+    applyDefaultFetchMock = () => {
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url === '/api/v1/providers' && method === 'GET') {
+        return createFetchResponse({ providers: [provider] });
+      }
+      if (url === '/api/v1/sessions' && method === 'GET') {
+        return createFetchResponse({ sessions: [existingSession] });
+      }
+      if (url === '/api/v1/secrets' && method === 'GET') {
+        return createFetchResponse({ secrets: [secretMetadata] });
+      }
+      if (url === '/api/v1/notifications' && method === 'GET') {
+        return createFetchResponse({ notifications });
+      }
+      if (url === `/api/v1/providers/${provider.id}/sessions` && method === 'POST') {
+        return createFetchResponse({ session: newSession, provider });
+      }
+      if (url.startsWith('/api/v1/telemetry/metrics')) {
+        return createFetchResponse(metricsPayload);
+      }
+      if (url.startsWith('/api/v1/telemetry/heatmap')) {
+        return createFetchResponse(heatmapPayload);
+      }
+
+      if (method === 'DELETE') {
+        return Promise.resolve({
+          ok: true,
+          status: 204,
+          json: () => Promise.resolve(undefined),
+        } as Response);
+        }
+
+        return createFetchResponse({});
+      });
+      defaultFetchImplementation = fetchMock.getMockImplementation();
+    };
+
+    applyDefaultFetchMock();
   });
 
   afterEach(() => {
@@ -101,9 +168,13 @@ describe('App provider orchestration flow', () => {
     window.localStorage.clear();
   });
 
+  function resetFetchMock(): void {
+    fetchMock.mockReset();
+    applyDefaultFetchMock();
+  }
+
   it('lists providers and provisions a session on demand', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValueOnce(createFetchResponse({ session: newSession, provider }));
     await act(async () => {
       render(<App />);
       await Promise.resolve();
@@ -134,6 +205,18 @@ describe('App provider orchestration flow', () => {
       '/api/v1/notifications',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+    const metricsCall = fetchMock.mock.calls[4];
+    expect(metricsCall?.[1]).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    const metricsUrl = new URL(metricsCall?.[0] as string, 'http://localhost');
+    expect(metricsUrl.pathname).toBe('/api/v1/telemetry/metrics');
+    expect(metricsUrl.searchParams.has('start')).toBe(true);
+
+    const heatmapCall = fetchMock.mock.calls[5];
+    expect(heatmapCall?.[1]).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    const heatmapUrl = new URL(heatmapCall?.[0] as string, 'http://localhost');
+    expect(heatmapUrl.pathname).toBe('/api/v1/telemetry/heatmap');
+    expect(heatmapUrl.searchParams.has('start')).toBe(true);
+    expect(heatmapUrl.searchParams.has('end')).toBe(true);
 
     expect(await screen.findByText(provider.description)).toBeInTheDocument();
     expect(await screen.findByText(existingSession.id)).toBeInTheDocument();
@@ -143,7 +226,7 @@ describe('App provider orchestration flow', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenNthCalledWith(
-        5,
+        7,
         `/api/v1/providers/${provider.id}/sessions`,
         expect.objectContaining({
           method: 'POST',
@@ -158,7 +241,7 @@ describe('App provider orchestration flow', () => {
     expect(await screen.findByText(`Sessão ${newSession.id} criada para ${provider.name}.`)).toBeInTheDocument();
     expect(screen.getByText(newSession.id)).toBeInTheDocument();
 
-    const requestBody = JSON.parse(fetchMock.mock.calls[4][1]?.body as string);
+    const requestBody = JSON.parse(fetchMock.mock.calls[6][1]?.body as string);
     expect(requestBody).toEqual({
       reason: 'Provisionamento disparado pela Console MCP',
       client: 'console-web',
@@ -553,7 +636,7 @@ describe('App provider orchestration flow', () => {
 
   it('apresenta fallback quando a API de notificações falha', async () => {
     const user = userEvent.setup();
-    fetchMock.mockReset();
+    resetFetchMock();
     fetchMock
       .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
@@ -579,7 +662,7 @@ describe('App provider orchestration flow', () => {
 
   it('usa fallback quando a API retorna lista vazia', async () => {
     const user = userEvent.setup();
-    fetchMock.mockReset();
+    resetFetchMock();
     fetchMock
       .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
@@ -604,7 +687,7 @@ describe('App provider orchestration flow', () => {
   it('persists notification read state across reloads', async () => {
     const user = userEvent.setup();
 
-    fetchMock.mockReset();
+    resetFetchMock();
     fetchMock
       .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))

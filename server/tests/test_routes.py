@@ -381,6 +381,114 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
     assert filtered_payload['providers'][0]['provider_id'] == 'gemini'
 
 
+def test_telemetry_heatmap_endpoint_returns_daily_buckets(client: TestClient) -> None:
+    from console_mcp_server import database as database_module
+
+    engine = database_module.bootstrap_database()
+    base_ts = datetime(2025, 4, 2, 9, 0, tzinfo=timezone.utc)
+
+    events = [
+        {
+            'provider_id': 'glm46',
+            'tool': 'glm46.chat',
+            'route': 'default',
+            'tokens_in': 150,
+            'tokens_out': 70,
+            'duration_ms': 950,
+            'status': 'success',
+            'cost_estimated_usd': 0.5,
+            'metadata': '{}',
+            'ts': base_ts.isoformat(),
+            'source_file': 'glm46/2025-04-02.jsonl',
+            'ingested_at': base_ts.isoformat(),
+        },
+        {
+            'provider_id': 'glm46',
+            'tool': 'glm46.chat',
+            'route': 'default',
+            'tokens_in': 110,
+            'tokens_out': 60,
+            'duration_ms': 880,
+            'status': 'error',
+            'cost_estimated_usd': 0.3,
+            'metadata': '{}',
+            'ts': (base_ts + timedelta(hours=2)).isoformat(),
+            'source_file': 'glm46/2025-04-02.jsonl',
+            'ingested_at': (base_ts + timedelta(minutes=10)).isoformat(),
+        },
+        {
+            'provider_id': 'gemini',
+            'tool': 'gemini.chat',
+            'route': 'balanced',
+            'tokens_in': 90,
+            'tokens_out': 40,
+            'duration_ms': 720,
+            'status': 'success',
+            'cost_estimated_usd': 0.22,
+            'metadata': '{}',
+            'ts': (base_ts + timedelta(days=1)).isoformat(),
+            'source_file': 'gemini/2025-04-03.jsonl',
+            'ingested_at': (base_ts + timedelta(days=1, minutes=5)).isoformat(),
+        },
+    ]
+
+    with engine.begin() as connection:
+        for index, event in enumerate(events, start=1):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO telemetry_events (
+                        provider_id,
+                        tool,
+                        route,
+                        tokens_in,
+                        tokens_out,
+                        duration_ms,
+                        status,
+                        cost_estimated_usd,
+                        metadata,
+                        ts,
+                        source_file,
+                        line_number,
+                        ingested_at
+                    ) VALUES (
+                        :provider_id,
+                        :tool,
+                        :route,
+                        :tokens_in,
+                        :tokens_out,
+                        :duration_ms,
+                        :status,
+                        :cost_estimated_usd,
+                        :metadata,
+                        :ts,
+                        :source_file,
+                        :line_number,
+                        :ingested_at
+                    )
+                    """
+                ),
+                {**event, 'line_number': index},
+            )
+
+    response = client.get('/api/v1/telemetry/heatmap')
+    assert response.status_code == 200
+
+    payload = response.json()
+    buckets = {(entry['day'], entry['provider_id']): entry['run_count'] for entry in payload['buckets']}
+    assert buckets[(base_ts.date().isoformat(), 'glm46')] == 2
+    assert buckets[((base_ts + timedelta(days=1)).date().isoformat(), 'gemini')] == 1
+
+    filtered = client.get(
+        '/api/v1/telemetry/heatmap',
+        params={'provider_id': 'gemini', 'start': (base_ts + timedelta(days=1)).isoformat()},
+    )
+    assert filtered.status_code == 200
+
+    filtered_payload = filtered.json()
+    assert all(entry['provider_id'] == 'gemini' for entry in filtered_payload['buckets'])
+
+
 def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> None:
     from console_mcp_server import database as database_module
 

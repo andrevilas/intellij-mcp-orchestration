@@ -8,6 +8,8 @@ import type {
   SecretMetadata,
   SecretValue,
   Session,
+  TelemetryHeatmapBucket,
+  TelemetryMetrics,
 } from './api';
 import {
   createSession,
@@ -16,6 +18,8 @@ import {
   fetchProviders,
   fetchSecrets,
   fetchSessions,
+  fetchTelemetryHeatmap,
+  fetchTelemetryMetrics,
   readSecret,
   upsertSecret,
 } from './api';
@@ -139,6 +143,8 @@ function App() {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [secrets, setSecrets] = useState<SecretMetadata[]>([]);
+  const [telemetryMetrics, setTelemetryMetrics] = useState<TelemetryMetrics | null>(null);
+  const [telemetryHeatmap, setTelemetryHeatmap] = useState<TelemetryHeatmapBucket[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -191,13 +197,25 @@ function App() {
     async function bootstrap() {
       try {
         setIsLoading(true);
-        const [providerResult, sessionResult, secretResult, notificationResult] =
-          await Promise.allSettled([
-            fetchProviders(controller.signal),
-            fetchSessions(controller.signal),
-            fetchSecrets(controller.signal),
-            fetchNotifications(controller.signal),
-          ]);
+        const now = new Date();
+        const metricsStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const heatmapStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+        const [
+          providerResult,
+          sessionResult,
+          secretResult,
+          notificationResult,
+          metricsResult,
+          heatmapResult,
+        ] = await Promise.allSettled([
+          fetchProviders(controller.signal),
+          fetchSessions(controller.signal),
+          fetchSecrets(controller.signal),
+          fetchNotifications(controller.signal),
+          fetchTelemetryMetrics({ start: metricsStart }, controller.signal),
+          fetchTelemetryHeatmap({ start: heatmapStart, end: now }, controller.signal),
+        ]);
 
         if (
           providerResult.status !== 'fulfilled' ||
@@ -215,14 +233,32 @@ function App() {
           return;
         }
 
-        setProviders(providerResult.value);
+        setProviders(providerResult.value ?? []);
         setSessions(
-          sessionResult.value
+          (sessionResult.value ?? [])
             .slice()
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
         );
-        setSecrets(secretResult.value);
+        setSecrets(secretResult.value ?? []);
         setInitialError(null);
+
+        if (metricsResult.status === 'fulfilled') {
+          setTelemetryMetrics(metricsResult.value);
+        } else {
+          setTelemetryMetrics(null);
+          if (metricsResult.status === 'rejected' && !controller.signal.aborted) {
+            console.error('Falha ao carregar métricas de telemetria', metricsResult.reason);
+          }
+        }
+
+        if (heatmapResult.status === 'fulfilled') {
+          setTelemetryHeatmap(heatmapResult.value);
+        } else {
+          setTelemetryHeatmap([]);
+          if (heatmapResult.status === 'rejected' && !controller.signal.aborted) {
+            console.error('Falha ao carregar heatmap de telemetria', heatmapResult.reason);
+          }
+        }
 
         let notificationsPayload: NotificationSummary[] = [];
         if (notificationResult.status === 'fulfilled') {
@@ -601,6 +637,8 @@ function App() {
             <Dashboard
               providers={providers}
               sessions={sessions}
+              metrics={telemetryMetrics}
+              heatmapBuckets={telemetryHeatmap}
               isLoading={isLoading}
               initialError={initialError}
               feedback={feedback}

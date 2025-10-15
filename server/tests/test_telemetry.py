@@ -356,6 +356,109 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
         )
 
 
+def test_aggregate_heatmap_groups_by_day_and_provider(database, telemetry_module) -> None:
+    engine = database.bootstrap_database()
+    base_ts = datetime(2025, 3, 20, 10, 0, tzinfo=timezone.utc)
+
+    events = [
+        {
+            "provider_id": "glm46",
+            "tool": "glm46.chat",
+            "route": "default",
+            "tokens_in": 120,
+            "tokens_out": 80,
+            "duration_ms": 800,
+            "status": "success",
+            "cost_estimated_usd": 0.35,
+            "metadata": "{}",
+            "ts": base_ts.isoformat(),
+            "source_file": "glm46/2025-03-20.jsonl",
+            "ingested_at": base_ts.isoformat(),
+        },
+        {
+            "provider_id": "glm46",
+            "tool": "glm46.chat",
+            "route": "default",
+            "tokens_in": 90,
+            "tokens_out": 40,
+            "duration_ms": 700,
+            "status": "error",
+            "cost_estimated_usd": 0.2,
+            "metadata": "{}",
+            "ts": (base_ts + timedelta(hours=1)).isoformat(),
+            "source_file": "glm46/2025-03-20.jsonl",
+            "ingested_at": (base_ts + timedelta(minutes=5)).isoformat(),
+        },
+        {
+            "provider_id": "gemini",
+            "tool": "gemini.chat",
+            "route": "balanced",
+            "tokens_in": 140,
+            "tokens_out": 70,
+            "duration_ms": 1200,
+            "status": "success",
+            "cost_estimated_usd": 0.55,
+            "metadata": "{}",
+            "ts": (base_ts + timedelta(days=1)).isoformat(),
+            "source_file": "gemini/2025-03-21.jsonl",
+            "ingested_at": (base_ts + timedelta(days=1, minutes=3)).isoformat(),
+        },
+    ]
+
+    with engine.begin() as connection:
+        for index, event in enumerate(events, start=1):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO telemetry_events (
+                        provider_id,
+                        tool,
+                        route,
+                        tokens_in,
+                        tokens_out,
+                        duration_ms,
+                        status,
+                        cost_estimated_usd,
+                        metadata,
+                        ts,
+                        source_file,
+                        line_number,
+                        ingested_at
+                    ) VALUES (
+                        :provider_id,
+                        :tool,
+                        :route,
+                        :tokens_in,
+                        :tokens_out,
+                        :duration_ms,
+                        :status,
+                        :cost_estimated_usd,
+                        :metadata,
+                        :ts,
+                        :source_file,
+                        :line_number,
+                        :ingested_at
+                    )
+                    """
+                ),
+                {**event, "line_number": index},
+            )
+
+    buckets = telemetry_module.aggregate_heatmap()
+    bucket_map = {(bucket.day.isoformat(), bucket.provider_id): bucket.run_count for bucket in buckets}
+    assert bucket_map[(base_ts.date().isoformat(), "glm46")] == 2
+    assert bucket_map[((base_ts + timedelta(days=1)).date().isoformat(), "gemini")] == 1
+
+    filtered = telemetry_module.aggregate_heatmap(provider_id="gemini")
+    assert all(bucket.provider_id == "gemini" for bucket in filtered)
+
+    with pytest.raises(ValueError):
+        telemetry_module.aggregate_heatmap(
+            start=base_ts + timedelta(days=2),
+            end=base_ts,
+        )
+
+
 def test_render_export_generates_csv_and_html(database, telemetry_module) -> None:
     engine = database.bootstrap_database()
     base_ts = datetime(2025, 2, 1, 9, 0, tzinfo=timezone.utc)

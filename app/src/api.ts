@@ -97,6 +97,49 @@ interface NotificationsResponsePayload {
   notifications: NotificationSummary[];
 }
 
+export interface TelemetryProviderMetrics {
+  provider_id: string;
+  run_count: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+  success_rate: number;
+}
+
+export interface TelemetryMetrics {
+  start?: string | null;
+  end?: string | null;
+  total_runs: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
+  total_cost_usd: number;
+  avg_latency_ms: number;
+  success_rate: number;
+  providers: TelemetryProviderMetrics[];
+}
+
+export interface TelemetryHeatmapBucket {
+  day: string;
+  provider_id: string;
+  run_count: number;
+}
+
+interface TelemetryHeatmapResponsePayload {
+  buckets: TelemetryHeatmapBucket[];
+}
+
+interface TelemetryMetricsResponsePayload extends TelemetryMetrics {}
+
+export interface TelemetryMetricsFilters {
+  start?: Date | string;
+  end?: Date | string;
+  providerId?: string;
+  route?: string;
+}
+
+export interface TelemetryHeatmapFilters extends TelemetryMetricsFilters {}
+
 const DEFAULT_API_BASE = '/api/v1';
 const API_BASE = (import.meta.env.VITE_CONSOLE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '');
 
@@ -108,6 +151,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
     ...init,
   });
+
+  if (!response) {
+    throw new Error('Empty response from fetch');
+  }
 
   if (!response.ok) {
     const body = await response.text();
@@ -189,6 +236,54 @@ export async function createSession(
     body: JSON.stringify(payload),
     signal,
   });
+}
+
+function normalizeIso(value?: Date | string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return value;
+}
+
+function buildQuery(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      search.set(key, value);
+    }
+  }
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
+export async function fetchTelemetryMetrics(
+  filters?: TelemetryMetricsFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryMetrics> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    route: filters?.route,
+  });
+  return request<TelemetryMetricsResponsePayload>(`/telemetry/metrics${query}`, { signal });
+}
+
+export async function fetchTelemetryHeatmap(
+  filters?: TelemetryHeatmapFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryHeatmapBucket[]> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    route: filters?.route,
+  });
+  const data = await request<TelemetryHeatmapResponsePayload>(`/telemetry/heatmap${query}`, { signal });
+  return data.buckets;
 }
 
 export const apiBase = API_BASE;

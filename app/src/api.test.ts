@@ -7,6 +7,8 @@ import {
   fetchProviders,
   fetchSecrets,
   fetchSessions,
+  fetchTelemetryHeatmap,
+  fetchTelemetryMetrics,
   readSecret,
   upsertSecret,
 } from './api';
@@ -188,5 +190,54 @@ describe('api client', () => {
         method: 'DELETE',
       }),
     );
+  });
+
+  it('requests telemetry metrics with optional filters', async () => {
+    const payload = {
+      start: '2024-03-01T00:00:00.000Z',
+      end: '2024-03-02T00:00:00.000Z',
+      total_runs: 3,
+      total_tokens_in: 900,
+      total_tokens_out: 450,
+      total_cost_usd: 4.2,
+      avg_latency_ms: 850,
+      success_rate: 0.75,
+      providers: [],
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const start = new Date('2024-03-01T00:00:00Z');
+    const result = await fetchTelemetryMetrics({ start, providerId: 'gemini' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `/api/v1/telemetry/metrics?start=${encodeURIComponent(start.toISOString())}&provider_id=gemini`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
+  it('requests telemetry heatmap aggregates', async () => {
+    const payload = {
+      buckets: [
+        { day: '2024-03-01', provider_id: 'glm', run_count: 2 },
+        { day: '2024-03-02', provider_id: 'gemini', run_count: 1 },
+      ],
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const end = '2024-03-02T00:00:00Z';
+    const result = await fetchTelemetryHeatmap({ end });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `/api/v1/telemetry/heatmap?end=${encodeURIComponent(end)}`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual(payload.buckets);
   });
 });

@@ -70,6 +70,8 @@ from .schemas import (
     RoutingRouteProfile,
     RoutingSimulationRequest,
     RoutingSimulationResponse,
+    TelemetryHeatmapBucket,
+    TelemetryHeatmapResponse,
     TelemetryMetricsResponse,
     TelemetryProviderMetrics,
     SecretMetadataResponse,
@@ -94,7 +96,7 @@ from .servers import (
     list_servers,
     update_server,
 )
-from .telemetry import aggregate_metrics, render_telemetry_export
+from .telemetry import aggregate_heatmap, aggregate_metrics, render_telemetry_export
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessNotRunningError,
@@ -165,6 +167,51 @@ def read_telemetry_metrics(
             TelemetryProviderMetrics(**provider.to_dict())
             for provider in aggregates.providers
         ],
+    )
+
+
+@router.get("/telemetry/heatmap", response_model=TelemetryHeatmapResponse)
+def read_telemetry_heatmap(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Optional route identifier to filter telemetry events",
+    ),
+) -> TelemetryHeatmapResponse:
+    """Return execution counts grouped by provider and day."""
+
+    try:
+        buckets = aggregate_heatmap(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    return TelemetryHeatmapResponse(
+        buckets=[
+            TelemetryHeatmapBucket(
+                day=bucket.day,
+                provider_id=bucket.provider_id,
+                run_count=bucket.run_count,
+            )
+            for bucket in buckets
+        ]
     )
 
 
