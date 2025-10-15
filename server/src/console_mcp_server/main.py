@@ -10,6 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .database import bootstrap_database, database_path
 from .routes import router as api_router
 
 logger = logging.getLogger("console_mcp_server")
@@ -41,7 +42,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event() -> None:
-    logger.info("Console MCP Server prototype starting up")
+    bootstrap_database()
+    logger.info("Console MCP Server prototype starting up (db=%s)", database_path())
 
 
 @app.on_event("shutdown")
