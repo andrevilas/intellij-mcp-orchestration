@@ -221,6 +221,16 @@ export interface SecretValue {
   updated_at: string;
 }
 
+export type SecretTestStatus = 'healthy' | 'degraded' | 'error';
+
+export interface SecretTestResult {
+  provider_id: string;
+  status: SecretTestStatus;
+  latency_ms: number;
+  tested_at: string;
+  message: string;
+}
+
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'critical';
 export type NotificationCategory = 'operations' | 'finops' | 'policies' | 'platform';
 
@@ -527,6 +537,16 @@ export async function upsertSecret(
 
 export async function deleteSecret(providerId: string, signal?: AbortSignal): Promise<void> {
   await request<void>(`/secrets/${providerId}`, { method: 'DELETE', signal });
+}
+
+export async function testSecret(
+  providerId: string,
+  signal?: AbortSignal,
+): Promise<SecretTestResult> {
+  return request<SecretTestResult>(`/secrets/${providerId}/test`, {
+    method: 'POST',
+    signal,
+  });
 }
 
 export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<PolicyTemplate[]> {

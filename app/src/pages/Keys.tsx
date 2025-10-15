@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ProviderSummary, SecretMetadata, SecretValue } from '../api';
-import { seededMod } from '../utils/hash';
+import type { ProviderSummary, SecretMetadata, SecretTestResult, SecretValue } from '../api';
 
 export interface KeysProps {
   providers: ProviderSummary[];
@@ -11,6 +10,7 @@ export interface KeysProps {
   onSecretSave: (providerId: string, value: string) => Promise<SecretValue>;
   onSecretDelete: (providerId: string) => Promise<void>;
   onSecretReveal: (providerId: string) => Promise<SecretValue>;
+  onSecretTest: (providerId: string) => Promise<SecretTestResult>;
 }
 
 type KeyStatus = 'untested' | 'healthy' | 'degraded' | 'error';
@@ -24,12 +24,6 @@ interface KeyState {
   latency: number | null;
   attempts: number;
   message: string | null;
-}
-
-interface ConnectivityOutcome {
-  status: ConnectivityStatus;
-  latency: number;
-  message: string;
 }
 
 interface ProviderFormState {
@@ -71,33 +65,6 @@ function createFormState(): ProviderFormState {
   };
 }
 
-function evaluateConnectivity(provider: ProviderSummary, attempt: number): ConnectivityOutcome {
-  const score = seededMod(`${provider.id}-${attempt}-score`, 100);
-  const latency = 120 + seededMod(`${provider.id}-${attempt}-latency`, 520);
-
-  if (score < 65) {
-    return {
-      status: 'healthy',
-      latency,
-      message: `${provider.name} respondeu ao handshake em ${latency} ms.`,
-    };
-  }
-
-  if (score < 88) {
-    return {
-      status: 'degraded',
-      latency,
-      message: `${provider.name} respondeu com latência elevada (${latency} ms). Avalie limites de uso.`,
-    };
-  }
-
-  return {
-    status: 'error',
-    latency,
-    message: `Falha ao validar credencial em ${provider.name}. Revise permissões ou limites do provedor.`,
-  };
-}
-
 function formatDate(value: string | null | undefined): string {
   if (!value) {
     return '—';
@@ -120,6 +87,7 @@ export default function Keys({
   onSecretSave,
   onSecretDelete,
   onSecretReveal,
+  onSecretTest,
 }: KeysProps) {
   const metadataByProvider = useMemo(() => {
     const map = new Map<string, SecretMetadata>();
@@ -129,7 +97,6 @@ export default function Keys({
 
   const [keyStates, setKeyStates] = useState<Record<string, KeyState>>({});
   const keyStatesRef = useRef<Record<string, KeyState>>({});
-  const pendingTimeouts = useRef<Map<string, number>>(new Map());
   const [formStates, setFormStates] = useState<Record<string, ProviderFormState>>({});
   const formStatesRef = useRef<Record<string, ProviderFormState>>({});
 
@@ -140,13 +107,6 @@ export default function Keys({
   useEffect(() => {
     formStatesRef.current = formStates;
   }, [formStates]);
-
-  useEffect(() => {
-    return () => {
-      pendingTimeouts.current.forEach((timeout) => window.clearTimeout(timeout));
-      pendingTimeouts.current.clear();
-    };
-  }, []);
 
   useEffect(() => {
     setKeyStates((current) => {
@@ -413,17 +373,9 @@ export default function Keys({
     }
   }
 
-  function handleTest(provider: ProviderSummary) {
+  async function handleTest(provider: ProviderSummary) {
     const previous = keyStatesRef.current[provider.id] ?? createDefaultState();
     const nextAttempt = previous.attempts + 1;
-    const outcome = evaluateConnectivity(provider, nextAttempt);
-    const delay = 600 + seededMod(`${provider.id}-${nextAttempt}-delay`, 220);
-
-    const existingTimeout = pendingTimeouts.current.get(provider.id);
-    if (existingTimeout) {
-      window.clearTimeout(existingTimeout);
-      pendingTimeouts.current.delete(provider.id);
-    }
 
     setKeyStates((current) => ({
       ...current,
@@ -435,26 +387,42 @@ export default function Keys({
       },
     }));
 
-    const timeout = window.setTimeout(() => {
+    try {
+      const result = await onSecretTest(provider.id);
       setKeyStates((current) => {
         const existing = current[provider.id] ?? createDefaultState();
         return {
           ...current,
           [provider.id]: {
             ...existing,
-            status: outcome.status,
+            status: result.status,
             isTesting: false,
-            lastTested: new Date().toISOString(),
-            latency: outcome.latency,
+            lastTested: result.tested_at,
+            latency: result.latency_ms,
             attempts: nextAttempt,
-            message: outcome.message,
+            message: result.message,
           },
         };
       });
-      pendingTimeouts.current.delete(provider.id);
-    }, delay);
-
-    pendingTimeouts.current.set(provider.id, timeout);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Falha ao validar credencial.';
+      setKeyStates((current) => {
+        const existing = current[provider.id] ?? createDefaultState();
+        return {
+          ...current,
+          [provider.id]: {
+            ...existing,
+            status: 'error',
+            isTesting: false,
+            lastTested: new Date().toISOString(),
+            latency: null,
+            attempts: nextAttempt,
+            message,
+          },
+        };
+      });
+    }
   }
 
   const hasProviders = providers.length > 0;

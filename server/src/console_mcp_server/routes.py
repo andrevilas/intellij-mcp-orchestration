@@ -93,6 +93,7 @@ from .schemas import (
     SecretMetadataResponse,
     SecretValueResponse,
     SecretWriteRequest,
+    SecretTestResponse,
     SecretsResponse,
     ServerProcessLifecycle,
     ServerProcessResponse,
@@ -103,6 +104,12 @@ from .schemas import (
     SessionsResponse,
 )
 from .secrets import secret_store
+from .secret_validation import (
+    ProviderNotRegisteredError,
+    SecretNotConfiguredError,
+    SecretValidationError,
+    test_secret as validate_secret,
+)
 from .servers import (
     MCPServerAlreadyExistsError,
     MCPServerNotFoundError,
@@ -790,6 +797,31 @@ def read_secret(provider_id: str) -> SecretValueResponse:
             detail=f"Secret for provider '{provider_id}' not found",
         ) from exc
     return SecretValueResponse(**record.model_dump())
+
+
+@router.post("/secrets/{provider_id}/test", response_model=SecretTestResponse)
+def test_secret(provider_id: str) -> SecretTestResponse:
+    """Execute a connectivity test for the stored provider secret."""
+
+    try:
+        result = validate_secret(provider_id)
+    except ProviderNotRegisteredError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SecretNotConfiguredError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SecretValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    return SecretTestResponse(
+        provider_id=result.provider_id,
+        status=result.status,
+        latency_ms=result.latency_ms,
+        tested_at=result.tested_at,
+        message=result.message,
+    )
 
 
 @router.put("/secrets/{provider_id}", response_model=SecretValueResponse)

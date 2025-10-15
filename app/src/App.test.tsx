@@ -313,6 +313,15 @@ describe('App provider orchestration flow', () => {
       if (url === '/api/v1/secrets' && method === 'GET') {
         return createFetchResponse({ secrets: [secretMetadata] });
       }
+      if (url === `/api/v1/secrets/${provider.id}/test` && method === 'POST') {
+        return createFetchResponse({
+          provider_id: provider.id,
+          status: 'healthy',
+          latency_ms: 268,
+          tested_at: '2024-06-01T12:00:00.000Z',
+          message: `${provider.name} respondeu ao handshake em 268 ms.`,
+        });
+      }
       if (url === '/api/v1/notifications' && method === 'GET') {
         return createFetchResponse({ notifications });
       }
@@ -619,14 +628,21 @@ describe('App provider orchestration flow', () => {
     const testButton = scoped.getByRole('button', { name: 'Testar conectividade' });
     await user.click(testButton);
 
-    expect(testButton).toBeDisabled();
-
     await waitFor(
       () => {
-        expect(scoped.getByText(new RegExp(provider.name))).toBeInTheDocument();
+        expect(
+          scoped.getByText(`${provider.name} respondeu ao handshake em 268 ms.`),
+        ).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/secrets/${provider.id}/test`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
 
     await waitFor(
       () => {

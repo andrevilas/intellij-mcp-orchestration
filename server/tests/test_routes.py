@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from console_mcp_server import notifications as notifications_module
 from console_mcp_server import routes as routes_module
+from console_mcp_server import secret_validation as secret_validation_module
 from console_mcp_server import telemetry as telemetry_module
 
 def resolve_repo_root(start: Path) -> Path:
@@ -48,6 +49,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     import console_mcp_server.config as config_module
     import console_mcp_server.registry as registry_module
     import console_mcp_server.secrets as secrets_module
+    import console_mcp_server.secret_validation as secret_validation_module
     import console_mcp_server.database as database_module
     import console_mcp_server.routes as routes_module
     import console_mcp_server.supervisor as supervisor_module
@@ -56,6 +58,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     config = importlib.reload(config_module)
     registry = importlib.reload(registry_module)
     secrets = importlib.reload(secrets_module)
+    secret_validation = importlib.reload(secret_validation_module)
     database = importlib.reload(database_module)
     supervisor = importlib.reload(supervisor_module)
     importlib.reload(routes_module)
@@ -64,6 +67,8 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     registry.provider_registry = registry.ProviderRegistry(settings=config.get_settings())
     registry.session_registry = registry.SessionRegistry()
     secrets.secret_store = secrets.SecretStore(path=secrets_path)
+    secret_validation.secret_store = secrets.secret_store
+    secret_validation.provider_registry = registry.provider_registry
     database.reset_state()
     supervisor.process_supervisor.prune(only_finished=False)
 
@@ -207,6 +212,36 @@ def test_secret_crud_flow(client: TestClient, tmp_path: Path) -> None:
 
     disk_after_delete = json.loads((tmp_path / 'secrets.json').read_text())
     assert disk_after_delete['secrets'] == {}
+
+
+def test_secret_validation_flow(client: TestClient) -> None:
+    create_response = client.put('/api/v1/secrets/gemini', json={'value': 'api-key-123'})
+    assert create_response.status_code == 200
+
+    response = client.post('/api/v1/secrets/gemini/test')
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload['provider_id'] == 'gemini'
+    assert payload['status'] in {'healthy', 'degraded', 'error'}
+    assert isinstance(payload['latency_ms'], int)
+    assert payload['latency_ms'] >= 0
+    assert 'Gemini MCP' in payload['message']
+    assert parse_iso(payload['tested_at'])
+
+
+def test_secret_validation_missing_secret(client: TestClient) -> None:
+    response = client.post('/api/v1/secrets/gemini/test')
+
+    assert response.status_code == 404
+    assert response.json()['detail'] == "Secret for provider 'gemini' not found"
+
+
+def test_secret_validation_unknown_provider(client: TestClient) -> None:
+    response = client.post('/api/v1/secrets/unknown/test')
+
+    assert response.status_code == 404
+    assert response.json()['detail'] == "Provider 'unknown' not found"
 
 
 def test_policy_override_crud_flow(client: TestClient) -> None:
