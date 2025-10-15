@@ -1,22 +1,59 @@
 
 # IntelliJ MCP Orchestration – Multi‑Agent Dev Stack (Gemini · Codex · GLM‑4.6 · Claude)
 
-**Objetivo:** provisionar, padronizar e replicar – em qualquer ambiente Ubuntu‑based – uma stack de agentes integrada ao **JetBrains AI Assistant (Ultimate)** via **Model Context Protocol (MCP)**.
+## Propósito da aplicação
 
-## TL;DR
-```bash
-git clone <seu-fork-ou-este-repo>.git intellij-mcp-orchestration
-cd intellij-mcp-orchestration
-bash scripts/bootstrap-mcp.sh
-# opcional: make install  # instala frontend (pnpm) + backend (pip)
-# opcional: make doctor   # valida glm46-mcp-server, PATH e cost-policy
-# make dev                 # sobe frontend + backend em paralelo
-# IntelliJ → Settings → Tools → AI Assistant → MCP → Add → Command
-#  - ~/.local/bin/gemini-mcp
-#  - ~/.local/bin/codex-mcp
-#  - ~/.local/bin/glm46-mcp
-#  - ~/.local/bin/claude-mcp
-```
+Esta stack foi criada para oferecer uma forma reprodutível de instalar, operar e observar múltiplos **MCP servers** alinhados ao **JetBrains AI Assistant**. O objetivo é padronizar ambientes (workstations, VMs, WSL) e entregar:
+
+- **Produtividade**: scripts idempotentes (`scripts/bootstrap-mcp.sh` e `make` targets) que configuram agentes e dependências sem intervenção manual extensa.
+- **Confiabilidade**: guardrails FinOps, telemetria e manifests de servidores versionados em `config/`.
+- **Escalabilidade**: frontend em Vite/React para orquestrar servidores e backend FastAPI que expõe uma API consistente para integrações.
+
+Use este repositório quando precisar replicar rapidamente um ambiente multi‑agente com governança de custo e observabilidade, seja em estações pessoais ou clusters internos.
+
+## Guia passo a passo (instalação completa)
+
+> Os comandos abaixo assumem Ubuntu 22.04+ com `git`, `curl`, `python3` e `pnpm` instalados. Caso esteja em um ambiente limpo, execute `sudo apt-get update && sudo apt-get install -y git curl python3 python3-venv python3-pip` e instale o `pnpm` via `curl -fsSL https://get.pnpm.io/install.sh | sh -` antes de continuar.
+
+1. **Clonar o repositório**
+   ```bash
+   git clone <seu-fork-ou-este-repo>.git intellij-mcp-orchestration
+   cd intellij-mcp-orchestration
+   ```
+
+2. **Executar o bootstrap principal** — instala wrappers MCP (Gemini, Codex, GLM‑4.6, Claude), ajusta o `PATH` via `pipx` e cria policies de custo padrão.
+   ```bash
+   bash scripts/bootstrap-mcp.sh
+   ```
+
+3. **Provisionar dependências do monorepo (opcional, porém recomendado)**
+   ```bash
+   make install      # pnpm install no frontend e pip install -e no backend
+   make doctor       # checagens: glm46-mcp-server, policy file, PATH
+   ```
+
+4. **Subir o ambiente integrado para desenvolvimento local**
+   ```bash
+   make dev          # inicia FastAPI (porta 8000) + Vite (porta 5173)
+   ```
+
+5. **Configurar o IntelliJ AI Assistant para consumir os MCP servers**
+   - Abra **Settings → Tools → AI Assistant → MCP → Add → Command**.
+   - Adicione os binários instalados em `~/.local/bin/`:
+     - `gemini-mcp`
+     - `codex-mcp`
+     - `glm46-mcp`
+     - `claude-mcp` (opcional)
+
+6. **Validar a experiência end-to-end**
+   - Acesse `http://127.0.0.1:5173` e confira a lista de servidores em **Console MCP**.
+   - Use o IntelliJ para acionar cada agente e verifique os logs em `~/.mcp/logs/`.
+   - Ajuste `config/console-mcp/servers.example.json` conforme necessário e reinicie o backend com `make dev-backend`.
+
+7. **Operação diária**
+   - `make dev-backend` ou `make dev-frontend` para executar componentes isoladamente.
+   - `make reset` para reconfigurar wrappers caso o ambiente seja movido/atualizado.
+   - Monitore custos via JSONL em `~/.mcp/logs/glm46/` e políticas em `~/.mcp/cost-policy.json`.
 
 ## Stack
 - **Gemini** via FastMCP (rotas stdio/http) – custo/latência amigáveis para throughput alto.
@@ -26,10 +63,13 @@ bash scripts/bootstrap-mcp.sh
 
 ## Documentação
 
-- **[Agente Gemini (GEMINI.md)](GEMINI.md)**: Detalhes sobre o uso do agente Gemini.
-- **[Aquisição de Chaves de API](docs/keys.md)**: Como obter e configurar as chaves de API necessárias.
-- **[Configuração do Ambiente IntelliJ](docs/environments/IntelliJ.md)**: Guia de configuração para o IntelliJ AI Assistant.
-- **[Configuração do Ambiente VS Code](docs/environments/VSCode.md)**: Guia de configuração para o VS Code.
+- **[GEMINI.md](GEMINI.md)** — Como operar o agente Gemini após o bootstrap.
+- **[docs/keys.md](docs/keys.md)** — Checklist de chaves de API e variáveis sensíveis.
+- **[docs/environments/IntelliJ.md](docs/environments/IntelliJ.md)** e **[docs/environments/VSCode.md](docs/environments/VSCode.md)** — Ajustes específicos em cada IDE.
+- **[docs/packaging.md](docs/packaging.md)** — Empacotamento (Electron + bundles locais).
+- **[docs/runbook.md](docs/runbook.md)** — Fluxo operacional resumido (Análise → Planejamento → Execução → Documentação).
+
+> Roadmaps e planos táticos que não são necessários para a operação diária agora residem em [`docs/archive/`](docs/archive/README.md).
 
 ## Pastas
 - `app/` – frontend do Console MCP, agora iniciado com Vite + React + TypeScript.
