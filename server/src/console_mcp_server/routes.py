@@ -16,6 +16,7 @@ from .policies import (
     list_policies,
     update_policy,
 )
+from .notifications import list_notifications
 from .policy_overrides import (
     PolicyOverrideAlreadyExistsError,
     PolicyOverrideNotFoundError,
@@ -53,6 +54,8 @@ from .schemas import (
     PolicyOverridesResponse,
     PolicyTemplateResponse,
     PolicyTemplatesResponse,
+    NotificationResponse,
+    NotificationsResponse,
     HealthStatus,
     PriceEntriesResponse,
     PriceEntryCreateRequest,
@@ -893,3 +896,30 @@ def evaluate_cost_guardrail(payload: CostDryRunRequest) -> CostDryRunResponse:
         pricing=pricing_reference,
         message=message,
     )
+@router.get("/notifications", response_model=NotificationsResponse)
+def read_notifications() -> NotificationsResponse:
+    """Expose curated notifications for the Console UI."""
+
+    try:
+        notifications = list_notifications()
+    except Exception as exc:  # pragma: no cover - defensive guard
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    return NotificationsResponse(
+        notifications=[
+            NotificationResponse(
+                id=item.id,
+                severity=item.severity,
+                title=item.title,
+                message=item.message,
+                timestamp=item.timestamp,
+                category=item.category,
+                tags=list(item.tags),
+            )
+            for item in notifications
+        ]
+    )
+

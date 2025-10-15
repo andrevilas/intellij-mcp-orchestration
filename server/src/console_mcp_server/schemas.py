@@ -82,6 +82,24 @@ class SecretValueResponse(BaseModel):
     updated_at: datetime
 
 
+NotificationSeverity = Literal["info", "success", "warning", "critical"]
+NotificationCategory = Literal["operations", "finops", "policies", "platform"]
+
+
+class NotificationResponse(BaseModel):
+    id: str
+    severity: NotificationSeverity
+    title: str
+    message: str
+    timestamp: datetime
+    category: NotificationCategory
+    tags: List[str]
+
+
+class NotificationsResponse(BaseModel):
+    notifications: List[NotificationResponse]
+
+
 class CostPolicyWriteRequest(BaseModel):
     """Shared attributes required when creating or updating a cost policy."""
 

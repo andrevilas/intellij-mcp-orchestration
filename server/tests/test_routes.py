@@ -12,6 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from console_mcp_server import notifications as notifications_module
+from console_mcp_server import routes as routes_module
+
 def resolve_repo_root(start: Path) -> Path:
     for candidate in (start,) + tuple(start.parents):
         manifest = candidate / 'config/console-mcp/servers.example.json'
@@ -91,6 +94,44 @@ def test_providers_endpoint_uses_example_manifest(client: TestClient) -> None:
     assert len(payload['providers']) == 4
     assert {'gemini', 'codex', 'glm46', 'claude'} <= provider_ids
     assert all(provider['is_available'] for provider in payload['providers'])
+
+
+def test_notifications_endpoint_returns_curated_payload(client: TestClient) -> None:
+    response = client.get('/api/v1/notifications')
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert 'notifications' in payload
+    assert len(payload['notifications']) >= 1
+
+    sample = payload['notifications'][0]
+    assert {'id', 'severity', 'title', 'message', 'timestamp', 'category', 'tags'} <= sample.keys()
+
+
+def test_notifications_endpoint_handles_empty_sources(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    monkeypatch.setattr(routes_module, 'list_notifications', lambda: [])
+
+    response = client.get('/api/v1/notifications')
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload == {'notifications': []}
+
+
+def test_notifications_endpoint_surfaces_errors(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    def boom() -> list:
+        raise RuntimeError('notification backend unavailable')
+
+    monkeypatch.setattr(routes_module, 'list_notifications', boom)
+
+    response = client.get('/api/v1/notifications')
+    assert response.status_code == 500
+    body = response.json()
+    assert body['detail'] == 'notification backend unavailable'
 
 
 def test_session_provisioning_flow(client: TestClient) -> None:
