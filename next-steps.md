@@ -109,7 +109,7 @@
 
 ## Sprint FO-1 — Telemetria
 - [x] **TASK-FO-101 — Modelo de log unificado**
-- [ ] **TASK-FO-102 — Alertas básicos**
+- [x] **TASK-FO-102 — Alertas básicos**
 
 ## Sprint FO-2 — FinOps+
 - [ ] **TASK-FO-201 — Pareto e hotspots**

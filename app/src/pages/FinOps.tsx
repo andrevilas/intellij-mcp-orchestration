@@ -70,6 +70,15 @@ interface RunDrilldownEntry {
   consumer: string;
 }
 
+type FinOpsAlertKind = 'warning' | 'error' | 'info';
+
+interface FinOpsAlert {
+  id: string;
+  kind: FinOpsAlertKind;
+  title: string;
+  description: string;
+}
+
 const RANGE_TO_DAYS: Record<RangeOption, number> = {
   '7d': 7,
   '30d': 30,
@@ -212,6 +221,23 @@ function formatPercent(value: number): string {
 function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp);
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+type NumericSeriesKey = 'costUsd' | 'tokensMillions';
+
+function averageSeries(series: TimeSeriesPoint[], key: NumericSeriesKey): number {
+  if (series.length === 0) {
+    return 0;
+  }
+
+  const total = series.reduce((sum, point) => sum + point[key], 0);
+  return total / series.length;
+}
+
+function formatSignedPercent(value: number): string {
+  const formatter = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 });
+  const formatted = formatter.format(Math.abs(value));
+  return value >= 0 ? `+${formatted}` : `-${formatted}`;
 }
 
 function buildRouteBreakdown(
@@ -394,6 +420,15 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
 
   const metricConfig = METRIC_CONFIG[selectedMetric];
 
+  const selectedProviderLabel = useMemo(() => {
+    if (selectedProvider === 'all') {
+      return 'todos os provedores monitorados';
+    }
+
+    const provider = providers.find((item) => item.id === selectedProvider);
+    return provider ? provider.name : selectedProvider;
+  }, [providers, selectedProvider]);
+
   const breakdownEntries = useMemo(() => {
     const days = RANGE_TO_DAYS[selectedRange];
     if (!hasProviders) {
@@ -404,6 +439,100 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   }, [hasProviders, providers, selectedProvider, selectedRange]);
 
   const paretoEntries = useMemo(() => computePareto(breakdownEntries), [breakdownEntries]);
+
+  const finOpsAlerts = useMemo(() => {
+    const alerts: FinOpsAlert[] = [];
+
+    const trailingDays = Math.min(7, availableSeries.length);
+
+    if (trailingDays >= 3) {
+      const recentWindow = availableSeries.slice(-trailingDays);
+      const previousWindow = availableSeries.slice(0, -trailingDays);
+
+      if (previousWindow.length >= Math.max(3, Math.floor(trailingDays / 2))) {
+        const recentCostAverage = averageSeries(recentWindow, 'costUsd');
+        const previousCostAverage = averageSeries(previousWindow, 'costUsd');
+
+        if (previousCostAverage > 0) {
+          const costChange = (recentCostAverage - previousCostAverage) / previousCostAverage;
+
+          if (costChange >= 0.25) {
+            alerts.push({
+              id: 'cost-surge',
+              kind: 'warning',
+              title: 'Escalada de custo diário',
+              description: `O custo médio diário dos últimos ${trailingDays} dias está ${formatSignedPercent(costChange)} em relação à janela anterior para ${selectedProviderLabel}.`,
+            });
+          } else if (costChange <= -0.25) {
+            alerts.push({
+              id: 'cost-drop',
+              kind: 'info',
+              title: 'Queda de custo detectada',
+              description: `O custo médio diário reduziu ${formatPercent(Math.abs(costChange))} nas últimas ${trailingDays} execuções. Valide se houve otimizações permanentes.`,
+            });
+          }
+        }
+
+        const recentTokensAverage = averageSeries(recentWindow, 'tokensMillions');
+        const previousTokensAverage = averageSeries(previousWindow, 'tokensMillions');
+
+        if (previousTokensAverage > 0) {
+          const tokensChange = (recentTokensAverage - previousTokensAverage) / previousTokensAverage;
+
+          if (tokensChange <= -0.2) {
+            alerts.push({
+              id: 'tokens-drop',
+              kind: 'info',
+              title: 'Queda de volume de tokens',
+              description: `O volume processado caiu ${formatPercent(Math.abs(tokensChange))} no período recente. Investigue se há rotas ociosas ou caches inválidos.`,
+            });
+          } else if (tokensChange >= 0.25) {
+            alerts.push({
+              id: 'tokens-surge',
+              kind: 'warning',
+              title: 'Pico de tokens consumidos',
+              description: `O volume de tokens cresceu ${formatSignedPercent(tokensChange)}. Considere validar limites de custo e reaproveitamento de contexto.`,
+            });
+          }
+        }
+      }
+    }
+
+    const topPareto = paretoEntries[0];
+    if (topPareto && topPareto.share >= 0.45) {
+      alerts.push({
+        id: 'pareto-concentration',
+        kind: 'warning',
+        title: 'Custo concentrado em uma rota',
+        description: `${topPareto.label} (${topPareto.providerName}) responde por ${formatPercent(topPareto.share)} do gasto observado. Considere alternativas para diluir o risco.`,
+      });
+    }
+
+    const lowSuccessRoutes = breakdownEntries.filter((entry) => entry.successRate <= 0.9).slice(0, 2);
+    if (lowSuccessRoutes.length > 0) {
+      const labels = lowSuccessRoutes
+        .map((entry) => `${entry.label} (${formatPercent(entry.successRate)})`)
+        .join(', ');
+
+      alerts.push({
+        id: 'success-rate',
+        kind: 'error',
+        title: 'Taxa de sucesso abaixo do esperado',
+        description: `As rotas ${labels} estão abaixo de 90% de sucesso. Revise retries, limites e políticas de fallback.`,
+      });
+    }
+
+    if (alerts.length === 0) {
+      alerts.push({
+        id: 'steady',
+        kind: 'info',
+        title: 'Sem alertas críticos',
+        description: `Nenhuma anomalia relevante encontrada para ${selectedProviderLabel} no período selecionado.`,
+      });
+    }
+
+    return alerts;
+  }, [availableSeries, breakdownEntries, paretoEntries, selectedProviderLabel]);
 
   const totalParetoCost = useMemo(
     () => breakdownEntries.reduce((sum, entry) => sum + entry.costUsd, 0),
@@ -544,6 +673,23 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           </button>
         </div>
       </header>
+
+      <section className="finops__alerts" aria-label="Alertas de FinOps">
+        <header className="finops__alerts-header">
+          <div>
+            <h3>Alertas básicos</h3>
+            <p>Registros determinísticos gerados a partir da telemetria atual.</p>
+          </div>
+        </header>
+        <ul className="finops__alerts-list">
+          {finOpsAlerts.map((alert) => (
+            <li key={alert.id} className={`finops__alert finops__alert--${alert.kind}`}>
+              <strong>{alert.title}</strong>
+              <p>{alert.description}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <div className="finops__kpis" role="list">
         <article className="finops__kpi" role="listitem">
