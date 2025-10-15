@@ -27,28 +27,34 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     monkeypatch.setenv('CONSOLE_MCP_SERVERS_PATH', str(MANIFEST_PATH))
     secrets_path = tmp_path / 'secrets.json'
     monkeypatch.setenv('CONSOLE_MCP_SECRETS_PATH', str(secrets_path))
+    db_path = tmp_path / 'console.db'
+    monkeypatch.setenv('CONSOLE_MCP_DB_PATH', str(db_path))
     assert MANIFEST_PATH.exists()
 
     import console_mcp_server.config as config_module
     import console_mcp_server.registry as registry_module
     import console_mcp_server.secrets as secrets_module
+    import console_mcp_server.database as database_module
     import console_mcp_server.routes as routes_module
     import console_mcp_server.main as main_module
 
     config = importlib.reload(config_module)
     registry = importlib.reload(registry_module)
     secrets = importlib.reload(secrets_module)
+    database = importlib.reload(database_module)
     importlib.reload(routes_module)
     main = importlib.reload(main_module)
 
     registry.provider_registry = registry.ProviderRegistry(settings=config.get_settings())
     registry.session_registry = registry.SessionRegistry()
     secrets.secret_store = secrets.SecretStore(path=secrets_path)
+    database.reset_state()
 
     with TestClient(main.app) as test_client:
         yield test_client
 
     registry.session_registry = registry.SessionRegistry()
+    database.reset_state()
 
 
 def test_healthz_endpoint_reports_ok(client: TestClient) -> None:

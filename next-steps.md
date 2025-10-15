@@ -78,7 +78,7 @@
 
 ## Sprint BE-1 — Backend Base
 - [x] **TASK-BE-101 — Secrets**
-- [ ] **TASK-BE-102 — SQLite + migrations**
+- [x] **TASK-BE-102 — SQLite + migrations**
 - [ ] **TASK-BE-103 — MCP Servers CRUD**
 - [ ] **TASK-BE-104 — Supervisor de processos**
 
