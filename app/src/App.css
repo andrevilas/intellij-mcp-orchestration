@@ -3514,6 +3514,127 @@ main.dashboard {
   text-align: center;
 }
 
+.finops__reports {
+  background: var(--surface-elevated);
+  border-radius: 1.5rem;
+  border: 1px solid var(--border-subtle);
+  padding: 1.75rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.finops__reports-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.finops__reports-header p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+}
+
+.finops__reports-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.finops__report-card {
+  background: rgba(15, 23, 42, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.finops__report-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.finops__report-card-header h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.finops__report-card-header span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.finops__report-table {
+  overflow-x: auto;
+  border-radius: 1rem;
+  border: 1px solid var(--border-subtle);
+}
+
+.finops__report-table table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+
+.finops__report-table th,
+.finops__report-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.9rem;
+}
+
+.finops__report-table th {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.finops__report-table tbody tr:last-child th,
+.finops__report-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.finops__status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.finops__status-badge--on_track {
+  background: rgba(16, 185, 129, 0.18);
+  color: #047857;
+}
+
+.finops__status-badge--attention {
+  background: rgba(251, 191, 36, 0.2);
+  color: #b45309;
+}
+
+.finops__status-badge--regression {
+  background: rgba(239, 68, 68, 0.22);
+  color: #b91c1c;
+}
+
+.finops__status-badge .finops__status-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+}
+
+@media (min-width: 1080px) {
+  .finops__reports-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 980px) {
   .finops__breakdowns {
     grid-template-columns: 1.15fr 0.85fr;

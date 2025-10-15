@@ -113,7 +113,7 @@
 
 ## Sprint FO-2 — FinOps+
 - [x] **TASK-FO-201 — Pareto e hotspots**
-- [ ] **TASK-FO-202 — Relatórios por sprint/PR**
+- [x] **TASK-FO-202 — Relatórios por sprint/PR**
 
 ---
 

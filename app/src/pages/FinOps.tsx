@@ -70,6 +70,31 @@ interface RunDrilldownEntry {
   consumer: string;
 }
 
+type ReportStatus = 'on_track' | 'attention' | 'regression';
+
+interface SprintReport {
+  id: string;
+  name: string;
+  periodLabel: string;
+  totalCostUsd: number;
+  totalTokensMillions: number;
+  costDelta: number;
+  status: ReportStatus;
+  summary: string;
+}
+
+interface PullRequestReport {
+  id: string;
+  title: string;
+  owner: string;
+  mergedAtLabel: string;
+  costImpactUsd: number;
+  costDelta: number;
+  tokensImpactMillions: number;
+  status: ReportStatus;
+  summary: string;
+}
+
 type FinOpsAlertKind = 'warning' | 'error' | 'info';
 
 interface FinOpsAlert {
@@ -273,6 +298,136 @@ function formatSignedPercent(value: number): string {
   return value >= 0 ? `+${formatted}` : `-${formatted}`;
 }
 
+function buildSprintReports(
+  providerSelection: ProviderSelection,
+  availableSeries: TimeSeriesPoint[],
+  aggregatedMetrics: AggregatedMetrics,
+  selectedRange: RangeOption,
+  selectedProviderLabel: string,
+): SprintReport[] {
+  if (availableSeries.length === 0) {
+    return [];
+  }
+
+  const baseKey = providerSelection === 'all' ? 'all-providers' : providerSelection;
+  const averageDailyCost = availableSeries.length
+    ? aggregatedMetrics.totalCost / availableSeries.length
+    : 0;
+  const averageDailyTokens = availableSeries.length
+    ? aggregatedMetrics.totalTokens / availableSeries.length
+    : 0;
+
+  const sprintWindow = selectedRange === '7d' ? 7 : selectedRange === '30d' ? 14 : 21;
+  const baseSprintNumber = 120 + seededMod(`${baseKey}-sprint-base`, 12);
+
+  return Array.from({ length: 4 }, (_, index) => {
+    const lengthVariation = seededMod(`${baseKey}-sprint-length-${index}`, 5) - 2;
+    const windowLength = Math.max(7, sprintWindow + lengthVariation);
+    const costDelta = (seededMod(`${baseKey}-sprint-delta-${index}`, 25) - 12) / 100;
+    const totalCost = Number(
+      Math.max(0, averageDailyCost * windowLength * (1 + costDelta)).toFixed(2),
+    );
+    const totalTokens = Number(
+      Math.max(0, averageDailyTokens * windowLength * (1 + costDelta / 1.6)).toFixed(2),
+    );
+    const status: ReportStatus =
+      costDelta <= 0.03 ? 'on_track' : costDelta <= 0.08 ? 'attention' : 'regression';
+
+    const endDate = new Date();
+    endDate.setHours(0, 0, 0, 0);
+    endDate.setDate(endDate.getDate() - index * windowLength);
+    const startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - (windowLength - 1));
+
+    const periodLabel = `${new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    }).format(startDate)} – ${new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    }).format(endDate)}`;
+
+    const summary = costDelta <= 0
+      ? `Queda de ${formatPercent(Math.abs(costDelta))} concentrada no mix ${selectedProviderLabel}.`
+      : `Alta de ${formatPercent(costDelta)} puxada por workloads no mix ${selectedProviderLabel}.`;
+
+    return {
+      id: `sprint-${baseSprintNumber - index}`,
+      name: `Sprint ${baseSprintNumber - index}`,
+      periodLabel,
+      totalCostUsd: totalCost,
+      totalTokensMillions: totalTokens,
+      costDelta,
+      status,
+      summary,
+    };
+  });
+}
+
+function buildPullRequestReports(
+  providerSelection: ProviderSelection,
+  selectedRange: RangeOption,
+  paretoEntries: ParetoEntry[],
+  selectedProviderLabel: string,
+): PullRequestReport[] {
+  if (paretoEntries.length === 0) {
+    return [];
+  }
+
+  const baseKey = providerSelection === 'all' ? 'all-providers' : providerSelection;
+  const basePrNumber = 4200 + seededMod(`${baseKey}-pr-base`, 480);
+
+  const windowLabel =
+    selectedRange === '7d'
+      ? 'na última semana'
+      : selectedRange === '30d'
+        ? 'nos últimos 30 dias'
+        : 'no trimestre recente';
+
+  return paretoEntries.slice(0, 4).map((entry, index) => {
+    const deltaRaw = (seededMod(`${entry.id}-pr-delta-${index}`, 40) - 15) / 100;
+    const status: ReportStatus =
+      deltaRaw <= 0.02 ? 'on_track' : deltaRaw <= 0.07 ? 'attention' : 'regression';
+
+    const impactMultiplier = 0.6 + seededMod(`${entry.id}-impact-${index}`, 30) / 50;
+    const costImpact = Number(
+      Math.max(0, entry.costUsd * 0.12 * impactMultiplier * (1 + deltaRaw)).toFixed(2),
+    );
+    const tokensImpact = Number(
+      Math.max(0, entry.tokensMillions * 0.08 * impactMultiplier).toFixed(2),
+    );
+
+    const mergedDate = new Date();
+    mergedDate.setHours(0, 0, 0, 0);
+    mergedDate.setDate(
+      mergedDate.getDate() - (2 + index + seededMod(`${entry.id}-merged-offset`, 6)),
+    );
+    const mergedAtLabel = new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    }).format(mergedDate);
+
+    const owner = `squad-${String.fromCharCode(65 + seededMod(`${entry.id}-owner`, 6))}`;
+    const laneLabel = LANE_CONFIG[entry.lane].label;
+
+    const summary = deltaRaw <= 0
+      ? `Redução de ${formatPercent(Math.abs(deltaRaw))} no custo da rota ${entry.label} ${windowLabel} considerando ${selectedProviderLabel}.`
+      : `Impacto de ${formatPercent(deltaRaw)} após ajustes no lane ${laneLabel} ${windowLabel} para ${selectedProviderLabel}.`;
+
+    return {
+      id: `#${basePrNumber - index}`,
+      title: `Ajustes ${entry.label}`,
+      owner,
+      mergedAtLabel,
+      costImpactUsd: costImpact,
+      costDelta: deltaRaw,
+      tokensImpactMillions: tokensImpact,
+      status,
+      summary,
+    };
+  });
+}
+
 function buildRouteBreakdown(
   providers: ProviderSummary[],
   days: number,
@@ -403,6 +558,12 @@ const RUN_STATUS_LABEL: Record<RunStatus, string> = {
   error: 'Falha',
 };
 
+const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
+  on_track: 'No alvo',
+  attention: 'Atenção',
+  regression: 'Regressão',
+};
+
 function exportCsv(data: TimeSeriesPoint[]): void {
   const header = ['data', 'custo_usd', 'tokens_milhoes', 'latencia_ms'];
   const rows = data.map((point) =>
@@ -472,6 +633,29 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   }, [hasProviders, providers, selectedProvider, selectedRange]);
 
   const paretoEntries = useMemo(() => computePareto(breakdownEntries), [breakdownEntries]);
+
+  const sprintReports = useMemo(
+    () =>
+      buildSprintReports(
+        selectedProvider,
+        availableSeries,
+        aggregatedMetrics,
+        selectedRange,
+        selectedProviderLabel,
+      ),
+    [aggregatedMetrics, availableSeries, selectedProvider, selectedProviderLabel, selectedRange],
+  );
+
+  const pullRequestReports = useMemo(
+    () =>
+      buildPullRequestReports(
+        selectedProvider,
+        selectedRange,
+        paretoEntries,
+        selectedProviderLabel,
+      ),
+    [paretoEntries, selectedProvider, selectedProviderLabel, selectedRange],
+  );
 
   const finOpsAlerts = useMemo(() => {
     const alerts: FinOpsAlert[] = [];
@@ -962,6 +1146,110 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                 ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="finops__reports" aria-label="Relatórios consolidados por sprint e PR">
+        <header className="finops__reports-header">
+          <div>
+            <h3>Relatórios por sprint/PR</h3>
+            <p>
+              Consolidados determinísticos com base na janela filtrada para facilitar o repasse ao time de FinOps.
+            </p>
+          </div>
+        </header>
+        <div className="finops__reports-grid">
+          <article className="finops__report-card" aria-label="Sprints recentes">
+            <header className="finops__report-card-header">
+              <h4>Sprints recentes</h4>
+              <span>Visão comparativa de custo e volume</span>
+            </header>
+            {sprintReports.length === 0 ? (
+              <p className="finops__state">
+                Gere telemetria suficiente para destravar o comparativo por sprint.
+              </p>
+            ) : (
+              <div className="finops__report-table" role="region" aria-label="Tabela de sprints">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Sprint</th>
+                      <th scope="col">Período</th>
+                      <th scope="col">Custo (USD)</th>
+                      <th scope="col">Δ custo</th>
+                      <th scope="col">Tokens (mi)</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Resumo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sprintReports.map((report) => (
+                      <tr key={report.id}>
+                        <th scope="row">{report.name}</th>
+                        <td>{report.periodLabel}</td>
+                        <td>{METRIC_CONFIG.cost.formatter(report.totalCostUsd)}</td>
+                        <td>{formatSignedPercent(report.costDelta)}</td>
+                        <td>{report.totalTokensMillions.toFixed(2)}</td>
+                        <td>
+                          <span className={`finops__status-badge finops__status-badge--${report.status}`}>
+                            <span className="finops__status-dot" aria-hidden="true" />
+                            {REPORT_STATUS_LABEL[report.status]}
+                          </span>
+                        </td>
+                        <td>{report.summary}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </article>
+
+          <article className="finops__report-card" aria-label="Pull requests com impacto de custo">
+            <header className="finops__report-card-header">
+              <h4>PRs monitorados</h4>
+              <span>Impacto financeiro estimado</span>
+            </header>
+            {pullRequestReports.length === 0 ? (
+              <p className="finops__state">Nenhum PR relevante encontrado para os filtros atuais.</p>
+            ) : (
+              <div className="finops__report-table" role="region" aria-label="Tabela de pull requests">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">PR</th>
+                      <th scope="col">Squad</th>
+                      <th scope="col">Merge</th>
+                      <th scope="col">Impacto (USD)</th>
+                      <th scope="col">Δ custo</th>
+                      <th scope="col">Tokens (mi)</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Resumo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pullRequestReports.map((report) => (
+                      <tr key={report.id}>
+                        <th scope="row">{report.id}</th>
+                        <td>{report.owner}</td>
+                        <td>{report.mergedAtLabel}</td>
+                        <td>{METRIC_CONFIG.cost.formatter(report.costImpactUsd)}</td>
+                        <td>{formatSignedPercent(report.costDelta)}</td>
+                        <td>{report.tokensImpactMillions.toFixed(2)}</td>
+                        <td>
+                          <span className={`finops__status-badge finops__status-badge--${report.status}`}>
+                            <span className="finops__status-dot" aria-hidden="true" />
+                            {REPORT_STATUS_LABEL[report.status]}
+                          </span>
+                        </td>
+                        <td>{report.summary}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </article>
         </div>
       </section>
 
