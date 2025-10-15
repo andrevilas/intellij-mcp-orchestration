@@ -1234,6 +1234,43 @@ def test_mcp_servers_crud_flow(client: TestClient) -> None:
     assert delete_missing.status_code == 404
 
 
+def test_routing_simulation_endpoint_returns_distribution(client: TestClient) -> None:
+    response = client.post(
+        '/api/v1/routing/simulate',
+        json={
+            'provider_ids': ['gemini', 'codex'],
+            'strategy': 'resilience',
+            'failover_provider_id': 'gemini',
+            'volume_millions': 15,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload['total_cost'] >= 0
+    assert payload['cost_per_million'] >= 0
+    assert payload['distribution']
+    assert all(entry['route']['id'] != 'gemini' for entry in payload['distribution'])
+    assert payload['excluded_route']['id'] == 'gemini'
+
+
+def test_routing_simulation_endpoint_validates_provider_ids(client: TestClient) -> None:
+    response = client.post(
+        '/api/v1/routing/simulate',
+        json={
+            'provider_ids': ['missing-provider'],
+            'strategy': 'balanced',
+            'failover_provider_id': None,
+            'volume_millions': 10,
+        },
+    )
+
+    assert response.status_code == 404
+    detail = response.json()['detail']
+    assert 'Providers not found' in detail
+
+
 def test_process_supervisor_flow(client: TestClient) -> None:
     command = f"{sys.executable} -c 'import time; time.sleep(60)'"
     create_payload = {

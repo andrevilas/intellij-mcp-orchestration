@@ -288,6 +288,100 @@ interface TelemetryTimeseriesResponsePayload {
   next_cursor?: string | null;
 }
 
+export type RoutingStrategyId = 'balanced' | 'finops' | 'latency' | 'resilience';
+export type RoutingLane = 'economy' | 'balanced' | 'turbo';
+
+export interface RoutingRouteProfile {
+  id: string;
+  provider: ProviderSummary;
+  lane: RoutingLane;
+  costPerMillion: number;
+  latencyP95: number;
+  reliability: number;
+  capacityScore: number;
+}
+
+export interface RoutingDistributionEntry {
+  route: RoutingRouteProfile;
+  share: number;
+  tokensMillions: number;
+  cost: number;
+}
+
+export interface RoutingSimulationResult {
+  totalCost: number;
+  costPerMillion: number;
+  avgLatency: number;
+  reliabilityScore: number;
+  distribution: RoutingDistributionEntry[];
+  excludedRoute: RoutingRouteProfile | null;
+}
+
+export interface SimulateRoutingPayload {
+  strategy: RoutingStrategyId;
+  providerIds?: string[];
+  failoverProviderId?: string | null;
+  volumeMillions: number;
+}
+
+interface RoutingRouteProfilePayload {
+  id: string;
+  provider: ProviderSummary;
+  lane: RoutingLane;
+  cost_per_million: number;
+  latency_p95: number;
+  reliability: number;
+  capacity_score: number;
+}
+
+interface RoutingDistributionEntryPayload {
+  route: RoutingRouteProfilePayload;
+  share: number;
+  tokens_millions: number;
+  cost: number;
+}
+
+interface RoutingSimulationResponsePayload {
+  total_cost: number;
+  cost_per_million: number;
+  avg_latency: number;
+  reliability_score: number;
+  distribution: RoutingDistributionEntryPayload[];
+  excluded_route?: RoutingRouteProfilePayload | null;
+}
+
+function mapRoutingRouteProfile(payload: RoutingRouteProfilePayload): RoutingRouteProfile {
+  return {
+    id: payload.id,
+    provider: payload.provider,
+    lane: payload.lane,
+    costPerMillion: payload.cost_per_million,
+    latencyP95: payload.latency_p95,
+    reliability: payload.reliability,
+    capacityScore: payload.capacity_score,
+  };
+}
+
+function mapRoutingDistributionEntry(payload: RoutingDistributionEntryPayload): RoutingDistributionEntry {
+  return {
+    route: mapRoutingRouteProfile(payload.route),
+    share: payload.share,
+    tokensMillions: payload.tokens_millions,
+    cost: payload.cost,
+  };
+}
+
+function mapRoutingSimulation(payload: RoutingSimulationResponsePayload): RoutingSimulationResult {
+  return {
+    totalCost: payload.total_cost,
+    costPerMillion: payload.cost_per_million,
+    avgLatency: payload.avg_latency,
+    reliabilityScore: payload.reliability_score,
+    distribution: payload.distribution.map(mapRoutingDistributionEntry),
+    excludedRoute: payload.excluded_route ? mapRoutingRouteProfile(payload.excluded_route) : null,
+  };
+}
+
 export interface TelemetryRouteBreakdownEntry {
   id: string;
   provider_id: string;
@@ -390,6 +484,24 @@ export async function fetchProviders(signal?: AbortSignal): Promise<ProviderSumm
 export async function fetchSessions(signal?: AbortSignal): Promise<Session[]> {
   const data = await request<SessionsResponse>('/sessions', { signal });
   return data.sessions;
+}
+
+export async function simulateRouting(
+  payload: SimulateRoutingPayload,
+  signal?: AbortSignal,
+): Promise<RoutingSimulationResult> {
+  const response = await request<RoutingSimulationResponsePayload>('/routing/simulate', {
+    method: 'POST',
+    body: JSON.stringify({
+      strategy: payload.strategy,
+      provider_ids: payload.providerIds ?? [],
+      failover_provider_id: payload.failoverProviderId ?? null,
+      volume_millions: payload.volumeMillions,
+    }),
+    signal,
+  });
+
+  return mapRoutingSimulation(response);
 }
 
 export async function fetchSecrets(signal?: AbortSignal): Promise<SecretMetadata[]> {
