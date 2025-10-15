@@ -74,6 +74,12 @@ from .schemas import (
     TelemetryHeatmapResponse,
     TelemetryMetricsResponse,
     TelemetryProviderMetrics,
+    TelemetryParetoResponse,
+    TelemetryRouteBreakdownEntry as TelemetryRouteBreakdownModel,
+    TelemetryRunEntry as TelemetryRunEntryModel,
+    TelemetryRunsResponse,
+    TelemetryTimeseriesPoint as TelemetryTimeseriesPointModel,
+    TelemetryTimeseriesResponse,
     SecretMetadataResponse,
     SecretValueResponse,
     SecretWriteRequest,
@@ -96,7 +102,14 @@ from .servers import (
     list_servers,
     update_server,
 )
-from .telemetry import aggregate_heatmap, aggregate_metrics, render_telemetry_export
+from .telemetry import (
+    aggregate_heatmap,
+    aggregate_metrics,
+    query_route_breakdown,
+    query_runs,
+    query_timeseries,
+    render_telemetry_export,
+)
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessNotRunningError,
@@ -213,6 +226,149 @@ def read_telemetry_heatmap(
             for bucket in buckets
         ]
     )
+
+
+@router.get("/telemetry/timeseries", response_model=TelemetryTimeseriesResponse)
+def read_telemetry_timeseries(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    lane: str | None = Query(
+        default=None,
+        description="Optional lane (economy/balanced/turbo) to limit providers",
+    ),
+) -> TelemetryTimeseriesResponse:
+    try:
+        points = query_timeseries(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            lane=lane,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    return TelemetryTimeseriesResponse(
+        items=[TelemetryTimeseriesPointModel(**point.to_dict()) for point in points],
+        next_cursor=None,
+    )
+
+
+@router.get("/telemetry/pareto", response_model=TelemetryParetoResponse)
+def read_telemetry_pareto(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    lane: str | None = Query(
+        default=None,
+        description="Optional lane (economy/balanced/turbo) to limit providers",
+    ),
+) -> TelemetryParetoResponse:
+    try:
+        breakdown = query_route_breakdown(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            lane=lane,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    return TelemetryParetoResponse(
+        items=[TelemetryRouteBreakdownModel(**entry.to_dict()) for entry in breakdown],
+        next_cursor=None,
+    )
+
+
+@router.get("/telemetry/runs", response_model=TelemetryRunsResponse)
+def read_telemetry_runs(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    lane: str | None = Query(
+        default=None,
+        description="Optional lane (economy/balanced/turbo) to limit providers",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Optional route identifier to filter telemetry events",
+    ),
+    limit: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum number of run records to return",
+    ),
+    cursor: str | None = Query(
+        default=None,
+        description="Opaque cursor for paginating telemetry runs",
+    ),
+) -> TelemetryRunsResponse:
+    try:
+        records, next_cursor = query_runs(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            lane=lane,
+            route=route,
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    items = [
+        TelemetryRunEntryModel(
+            id=record.record_id,
+            provider_id=record.provider_id,
+            provider_name=record.provider_name,
+            route=record.route,
+            lane=record.lane,
+            ts=record.ts,
+            tokens_in=record.tokens_in,
+            tokens_out=record.tokens_out,
+            duration_ms=record.duration_ms,
+            status=record.status,
+            cost_usd=record.cost_usd,
+            metadata=record.metadata,
+        )
+        for record in records
+    ]
+
+    return TelemetryRunsResponse(items=items, next_cursor=next_cursor)
 
 
 @router.get("/telemetry/export")

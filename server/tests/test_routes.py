@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from console_mcp_server import notifications as notifications_module
 from console_mcp_server import routes as routes_module
+from console_mcp_server import telemetry as telemetry_module
 
 def resolve_repo_root(start: Path) -> Path:
     for candidate in (start,) + tuple(start.parents):
@@ -487,6 +488,171 @@ def test_telemetry_heatmap_endpoint_returns_daily_buckets(client: TestClient) ->
 
     filtered_payload = filtered.json()
     assert all(entry['provider_id'] == 'gemini' for entry in filtered_payload['buckets'])
+
+
+def test_telemetry_timeseries_endpoint_returns_daily_metrics(
+    telemetry_dataset, client: TestClient
+) -> None:
+    base_ts = telemetry_dataset[0].ts
+    start = (base_ts - timedelta(days=2)).isoformat()
+    end = (base_ts + timedelta(days=2)).isoformat()
+
+    response = client.get(
+        '/api/v1/telemetry/timeseries',
+        params={'start': start, 'end': end},
+    )
+    assert response.status_code == 200
+
+    payload = response.json()
+    items = payload['items']
+    assert len(items) == 4
+
+    by_provider_day = {
+        (item['provider_id'], item['day']): item for item in items
+    }
+
+    gem_day = '2025-04-10'
+    gem_entry = by_provider_day[('gemini', gem_day)]
+    assert gem_entry['run_count'] == 1
+    assert gem_entry['tokens_in'] == 1800
+    assert gem_entry['cost_usd'] == pytest.approx(1.75, rel=1e-6)
+
+    gem_next_day = '2025-04-11'
+    gem_next_entry = by_provider_day[('gemini', gem_next_day)]
+    assert gem_next_entry['run_count'] == 1
+    assert gem_next_entry['cost_usd'] == pytest.approx(0.00545, rel=1e-5)
+
+    glm_day = '2025-04-09'
+    glm_entry = by_provider_day[('glm46', glm_day)]
+    assert glm_entry['run_count'] == 1
+    assert glm_entry['cost_usd'] == pytest.approx(1.1, rel=1e-6)
+
+    glm_same_day = '2025-04-10'
+    glm_same_entry = by_provider_day[('glm46', glm_same_day)]
+    assert glm_same_entry['cost_usd'] == pytest.approx(0.00225, rel=1e-5)
+
+
+def test_telemetry_pareto_endpoint_aggregates_routes(
+    telemetry_dataset, client: TestClient
+) -> None:
+    base_ts = telemetry_dataset[0].ts
+    response = client.get(
+        '/api/v1/telemetry/pareto',
+        params={
+            'start': (base_ts - timedelta(days=2)).isoformat(),
+            'end': (base_ts + timedelta(days=2)).isoformat(),
+        },
+    )
+    assert response.status_code == 200
+
+    payload = response.json()
+    items = {entry['provider_id']: entry for entry in payload['items']}
+
+    gem = items['gemini']
+    assert gem['run_count'] == 2
+    assert gem['tokens_in'] == 3000
+    assert gem['tokens_out'] == 1600
+    assert gem['avg_latency_ms'] == pytest.approx((880 + 940) / 2, rel=1e-5)
+    assert gem['cost_usd'] == pytest.approx(1.75545, rel=1e-5)
+    assert gem['success_rate'] == pytest.approx(0.5, rel=1e-5)
+
+    glm = items['glm46']
+    assert glm['run_count'] == 2
+    assert glm['tokens_in'] == 2400
+    assert glm['tokens_out'] == 900
+    assert glm['cost_usd'] == pytest.approx(1.10225, rel=1e-5)
+    assert glm['success_rate'] == pytest.approx(0.5, rel=1e-5)
+
+
+def test_telemetry_runs_endpoint_supports_pagination(
+    telemetry_dataset, client: TestClient
+) -> None:
+    base_ts = telemetry_dataset[0].ts
+    params = {
+        'provider_id': 'gemini',
+        'route': 'balanced',
+        'start': (base_ts - timedelta(days=1)).isoformat(),
+        'end': (base_ts + timedelta(days=2)).isoformat(),
+        'limit': 1,
+    }
+
+    first_page = client.get('/api/v1/telemetry/runs', params=params)
+    assert first_page.status_code == 200
+
+    first_payload = first_page.json()
+    assert first_payload['next_cursor'] is not None
+    assert len(first_payload['items']) == 1
+
+    first_run = first_payload['items'][0]
+    assert first_run['status'] == 'error'
+    assert first_run['cost_usd'] == pytest.approx(0.00545, rel=1e-5)
+    assert first_run['metadata'].get('project') == 'alpha'
+
+    lane = first_run['lane']
+    assert lane in {'economy', 'balanced', 'turbo'}
+
+    second_page = client.get(
+        '/api/v1/telemetry/runs',
+        params={**params, 'cursor': first_payload['next_cursor'], 'lane': lane},
+    )
+    assert second_page.status_code == 200
+
+    second_payload = second_page.json()
+    assert second_payload['next_cursor'] is None
+    assert len(second_payload['items']) == 1
+
+    second_run = second_payload['items'][0]
+    assert second_run['status'] == 'success'
+    assert second_run['cost_usd'] == pytest.approx(1.75, rel=1e-6)
+    assert second_run['metadata'].get('consumer') == 'squad-a'
+
+    mismatch_lane = 'turbo' if lane != 'turbo' else 'economy'
+    empty_page = client.get(
+        '/api/v1/telemetry/runs',
+        params={**params, 'lane': mismatch_lane},
+    )
+    assert empty_page.status_code == 200
+    assert empty_page.json()['items'] == []
+
+
+def test_telemetry_timeseries_endpoint_supports_lane_filter(
+    telemetry_dataset, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        telemetry_module,
+        '_provider_lane_index',
+        lambda: {'gemini': 'turbo', 'glm46': 'economy'},
+    )
+
+    response = client.get(
+        '/api/v1/telemetry/timeseries',
+        params={'lane': 'economy'},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['items']
+    assert {item['provider_id'] for item in payload['items']} == {'glm46'}
+
+
+def test_telemetry_runs_endpoint_filters_by_lane(
+    telemetry_dataset, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        telemetry_module,
+        '_provider_lane_index',
+        lambda: {'gemini': 'turbo', 'glm46': 'economy'},
+    )
+
+    response = client.get(
+        '/api/v1/telemetry/runs',
+        params={'lane': 'economy'},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['items']
+    assert {item['provider_id'] for item in payload['items']} == {'glm46'}
 
 
 def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> None:
