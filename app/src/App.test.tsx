@@ -64,6 +64,19 @@ describe('App provider orchestration flow', () => {
     updated_at: null,
   };
 
+  const notifications = [
+    {
+      id: 'platform-release',
+      severity: 'info' as const,
+      title: 'Release 2024.09.1 publicado',
+      message:
+        'Novos alertas em tempo real e central de notificações disponíveis na console MCP.',
+      timestamp: '2024-01-02T03:00:00.000Z',
+      category: 'platform' as const,
+      tags: ['Release', 'DX'],
+    },
+  ];
+
   beforeEach(() => {
     fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -78,7 +91,7 @@ describe('App provider orchestration flow', () => {
       .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
       .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
-      .mockResolvedValueOnce(createFetchResponse({ session: newSession, provider }));
+      .mockResolvedValueOnce(createFetchResponse({ notifications }));
   });
 
   afterEach(() => {
@@ -90,6 +103,7 @@ describe('App provider orchestration flow', () => {
 
   it('lists providers and provisions a session on demand', async () => {
     const user = userEvent.setup();
+    fetchMock.mockResolvedValueOnce(createFetchResponse({ session: newSession, provider }));
     await act(async () => {
       render(<App />);
       await Promise.resolve();
@@ -115,6 +129,11 @@ describe('App provider orchestration flow', () => {
       '/api/v1/secrets',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      '/api/v1/notifications',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
 
     expect(await screen.findByText(provider.description)).toBeInTheDocument();
     expect(await screen.findByText(existingSession.id)).toBeInTheDocument();
@@ -124,7 +143,7 @@ describe('App provider orchestration flow', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenNthCalledWith(
-        4,
+        5,
         `/api/v1/providers/${provider.id}/sessions`,
         expect.objectContaining({
           method: 'POST',
@@ -139,7 +158,7 @@ describe('App provider orchestration flow', () => {
     expect(await screen.findByText(`Sessão ${newSession.id} criada para ${provider.name}.`)).toBeInTheDocument();
     expect(screen.getByText(newSession.id)).toBeInTheDocument();
 
-    const requestBody = JSON.parse(fetchMock.mock.calls[3][1]?.body as string);
+    const requestBody = JSON.parse(fetchMock.mock.calls[4][1]?.body as string);
     expect(requestBody).toEqual({
       reason: 'Provisionamento disparado pela Console MCP',
       client: 'console-web',
@@ -513,6 +532,75 @@ describe('App provider orchestration flow', () => {
     await screen.findByRole('heading', { level: 2, name: 'Equilíbrio' });
   });
 
+  it('carrega notificações remotas durante o bootstrap', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    const notificationButton = await screen.findByRole('button', {
+      name: /Abrir central de notificações/i,
+    });
+    await user.click(notificationButton);
+
+    await screen.findByText('Release 2024.09.1 publicado');
+    await screen.findByText(
+      'Novos alertas em tempo real e central de notificações disponíveis na console MCP.',
+    );
+  });
+
+  it('apresenta fallback quando a API de notificações falha', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
+      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
+      .mockRejectedValueOnce(new Error('offline'));
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    const notificationButton = await screen.findByRole('button', {
+      name: /Abrir central de notificações/i,
+    });
+    await user.click(notificationButton);
+
+    await screen.findByText('Nenhum evento recente');
+    expect(console.error).toHaveBeenCalledWith(
+      'Falha ao carregar notificações remotas',
+      expect.any(Error),
+    );
+  });
+
+  it('usa fallback quando a API retorna lista vazia', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
+      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
+      .mockResolvedValueOnce(createFetchResponse({ notifications: [] }));
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    const notificationButton = await screen.findByRole('button', {
+      name: /Abrir central de notificações/i,
+    });
+    await user.click(notificationButton);
+
+    await screen.findByText('Nenhum evento recente');
+    const storedState = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
+    expect(storedState).toContain('platform-placeholder');
+  });
+
   it('persists notification read state across reloads', async () => {
     const user = userEvent.setup();
 
@@ -521,9 +609,11 @@ describe('App provider orchestration flow', () => {
       .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
       .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
+      .mockResolvedValueOnce(createFetchResponse({ notifications }))
       .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
-      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }));
+      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
+      .mockResolvedValueOnce(createFetchResponse({ notifications }));
 
     let firstRender: ReturnType<typeof render> | undefined;
     await act(async () => {

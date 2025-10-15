@@ -2,10 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import './App.css';
-import type { ProviderSummary, SecretMetadata, SecretValue, Session } from './api';
+import type {
+  NotificationSummary,
+  ProviderSummary,
+  SecretMetadata,
+  SecretValue,
+  Session,
+} from './api';
 import {
   createSession,
   deleteSecret,
+  fetchNotifications,
   fetchProviders,
   fetchSecrets,
   fetchSessions,
@@ -13,17 +20,13 @@ import {
   upsertSecret,
 } from './api';
 import CommandPalette from './components/CommandPalette';
-import NotificationCenter, {
-  type NotificationItem,
-  type NotificationSeverity,
-} from './components/NotificationCenter';
+import NotificationCenter, { type NotificationItem } from './components/NotificationCenter';
 import Dashboard from './pages/Dashboard';
 import FinOps from './pages/FinOps';
 import Keys from './pages/Keys';
 import Policies from './pages/Policies';
 import Routing from './pages/Routing';
 import Servers from './pages/Servers';
-import { seededMod } from './utils/hash';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -76,186 +79,19 @@ function persistNotificationReadState(map: Record<string, boolean>): void {
   }
 }
 
-type NotificationSeed = Omit<NotificationItem, 'isRead'>;
-
-function minutesAgo(offset: number): string {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() - offset);
-  return date.toISOString();
-}
-
-function toTitleCase(value: string): string {
-  if (!value) {
-    return '';
-  }
-  return value
-    .split(/[\s_-]+/)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
-    .join(' ');
-}
-
-function findLatestSession(providerId: string, allSessions: Session[]): Session | undefined {
-  let latest: Session | undefined;
-  for (const session of allSessions) {
-    if (session.provider_id !== providerId) {
-      continue;
-    }
-    if (!latest) {
-      latest = session;
-      continue;
-    }
-    if (new Date(session.created_at).getTime() > new Date(latest.created_at).getTime()) {
-      latest = session;
-    }
-  }
-  return latest;
-}
-
-function resolveSessionSeverity(status: string): NotificationSeverity {
-  const normalized = status.toLowerCase();
-  if (normalized.includes('error') || normalized.includes('fail')) {
-    return 'critical';
-  }
-  if (normalized.includes('warn') || normalized.includes('degraded')) {
-    return 'warning';
-  }
-  if (normalized.includes('ready') || normalized.includes('active') || normalized.includes('success')) {
-    return 'success';
-  }
-  return 'info';
-}
-
-function buildNotificationSeeds(providers: ProviderSummary[], sessions: Session[]): NotificationSeed[] {
-  const seeds: NotificationSeed[] = [];
-
-  providers.forEach((provider) => {
-    const baseSeed = seededMod(`${provider.id}-status`, 100);
-    const latency = 700 + seededMod(`${provider.id}-latency`, 420);
-    let severity: NotificationSeverity;
-    let title: string;
-    let message: string;
-
-    if (provider.is_available === false || baseSeed < 15) {
-      severity = 'critical';
-      title = `Failover ativo para ${provider.name}`;
-      message = `Tráfego de ${provider.name} foi movido para rotas secundárias após instabilidade detectada pelo orquestrador.`;
-    } else if (baseSeed < 45) {
-      severity = 'warning';
-      title = `Latência elevada em ${provider.name}`;
-      message = `A média das últimas 2h alcançou ${latency} ms. Considere rebalancear o mix ou executar um warmup adicional.`;
-    } else if (baseSeed < 70) {
-      severity = 'success';
-      title = `Failover revertido para ${provider.name}`;
-      message = `${provider.name} voltou ao plano primário após verificação completa dos health-checks.`;
-    } else {
-      severity = 'info';
-      title = `Provisionamento estável em ${provider.name}`;
-      message = `As rotas de ${provider.name} seguem atendendo requisições com SLA nominal.`;
-    }
-
-    seeds.push({
-      id: `${provider.id}-status`,
-      severity,
-      title,
-      message,
-      timestamp: minutesAgo(20 + seededMod(`${provider.id}-minutes`, 120)),
-      category: 'operations',
-      tags: [provider.name, provider.transport.toUpperCase()],
-    });
-
-    const latestSession = findLatestSession(provider.id, sessions);
-    if (latestSession) {
-      const sessionSeverity = resolveSessionSeverity(latestSession.status);
-      const createdAt = new Date(latestSession.created_at);
-      const formattedTime = new Intl.DateTimeFormat('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(createdAt);
-      let sessionMessage: string;
-
-      if (sessionSeverity === 'success') {
-        sessionMessage = `Provisionamento finalizado às ${formattedTime}. O tráfego já está sendo roteado.`;
-      } else if (sessionSeverity === 'critical') {
-        sessionMessage = `Falha relatada no provisioning às ${formattedTime}. Execute diagnóstico antes de liberar novas sessões.`;
-      } else if (sessionSeverity === 'warning') {
-        sessionMessage = `Sessão reportou degradação às ${formattedTime}. Monitore métricas de tokens e latência.`;
-      } else {
-        sessionMessage = `Sessão criada às ${formattedTime}. Guardando readiness check para liberar operações.`;
-      }
-
-      seeds.push({
-        id: `${provider.id}-${latestSession.id}`,
-        severity: sessionSeverity,
-        title: `Sessão ${latestSession.id} — ${toTitleCase(latestSession.status)}`,
-        message: sessionMessage,
-        timestamp: latestSession.created_at,
-        category: 'operations',
-        tags: [provider.name, 'Provisioning'],
-      });
-    }
-  });
-
-  if (providers.length > 0) {
-    const target = providers[seededMod('finops-target', providers.length)];
-    const delta = 6 + seededMod('finops-delta', 9);
-    seeds.push({
-      id: 'finops-anomaly',
-      severity: 'warning',
-      title: `Custo ↑ ${delta}% no lane Balanced`,
-      message: `O lane Balanced para ${target.name} aumentou ${delta}% versus a semana anterior. Revise o mix de modelos antes do fechamento.`,
-      timestamp: minutesAgo(90 + seededMod('finops-minutes', 120)),
-      category: 'finops',
-      tags: ['FinOps', target.name],
-    });
-
-    const savings = 4 + seededMod('finops-savings', 8);
-    seeds.push({
-      id: 'finops-savings',
-      severity: 'success',
-      title: `Economia estimada de ${savings}% este mês`,
-      message: `Os ajustes de roteamento economizaram ${savings}% em spend acumulado. Exporte o relatório para compartilhar com o time.`,
-      timestamp: minutesAgo(240 + seededMod('finops-savings-minutes', 200)),
-      category: 'finops',
-      tags: ['FinOps', 'Relatórios'],
-    });
-  }
-
-  if (providers.length > 1) {
-    const focusProvider = providers[seededMod('policy-provider', providers.length)];
-    seeds.push({
-      id: 'policy-rollout',
-      severity: 'success',
-      title: 'Rollout Balanced concluído',
-      message: `O template Balanced foi aplicado em ${focusProvider.name} e rotas dependentes sem incidentes.`,
-      timestamp: minutesAgo(180 + seededMod('policy-minutes', 160)),
-      category: 'policies',
-      tags: ['Policies', focusProvider.name],
-    });
-  }
-
-  seeds.push({
-    id: 'platform-release',
-    severity: 'info',
-    title: 'Release 2024.09.1 publicado',
-    message: 'Novos alertas em tempo real e central de notificações disponíveis na console MCP.',
-    timestamp: minutesAgo(360 + seededMod('platform-minutes', 240)),
-    category: 'platform',
-    tags: ['Release', 'DX'],
-  });
-
-  if (seeds.length === 0) {
-    seeds.push({
+function buildFallbackNotifications(): NotificationSummary[] {
+  return [
+    {
       id: 'platform-placeholder',
       severity: 'info',
       title: 'Nenhum evento recente',
-      message: 'As integrações MCP permanecem estáveis. Novas notificações aparecerão aqui automaticamente.',
+      message:
+        'As integrações MCP permanecem estáveis. Novas notificações aparecerão aqui automaticamente.',
       timestamp: new Date().toISOString(),
       category: 'platform',
       tags: ['Status'],
-    });
-  }
-
-  return seeds;
+    },
+  ];
 }
 
 const VIEW_DEFINITIONS = [
@@ -319,26 +155,89 @@ function App() {
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const commandButtonRef = useRef<HTMLButtonElement | null>(null);
 
+  const applyNotifications = useCallback(
+    (items: NotificationSummary[]) => {
+      setNotificationReadState((current) => {
+        const next = { ...current };
+        let hasNewEntries = false;
+
+        for (const item of items) {
+          if (!(item.id in next)) {
+            next[item.id] = false;
+            hasNewEntries = true;
+          }
+        }
+
+        setNotifications(
+          items
+            .map((item) => ({ ...item, isRead: next[item.id] ?? false }))
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+        );
+
+        if (hasNewEntries) {
+          persistNotificationReadState(next);
+          return next;
+        }
+
+        return current;
+      });
+    },
+    [],
+  );
+
   useEffect(() => {
     const controller = new AbortController();
 
     async function bootstrap() {
       try {
         setIsLoading(true);
-        const [providerList, sessionList, secretList] = await Promise.all([
-          fetchProviders(controller.signal),
-          fetchSessions(controller.signal),
-          fetchSecrets(controller.signal),
-        ]);
+        const [providerResult, sessionResult, secretResult, notificationResult] =
+          await Promise.allSettled([
+            fetchProviders(controller.signal),
+            fetchSessions(controller.signal),
+            fetchSecrets(controller.signal),
+            fetchNotifications(controller.signal),
+          ]);
 
-        setProviders(providerList);
+        if (
+          providerResult.status !== 'fulfilled' ||
+          sessionResult.status !== 'fulfilled' ||
+          secretResult.status !== 'fulfilled'
+        ) {
+          throw providerResult.status === 'rejected'
+            ? providerResult.reason
+            : sessionResult.status === 'rejected'
+              ? sessionResult.reason
+              : secretResult.reason;
+        }
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setProviders(providerResult.value);
         setSessions(
-          sessionList
+          sessionResult.value
             .slice()
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
         );
-        setSecrets(secretList);
+        setSecrets(secretResult.value);
         setInitialError(null);
+
+        let notificationsPayload: NotificationSummary[] = [];
+        if (notificationResult.status === 'fulfilled') {
+          notificationsPayload = notificationResult.value;
+        } else if (!controller.signal.aborted) {
+          console.error('Falha ao carregar notificações remotas', notificationResult.reason);
+        }
+
+        if (notificationsPayload.length === 0) {
+          notificationsPayload = buildFallbackNotifications();
+        }
+
+        if (!controller.signal.aborted) {
+          applyNotifications(notificationsPayload);
+        }
       } catch (error) {
         if (controller.signal.aborted) {
           return;
@@ -355,36 +254,7 @@ function App() {
     void bootstrap();
 
     return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const seeds = buildNotificationSeeds(providers, sessions);
-
-    setNotificationReadState((current) => {
-      const next = { ...current };
-      let hasNewEntries = false;
-
-      for (const seed of seeds) {
-        if (!(seed.id in next)) {
-          next[seed.id] = false;
-          hasNewEntries = true;
-        }
-      }
-
-      setNotifications(
-        seeds
-          .map((seed) => ({ ...seed, isRead: next[seed.id] ?? false }))
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
-      );
-
-      if (hasNewEntries) {
-        persistNotificationReadState(next);
-        return next;
-      }
-
-      return current;
-    });
-  }, [providers, sessions]);
+  }, [applyNotifications]);
 
   async function handleProvision(provider: ProviderSummary) {
     const controller = new AbortController();

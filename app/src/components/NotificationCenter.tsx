@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
-export type NotificationSeverity = 'info' | 'success' | 'warning' | 'critical';
-export type NotificationCategory = 'operations' | 'finops' | 'policies' | 'platform';
+import type { NotificationCategory, NotificationSeverity } from '../api';
 
 export interface NotificationItem {
   id: string;

@@ -80,6 +80,23 @@ export interface SecretValue {
   updated_at: string;
 }
 
+export type NotificationSeverity = 'info' | 'success' | 'warning' | 'critical';
+export type NotificationCategory = 'operations' | 'finops' | 'policies' | 'platform';
+
+export interface NotificationSummary {
+  id: string;
+  severity: NotificationSeverity;
+  title: string;
+  message: string;
+  timestamp: string;
+  category: NotificationCategory;
+  tags: string[];
+}
+
+interface NotificationsResponsePayload {
+  notifications: NotificationSummary[];
+}
+
 const DEFAULT_API_BASE = '/api/v1';
 const API_BASE = (import.meta.env.VITE_CONSOLE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '');
 
@@ -155,6 +172,11 @@ export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<Policy
     guardrailLevel: template.guardrail_level,
     features: template.features,
   }));
+}
+
+export async function fetchNotifications(signal?: AbortSignal): Promise<NotificationSummary[]> {
+  const data = await request<NotificationsResponsePayload>('/notifications', { signal });
+  return data.notifications;
 }
 
 export async function createSession(
