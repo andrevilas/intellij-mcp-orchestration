@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from .database import bootstrap_database
+from .log_model import TelemetryLogRecord
 
 DEFAULT_LOGS_DIR = Path("~/.mcp/logs")
 LOGS_ENV_VAR = "CONSOLE_MCP_LOGS_DIR"
@@ -169,57 +170,28 @@ def _parse_record(
     except json.JSONDecodeError:
         return None
 
-    tool = payload.get("tool")
-    ts = payload.get("ts")
-    if not isinstance(tool, str) or not tool:
+    try:
+        record = TelemetryLogRecord.from_payload(payload)
+    except (TypeError, ValueError):
         return None
-    if not isinstance(ts, str) or not ts:
-        return None
-
-    status = payload.get("status")
-    if not isinstance(status, str) or not status:
-        status = "unknown"
-
-    route_value = payload.get("route")
-    route = route_value if isinstance(route_value, str) and route_value else None
-
-    metadata = payload.get("metadata")
-    if not isinstance(metadata, dict):
-        metadata = {}
 
     ingested_at = datetime.now(timezone.utc).isoformat()
 
     return TelemetryEvent(
         provider_id=provider_id,
-        tool=tool,
-        route=route,
-        tokens_in=_coerce_int(payload.get("tokens_in")),
-        tokens_out=_coerce_int(payload.get("tokens_out")),
-        duration_ms=_coerce_int(payload.get("duration_ms")),
-        status=status,
-        cost_estimated_usd=_coerce_float(payload.get("cost_estimated_usd")),
-        metadata_json=json.dumps(metadata, ensure_ascii=False, sort_keys=True),
-        ts=_normalize_timestamp(ts),
+        tool=record.tool,
+        route=record.route,
+        tokens_in=record.tokens_in,
+        tokens_out=record.tokens_out,
+        duration_ms=record.duration_ms,
+        status=record.status,
+        cost_estimated_usd=record.cost_estimated_usd,
+        metadata_json=json.dumps(record.metadata, ensure_ascii=False, sort_keys=True),
+        ts=_normalize_timestamp(record.ts),
         source_file=source_file,
         line_number=line_number,
         ingested_at=ingested_at,
     )
-
-
-def _coerce_int(value: object, default: int = 0) -> int:
-    try:
-        return int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return default
-
-
-def _coerce_float(value: object) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return None
 
 
 def _normalize_timestamp(value: str) -> str:

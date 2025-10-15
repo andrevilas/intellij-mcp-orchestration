@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import text
 
+from console_mcp_server.log_model import TelemetryLogRecord
+
 
 @pytest.fixture()
 def telemetry_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -50,6 +52,32 @@ def _write_sample_log(directory: Path) -> Path:
         handle.write("not-json\n")
         handle.write("\n")
     return file_path
+
+
+def test_log_model_normalizes_synonyms() -> None:
+    payload = {
+        "timestamp": datetime(2025, 3, 1, 10, 0, tzinfo=timezone.utc),
+        "model": "gemini.chat",
+        "profile": "balanced",
+        "prompt_tokens": "128",
+        "completion_tokens": 64,
+        "latencyMs": "250",
+        "state": "COMPLETED",
+        "total_cost_usd": "0.42",
+        "details": {"trace_id": "abc-123"},
+    }
+
+    record = TelemetryLogRecord.from_payload(payload)
+
+    assert record.ts == "2025-03-01T10:00:00+00:00"
+    assert record.tool == "gemini.chat"
+    assert record.route == "balanced"
+    assert record.tokens_in == 128
+    assert record.tokens_out == 64
+    assert record.duration_ms == 250
+    assert record.status == "success"
+    assert record.cost_estimated_usd == pytest.approx(0.42)
+    assert record.metadata == {"trace_id": "abc-123"}
 
 
 def test_ingest_logs_populates_database(database, telemetry_module, tmp_path: Path) -> None:
@@ -104,6 +132,78 @@ def test_ingest_logs_populates_database(database, telemetry_module, tmp_path: Pa
     with engine.begin() as connection:
         count = connection.execute(text("SELECT COUNT(*) FROM telemetry_events")).scalar_one()
     assert count == 2
+
+
+def test_ingest_logs_supports_unified_payloads(
+    database, telemetry_module, tmp_path: Path
+) -> None:
+    engine = database.bootstrap_database()
+
+    logs_root = Path(telemetry_module._resolve_logs_dir())  # type: ignore[attr-defined]
+    provider_dir = logs_root / "gemini"
+    provider_dir.mkdir(parents=True, exist_ok=True)
+
+    records = [
+        {
+            "timestamp": "2025-03-01T10:00:00Z",
+            "model": "gemini.chat",
+            "profile": "balanced",
+            "prompt_tokens": "128",
+            "completion_tokens": 64,
+            "latencyMs": 250.7,
+            "state": "OK",
+            "total_cost_usd": "0.42",
+            "details": {"trace_id": "abc-123"},
+        },
+        {
+            "timestamp": "2025-03-01T10:05:00+01:00",
+            "model": "gemini.chat",
+            "prompt_tokens": 32,
+            "completion_tokens": 0,
+            "latency_ms": "100",
+            "state": "FAILED",
+            "cost_usd": None,
+            "extra": {"error": "upstream"},
+        },
+    ]
+
+    file_path = provider_dir / "2025-03-01.jsonl"
+    with file_path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record) + "\n")
+
+    inserted = telemetry_module.ingest_logs()
+    assert inserted == 2
+
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                """
+                SELECT tool, route, tokens_in, tokens_out, duration_ms, status,
+                       cost_estimated_usd, metadata, ts
+                FROM telemetry_events
+                ORDER BY line_number
+                """
+            )
+        ).fetchall()
+
+    assert len(rows) == 2
+
+    first = rows[0]._mapping
+    assert first["tool"] == "gemini.chat"
+    assert first["route"] == "balanced"
+    assert first["tokens_in"] == 128
+    assert first["tokens_out"] == 64
+    assert first["duration_ms"] == 250
+    assert first["status"] == "success"
+    assert first["metadata"] == json.dumps({"trace_id": "abc-123"}, ensure_ascii=False, sort_keys=True)
+    assert first["ts"] == "2025-03-01T10:00:00+00:00"
+
+    second = rows[1]._mapping
+    assert second["status"] == "error"
+    assert second["route"] is None
+    assert second["duration_ms"] == 100
+    assert second["metadata"] == json.dumps({"error": "upstream"}, ensure_ascii=False, sort_keys=True)
 
 
 def test_ingest_specific_provider_only(database, telemetry_module, tmp_path: Path) -> None:
