@@ -1,0 +1,23 @@
+name: catalog-search
+title: Sample Catalog Browser
+version: 1.0.0
+description: Provides deterministic catalogue lookups over a curated in-memory dataset.
+capabilities:
+  - structured-output
+tools:
+  - name: search_catalog
+    description: Filter the static catalogue using simple substring matching with deterministic ordering.
+    schema:
+      type: object
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+          description: Terms used to filter catalogue entries. Matches against name, category and tags.
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Maximum number of items to return. Defaults to the agent's preset limit.
+      required:
+        - query
