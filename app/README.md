@@ -7,21 +7,21 @@ iterações curtas e agora está conectada ao protótipo FastAPI do backend, con
 ## Requisitos
 
 - Node.js >= 18.18
-- npm >= 9
+- pnpm >= 8 (ou npm >= 9)
 
 ## Scripts Disponíveis
 
 ```bash
-npm install    # instala dependências
-npm run dev    # inicia Vite em http://127.0.0.1:5173 com HMR
-npm run build  # gera artefatos prontos para deploy estático
-npm run preview # serve o build final localmente
+pnpm install   # instala dependências
+pnpm dev       # inicia Vite em http://127.0.0.1:5173 com HMR
+pnpm build     # gera artefatos prontos para deploy estático
+pnpm preview   # serve o build final localmente
 ```
 
 ## Integração com o backend
 
 1. Inicie o servidor FastAPI em outro terminal (`console-mcp-server-dev`).
-2. Rode `npm run dev` neste diretório. O proxy embutido encaminha chamadas `/api/*` para `http://127.0.0.1:8000`.
+2. Rode `pnpm dev` neste diretório. O proxy embutido encaminha chamadas `/api/*` para `http://127.0.0.1:8000`.
 3. A UI exibirá os provedores do manifesto versionado e permitirá criar sessões mock com um clique.
 
 Variáveis de ambiente úteis:

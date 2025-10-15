@@ -118,9 +118,9 @@
 ---
 
 ## Sprint OPS-2 — DX & Automação
-- [ ] **TASK-OPS-205 — Script `dev:all`**
-- [ ] **TASK-OPS-206 — Make targets e Doctor**
-- [ ] **TASK-OPS-207 — CI básico**
+- [x] **TASK-OPS-205 — Script `dev:all`**
+- [x] **TASK-OPS-206 — Make targets e Doctor**
+- [x] **TASK-OPS-207 — CI básico**
 
 ## Sprint OPS-3 — Segurança
 - [ ] **TASK-OPS-301 — Segredos**

@@ -8,7 +8,9 @@
 git clone <seu-fork-ou-este-repo>.git intellij-mcp-orchestration
 cd intellij-mcp-orchestration
 bash scripts/bootstrap-mcp.sh
+# opcional: make install  # instala frontend (pnpm) + backend (pip)
 # opcional: make doctor   # valida glm46-mcp-server, PATH e cost-policy
+# make dev                 # sobe frontend + backend em paralelo
 # IntelliJ → Settings → Tools → AI Assistant → MCP → Add → Command
 #  - ~/.local/bin/gemini-mcp
 #  - ~/.local/bin/codex-mcp
@@ -45,10 +47,11 @@ bash scripts/bootstrap-mcp.sh
 ## Console MCP Frontend (`app/`)
 
 ```bash
-cd app
-npm install
-npm run dev    # acessível em http://127.0.0.1:5173
+pnpm --dir app install   # ou `pnpm install && pnpm -r dev`
+pnpm --dir app dev       # acessível em http://127.0.0.1:5173
 ```
+
+> Dica: `make dev-frontend` chama o mesmo comando e mantém logs consistentes com o backend.
 
 Stack escolhida: **Vite 5 + React 18 + TypeScript** para maximizar DX. A interface agora consome os endpoints do servidor
 do Console MCP (`/api/v1/providers` e `/api/v1/sessions`), exibe as capacidades do manifesto versionado e permite disparar
@@ -56,7 +59,7 @@ provisionamentos em memória diretamente da UI.
 
 Variáveis de ambiente úteis (Vite):
 - `VITE_CONSOLE_API_BASE` — sobrescreve o path base usado pelo frontend (default: `/api/v1`).
-- `CONSOLE_MCP_API_PROXY` — ajusta o destino do proxy local do Vite durante `npm run dev` (default: `http://127.0.0.1:8000`).
+- `CONSOLE_MCP_API_PROXY` — ajusta o destino do proxy local do Vite durante `pnpm dev` (default: `http://127.0.0.1:8000`).
 
 ## Console MCP Server (`server/`)
 
@@ -80,11 +83,11 @@ Variáveis de ambiente úteis:
 
 ## Execução integrada (app + server)
 
-1. Inicie o backend em um terminal: `console-mcp-server-dev` (porta 8000).
-2. Em outro terminal, rode `npm run dev` dentro de `app/`. O proxy do Vite encaminha `/api/*` para o backend.
+1. Rode `make install` para garantir dependências (pnpm + pip) sincronizadas.
+2. Execute `make dev` para subir backend (uvicorn/auto-reload) e frontend em paralelo.
 3. Acesse `http://127.0.0.1:5173` e teste o provisionamento direto da lista de provedores. Cada ação também pode ser observada em `/api/v1/sessions`.
 
-> Dica: personalize as origens CORS ou o proxy do Vite caso exponha o Console MCP em hosts diferentes.
+> Dica: personalize as origens CORS ou o proxy do Vite caso exponha o Console MCP em hosts diferentes. Use `make dev-backend` ou `make dev-frontend` para executar componentes isolados.
 
 ## Guardrails
 - `.env` em `~/.mcp/.env` com `chmod 600` (não versionar). Veja `.env.example`.

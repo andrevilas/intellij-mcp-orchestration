@@ -6,7 +6,7 @@
 
 ## Itens verificados
 1. **Diff completo (`HEAD~1..HEAD`)** – nenhum marcador de conflito remanescente (`<<<<<<<`).
-2. **Build do frontend (`npm run build`)** – sucesso após `npm install` dentro de `app/`.
+2. **Build do frontend (`pnpm --dir app build`)** – sucesso após `pnpm install` dentro de `app/`.
 3. **Validação Python** – `python -m compileall server/src` para garantir bytecode válido.
 4. **Configuração Vite/Proxy** – confirmou que `vite.config.ts` mantém proxy `/api` para FastAPI.
 5. **Configuração CORS no backend** – leitura de `server/src/console_mcp_server/main.py` confirma uso de `CONSOLE_MCP_CORS_ORIGINS`.
