@@ -8,6 +8,30 @@ log() {
   printf '[dev:all] %s\n' "$*"
 }
 
+normalize_browser_host() {
+  case "$1" in
+  0.0.0.0|::)
+    printf '127.0.0.1'
+    ;;
+  *)
+    printf '%s' "$1"
+    ;;
+  esac
+}
+
+BACKEND_HOST="${CONSOLE_MCP_SERVER_HOST:-127.0.0.1}"
+BACKEND_PORT="${CONSOLE_MCP_SERVER_PORT:-8000}"
+FRONTEND_HOST="${CONSOLE_MCP_FRONTEND_HOST:-127.0.0.1}"
+FRONTEND_PORT="${CONSOLE_MCP_FRONTEND_PORT:-5173}"
+
+if [[ -z "${CONSOLE_MCP_API_PROXY:-}" ]]; then
+  NORMALIZED_BACKEND_HOST="$(normalize_browser_host "$BACKEND_HOST")"
+  export CONSOLE_MCP_API_PROXY="http://${NORMALIZED_BACKEND_HOST}:${BACKEND_PORT}"
+fi
+
+log "Backend em ${BACKEND_HOST}:${BACKEND_PORT} (proxy=${CONSOLE_MCP_API_PROXY})."
+log "Frontend em ${FRONTEND_HOST}:${FRONTEND_PORT}."
+
 pids=()
 cleanup() {
   local exit_code=$?

@@ -16,7 +16,75 @@ from .supervisor import process_supervisor
 
 logger = logging.getLogger("console_mcp_server")
 
-DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]
+SERVER_HOST_ENV_VAR = "CONSOLE_MCP_SERVER_HOST"
+SERVER_PORT_ENV_VAR = "CONSOLE_MCP_SERVER_PORT"
+FRONTEND_HOST_ENV_VAR = "CONSOLE_MCP_FRONTEND_HOST"
+FRONTEND_PORT_ENV_VAR = "CONSOLE_MCP_FRONTEND_PORT"
+
+
+def _read_port(env_var: str, default: int, *, strict: bool) -> int:
+    raw_value = os.getenv(env_var)
+    if not raw_value:
+        return default
+
+    try:
+        value = int(raw_value)
+    except ValueError as exc:  # pragma: no cover - defensive, exercised via integration
+        if strict:
+            raise ValueError(
+                f"Invalid value for {env_var!s}: {raw_value!r} (expected integer port)"
+            ) from exc
+        logger.warning(
+            "Ignoring invalid value for %s: %r (expected integer port)",
+            env_var,
+            raw_value,
+        )
+        return default
+
+    if not (0 <= value <= 65535):
+        if strict:
+            raise ValueError(
+                f"Invalid value for {env_var!s}: {value!r} (expected 0-65535)"
+            )
+        logger.warning(
+            "Ignoring out-of-range value for %s: %r (expected 0-65535)",
+            env_var,
+            raw_value,
+        )
+        return default
+
+    return value
+
+
+def _default_frontend_host() -> str:
+    return os.getenv(FRONTEND_HOST_ENV_VAR, "127.0.0.1")
+
+
+def _default_frontend_port() -> int:
+    return _read_port(FRONTEND_PORT_ENV_VAR, 5173, strict=False)
+
+
+def _normalize_browser_host(host: str) -> str:
+    return "127.0.0.1" if host in {"0.0.0.0", "::"} else host
+
+
+def _default_cors_origins() -> list[str]:
+    frontend_host = _normalize_browser_host(_default_frontend_host())
+    frontend_port = _default_frontend_port()
+
+    origins = {
+        f"http://{frontend_host}:{frontend_port}",
+    }
+
+    if frontend_host == "127.0.0.1":
+        origins.add(f"http://localhost:{frontend_port}")
+    if frontend_host == "localhost":
+        origins.add(f"http://127.0.0.1:{frontend_port}")
+
+    return sorted(origins)
+
+
+DEFAULT_CORS_ORIGINS = _default_cors_origins()
 CORS_ENV_VAR = "CONSOLE_MCP_CORS_ORIGINS"
 
 app = FastAPI(
@@ -65,17 +133,20 @@ async def root() -> dict[str, Any]:
 
 def run() -> None:
     """Production oriented entrypoint (host/port configurable via env)."""
+    host = os.getenv(SERVER_HOST_ENV_VAR, "0.0.0.0")
+    port = _read_port(SERVER_PORT_ENV_VAR, 8000, strict=True)
 
-    uvicorn.run("console_mcp_server.main:app", host="0.0.0.0", port=8000, factory=False)
+    uvicorn.run("console_mcp_server.main:app", host=host, port=port, factory=False)
 
 
 def run_dev() -> None:
     """Developer friendly entrypoint with auto-reload enabled."""
-
+    host = os.getenv(SERVER_HOST_ENV_VAR, "127.0.0.1")
+    port = _read_port(SERVER_PORT_ENV_VAR, 8000, strict=True)
     uvicorn.run(
         "console_mcp_server.main:app",
-        host="127.0.0.1",
-        port=8000,
+        host=host,
+        port=port,
         reload=True,
         factory=False,
     )

@@ -24,4 +24,8 @@ if [[ -n "${PYTHONPATH:-}" ]]; then
 else
   export PYTHONPATH="$ROOT_DIR/server/src"
 fi
-exec uvicorn console_mcp_server.main:app --reload --host 127.0.0.1 --port 8000
+
+SERVER_HOST="${CONSOLE_MCP_SERVER_HOST:-127.0.0.1}"
+SERVER_PORT="${CONSOLE_MCP_SERVER_PORT:-8000}"
+log "Bind configurado para ${SERVER_HOST}:${SERVER_PORT}."
+exec uvicorn console_mcp_server.main:app --reload --host "$SERVER_HOST" --port "$SERVER_PORT"

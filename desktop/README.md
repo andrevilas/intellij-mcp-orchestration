@@ -10,11 +10,12 @@ process (run via the Python API server).
 # 1) Install dependencies
 pnpm --dir desktop install
 
-# 2) Start the Vite dev server in another terminal
+# 2) Start the Vite dev server em outro terminal (ajuste host/porta via
+#    CONSOLE_MCP_FRONTEND_HOST/PORT se necessário)
 pnpm --dir app dev
 
-# 3) Launch Electron pointing to the dev server
-VITE_DEV_SERVER_URL=http://localhost:5173 pnpm --dir desktop exec electron .
+# 3) Launch Electron apontando para o mesmo host/porta
+pnpm --dir desktop dev:electron
 ```
 
 ## Packaging

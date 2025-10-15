@@ -62,8 +62,8 @@ seus projetos (localmente ou em equipe) sem fricção.
    ```bash
    pnpm run dev:all
    ```
-   - O backend fica disponível em `http://127.0.0.1:8000`.
-   - O frontend roda em `http://127.0.0.1:5173` e faz proxy automático para `/api`.
+   - O backend fica disponível em `http://127.0.0.1:8000` (ajuste via `CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`).
+   - O frontend roda em `http://127.0.0.1:5173` (ajuste via `CONSOLE_MCP_FRONTEND_HOST`/`CONSOLE_MCP_FRONTEND_PORT`) e faz proxy automático para `/api`.
 
 ### Rodando serviços de forma independente
 
