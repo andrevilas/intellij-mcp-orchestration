@@ -1326,12 +1326,17 @@ def test_process_supervisor_flow(client: TestClient) -> None:
     before_body = status_before.json()['process']
     assert before_body['status'] == 'stopped'
     assert before_body['pid'] is None
+    assert before_body['logs'] == []
+    assert before_body['cursor'] is None
 
     start_response = client.post('/api/v1/servers/supervisor-test/process/start')
     assert start_response.status_code == 200
     start_body = start_response.json()['process']
     assert start_body['status'] == 'running'
     assert isinstance(start_body['pid'], int)
+    assert len(start_body['logs']) >= 1
+    assert start_body['cursor'] is not None
+    start_cursor = start_body['cursor']
 
     duplicate_start = client.post('/api/v1/servers/supervisor-test/process/start')
     assert duplicate_start.status_code == 409
@@ -1340,11 +1345,23 @@ def test_process_supervisor_flow(client: TestClient) -> None:
     assert list_response.status_code == 200
     processes = list_response.json()['processes']
     assert any(proc['server_id'] == 'supervisor-test' for proc in processes)
+    process_entry = next(proc for proc in processes if proc['server_id'] == 'supervisor-test')
+    assert process_entry['logs']
 
     stop_response = client.post('/api/v1/servers/supervisor-test/process/stop')
     assert stop_response.status_code == 200
     stopped_body = stop_response.json()['process']
     assert stopped_body['status'] in {'stopped', 'error'}
+    assert stopped_body['cursor'] is not None
+    stop_cursor = stopped_body['cursor']
+    logs_tail = client.get(
+        f"/api/v1/servers/supervisor-test/process/logs?cursor={start_cursor}"
+    )
+    assert logs_tail.status_code == 200
+    tail_payload = logs_tail.json()
+    assert tail_payload['logs']
+    assert tail_payload['cursor'] == stop_cursor
+    assert all(int(entry['id']) > int(start_cursor) for entry in tail_payload['logs'])
 
     second_stop = client.post('/api/v1/servers/supervisor-test/process/stop')
     assert second_stop.status_code == 409

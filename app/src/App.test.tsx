@@ -42,6 +42,18 @@ describe('App provider orchestration flow', () => {
     is_available: true,
   };
 
+  const serverRecord = {
+    id: provider.id,
+    name: provider.name,
+    command: provider.command,
+    description: provider.description,
+    tags: provider.tags,
+    capabilities: provider.capabilities,
+    transport: provider.transport,
+    created_at: '2024-06-01T09:55:00.000Z',
+    updated_at: '2024-06-01T09:55:00.000Z',
+  };
+
   const existingSession = {
     id: 'session-existing',
     provider_id: provider.id,
@@ -299,10 +311,121 @@ describe('App provider orchestration flow', () => {
 
     let deploymentCounter = 0;
 
+    const processBaseTime = new Date('2024-06-01T10:00:00Z').getTime();
+    let processLogCounter = 1;
+    let processLogs = [
+      {
+        id: processLogCounter,
+        timestamp: new Date(processBaseTime).toISOString(),
+        level: 'info' as const,
+        message: 'Processo iniciado pelo supervisor (PID 321).',
+      },
+    ];
+    let processStatus: 'running' | 'stopped' | 'error' = 'running';
+    let processPid: number | null = 321;
+    let processStartedAt: string | null = processLogs[0].timestamp;
+    let processStoppedAt: string | null = null;
+    let processReturnCode: number | null = null;
+    let processLastError: string | null = null;
+
+    function appendProcessLog(message: string, level: 'info' | 'error' = 'info') {
+      processLogCounter += 1;
+      const timestamp = new Date(processBaseTime + processLogCounter * 1000).toISOString();
+      processLogs = [...processLogs, { id: processLogCounter, timestamp, level, message }];
+    }
+
+    function buildProcessSnapshot() {
+      return {
+        server_id: provider.id,
+        status: processStatus,
+        command: provider.command,
+        pid: processPid,
+        started_at: processStartedAt,
+        stopped_at: processStoppedAt,
+        return_code: processReturnCode,
+        last_error: processLastError,
+        logs: processLogs.slice(-10).map((log) => ({
+          id: log.id.toString(),
+          timestamp: log.timestamp,
+          level: log.level,
+          message: log.message,
+        })),
+        cursor: processLogs.length ? processLogCounter.toString() : null,
+      };
+    }
+
     applyDefaultFetchMock = () => {
+      processLogCounter = 1;
+      processLogs = [
+        {
+          id: processLogCounter,
+          timestamp: new Date(processBaseTime).toISOString(),
+          level: 'info',
+          message: 'Processo iniciado pelo supervisor (PID 321).',
+        },
+      ];
+      processStatus = 'running';
+      processPid = 321;
+      processStartedAt = processLogs[0].timestamp;
+      processStoppedAt = null;
+      processReturnCode = null;
+      processLastError = null;
+
       fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : input.toString();
         const method = (init?.method ?? 'GET').toUpperCase();
+
+      if (url === '/api/v1/servers' && method === 'GET') {
+        return createFetchResponse({ servers: [serverRecord] });
+      }
+      if (url === '/api/v1/servers/processes' && method === 'GET') {
+        return createFetchResponse({ processes: [buildProcessSnapshot()] });
+      }
+      if (url.startsWith(`/api/v1/servers/${provider.id}/process/logs`) && method === 'GET') {
+        const cursorParam = new URL(url, 'http://localhost').searchParams.get('cursor');
+        const cursorValue = cursorParam ? Number(cursorParam) : null;
+        const newLogs = processLogs.filter((log) => (cursorValue ?? 0) < log.id);
+        const nextCursor = newLogs.length ? newLogs[newLogs.length - 1].id.toString() : cursorParam ?? (cursorValue?.toString() ?? null);
+        return createFetchResponse({
+          logs: newLogs.map((log) => ({
+            id: log.id.toString(),
+            timestamp: log.timestamp,
+            level: log.level,
+            message: log.message,
+          })),
+          cursor: nextCursor,
+        });
+      }
+      if (url === `/api/v1/servers/${provider.id}/process/start` && method === 'POST') {
+        processStatus = 'running';
+        processPid = 987;
+        processStartedAt = new Date(processBaseTime + processLogCounter * 1000 + 500).toISOString();
+        processStoppedAt = null;
+        processReturnCode = null;
+        processLastError = null;
+        appendProcessLog('Processo iniciado com PID 987.');
+        return createFetchResponse({ process: buildProcessSnapshot() });
+      }
+      if (url === `/api/v1/servers/${provider.id}/process/stop` && method === 'POST') {
+        processStatus = 'stopped';
+        processPid = null;
+        processStoppedAt = new Date(processBaseTime + processLogCounter * 1000 + 500).toISOString();
+        processReturnCode = 0;
+        processLastError = null;
+        appendProcessLog('Processo encerrado com código 0.');
+        return createFetchResponse({ process: buildProcessSnapshot() });
+      }
+      if (url === `/api/v1/servers/${provider.id}/process/restart` && method === 'POST') {
+        processStatus = 'running';
+        processPid = 654;
+        processStartedAt = new Date(processBaseTime + processLogCounter * 1000 + 500).toISOString();
+        processStoppedAt = null;
+        processReturnCode = null;
+        processLastError = null;
+        appendProcessLog('Reinício solicitado pelo operador.');
+        appendProcessLog('Processo reiniciado com PID 654.');
+        return createFetchResponse({ process: buildProcessSnapshot() });
+      }
 
       if (url === '/api/v1/providers' && method === 'GET') {
         return createFetchResponse({ providers: [provider] });
@@ -463,7 +586,7 @@ describe('App provider orchestration flow', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      '/api/v1/providers',
+      '/api/v1/servers',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -577,6 +700,12 @@ describe('App provider orchestration flow', () => {
     await user.click(serversTab);
 
     await screen.findByRole('heading', { name: /Servidores MCP/i });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/servers/processes',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
 
     const serverHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
     const serverCard = serverHeading.closest('article');
@@ -588,6 +717,13 @@ describe('App provider orchestration flow', () => {
     await user.click(stopButton);
     expect(stopButton).toBeDisabled();
 
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/servers/${provider.id}/process/stop`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
     await waitFor(
       () => {
         expect(scoped.getByText('Offline')).toBeInTheDocument();
@@ -597,6 +733,13 @@ describe('App provider orchestration flow', () => {
 
     const startButton = scoped.getByRole('button', { name: 'Iniciar' });
     await user.click(startButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/servers/${provider.id}/process/start`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
 
     await waitFor(
       () => {
@@ -921,7 +1064,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
     resetFetchMock();
     fetchMock
-      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(createFetchResponse({ servers: [serverRecord] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
       .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
       .mockRejectedValueOnce(new Error('offline'));
@@ -947,7 +1090,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
     resetFetchMock();
     fetchMock
-      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(createFetchResponse({ servers: [serverRecord] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
       .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
       .mockResolvedValueOnce(createFetchResponse({ notifications: [] }));
@@ -972,11 +1115,7 @@ describe('App provider orchestration flow', () => {
 
     resetFetchMock();
     fetchMock
-      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
-      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
-      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
-      .mockResolvedValueOnce(createFetchResponse({ notifications }))
-      .mockResolvedValueOnce(createFetchResponse({ providers: [provider] }))
+      .mockResolvedValueOnce(createFetchResponse({ servers: [serverRecord] }))
       .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
       .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
       .mockResolvedValueOnce(createFetchResponse({ notifications }));

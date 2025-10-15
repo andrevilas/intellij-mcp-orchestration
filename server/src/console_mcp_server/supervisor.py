@@ -5,10 +5,11 @@ import os
 import shlex
 import subprocess
 import threading
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Mapping, Optional
+from typing import Deque, Dict, Iterable, List, Mapping, Optional
 
 
 class ProcessSupervisorError(RuntimeError):
@@ -36,6 +37,16 @@ class ProcessStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class ProcessLogEntry:
+    """Individual lifecycle events captured for a supervised process."""
+
+    id: int
+    timestamp: datetime
+    level: str
+    message: str
+
+
+@dataclass(frozen=True)
 class ProcessSnapshot:
     """Immutable view of a supervised process state."""
 
@@ -47,6 +58,8 @@ class ProcessSnapshot:
     stopped_at: Optional[datetime]
     return_code: Optional[int]
     last_error: Optional[str]
+    logs: tuple[ProcessLogEntry, ...]
+    log_cursor: int
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -58,6 +71,16 @@ class ProcessSnapshot:
             "stopped_at": self.stopped_at,
             "return_code": self.return_code,
             "last_error": self.last_error,
+            "logs": [
+                {
+                    "id": entry.id,
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "message": entry.message,
+                }
+                for entry in self.logs
+            ],
+            "log_cursor": self.log_cursor,
         }
 
 
@@ -73,6 +96,8 @@ class _ManagedProcess:
         self.stopped_at: Optional[datetime] = None
         self.return_code: Optional[int] = None
         self.last_error: Optional[str] = None
+        self._logs: Deque[ProcessLogEntry] = deque(maxlen=200)
+        self._log_sequence = 0
 
     def update_command(self, command: str) -> None:
         self.command = command
@@ -80,6 +105,16 @@ class _ManagedProcess:
     @property
     def is_running(self) -> bool:
         return self._popen is not None and self._popen.poll() is None
+
+    def _append_log(self, message: str, *, level: str = "info") -> None:
+        self._log_sequence += 1
+        entry = ProcessLogEntry(
+            id=self._log_sequence,
+            timestamp=datetime.now(tz=timezone.utc),
+            level=level,
+            message=message,
+        )
+        self._logs.append(entry)
 
     def _expand_command(self) -> List[str]:
         expanded = os.path.expanduser(self.command)
@@ -99,6 +134,11 @@ class _ManagedProcess:
         self._popen = None
         self.stopped_at = datetime.now(tz=timezone.utc)
         self.status = ProcessStatus.STOPPED if result == 0 else ProcessStatus.ERROR
+        level = "info" if result == 0 else "error"
+        self._append_log(
+            f"Process exited with code {result}",
+            level=level,
+        )
 
     def start(self, *, env: Optional[Mapping[str, str]] = None) -> None:
         if self.is_running:
@@ -108,6 +148,7 @@ class _ManagedProcess:
         self.stopped_at = None
         try:
             args = self._expand_command()
+            self._append_log("Start requested via supervisor")
             self._popen = subprocess.Popen(
                 args,
                 stdout=subprocess.DEVNULL,
@@ -118,6 +159,7 @@ class _ManagedProcess:
         except OSError as exc:
             self.status = ProcessStatus.ERROR
             self.last_error = str(exc)
+            self._append_log(f"Start failed: {exc!s}", level="error")
             self.started_at = None
             raise ProcessStartError(
                 f"Failed to start server '{self.server_id}': {exc!s}"
@@ -125,12 +167,18 @@ class _ManagedProcess:
 
         self.status = ProcessStatus.RUNNING
         self.started_at = datetime.now(tz=timezone.utc)
+        pid = self._popen.pid if self._popen is not None else None
+        if pid is not None:
+            self._append_log(f"Process started with PID {pid}")
+        else:
+            self._append_log("Process started")
 
     def stop(self, *, timeout: float = 5.0) -> None:
         self.refresh()
         if self._popen is None:
             raise ProcessNotRunningError(f"Server '{self.server_id}' is not running")
 
+        self._append_log("Stop requested via supervisor")
         self._popen.terminate()
         try:
             self._popen.wait(timeout=timeout)
@@ -143,6 +191,16 @@ class _ManagedProcess:
             self._popen = None
             self.stopped_at = datetime.now(tz=timezone.utc)
             self.status = ProcessStatus.STOPPED if return_code == 0 else ProcessStatus.ERROR
+            level = "info" if return_code == 0 else "error"
+            self._append_log(
+                f"Process stopped with code {return_code}",
+                level=level,
+            )
+
+    def logs(self, *, cursor: Optional[int] = None) -> Iterable[ProcessLogEntry]:
+        if cursor is None:
+            return list(self._logs)
+        return [entry for entry in self._logs if entry.id > cursor]
 
     def snapshot(self) -> ProcessSnapshot:
         self.refresh()
@@ -156,6 +214,8 @@ class _ManagedProcess:
             stopped_at=self.stopped_at,
             return_code=self.return_code,
             last_error=self.last_error,
+            logs=tuple(self._logs),
+            log_cursor=self._log_sequence,
         )
 
 
@@ -213,6 +273,13 @@ class ProcessSupervisor:
         with self._lock:
             return [process.snapshot() for process in self._processes.values()]
 
+    def logs(self, server_id: str, *, cursor: Optional[int] = None) -> List[ProcessLogEntry]:
+        with self._lock:
+            process = self._processes.get(server_id)
+            if process is None:
+                return []
+            return list(process.logs(cursor=cursor))
+
     def stop_all(self) -> List[ProcessSnapshot]:
         snapshots: List[ProcessSnapshot] = []
         with self._lock:
@@ -246,6 +313,7 @@ __all__ = [
     "ProcessSupervisor",
     "process_supervisor",
     "ProcessSnapshot",
+    "ProcessLogEntry",
     "ProcessStatus",
     "ProcessSupervisorError",
     "ProcessAlreadyRunningError",

@@ -1,74 +1,104 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ProviderSummary, Session } from '../api';
+import {
+  ApiError,
+  type ProviderSummary,
+  type ServerProcessLifecycle,
+  type ServerProcessLogsResult,
+  type ServerProcessLogEntry,
+  type ServerProcessStateSnapshot,
+  fetchServerProcessLogs,
+  fetchServerProcesses,
+  restartServerProcess,
+  startServerProcess,
+  stopServerProcess,
+} from '../api';
 import ServerActions, { type ServerAction } from '../components/ServerActions';
-import { seededMod } from '../utils/hash';
 
 export interface ServersProps {
   providers: ProviderSummary[];
-  sessions: Session[];
   isLoading: boolean;
   initialError: string | null;
 }
 
-type ServerStatus = 'up' | 'down';
+const MAX_LOG_ENTRIES = 20;
 
-interface LocalLogEntry {
-  id: string;
-  timestamp: string;
-  message: string;
-  origin: 'action' | 'status';
-}
-
-interface ServerState {
-  status: ServerStatus;
-  uptimeAnchor: number | null;
-  localLogs: LocalLogEntry[];
-}
-
-const MAX_LOCAL_LOGS = 12;
-const MAX_COMBINED_LOGS = 15;
-
-const ACTION_MESSAGES: Record<ServerAction, { requested: string; completed: string }> = {
-  start: {
-    requested: 'Iniciando servidor via MCP Console…',
-    completed: 'Servidor inicializado e pronto para provisionamento.',
-  },
-  stop: {
-    requested: 'Solicitando parada graciosa do servidor…',
-    completed: 'Servidor finalizado. Processo encerrado com sucesso.',
-  },
-  restart: {
-    requested: 'Reinício solicitado. Enfileirando drain das conexões…',
-    completed: 'Servidor reiniciado. Healthcheck reporta status UP.',
-  },
-};
-
-function createLogEntry(message: string, origin: LocalLogEntry['origin'] = 'action'): LocalLogEntry {
+function createFallbackState(provider: ProviderSummary): ServerProcessStateSnapshot {
   return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    timestamp: new Date().toISOString(),
-    message,
-    origin,
+    serverId: provider.id,
+    status: 'stopped',
+    command: provider.command,
+    pid: null,
+    startedAt: null,
+    stoppedAt: null,
+    returnCode: null,
+    lastError: null,
+    logs: [],
+    cursor: null,
   };
 }
 
-function clampLogs(entries: LocalLogEntry[]): LocalLogEntry[] {
-  return entries.slice(0, MAX_LOCAL_LOGS);
+function dedupeAndSortLogs(entries: ServerProcessLogEntry[]): ServerProcessLogEntry[] {
+  const map = new Map<string, ServerProcessLogEntry>();
+  for (const entry of entries) {
+    map.set(entry.id, entry);
+  }
+  return Array.from(map.values())
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, MAX_LOG_ENTRIES);
 }
 
-function initializeState(provider: ProviderSummary): ServerState {
-  const isOnline = provider.is_available !== false;
-  const uptimeSeed = seededMod(provider.id, 72 * 60 * 60 * 1000);
+function mergeSnapshots(
+  previous: ServerProcessStateSnapshot | undefined,
+  incoming: ServerProcessStateSnapshot,
+): ServerProcessStateSnapshot {
+  if (!previous) {
+    return {
+      ...incoming,
+      logs: dedupeAndSortLogs(incoming.logs),
+    };
+  }
+
+  const logs = dedupeAndSortLogs([...incoming.logs, ...previous.logs]);
   return {
-    status: isOnline ? 'up' : 'down',
-    uptimeAnchor: isOnline ? Date.now() - uptimeSeed : null,
-    localLogs: [],
+    serverId: incoming.serverId,
+    status: incoming.status,
+    command: incoming.command,
+    pid: incoming.pid,
+    startedAt: incoming.startedAt,
+    stoppedAt: incoming.stoppedAt,
+    returnCode: incoming.returnCode,
+    lastError: incoming.lastError,
+    logs,
+    cursor: incoming.cursor ?? previous.cursor ?? null,
   };
 }
 
-function formatUptime(anchor: number | null): string {
-  if (!anchor) {
+function mergeLogsIntoState(
+  state: ServerProcessStateSnapshot,
+  result: ServerProcessLogsResult,
+): ServerProcessStateSnapshot {
+  if (result.logs.length === 0) {
+    if ((result.cursor ?? state.cursor) === state.cursor) {
+      return state;
+    }
+    return { ...state, cursor: result.cursor ?? state.cursor ?? null };
+  }
+
+  const logs = dedupeAndSortLogs([...result.logs, ...state.logs]);
+  return {
+    ...state,
+    logs,
+    cursor: result.cursor ?? state.cursor ?? null,
+  };
+}
+
+function formatUptime(startedAt: string | null): string {
+  if (!startedAt) {
+    return '—';
+  }
+  const anchor = new Date(startedAt).getTime();
+  if (Number.isNaN(anchor)) {
     return '—';
   }
   const diff = Date.now() - anchor;
@@ -92,136 +122,211 @@ function formatUptime(anchor: number | null): string {
   return parts.length > 0 ? parts.join(' ') : '<1m';
 }
 
-function createSessionLog(session: Session): LocalLogEntry {
-  const status = session.status.toLowerCase();
-  const reason = session.reason ? ` · ${session.reason}` : '';
-  const client = session.client ? ` (cliente: ${session.client})` : '';
-  return {
-    id: `session-${session.id}`,
-    timestamp: session.created_at,
-    message: `Sessão ${session.id} — ${status}${reason}${client}`,
-    origin: 'status',
-  };
+function getStatusLabel(status: ServerProcessLifecycle): string {
+  switch (status) {
+    case 'running':
+      return 'Online';
+    case 'stopped':
+      return 'Offline';
+    case 'error':
+      return 'Falha';
+    default:
+      return status;
+  }
 }
 
-function mergeLogs(local: LocalLogEntry[], sessionLogs: LocalLogEntry[]): LocalLogEntry[] {
-  const combined = [...local, ...sessionLogs];
-  combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  return combined.slice(0, MAX_COMBINED_LOGS);
+function getStatusClass(status: ServerProcessLifecycle): string {
+  switch (status) {
+    case 'running':
+      return 'server-status--up';
+    case 'error':
+      return 'server-status--error';
+    default:
+      return 'server-status--down';
+  }
 }
 
-function getStatusLabel(status: ServerStatus): string {
-  return status === 'up' ? 'Online' : 'Offline';
-}
-
-export default function Servers({ providers, sessions, isLoading, initialError }: ServersProps) {
-  const [serverStates, setServerStates] = useState<Record<string, ServerState>>({});
+export default function Servers({ providers, isLoading, initialError }: ServersProps) {
+  const [processStates, setProcessStates] = useState<Record<string, ServerProcessStateSnapshot>>({});
   const [pendingAction, setPendingAction] = useState<{ providerId: string; action: ServerAction } | null>(null);
-  const pendingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const processStatesRef = useRef<Record<string, ServerProcessStateSnapshot>>({});
+  const actionControllers = useRef<Map<string, AbortController>>(new Map());
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
-      pendingTimeouts.current.forEach((timeout) => clearTimeout(timeout));
-      pendingTimeouts.current.clear();
+      isMountedRef.current = false;
+      actionControllers.current.forEach((controller) => controller.abort());
+      actionControllers.current.clear();
     };
   }, []);
 
   useEffect(() => {
-    setServerStates((current) => {
-      const next: Record<string, ServerState> = {};
-      for (const provider of providers) {
-        const existing = current[provider.id];
-        if (!existing) {
-          next[provider.id] = initializeState(provider);
-          continue;
+    processStatesRef.current = processStates;
+  }, [processStates]);
+
+  useEffect(() => {
+    if (providers.length === 0) {
+      setProcessStates({});
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsSyncing(true);
+    setSyncError(null);
+
+    fetchServerProcesses(controller.signal)
+      .then((snapshots) => {
+        if (!isMountedRef.current || controller.signal.aborted) {
+          return;
         }
 
-        let status: ServerStatus = existing.status;
-        let uptimeAnchor = existing.uptimeAnchor;
-        let localLogs = existing.localLogs;
+        setProcessStates((current) => {
+          const snapshotMap = new Map<string, ServerProcessStateSnapshot>();
+          for (const snapshot of snapshots) {
+            snapshotMap.set(snapshot.serverId, snapshot);
+          }
 
-        if (provider.is_available === false && existing.status === 'up') {
-          status = 'down';
-          uptimeAnchor = null;
-          localLogs = clampLogs([createLogEntry('Healthcheck sinalizou indisponibilidade.', 'status'), ...localLogs]);
+          const next: Record<string, ServerProcessStateSnapshot> = {};
+          for (const provider of providers) {
+            const incoming = snapshotMap.get(provider.id) ?? createFallbackState(provider);
+            next[provider.id] = mergeSnapshots(current[provider.id], incoming);
+          }
+          return next;
+        });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && isMountedRef.current) {
+          const message = error instanceof Error ? error.message : 'Falha ao sincronizar estado do supervisor';
+          setSyncError(message);
         }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted && isMountedRef.current) {
+          setIsSyncing(false);
+        }
+      });
 
-        next[provider.id] = { status, uptimeAnchor, localLogs };
-      }
-      return next;
-    });
+    return () => controller.abort();
   }, [providers]);
 
-  const sessionsByProvider = useMemo(() => {
-    const map = new Map<string, LocalLogEntry[]>();
-    const ordered = sessions.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    for (const session of ordered) {
-      const entry = createSessionLog(session);
-      const existing = map.get(session.provider_id) ?? [];
-      if (existing.length >= MAX_COMBINED_LOGS) {
-        continue;
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const states = processStatesRef.current;
+      const updates = Object.values(states)
+        .filter((state) => state.cursor !== null)
+        .map(async (state) => {
+          try {
+            const result = await fetchServerProcessLogs(state.serverId, state.cursor ?? undefined);
+            return { serverId: state.serverId, result };
+          } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+              return null;
+            }
+            console.error('Falha ao atualizar logs do supervisor', error);
+            return null;
+          }
+        });
+
+      if (updates.length === 0) {
+        return;
       }
-      map.set(session.provider_id, [...existing, entry]);
-    }
-    return map;
-  }, [sessions]);
 
-  function updateState(providerId: string, updater: (previous: ServerState) => ServerState) {
-    const provider = providers.find((item) => item.id === providerId);
-    setServerStates((current) => {
-      const currentState = current[providerId] ?? initializeState(
-        provider ?? {
-          id: providerId,
-          name: providerId,
-          command: providerId,
-          tags: [],
-          capabilities: [],
-          transport: 'stdio',
-        },
-      );
-      return {
-        ...current,
-        [providerId]: updater(currentState),
-      };
-    });
-  }
-
-  function handleAction(providerId: string, action: ServerAction) {
-    const requestedMessage = ACTION_MESSAGES[action].requested;
-    const completedMessage = ACTION_MESSAGES[action].completed;
-
-    setPendingAction({ providerId, action });
-
-    updateState(providerId, (previous) => ({
-      status: previous.status,
-      uptimeAnchor: previous.uptimeAnchor,
-      localLogs: clampLogs([createLogEntry(requestedMessage), ...previous.localLogs]),
-    }));
-
-    const timeout = setTimeout(() => {
-      updateState(providerId, (previous) => {
-        const status: ServerStatus = action === 'stop' ? 'down' : 'up';
-        const uptimeAnchor = status === 'up' ? Date.now() : null;
-        return {
-          status,
-          uptimeAnchor,
-          localLogs: clampLogs([createLogEntry(completedMessage), ...previous.localLogs]),
-        };
-      });
-
-      setPendingAction((current) => {
-        if (current && current.providerId === providerId) {
-          return null;
+      void Promise.all(updates).then((results) => {
+        if (!isMountedRef.current) {
+          return;
         }
-        return current;
+        setProcessStates((current) => {
+          let mutated = false;
+          const next = { ...current };
+          for (const entry of results) {
+            if (!entry) {
+              continue;
+            }
+            const currentState = current[entry.serverId];
+            if (!currentState) {
+              continue;
+            }
+            const merged = mergeLogsIntoState(currentState, entry.result);
+            if (merged !== currentState) {
+              next[entry.serverId] = merged;
+              mutated = true;
+            }
+          }
+          return mutated ? next : current;
+        });
       });
-      pendingTimeouts.current.delete(providerId);
-    }, 900);
+    }, 5000);
 
-    pendingTimeouts.current.set(providerId, timeout);
-  }
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const handleAction = useCallback(
+    (providerId: string, action: ServerAction) => {
+      const previousController = actionControllers.current.get(providerId);
+      previousController?.abort();
+
+      const controller = new AbortController();
+      actionControllers.current.set(providerId, controller);
+
+      const runner =
+        action === 'start' ? startServerProcess : action === 'stop' ? stopServerProcess : restartServerProcess;
+
+      setPendingAction({ providerId, action });
+      setActionErrors((current) => ({ ...current, [providerId]: null }));
+
+      runner(providerId, controller.signal)
+        .then((snapshot) => {
+          if (!isMountedRef.current || controller.signal.aborted) {
+            return;
+          }
+          setProcessStates((current) => ({
+            ...current,
+            [providerId]: mergeSnapshots(current[providerId], snapshot),
+          }));
+        })
+        .catch((error) => {
+          if (!isMountedRef.current || controller.signal.aborted) {
+            return;
+          }
+          const message =
+            error instanceof ApiError ? error.message : 'Falha ao executar ação no servidor supervisionado.';
+          setActionErrors((current) => ({ ...current, [providerId]: message }));
+        })
+        .finally(() => {
+          if (!controller.signal.aborted && isMountedRef.current) {
+            setPendingAction((current) => {
+              if (current && current.providerId === providerId) {
+                return null;
+              }
+              return current;
+            });
+            actionControllers.current.delete(providerId);
+          }
+        });
+    },
+    [],
+  );
 
   const hasProviders = providers.length > 0;
+
+  const statusSummary = useMemo(() => {
+    let running = 0;
+    let offline = 0;
+    for (const provider of providers) {
+      const status = processStates[provider.id]?.status ?? 'stopped';
+      if (status === 'running') {
+        running += 1;
+      } else {
+        offline += 1;
+      }
+    }
+    return { running, offline };
+  }, [processStates, providers]);
 
   return (
     <main className="servers">
@@ -236,12 +341,12 @@ export default function Servers({ providers, sessions, isLoading, initialError }
       <section className="servers__status" aria-label="Resumo dos servidores">
         <div className="status-pill">
           <span className="status-pill__dot status-pill__dot--online" />
-          <strong>{providers.filter((provider) => (serverStates[provider.id]?.status ?? 'up') === 'up').length}</strong>
+          <strong>{statusSummary.running}</strong>
           <span>online</span>
         </div>
         <div className="status-pill status-pill--offline">
           <span className="status-pill__dot status-pill__dot--offline" />
-          <strong>{providers.filter((provider) => (serverStates[provider.id]?.status ?? 'up') === 'down').length}</strong>
+          <strong>{statusSummary.offline}</strong>
           <span>offline</span>
         </div>
         <div className="status-pill status-pill--total">
@@ -251,8 +356,9 @@ export default function Servers({ providers, sessions, isLoading, initialError }
         </div>
       </section>
 
-      {isLoading && <p className="info">Sincronizando informações dos servidores…</p>}
+      {(isLoading || isSyncing) && <p className="info">Sincronizando informações dos servidores…</p>}
       {initialError && <p className="error">{initialError}</p>}
+      {syncError && <p className="error">{syncError}</p>}
 
       {!isLoading && !initialError && !hasProviders && (
         <p className="info">Cadastre servidores MCP para acompanhar ações de start/stop por aqui.</p>
@@ -260,11 +366,10 @@ export default function Servers({ providers, sessions, isLoading, initialError }
 
       <section className="server-grid" aria-live="polite">
         {providers.map((provider) => {
-          const state = serverStates[provider.id] ?? initializeState(provider);
-          const sessionLogs = sessionsByProvider.get(provider.id) ?? [];
-          const combinedLogs = mergeLogs(state.localLogs, sessionLogs);
-          const lastSession = sessionLogs[0];
-          const pendingForProvider = pendingAction && pendingAction.providerId === provider.id ? pendingAction.action : null;
+          const state = processStates[provider.id] ?? createFallbackState(provider);
+          const pendingForProvider =
+            pendingAction && pendingAction.providerId === provider.id ? pendingAction.action : null;
+          const actionMessage = actionErrors[provider.id] ?? state.lastError ?? null;
 
           return (
             <article key={provider.id} className="server-card">
@@ -273,10 +378,7 @@ export default function Servers({ providers, sessions, isLoading, initialError }
                   <h2>{provider.name}</h2>
                   <p className="server-card__meta">{provider.description || 'Sem descrição informada.'}</p>
                 </div>
-                <span
-                  className={`server-status ${state.status === 'up' ? 'server-status--up' : 'server-status--down'}`}
-                  aria-live="polite"
-                >
+                <span className={`server-status ${getStatusClass(state.status)}`} aria-live="polite">
                   {getStatusLabel(state.status)}
                 </span>
               </header>
@@ -294,11 +396,11 @@ export default function Servers({ providers, sessions, isLoading, initialError }
                 </div>
                 <div>
                   <dt>Uptime</dt>
-                  <dd>{formatUptime(state.uptimeAnchor)}</dd>
+                  <dd>{formatUptime(state.startedAt)}</dd>
                 </div>
                 <div>
-                  <dt>Última sessão</dt>
-                  <dd>{lastSession ? new Date(lastSession.timestamp).toLocaleString() : '—'}</dd>
+                  <dt>Status detalhado</dt>
+                  <dd>{state.lastError ? state.lastError : '—'}</dd>
                 </div>
               </dl>
 
@@ -308,16 +410,20 @@ export default function Servers({ providers, sessions, isLoading, initialError }
                 onStart={() => handleAction(provider.id, 'start')}
                 onStop={() => handleAction(provider.id, 'stop')}
                 onRestart={() => handleAction(provider.id, 'restart')}
-              />
+              >
+                {actionMessage && <p className="server-actions__feedback">{actionMessage}</p>}
+              </ServerActions>
 
               <div className="server-card__logs">
                 <header>
                   <h3>Log tail</h3>
-                  <span>{combinedLogs.length > 0 ? `${combinedLogs.length} eventos recentes` : 'Sem eventos registrados'}</span>
+                  <span>
+                    {state.logs.length > 0 ? `${state.logs.length} eventos recentes` : 'Sem eventos registrados'}
+                  </span>
                 </header>
                 <ol>
-                  {combinedLogs.map((log) => (
-                    <li key={log.id}>
+                  {state.logs.map((log) => (
+                    <li key={log.id} className={log.level === 'error' ? 'log-entry log-entry--error' : 'log-entry'}>
                       <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
                       <span className="log-message">{log.message}</span>
                     </li>

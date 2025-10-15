@@ -2188,6 +2188,11 @@ main.dashboard {
   color: #b91c1c;
 }
 
+.server-status--error {
+  background: rgba(251, 191, 36, 0.2);
+  color: #b45309;
+}
+
 .server-card__details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -2303,6 +2308,21 @@ main.dashboard {
 
 .log-message {
   color: #0f172a;
+}
+
+.log-entry--error .log-message {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.log-entry--error .log-timestamp {
+  color: #b91c1c;
+}
+
+.server-actions__feedback {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #b91c1c;
 }
 
 .section-header h2 {

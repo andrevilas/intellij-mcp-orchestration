@@ -96,6 +96,8 @@ from .schemas import (
     SecretTestResponse,
     SecretsResponse,
     ServerProcessLifecycle,
+    ServerProcessLogEntry,
+    ServerProcessLogsResponse,
     ServerProcessResponse,
     ServerProcessState,
     ServerProcessesResponse,
@@ -129,6 +131,7 @@ from .telemetry import (
 )
 from .supervisor import (
     ProcessAlreadyRunningError,
+    ProcessLogEntry,
     ProcessNotRunningError,
     ProcessStartError,
     ProcessSnapshot,
@@ -936,6 +939,15 @@ def delete_mcp_server(server_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+def _serialize_log(entry: ProcessLogEntry) -> ServerProcessLogEntry:
+    return ServerProcessLogEntry(
+        id=str(entry.id),
+        timestamp=entry.timestamp,
+        level="error" if entry.level == "error" else "info",
+        message=entry.message,
+    )
+
+
 def _process_state_from_snapshot(snapshot: ProcessSnapshot) -> ServerProcessState:
     return ServerProcessState(
         server_id=snapshot.server_id,
@@ -946,6 +958,8 @@ def _process_state_from_snapshot(snapshot: ProcessSnapshot) -> ServerProcessStat
         stopped_at=snapshot.stopped_at,
         return_code=snapshot.return_code,
         last_error=snapshot.last_error,
+        logs=[_serialize_log(entry) for entry in snapshot.logs],
+        cursor=str(snapshot.log_cursor) if snapshot.log_cursor else None,
     )
 
 
@@ -1028,6 +1042,31 @@ def restart_server_process(server_id: str) -> ServerProcessResponse:
         ) from exc
 
     return ServerProcessResponse(process=_process_state_from_snapshot(snapshot))
+
+
+@router.get("/servers/{server_id}/process/logs", response_model=ServerProcessLogsResponse)
+def read_server_process_logs(
+    server_id: str, cursor: str | None = None
+) -> ServerProcessLogsResponse:
+    """Return new log entries emitted by the process supervisor for a server."""
+
+    numeric_cursor: int | None = None
+    if cursor:
+        try:
+            numeric_cursor = int(cursor)
+        except ValueError as exc:  # pragma: no cover - FastAPI validation safeguards the path
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cursor must be an integer",
+            ) from exc
+
+    entries = process_supervisor.logs(server_id, cursor=numeric_cursor)
+    if not entries:
+        return ServerProcessLogsResponse(logs=[], cursor=cursor)
+
+    serialized = [_serialize_log(entry) for entry in entries]
+    latest_cursor = str(entries[-1].id)
+    return ServerProcessLogsResponse(logs=serialized, cursor=latest_cursor)
 
 
 def _serialize_route(route: RouteProfile) -> RoutingRouteProfile:
