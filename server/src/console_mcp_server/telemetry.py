@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import csv
+import html
+import io
 import json
 import os
 from dataclasses import dataclass
@@ -248,6 +251,7 @@ __all__ = [
     "aggregate_metrics",
     "TelemetryAggregates",
     "TelemetryProviderAggregate",
+    "render_telemetry_export",
 ]
 
 
@@ -312,27 +316,9 @@ def aggregate_metrics(
 ) -> TelemetryAggregates:
     """Compute aggregated telemetry metrics for the requested window."""
 
-    normalized_start = _normalize_bound(start) if start else None
-    normalized_end = _normalize_bound(end) if end else None
-    if normalized_start and normalized_end and normalized_start > normalized_end:
-        raise ValueError("start must be before end")
-
-    params: dict[str, object] = {}
-    clauses: list[str] = []
-    if normalized_start:
-        params["start"] = normalized_start.isoformat()
-        clauses.append("ts >= :start")
-    if normalized_end:
-        params["end"] = normalized_end.isoformat()
-        clauses.append("ts <= :end")
-    if provider_id:
-        params["provider_id"] = provider_id
-        clauses.append("provider_id = :provider_id")
-    if route:
-        params["route"] = route
-        clauses.append("route = :route")
-
-    where_clause = " WHERE " + " AND ".join(clauses) if clauses else ""
+    normalized_start, normalized_end, where_clause, params = _prepare_filters(
+        start=start, end=end, provider_id=provider_id, route=route
+    )
 
     engine = bootstrap_database()
     with engine.begin() as connection:
@@ -467,4 +453,215 @@ def _parse_iso(raw: str) -> datetime | None:
     else:
         parsed = parsed.astimezone(timezone.utc)
     return parsed
+
+
+def render_telemetry_export(
+    fmt: str,
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    route: str | None = None,
+) -> tuple[str, str]:
+    """Render a telemetry export document in the requested format."""
+
+    normalized_start, normalized_end, where_clause, params = _prepare_filters(
+        start=start, end=end, provider_id=provider_id, route=route
+    )
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = _fetch_events(connection, where_clause, params)
+
+    format_key = fmt.lower()
+    if format_key == "csv":
+        return _render_csv(rows), "text/csv"
+    if format_key == "html":
+        return (
+            _render_html(
+                rows,
+                normalized_start=normalized_start,
+                normalized_end=normalized_end,
+                provider_id=provider_id,
+                route=route,
+            ),
+            "text/html",
+        )
+    raise ValueError(f"Unsupported export format: {fmt}")
+
+
+def _prepare_filters(
+    *,
+    start: datetime | None,
+    end: datetime | None,
+    provider_id: str | None,
+    route: str | None,
+) -> tuple[datetime | None, datetime | None, str, dict[str, object]]:
+    normalized_start = _normalize_bound(start) if start else None
+    normalized_end = _normalize_bound(end) if end else None
+    if normalized_start and normalized_end and normalized_start > normalized_end:
+        raise ValueError("start must be before end")
+
+    params: dict[str, object] = {}
+    clauses: list[str] = []
+    if normalized_start:
+        params["start"] = normalized_start.isoformat()
+        clauses.append("ts >= :start")
+    if normalized_end:
+        params["end"] = normalized_end.isoformat()
+        clauses.append("ts <= :end")
+    if provider_id:
+        params["provider_id"] = provider_id
+        clauses.append("provider_id = :provider_id")
+    if route:
+        params["route"] = route
+        clauses.append("route = :route")
+
+    where_clause = " WHERE " + " AND ".join(clauses) if clauses else ""
+    return normalized_start, normalized_end, where_clause, params
+
+
+def _fetch_events(
+    connection: Connection, where_clause: str, params: dict[str, object]
+) -> list[dict[str, object]]:
+    statement = text(
+        f"""
+        SELECT
+            ts,
+            provider_id,
+            tool,
+            route,
+            status,
+            tokens_in,
+            tokens_out,
+            duration_ms,
+            cost_estimated_usd,
+            source_file,
+            line_number,
+            ingested_at
+        FROM telemetry_events
+        {where_clause}
+        ORDER BY ts ASC, provider_id ASC, line_number ASC
+        """
+    )
+    return [dict(row) for row in connection.execute(statement, dict(params))]
+
+
+def _render_csv(rows: list[dict[str, object]]) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "timestamp",
+            "provider_id",
+            "tool",
+            "route",
+            "status",
+            "tokens_in",
+            "tokens_out",
+            "duration_ms",
+            "cost_estimated_usd",
+            "source_file",
+        ]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                row.get("ts", ""),
+                row.get("provider_id", ""),
+                row.get("tool", ""),
+                row.get("route") or "",
+                row.get("status", ""),
+                row.get("tokens_in", 0),
+                row.get("tokens_out", 0),
+                row.get("duration_ms", 0),
+                "" if row.get("cost_estimated_usd") is None else row["cost_estimated_usd"],
+                row.get("source_file", ""),
+            ]
+        )
+    return output.getvalue()
+
+
+def _render_html(
+    rows: list[dict[str, object]],
+    *,
+    normalized_start: datetime | None,
+    normalized_end: datetime | None,
+    provider_id: str | None,
+    route: str | None,
+) -> str:
+    def _format_dt(value: datetime | None) -> str:
+        return value.isoformat() if value else ""
+
+    filters: list[str] = []
+    if normalized_start:
+        filters.append(f"Início: {html.escape(_format_dt(normalized_start))}")
+    if normalized_end:
+        filters.append(f"Fim: {html.escape(_format_dt(normalized_end))}")
+    if provider_id:
+        filters.append(f"Provider: {html.escape(provider_id)}")
+    if route:
+        filters.append(f"Route: {html.escape(route)}")
+
+    filters_section = "" if not filters else "<p><strong>Filtros:</strong> " + ", ".join(filters) + "</p>"
+
+    header_cells = "".join(
+        f"<th scope=\"col\">{label}</th>"
+        for label in (
+            "Timestamp",
+            "Provider",
+            "Tool",
+            "Route",
+            "Status",
+            "Tokens In",
+            "Tokens Out",
+            "Duration (ms)",
+            "Cost (USD)",
+            "Source",
+        )
+    )
+
+    body_rows = []
+    for row in rows:
+        body_rows.append(
+            "<tr>"
+            + "".join(
+                [
+                    f"<td>{html.escape(str(row.get('ts', '')))}</td>",
+                    f"<td>{html.escape(str(row.get('provider_id', '')))}</td>",
+                    f"<td>{html.escape(str(row.get('tool', '')))}</td>",
+                    f"<td>{html.escape(row.get('route') or '')}</td>",
+                    f"<td>{html.escape(str(row.get('status', '')))}</td>",
+                    f"<td>{row.get('tokens_in', 0)}</td>",
+                    f"<td>{row.get('tokens_out', 0)}</td>",
+                    f"<td>{row.get('duration_ms', 0)}</td>",
+                    f"<td>{'' if row.get('cost_estimated_usd') is None else row['cost_estimated_usd']}</td>",
+                    f"<td>{html.escape(str(row.get('source_file', '')))}</td>",
+                ]
+            )
+            + "</tr>"
+        )
+
+    table_body = "\n".join(body_rows) if body_rows else "<tr><td colspan=\"10\">No telemetry events found.</td></tr>"
+
+    return (
+        "<!DOCTYPE html>\n"
+        "<html lang=\"en\">\n"
+        "<head>\n"
+        "  <meta charset=\"utf-8\" />\n"
+        "  <title>Telemetry Export</title>\n"
+        "  <style>table {border-collapse: collapse; width: 100%;}"
+        " th, td {border: 1px solid #d0d0d0; padding: 6px 8px; text-align: left;}"
+        " th {background: #f5f5f5;}</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "  <h1>Telemetry Export</h1>\n"
+        f"  {filters_section}\n"
+        "  <table>\n"
+        f"    <thead><tr>{header_cells}</tr></thead>\n"
+        f"    <tbody>\n{table_body}\n    </tbody>\n"
+        "  </table>\n"
+        "</body>\n"
+        "</html>\n"
+    )
 

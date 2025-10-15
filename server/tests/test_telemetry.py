@@ -254,3 +254,96 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
             start=base_ts + timedelta(minutes=30),
             end=base_ts,
         )
+
+
+def test_render_export_generates_csv_and_html(database, telemetry_module) -> None:
+    engine = database.bootstrap_database()
+    base_ts = datetime(2025, 2, 1, 9, 0, tzinfo=timezone.utc)
+
+    events = [
+        {
+            "provider_id": "glm46",
+            "tool": "glm46.chat",
+            "route": "default",
+            "tokens_in": 150,
+            "tokens_out": 80,
+            "duration_ms": 1100,
+            "status": "success",
+            "cost_estimated_usd": 0.45,
+            "metadata": "{}",
+            "ts": base_ts.isoformat(),
+            "source_file": "glm46/2025-02-01.jsonl",
+            "ingested_at": base_ts.isoformat(),
+        },
+        {
+            "provider_id": "gemini",
+            "tool": "gemini.chat",
+            "route": None,
+            "tokens_in": 60,
+            "tokens_out": 30,
+            "duration_ms": 900,
+            "status": "error",
+            "cost_estimated_usd": None,
+            "metadata": "{}",
+            "ts": (base_ts + timedelta(minutes=5)).isoformat(),
+            "source_file": "gemini/2025-02-01.jsonl",
+            "ingested_at": (base_ts + timedelta(minutes=1)).isoformat(),
+        },
+    ]
+
+    with engine.begin() as connection:
+        for index, event in enumerate(events, start=1):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO telemetry_events (
+                        provider_id,
+                        tool,
+                        route,
+                        tokens_in,
+                        tokens_out,
+                        duration_ms,
+                        status,
+                        cost_estimated_usd,
+                        metadata,
+                        ts,
+                        source_file,
+                        line_number,
+                        ingested_at
+                    ) VALUES (
+                        :provider_id,
+                        :tool,
+                        :route,
+                        :tokens_in,
+                        :tokens_out,
+                        :duration_ms,
+                        :status,
+                        :cost_estimated_usd,
+                        :metadata,
+                        :ts,
+                        :source_file,
+                        :line_number,
+                        :ingested_at
+                    )
+                    """
+                ),
+                {**event, "line_number": index},
+            )
+
+    csv_doc, csv_type = telemetry_module.render_telemetry_export("csv")
+    assert csv_type == "text/csv"
+    csv_lines = [line for line in csv_doc.strip().splitlines() if line]
+    assert csv_lines[0] == "timestamp,provider_id,tool,route,status,tokens_in,tokens_out,duration_ms,cost_estimated_usd,source_file"
+    assert "glm46" in csv_lines[1]
+    assert csv_lines[2].endswith(",,gemini/2025-02-01.jsonl")
+
+    html_doc, html_type = telemetry_module.render_telemetry_export(
+        "html", provider_id="glm46"
+    )
+    assert html_type == "text/html"
+    assert "Telemetry Export" in html_doc
+    assert "glm46" in html_doc
+    assert "Filtros" in html_doc
+
+    with pytest.raises(ValueError):
+        telemetry_module.render_telemetry_export("pdf")
