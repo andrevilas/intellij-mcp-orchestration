@@ -179,7 +179,7 @@ const NotificationCenter = ({
               onClick={onMarkAllRead}
               disabled={unreadCount === 0}
             >
-              Marcar tudo como lido
+              Limpar
             </button>
             <button
               type="button"
