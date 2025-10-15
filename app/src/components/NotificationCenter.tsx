@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'critical';
 export type NotificationCategory = 'operations' | 'finops' | 'policies' | 'platform';
@@ -51,6 +52,8 @@ const NotificationCenter = ({
   onMarkAllRead,
 }: NotificationCenterProps) => {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const filterRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [filter, setFilter] = useState<FilterOption>('all');
 
   useEffect(() => {
@@ -65,6 +68,7 @@ const NotificationCenter = ({
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
+        event.preventDefault();
         onClose();
       }
     }
@@ -77,6 +81,49 @@ const NotificationCenter = ({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen || !panelRef.current) {
+      return;
+    }
+
+    const dialog = panelRef.current;
+
+    function handleTabKey(event: KeyboardEvent) {
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+
+      if (focusable.length === 0) {
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey) {
+        if (active === first || !dialog.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    dialog.addEventListener('keydown', handleTabKey);
+    return () => {
+      dialog.removeEventListener('keydown', handleTabKey);
+    };
+  }, [isOpen]);
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((notification) => {
@@ -107,6 +154,7 @@ const NotificationCenter = ({
         aria-modal="true"
         aria-labelledby="notification-center-title"
         id="notification-center-panel"
+        ref={panelRef}
         className={
           isOpen
             ? 'notification-center notification-center--open'
@@ -143,8 +191,38 @@ const NotificationCenter = ({
             </button>
           </div>
         </header>
-        <div className="notification-center__filters" role="radiogroup" aria-label="Filtrar notificações">
-          {FILTER_OPTIONS.map((option) => {
+        <div
+          className="notification-center__filters"
+          role="radiogroup"
+          aria-label="Filtrar notificações"
+          onKeyDown={(event: ReactKeyboardEvent<HTMLDivElement>) => {
+            const keysToHandle = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+            if (!keysToHandle.includes(event.key)) {
+              return;
+            }
+
+            event.preventDefault();
+            const currentIndex = Math.max(FILTER_OPTIONS.indexOf(filter), 0);
+            let nextIndex = currentIndex;
+
+            if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+              nextIndex = (currentIndex + 1) % FILTER_OPTIONS.length;
+            } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+              nextIndex = (currentIndex - 1 + FILTER_OPTIONS.length) % FILTER_OPTIONS.length;
+            } else if (event.key === 'Home') {
+              nextIndex = 0;
+            } else if (event.key === 'End') {
+              nextIndex = FILTER_OPTIONS.length - 1;
+            }
+
+            const nextFilter = FILTER_OPTIONS[nextIndex];
+            setFilter(nextFilter);
+            requestAnimationFrame(() => {
+              filterRefs.current[nextIndex]?.focus();
+            });
+          }}
+        >
+          {FILTER_OPTIONS.map((option, index) => {
             const label = FILTER_LABELS[option];
             const isActive = filter === option;
             const extraCount =
@@ -165,7 +243,11 @@ const NotificationCenter = ({
                     ? 'notification-center__filter notification-center__filter--active'
                     : 'notification-center__filter'
                 }
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => setFilter(option)}
+                ref={(element) => {
+                  filterRefs.current[index] = element;
+                }}
               >
                 {buttonLabel}
               </button>

@@ -133,6 +133,46 @@ describe('App provider orchestration flow', () => {
     });
   });
 
+  it('supports keyboard-first flows with skip link and arrow navigation', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    const skipLink = await screen.findByRole('link', { name: 'Ir para o conteúdo principal' });
+
+    await user.tab();
+    expect(skipLink).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+
+    const mainRegion = document.getElementById('main-content');
+    if (!(mainRegion instanceof HTMLElement)) {
+      throw new Error('Main content region not found');
+    }
+    await waitFor(() => expect(mainRegion).toHaveFocus());
+
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' });
+    const navButtons = within(nav).getAllByRole('button');
+
+    (navButtons[0] as HTMLButtonElement).focus();
+    expect(navButtons[0]).toHaveFocus();
+
+    await user.keyboard('{ArrowRight}');
+    expect(navButtons[1]).toHaveFocus();
+    await screen.findByRole('heading', { name: /Servidores MCP/i });
+
+    await user.keyboard('{ArrowLeft}');
+    expect(navButtons[0]).toHaveFocus();
+    await waitFor(() => {
+      expect(navButtons[0]).toHaveAttribute('aria-current', 'page');
+      expect(navButtons[1]).not.toHaveAttribute('aria-current', 'page');
+      expect(screen.queryByRole('heading', { name: /Servidores MCP/i })).not.toBeInTheDocument();
+    });
+  });
+
   it('allows controlling servers from the servers view', async () => {
     const user = userEvent.setup();
 
@@ -418,6 +458,9 @@ describe('App provider orchestration flow', () => {
 
     await waitFor(() => {
       expect(notificationsButton).toHaveAttribute('aria-expanded', 'false');
+    });
+    await waitFor(() => {
+      expect(notificationsButton).toHaveFocus();
     });
   });
 

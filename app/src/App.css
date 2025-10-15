@@ -12,6 +12,28 @@ body {
   margin: 0;
 }
 
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: #4338ca;
+  color: #f8fafc;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-150%);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 14px 36px rgba(67, 56, 202, 0.28);
+  z-index: 1000;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
 .app-shell {
   min-height: 100vh;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(14, 116, 144, 0.04));
@@ -73,6 +95,11 @@ body {
 
 .nav-button:hover {
   background: rgba(148, 163, 184, 0.18);
+}
+
+.nav-button:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.45);
+  outline-offset: 3px;
 }
 
 .nav-button--active {
@@ -267,6 +294,12 @@ body {
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.notification-center__close:focus-visible,
+.notification-center__mark-all:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 3px;
+}
+
 .notification-center__close:hover,
 .notification-center__mark-all:hover {
   background: rgba(37, 99, 235, 0.12);
@@ -297,6 +330,11 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.notification-center__filter:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
 }
 
 .notification-center__filter[aria-checked='false'] {
@@ -2375,6 +2413,12 @@ main.dashboard {
     background-color: #020817;
   }
 
+  .skip-link {
+    background: #6366f1;
+    color: #0f172a;
+    box-shadow: 0 18px 44px rgba(99, 102, 241, 0.45);
+  }
+
   main.dashboard {
     background: transparent;
   }
@@ -2413,6 +2457,10 @@ main.dashboard {
 
   .nav-button:hover {
     background: rgba(99, 102, 241, 0.25);
+  }
+
+  .nav-button:focus-visible {
+    outline-color: rgba(165, 180, 252, 0.65);
   }
 
   .command-button {
@@ -2489,6 +2537,11 @@ main.dashboard {
     box-shadow: 0 18px 36px rgba(2, 8, 23, 0.65);
   }
 
+  .notification-center__close:focus-visible,
+  .notification-center__mark-all:focus-visible {
+    outline-color: rgba(165, 180, 252, 0.55);
+  }
+
   .notification-center__close:hover,
   .notification-center__mark-all:hover {
     background: rgba(37, 99, 235, 0.32);
@@ -2511,6 +2564,10 @@ main.dashboard {
     background: rgba(30, 41, 59, 0.7);
     border-color: rgba(148, 163, 184, 0.35);
     color: rgba(226, 232, 240, 0.75);
+  }
+
+  .notification-center__filter:focus-visible {
+    outline-color: rgba(165, 180, 252, 0.55);
   }
 
   .notification-center__filter--active {

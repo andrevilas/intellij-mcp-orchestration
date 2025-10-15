@@ -18,6 +18,7 @@ interface CommandPaletteProps {
 export default function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const itemsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -115,6 +116,49 @@ export default function CommandPalette({ isOpen, onClose, commands }: CommandPal
   }, [filteredCommands, activeIndex, isOpen, onClose]);
 
   useEffect(() => {
+    if (!isOpen || !dialogRef.current) {
+      return;
+    }
+
+    const dialog = dialogRef.current;
+
+    function handleTabKey(event: KeyboardEvent) {
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+
+      if (focusable.length === 0) {
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey) {
+        if (active === first || !dialog.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    dialog.addEventListener('keydown', handleTabKey);
+    return () => {
+      dialog.removeEventListener('keydown', handleTabKey);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     if (activeIndex < 0) {
       return;
     }
@@ -144,6 +188,7 @@ export default function CommandPalette({ isOpen, onClose, commands }: CommandPal
         role="dialog"
         aria-modal="true"
         aria-labelledby="command-palette-title"
+        ref={dialogRef}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="command-palette__header">

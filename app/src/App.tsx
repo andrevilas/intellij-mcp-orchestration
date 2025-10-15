@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import './App.css';
 import type { ProviderSummary, Session } from './api';
@@ -257,6 +258,10 @@ function App() {
   const [isPaletteOpen, setPaletteOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isNotificationOpen, setNotificationOpen] = useState(false);
+  const mainRef = useRef<HTMLElement | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+  const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
+  const commandButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -335,11 +340,95 @@ function App() {
     }
   }
 
-  const handleNavigate = useCallback((view: ViewId) => {
-    setActiveView(view);
-    setPaletteOpen(false);
+  const handleCloseNotification = useCallback(() => {
     setNotificationOpen(false);
+    requestAnimationFrame(() => {
+      notificationButtonRef.current?.focus({ preventScroll: true });
+    });
   }, []);
+
+  const handleClosePalette = useCallback(() => {
+    setPaletteOpen(false);
+    requestAnimationFrame(() => {
+      commandButtonRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
+  const handleNavigate = useCallback(
+    (view: ViewId, options: { focusContent?: boolean } = {}) => {
+      setActiveView(view);
+      setPaletteOpen(false);
+      setNotificationOpen(false);
+      if (options.focusContent !== false) {
+        requestAnimationFrame(() => {
+          mainRef.current?.focus({ preventScroll: true });
+        });
+      }
+    },
+    [],
+  );
+
+  const handleNavKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>) => {
+      if (!navRef.current) {
+        return;
+      }
+
+      const keysToHandle = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+      if (!keysToHandle.includes(event.key)) {
+        return;
+      }
+
+      const buttons = Array.from(
+        navRef.current.querySelectorAll<HTMLButtonElement>('button.nav-button'),
+      );
+
+      if (buttons.length === 0) {
+        return;
+      }
+
+      const targetElement = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>(
+        'button.nav-button',
+      );
+      const activeElement =
+        document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
+      let currentIndex = targetElement ? buttons.indexOf(targetElement) : -1;
+
+      if (currentIndex === -1 && activeElement) {
+        currentIndex = buttons.indexOf(activeElement);
+      }
+
+      if (currentIndex === -1) {
+        return;
+      }
+
+      event.preventDefault();
+
+      let nextIndex = currentIndex;
+
+      if (event.key === 'ArrowRight') {
+        nextIndex = (currentIndex + 1) % buttons.length;
+      } else if (event.key === 'ArrowLeft') {
+        nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+      } else if (event.key === 'Home') {
+        nextIndex = 0;
+      } else if (event.key === 'End') {
+        nextIndex = buttons.length - 1;
+      }
+
+      const nextButton = buttons[nextIndex];
+
+      if (nextButton) {
+        nextButton.focus();
+      }
+
+      const nextView = VIEW_DEFINITIONS[nextIndex];
+      if (nextView) {
+        handleNavigate(nextView.id, { focusContent: false });
+      }
+    },
+    [handleNavigate],
+  );
 
   const commandOptions = useMemo(
     () =>
@@ -391,6 +480,10 @@ function App() {
           const nextValue = !current;
           if (nextValue) {
             setNotificationOpen(false);
+          } else {
+            requestAnimationFrame(() => {
+              commandButtonRef.current?.focus({ preventScroll: true });
+            });
           }
           return nextValue;
         });
@@ -402,6 +495,10 @@ function App() {
           const nextValue = !current;
           if (nextValue) {
             setPaletteOpen(false);
+          } else {
+            requestAnimationFrame(() => {
+              notificationButtonRef.current?.focus({ preventScroll: true });
+            });
           }
           return nextValue;
         });
@@ -414,19 +511,37 @@ function App() {
 
   return (
     <div className="app-shell">
+      <a
+        href="#main-content"
+        className="skip-link"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus({ preventScroll: true });
+        }}
+      >
+        Ir para o conteúdo principal
+      </a>
       <header className="app-shell__header">
         <div>
           <span className="app-shell__eyebrow">MCP Console</span>
           <h1>Operações unificadas</h1>
         </div>
         <div className="app-shell__actions">
-          <nav aria-label="Navegação principal" className="app-shell__nav">
+          <nav
+            aria-label="Navegação principal"
+            className="app-shell__nav"
+            ref={navRef}
+            onKeyDown={handleNavKeyDown}
+          >
             {VIEW_DEFINITIONS.map((view) => (
               <button
                 key={view.id}
                 type="button"
                 className={activeView === view.id ? 'nav-button nav-button--active' : 'nav-button'}
-                aria-pressed={activeView === view.id}
+                aria-current={activeView === view.id ? 'page' : undefined}
+                tabIndex={activeView === view.id ? 0 : -1}
+                id={`tab-${view.id}`}
+                aria-controls={`panel-${view.id}`}
                 onClick={() => handleNavigate(view.id)}
               >
                 {view.label}
@@ -444,6 +559,7 @@ function App() {
               setPaletteOpen(false);
             }}
             aria-label={notificationButtonLabel}
+            ref={notificationButtonRef}
           >
             <span className="notification-button__text">Notificações</span>
             <span
@@ -467,48 +583,70 @@ function App() {
               setPaletteOpen(true);
               setNotificationOpen(false);
             }}
+            ref={commandButtonRef}
           >
             <span className="command-button__text">Command palette</span>
             <kbd aria-hidden="true">⌘K</kbd>
           </button>
         </div>
       </header>
-      <div className="app-shell__content" role="region" aria-live="polite">
+      <main
+        className="app-shell__content"
+        role="main"
+        aria-live="polite"
+        tabIndex={-1}
+        id="main-content"
+        ref={mainRef}
+      >
         {activeView === 'dashboard' && (
-          <Dashboard
-            providers={providers}
-            sessions={sessions}
-            isLoading={isLoading}
-            initialError={initialError}
-            feedback={feedback}
-            provisioningId={provisioningId}
-            onProvision={handleProvision}
-          />
+          <section role="tabpanel" id="panel-dashboard" aria-labelledby="tab-dashboard">
+            <Dashboard
+              providers={providers}
+              sessions={sessions}
+              isLoading={isLoading}
+              initialError={initialError}
+              feedback={feedback}
+              provisioningId={provisioningId}
+              onProvision={handleProvision}
+            />
+          </section>
         )}
         {activeView === 'servers' && (
-          <Servers providers={providers} sessions={sessions} isLoading={isLoading} initialError={initialError} />
+          <section role="tabpanel" id="panel-servers" aria-labelledby="tab-servers">
+            <Servers providers={providers} sessions={sessions} isLoading={isLoading} initialError={initialError} />
+          </section>
         )}
-        {activeView === 'keys' && <Keys providers={providers} isLoading={isLoading} initialError={initialError} />}
+        {activeView === 'keys' && (
+          <section role="tabpanel" id="panel-keys" aria-labelledby="tab-keys">
+            <Keys providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        )}
         {activeView === 'policies' && (
-          <Policies providers={providers} isLoading={isLoading} initialError={initialError} />
+          <section role="tabpanel" id="panel-policies" aria-labelledby="tab-policies">
+            <Policies providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
         )}
         {activeView === 'routing' && (
-          <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
+          <section role="tabpanel" id="panel-routing" aria-labelledby="tab-routing">
+            <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
         )}
         {activeView === 'finops' && (
-          <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
+          <section role="tabpanel" id="panel-finops" aria-labelledby="tab-finops">
+            <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
         )}
-      </div>
+      </main>
       <NotificationCenter
         isOpen={isNotificationOpen}
         notifications={notifications}
-        onClose={() => setNotificationOpen(false)}
+        onClose={handleCloseNotification}
         onToggleRead={handleToggleNotification}
         onMarkAllRead={handleMarkAllRead}
       />
       <CommandPalette
         isOpen={isPaletteOpen}
-        onClose={() => setPaletteOpen(false)}
+        onClose={handleClosePalette}
         commands={commandOptions}
       />
     </div>
