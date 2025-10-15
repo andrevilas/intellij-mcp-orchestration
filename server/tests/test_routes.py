@@ -602,6 +602,142 @@ def test_price_table_crud_flow(client: TestClient) -> None:
     assert list_after_delete.json()['entries'] == []
 
 
+def test_cost_dry_run_estimates_cost_without_override(client: TestClient) -> None:
+    price_payload = {
+        'id': 'gemini-standard',
+        'provider_id': 'gemini',
+        'model': 'flash-standard',
+        'currency': 'USD',
+        'unit': '1k_tokens',
+        'input_cost_per_1k': 0.012,
+        'output_cost_per_1k': 0.018,
+        'embedding_cost_per_1k': None,
+        'tags': ['chat'],
+        'notes': 'Baseline tier',
+        'effective_at': None,
+    }
+
+    create_price = client.post('/api/v1/prices', json=price_payload)
+    assert create_price.status_code == 201
+
+    dry_run_payload = {
+        'provider_id': 'gemini',
+        'project': 'console',
+        'route': 'chat.default',
+        'tokens_in': 1000,
+        'tokens_out': 1000,
+        'model': 'flash-standard',
+    }
+
+    response = client.post('/api/v1/policies/dry-run', json=dry_run_payload)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body['estimated_cost_usd'] == pytest.approx(0.03)
+    assert body['allowed'] is True
+    assert body['guardrail'] is None
+    assert body['limit_usd'] is None
+    assert body['pricing']['entry_id'] == 'gemini-standard'
+    assert 'Run is within guardrails' in body['message']
+
+
+def test_cost_dry_run_blocks_when_exceeding_override_limit(client: TestClient) -> None:
+    price_payload = {
+        'id': 'gemini-standard',
+        'provider_id': 'gemini',
+        'model': 'flash-standard',
+        'currency': 'USD',
+        'unit': '1k_tokens',
+        'input_cost_per_1k': 0.012,
+        'output_cost_per_1k': 0.018,
+        'embedding_cost_per_1k': None,
+        'tags': ['chat'],
+        'notes': 'Baseline tier',
+        'effective_at': None,
+    }
+
+    assert client.post('/api/v1/prices', json=price_payload).status_code == 201
+
+    override_payload = {
+        'id': 'strict-cost',
+        'route': 'chat.default',
+        'project': 'console',
+        'template_id': 'balanced',
+        'max_latency_ms': 1500,
+        'max_cost_usd': 0.02,
+        'require_manual_approval': False,
+        'notes': 'Cost ceiling enforced for regression tests',
+    }
+
+    create_override = client.post('/api/v1/policies/overrides', json=override_payload)
+    assert create_override.status_code == 201
+
+    dry_run_payload = {
+        'provider_id': 'gemini',
+        'project': 'console',
+        'route': 'chat.default',
+        'tokens_in': 1000,
+        'tokens_out': 1000,
+    }
+
+    response = client.post('/api/v1/policies/dry-run', json=dry_run_payload)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body['allowed'] is False
+    assert body['estimated_cost_usd'] == pytest.approx(0.03)
+    assert body['limit_usd'] == pytest.approx(0.02)
+    assert body['guardrail']['id'] == 'strict-cost'
+    assert 'exceeds guardrail limit' in body['message']
+
+
+def test_cost_dry_run_requires_manual_approval(client: TestClient) -> None:
+    price_payload = {
+        'id': 'gemini-standard',
+        'provider_id': 'gemini',
+        'model': 'flash-standard',
+        'currency': 'USD',
+        'unit': '1k_tokens',
+        'input_cost_per_1k': 0.01,
+        'output_cost_per_1k': 0.02,
+        'embedding_cost_per_1k': None,
+        'tags': ['chat'],
+        'notes': 'Manual approval tier',
+        'effective_at': None,
+    }
+
+    assert client.post('/api/v1/prices', json=price_payload).status_code == 201
+
+    override_payload = {
+        'id': 'manual-gate',
+        'route': 'chat.default',
+        'project': 'console',
+        'template_id': 'balanced',
+        'max_latency_ms': None,
+        'max_cost_usd': 5.0,
+        'require_manual_approval': True,
+        'notes': 'Require explicit approval before rollout',
+    }
+
+    assert client.post('/api/v1/policies/overrides', json=override_payload).status_code == 201
+
+    dry_run_payload = {
+        'provider_id': 'gemini',
+        'project': 'console',
+        'route': 'chat.default',
+        'tokens_in': 500,
+        'tokens_out': 500,
+    }
+
+    response = client.post('/api/v1/policies/dry-run', json=dry_run_payload)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body['allowed'] is False
+    assert body['guardrail']['id'] == 'manual-gate'
+    assert 'Manual approval required' in body['message']
+
+
 def test_routing_simulation_uses_price_table(client: TestClient) -> None:
     premium_payload = {
         'id': 'gemini-premium',

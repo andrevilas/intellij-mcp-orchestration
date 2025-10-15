@@ -171,6 +171,56 @@ class PolicyOverridesResponse(BaseModel):
     overrides: List[PolicyOverrideResponse]
 
 
+class CostDryRunRequest(BaseModel):
+    """Payload describing a dry-run request for guardrail evaluation."""
+
+    provider_id: str = Field(..., min_length=1, max_length=128)
+    project: str = Field(..., min_length=1, max_length=128)
+    route: str = Field(..., min_length=1, max_length=128)
+    tokens_in: int = Field(..., ge=0)
+    tokens_out: int = Field(..., ge=0)
+    model: Optional[str] = Field(default=None, min_length=1, max_length=256)
+
+
+class CostDryRunGuardrail(BaseModel):
+    """Summary of the guardrail applied when evaluating a dry-run."""
+
+    id: str
+    route: str
+    project: str
+    template_id: str
+    max_cost_usd: Optional[float] = None
+    require_manual_approval: bool
+
+
+class CostDryRunPricingReference(BaseModel):
+    """Pricing metadata used to estimate the cost of a dry-run."""
+
+    entry_id: str
+    provider_id: str
+    model: str
+    currency: str
+    unit: str
+    input_cost_per_1k: Optional[float] = None
+    output_cost_per_1k: Optional[float] = None
+
+
+class CostDryRunResponse(BaseModel):
+    """Outcome of running the dry-run guardrail evaluation."""
+
+    provider_id: str
+    project: str
+    route: str
+    tokens_in: int
+    tokens_out: int
+    estimated_cost_usd: float
+    allowed: bool
+    limit_usd: Optional[float] = None
+    guardrail: Optional[CostDryRunGuardrail] = None
+    pricing: Optional[CostDryRunPricingReference] = None
+    message: Optional[str] = None
+
+
 class PolicyTemplateResponse(BaseModel):
     """Representation of an available guardrail policy template."""
 

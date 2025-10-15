@@ -127,6 +127,37 @@ def list_policy_overrides() -> List[PolicyOverrideRecord]:
         return [PolicyOverrideRecord.from_row(row) for row in rows]
 
 
+def find_policy_override(route: str, project: str) -> PolicyOverrideRecord | None:
+    """Return the most recent override matching the provided route/project."""
+
+    with session_scope() as session:
+        row = session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    route,
+                    project,
+                    template_id,
+                    max_latency_ms,
+                    max_cost_usd,
+                    require_manual_approval,
+                    notes,
+                    created_at,
+                    updated_at
+                FROM policy_overrides
+                WHERE route = :route AND project = :project
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """
+            ),
+            {"route": route, "project": project},
+        ).mappings().first()
+    if row is None:
+        return None
+    return PolicyOverrideRecord.from_row(row)
+
+
 def create_policy_override(
     *,
     override_id: str,
@@ -265,6 +296,7 @@ __all__ = [
     "PolicyOverrideNotFoundError",
     "PolicyOverrideAlreadyExistsError",
     "list_policy_overrides",
+    "find_policy_override",
     "create_policy_override",
     "get_policy_override",
     "update_policy_override",

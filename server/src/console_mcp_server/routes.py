@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Iterable
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
@@ -20,6 +21,7 @@ from .policy_overrides import (
     PolicyOverrideNotFoundError,
     create_policy_override,
     delete_policy_override,
+    find_policy_override,
     get_policy_override,
     list_policy_overrides,
     update_policy_override,
@@ -41,6 +43,10 @@ from .schemas import (
     CostPolicyCreateRequest,
     CostPolicyResponse,
     CostPolicyUpdateRequest,
+    CostDryRunGuardrail,
+    CostDryRunPricingReference,
+    CostDryRunRequest,
+    CostDryRunResponse,
     PolicyOverrideCreateRequest,
     PolicyOverrideResponse,
     PolicyOverrideUpdateRequest,
@@ -746,6 +752,35 @@ def _serialize_distribution(entry: DistributionEntry) -> RoutingDistributionEntr
     )
 
 
+def _estimate_entry_cost(entry: "PriceEntryRecord", tokens_in: int, tokens_out: int) -> float:
+    input_cost = (entry.input_cost_per_1k or 0.0) * (tokens_in / 1000.0)
+    output_cost = (entry.output_cost_per_1k or 0.0) * (tokens_out / 1000.0)
+    return round(input_cost + output_cost, 4)
+
+
+def _select_pricing_entry(
+    entries: Iterable["PriceEntryRecord"],
+    provider_id: str,
+    model: str | None,
+    tokens_in: int,
+    tokens_out: int,
+) -> "PriceEntryRecord":
+    filtered = [entry for entry in entries if entry.provider_id == provider_id]
+    if model:
+        preferred = [entry for entry in filtered if entry.model == model]
+        if preferred:
+            filtered = preferred
+    if not filtered:
+        raise LookupError(f"No pricing data found for provider '{provider_id}'")
+
+    def _entry_cost(entry: "PriceEntryRecord") -> float:
+        raw_cost = (entry.input_cost_per_1k or 0.0) * (tokens_in / 1000.0)
+        raw_cost += (entry.output_cost_per_1k or 0.0) * (tokens_out / 1000.0)
+        return raw_cost
+
+    return min(filtered, key=_entry_cost)
+
+
 @router.post("/routing/simulate", response_model=RoutingSimulationResponse)
 def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResponse:
     """Calculate a routing plan using the deterministic simulator."""
@@ -781,4 +816,80 @@ def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResp
         reliability_score=plan.reliability_score,
         distribution=[_serialize_distribution(entry) for entry in plan.distribution],
         excluded_route=_serialize_route(plan.excluded_route) if plan.excluded_route else None,
+    )
+
+
+@router.post("/policies/dry-run", response_model=CostDryRunResponse)
+def evaluate_cost_guardrail(payload: CostDryRunRequest) -> CostDryRunResponse:
+    """Estimate execution cost and validate it against guardrail policies."""
+
+    price_entries = list_price_entries()
+    try:
+        selected_entry = _select_pricing_entry(
+            price_entries,
+            payload.provider_id,
+            payload.model,
+            payload.tokens_in,
+            payload.tokens_out,
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    estimated_cost = _estimate_entry_cost(
+        selected_entry, payload.tokens_in, payload.tokens_out
+    )
+
+    pricing_reference = CostDryRunPricingReference(
+        entry_id=selected_entry.id,
+        provider_id=selected_entry.provider_id,
+        model=selected_entry.model,
+        currency=selected_entry.currency,
+        unit=selected_entry.unit,
+        input_cost_per_1k=selected_entry.input_cost_per_1k,
+        output_cost_per_1k=selected_entry.output_cost_per_1k,
+    )
+
+    override = find_policy_override(payload.route, payload.project)
+    guardrail: CostDryRunGuardrail | None = None
+    limit_usd: float | None = None
+    reasons: list[str] = []
+    allowed = True
+
+    if override:
+        guardrail = CostDryRunGuardrail(
+            id=override.id,
+            route=override.route,
+            project=override.project,
+            template_id=override.template_id,
+            max_cost_usd=override.max_cost_usd,
+            require_manual_approval=override.require_manual_approval,
+        )
+        if override.max_cost_usd is not None:
+            limit_usd = round(float(override.max_cost_usd), 4)
+            if estimated_cost > limit_usd:
+                allowed = False
+                reasons.append(
+                    f"Estimated cost ${estimated_cost:.4f} exceeds guardrail limit ${limit_usd:.4f}"
+                )
+        if override.require_manual_approval:
+            allowed = False
+            reasons.append("Manual approval required by guardrail override")
+
+    message = "Run is within guardrails" if not reasons else "; ".join(reasons)
+
+    return CostDryRunResponse(
+        provider_id=payload.provider_id,
+        project=payload.project,
+        route=payload.route,
+        tokens_in=payload.tokens_in,
+        tokens_out=payload.tokens_out,
+        estimated_cost_usd=estimated_cost,
+        allowed=allowed,
+        limit_usd=limit_usd,
+        guardrail=guardrail,
+        pricing=pricing_reference,
+        message=message,
     )
