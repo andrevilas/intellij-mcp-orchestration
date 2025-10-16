@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+import time
 from typing import Any, Dict, Iterable, Mapping
 
 import structlog
@@ -53,6 +54,7 @@ from .registry import provider_registry, session_registry
 from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
 from .config_assistant.intents import AssistantIntent
 from .config_assistant.planner import plan_intent
+from .config_assistant.rag import rag_service
 from .config_assistant.langgraph import (
     FlowGraph,
     FlowVersionRecord,
@@ -356,6 +358,27 @@ class OnboardRequest(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
 
 
+class RagDocument(BaseModel):
+    path: str
+    snippet: str
+    score: float
+    title: str | None = None
+    chunk: int = Field(default=0, ge=0)
+
+
+class RagQueryRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    top_k: int = Field(default=5, ge=1, le=20)
+    intent: AssistantIntent | None = None
+
+
+class RagQueryResponse(BaseModel):
+    query: str
+    intent: AssistantIntent | None = None
+    documents: list[RagDocument] = Field(default_factory=list)
+    latency_ms: float = Field(..., ge=0.0)
+
+
 class PolicyPatchRequest(BaseModel):
     policy_id: str = Field(..., min_length=1)
     changes: Dict[str, Any] = Field(default_factory=dict)
@@ -430,6 +453,35 @@ def create_plan(request: PlanRequest, http_request: Request) -> PlanResponse:
         metadata={"intent": request.intent.value},
     )
     return PlanResponse(plan=plan)
+
+
+@router.post("/config/rag/query", response_model=RagQueryResponse)
+def query_rag_endpoint(payload: RagQueryRequest) -> RagQueryResponse:
+    """Execute a lightweight RAG search over the local documentation corpus."""
+
+    start = time.perf_counter()
+    results = rag_service.query(
+        payload.query,
+        top_k=payload.top_k,
+        intent=payload.intent.value if isinstance(payload.intent, AssistantIntent) else None,
+    )
+    latency_ms = (time.perf_counter() - start) * 1000.0
+    documents = [
+        RagDocument(
+            path=result.path,
+            snippet=result.snippet,
+            score=result.score,
+            title=result.title,
+            chunk=result.chunk,
+        )
+        for result in results
+    ]
+    return RagQueryResponse(
+        query=payload.query,
+        intent=payload.intent,
+        documents=documents,
+        latency_ms=round(latency_ms, 3),
+    )
 
 
 @router.post("/config/apply", response_model=ApplyPlanResponse)

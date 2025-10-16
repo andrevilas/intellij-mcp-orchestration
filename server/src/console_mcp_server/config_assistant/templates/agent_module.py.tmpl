@@ -18,6 +18,7 @@ class $agent_class(GraphBackedAgent):
         if not isinstance(manifest, AgentManifest):
             manifest = AgentManifest.model_validate(manifest)
         super().__init__(manifest)
+        self._hitl_checkpoints = tuple(self.manifest.hitl.checkpoints) if self.manifest.hitl else ()
 
     def _execute_tool(self, state: ExecutionState) -> Mapping[str, Any]:
         payload = dict(state.payload)
@@ -34,15 +35,47 @@ class $agent_class(GraphBackedAgent):
         if context:
             summary = f"{summary} Contexto: {context}."
 
-        return {
+        result = {
             "status": "ok",
             "topic": topic,
             "context": context,
             "summary": summary,
         }
+        if self._hitl_checkpoints:
+            result["pending_checkpoints"] = [checkpoint.name for checkpoint in self._hitl_checkpoints]
+        return result
 
     def _post_process(self, state: ExecutionState) -> Mapping[str, Any]:
-        return dict(state.result)
+        processed = dict(state.result)
+        if self._hitl_checkpoints and "hitl_checkpoints" not in processed:
+            processed["hitl_checkpoints"] = [
+                {
+                    "name": checkpoint.name,
+                    "description": checkpoint.description,
+                    "required": checkpoint.required,
+                    "escalation_channel": getattr(checkpoint, "escalation_channel", None),
+                }
+                for checkpoint in self._hitl_checkpoints
+            ]
+        return processed
+
+    def _hitl_blocked_payload(self, checkpoint: Any) -> Mapping[str, Any]:
+        metadata = {
+            "name": getattr(checkpoint, "name", str(checkpoint)),
+            "description": getattr(checkpoint, "description", None),
+            "required": bool(getattr(checkpoint, "required", False)),
+            "escalation_channel": getattr(checkpoint, "escalation_channel", None),
+        }
+        filtered = {
+            key: value
+            for key, value in metadata.items()
+            if key == "name" or value not in (None, "")
+        }
+        return {
+            "status": "hitl_blocked",
+            "checkpoint": filtered["name"],
+            "metadata": filtered,
+        }
 
 
 def build_agent(manifest: Mapping[str, Any]) -> $agent_class:
