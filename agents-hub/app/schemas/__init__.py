@@ -1,6 +1,16 @@
 """Pydantic schema definitions for the Agents Hub service."""
 
-from .manifest import AgentManifest, ModelConfig, PoliciesConfig, ToolConfig, ToolSchema
+from .manifest import (
+    AgentManifest,
+    FinOpsConfig,
+    HitlConfig,
+    ModelConfig,
+    ObservabilityConfig,
+    PoliciesConfig,
+    RoutingConfig,
+    ToolConfig,
+    ToolSchema,
+)
 from .responses import (
     AgentDetailResponse,
     AgentListResponse,
@@ -14,6 +24,10 @@ __all__ = [
     "AgentManifest",
     "ModelConfig",
     "PoliciesConfig",
+    "RoutingConfig",
+    "FinOpsConfig",
+    "HitlConfig",
+    "ObservabilityConfig",
     "ToolConfig",
     "ToolSchema",
     "AgentDetailResponse",

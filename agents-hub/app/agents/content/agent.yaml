@@ -7,6 +7,10 @@ capabilities:
 tools:
   - name: generate_cta
     description: Produce a call-to-action line tailored to the provided tone and product title.
+    slo:
+      latency_p95_ms: 350
+      success_rate: 0.99
+      max_error_rate: 0.01
     schema:
       type: object
       additionalProperties: false
@@ -23,3 +27,75 @@ tools:
       required:
         - tone
         - product_title
+model:
+  provider: openai
+  name: gpt-4o-mini
+  parameters:
+    temperature: 0
+policies:
+  rate_limits:
+    requests_per_minute: 120
+    burst: 30
+    concurrent_requests: 5
+  safety:
+    mode: balanced
+    blocked_categories:
+      - hate
+      - self-harm
+  budget:
+    currency: USD
+    limit: 150.0
+    period: monthly
+routing:
+  default_tier: balanced
+  allowed_tiers:
+    - economy
+    - balanced
+    - turbo
+  fallback_tier: economy
+  max_attempts: 2
+  max_iters: 6
+  max_parallel_requests: 1
+  request_timeout_seconds: 25
+finops:
+  cost_center: marketing-campaigns
+  budgets:
+    economy:
+      amount: 30
+      currency: USD
+      period: monthly
+    balanced:
+      amount: 60
+      currency: USD
+      period: monthly
+    turbo:
+      amount: 120
+      currency: USD
+      period: monthly
+  alerts:
+    - threshold: 0.8
+      channel: slack
+    - threshold: 0.95
+      channel: pagerduty
+hitl:
+  checkpoints:
+    - name: Compliance review
+      description: Human validation of campaign tone and regulatory language.
+      required: true
+      escalation_channel: slack
+    - name: Final approval
+      description: Marketing lead sign-off before deployment.
+      escalation_channel: email
+observability:
+  logging:
+    level: info
+    destination: stdout
+  metrics:
+    enabled: true
+    exporters:
+      - prometheus
+    interval_seconds: 60
+  tracing:
+    enabled: true
+    exporter: otlp
+    sample_rate: 0.1

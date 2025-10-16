@@ -70,6 +70,11 @@ O servidor será iniciado com `uvicorn` em `http://127.0.0.1:8000` por padrão. 
         {
           "name": "search_catalog",
           "description": "Filter the static catalogue using simple substring matching with deterministic ordering.",
+          "slo": {
+            "latency_p95_ms": 200,
+            "success_rate": 0.995,
+            "max_error_rate": 0.005
+          },
           "schema": {
             "type": "object",
             "additionalProperties": false,
@@ -89,8 +94,61 @@ O servidor será iniciado com `uvicorn` em `http://127.0.0.1:8000` por padrão. 
           }
         }
       ],
-      "model": null,
-      "policies": null
+      "model": {
+        "provider": "openai",
+        "name": "o3-mini",
+        "parameters": {
+          "temperature": 0
+        }
+      },
+      "policies": {
+        "rate_limits": {
+          "requests_per_minute": 180,
+          "burst": 60,
+          "concurrent_requests": 8
+        },
+        "safety": {
+          "mode": "strict",
+          "blocked_categories": ["pii", "hate"]
+        },
+        "budget": {
+          "currency": "USD",
+          "limit": 200,
+          "period": "monthly"
+        }
+      },
+      "routing": {
+        "default_tier": "economy",
+        "allowed_tiers": ["economy", "balanced"],
+        "fallback_tier": "balanced",
+        "max_attempts": 1,
+        "max_iters": 4,
+        "max_parallel_requests": 1,
+        "request_timeout_seconds": 20
+      },
+      "finops": {
+        "cost_center": "catalog-experience",
+        "budgets": {
+          "economy": {"amount": 40, "currency": "USD", "period": "monthly"},
+          "balanced": {"amount": 90, "currency": "USD", "period": "monthly"}
+        },
+        "alerts": [{"threshold": 0.75, "channel": "slack"}]
+      },
+      "hitl": {
+        "checkpoints": [
+          {
+            "name": "Data quality audit",
+            "description": "Manual verification of catalogue entries before publishing updates.",
+            "required": true,
+            "escalation_channel": "email"
+          }
+        ]
+      },
+      "observability": {
+        "logging": {"level": "info", "destination": "stdout"},
+        "metrics": {"enabled": true, "exporters": ["prometheus"], "interval_seconds": 45},
+        "tracing": {"enabled": false, "sample_rate": 0.1}
+      }
     }
   ]
 }

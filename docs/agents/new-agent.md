@@ -22,21 +22,126 @@ agents-hub/app/agents/<slug>/
 
 ## 2. Preencher o manifesto (`agent.yaml`)
 
-O manifesto segue o schema definido em `app/schemas/manifest.py`. Campos principais:
+O manifesto segue o schema definido em `app/schemas/manifest.py`. Agora o formato expõe seções tipadas para políticas, roteamento, governança financeira e observabilidade. Principais blocos:
 
-- `name`: identificador único (também usado no endpoint `/agents/{name}`).
-- `title`: nome amigável exibido no catálogo.
-- `version`: versão semântica do agente (`1.0.0`, `0.2.1`, ...).
-- `description`: resumo da função do agente.
-- `capabilities`: lista de _strings_ indicando recursos suportados (ex.: `structured-output`).
-- `tools`: lista de ferramentas disponíveis. Cada item aceita:
-  - `name`: identificador da ferramenta.
-  - `description`: texto curto de ajuda.
-  - `schema`: objeto JSON Schema descrevendo a entrada. Aliases como `input_schema` ou `parameters` também são aceitos pelo loader.
-- `model` (opcional): informações sobre o modelo subjacente (`provider`, `name`, `parameters`).
-- `policies` (opcional): configurações de limites, segurança ou orçamento.
+- **Metadados básicos**
+  - `name`: identificador único (também usado no endpoint `/agents/{name}`).
+  - `title`: nome amigável exibido no catálogo.
+  - `version`: versão semântica do agente (`1.0.0`, `0.2.1`, ...).
+  - `description`: resumo da função do agente.
+  - `capabilities`: lista de _strings_ indicando recursos suportados (ex.: `structured-output`).
+- **Ferramentas**
+  - `tools[]`: lista de ferramentas disponíveis.
+    - `name`: identificador da ferramenta.
+    - `description`: texto curto de ajuda.
+    - `schema`: objeto JSON Schema descrevendo a entrada. Aliases como `input_schema` ou `parameters` também são aceitos pelo loader.
+    - `slo`: objetivos de confiabilidade (`latency_p95_ms`, `success_rate`, `max_error_rate`).
+- **Modelo**
+  - `model`: informações sobre o modelo subjacente (`provider`, `name`, `parameters`).
+- **Políticas (`policies`)**
+  - `rate_limits`: limites de requisição (`requests_per_minute`, `burst`, `concurrent_requests`).
+  - `safety`: modo de segurança (`mode`, `blocked_categories`, `allow_list`).
+  - `budget`: orçamento operacional (`currency`, `limit`, `period`).
+- **Roteamento (`routing`)**
+  - Define tiers habilitados (`allowed_tiers`), `default_tier`, `fallback_tier`, limites de tentativas (`max_attempts`, `max_iters`) e `request_timeout_seconds`.
+- **FinOps (`finops`)**
+  - `cost_center`: centro de custo responsável.
+  - `budgets`: alocação por tier (`economy`, `balanced`, `turbo`).
+  - `alerts`: thresholds para canais como `email`, `slack` ou `pagerduty`.
+- **HITL (`hitl`)**
+  - Lista de `checkpoints` com `name`, `description`, `required` e `escalation_channel` para pontos de aprovação humana.
+- **Observabilidade (`observability`)**
+  - `logging`: nível e destino (`stdout`, `stderr`, `file`, `otlp`).
+  - `metrics`: exporters suportados (`prometheus`, `otlp`) e intervalo de coleta.
+  - `tracing`: configuração de rastreamento (`enabled`, `exporter`, `sample_rate`).
 
-> Dica: use `agents-hub/app/agents/catalog/agent.yaml` como referência de manifesto completo.
+Um manifesto completo fica parecido com o exemplo abaixo (substitua valores conforme sua necessidade):
+
+```yaml
+name: reports-agent
+title: Relatórios Financeiros
+version: 1.2.0
+description: Gera relatórios tabulares com consolidação de KPIs.
+capabilities:
+  - structured-output
+tools:
+  - name: build_report
+    description: Monta um relatório customizado a partir de filtros e período.
+    slo:
+      latency_p95_ms: 450
+      success_rate: 0.99
+      max_error_rate: 0.01
+    schema:
+      type: object
+      additionalProperties: false
+      properties:
+        period:
+          type: string
+          enum: [monthly, quarterly]
+        segment:
+          type: string
+      required: [period]
+model:
+  provider: openai
+  name: gpt-4o-mini
+  parameters:
+    temperature: 0.1
+policies:
+  rate_limits:
+    requests_per_minute: 120
+    concurrent_requests: 4
+  safety:
+    mode: balanced
+    blocked_categories: [pii]
+  budget:
+    currency: USD
+    limit: 250
+    period: monthly
+routing:
+  default_tier: balanced
+  allowed_tiers: [economy, balanced, turbo]
+  fallback_tier: economy
+  max_attempts: 2
+  max_iters: 6
+  max_parallel_requests: 2
+  request_timeout_seconds: 30
+finops:
+  cost_center: finance-ops
+  budgets:
+    economy:
+      amount: 60
+      currency: USD
+      period: monthly
+    balanced:
+      amount: 120
+      currency: USD
+      period: monthly
+  alerts:
+    - threshold: 0.8
+      channel: slack
+hitl:
+  checkpoints:
+    - name: Auditoria
+      description: Revisão humana dos lançamentos antes da publicação.
+      required: true
+      escalation_channel: email
+observability:
+  logging:
+    level: info
+    destination: stdout
+  metrics:
+    enabled: true
+    exporters: [prometheus]
+    interval_seconds: 60
+  tracing:
+    enabled: true
+    exporter: otlp
+    sample_rate: 0.2
+```
+
+Campos ausentes assumem _defaults_ compatíveis com o schema. Todas as chaves aceitas podem ser sobrescritas por variáveis de ambiente (ex.: `AGENT__ROUTING__DEFAULT_TIER=turbo`) seguindo a convenção FastAPI/Pydantic.
+
+> Dica: use `agents-hub/app/agents/catalog/agent.yaml` como referência de manifesto completo e atualizado.
 
 ## 3. Implementar o agente em `agent.py`
 
