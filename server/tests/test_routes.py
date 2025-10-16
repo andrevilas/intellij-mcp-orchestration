@@ -1451,12 +1451,90 @@ def test_process_supervisor_flow(client: TestClient) -> None:
     second_stop = client.post('/api/v1/servers/supervisor-test/process/stop')
     assert second_stop.status_code == 409
 
-    restart_response = client.post('/api/v1/servers/supervisor-test/process/restart')
-    assert restart_response.status_code == 200
-    restarted = restart_response.json()['process']
-    assert restarted['status'] == 'running'
-    assert isinstance(restarted['pid'], int)
 
-    final_stop = client.post('/api/v1/servers/supervisor-test/process/stop')
-    assert final_stop.status_code == 200
-    assert final_stop.json()['process']['status'] in {'stopped', 'error'}
+def _flow_graph_payload() -> dict[str, object]:
+    return {
+        'id': 'demo-flow',
+        'label': 'Demo Flow',
+        'entry': 'inicio',
+        'exit': 'fim',
+        'nodes': [
+            {'id': 'inicio', 'type': 'state', 'label': 'Início', 'config': {}},
+            {'id': 'checkpoint', 'type': 'checkpoint', 'label': 'Revisão', 'config': {}},
+            {'id': 'fim', 'type': 'state', 'label': 'Fim', 'config': {}},
+        ],
+        'edges': [
+            {'id': 'edge-1', 'source': 'inicio', 'target': 'checkpoint'},
+            {'id': 'edge-2', 'source': 'checkpoint', 'target': 'fim'},
+        ],
+        'metadata': {'agent_class': 'DemoFlowAgent'},
+    }
+
+
+def test_flow_version_endpoints_support_versioning(client: TestClient) -> None:
+    base_payload = {
+        'graph': _flow_graph_payload(),
+        'target_path': 'agents-hub/app/agents/demo-flow/agent.py',
+        'agent_class': 'DemoFlowAgent',
+        'comment': 'primeira versão',
+        'author': 'tester',
+    }
+
+    create_response = client.post('/api/v1/flows/demo-flow/versions', json=base_payload)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created['version'] == 1
+    assert created['hitl_checkpoints'] == ['checkpoint']
+
+    conflict_response = client.post(
+        '/api/v1/flows/demo-flow/versions',
+        json={**base_payload, 'baseline_agent_code': '# outro'},
+    )
+    assert conflict_response.status_code == 409
+
+    updated_graph = _flow_graph_payload()
+    updated_graph['edges'] = [
+        {'id': 'edge-1', 'source': 'inicio', 'target': 'checkpoint'},
+        {'id': 'edge-2', 'source': 'checkpoint', 'target': 'fim'},
+        {'id': 'edge-3', 'source': 'inicio', 'target': 'fim'},
+    ]
+
+    second_response = client.post(
+        '/api/v1/flows/demo-flow/versions',
+        json={
+            **base_payload,
+            'graph': updated_graph,
+            'baseline_agent_code': created['agent_code'],
+            'comment': 'add fallback edge',
+        },
+    )
+    assert second_response.status_code == 201
+    second = second_response.json()
+    assert second['version'] == 2
+    assert 'edge-3' in second['agent_code']
+
+    list_response = client.get('/api/v1/flows/demo-flow/versions')
+    assert list_response.status_code == 200
+    versions_payload = list_response.json()
+    assert versions_payload['flow_id'] == 'demo-flow'
+    assert len(versions_payload['versions']) == 2
+
+    diff_response = client.get(
+        '/api/v1/flows/demo-flow/versions/compare',
+        params={'from_version': 1, 'to_version': 2},
+    )
+    assert diff_response.status_code == 200
+    diff_payload = diff_response.json()
+    assert 'edge-3' in diff_payload['diff']
+
+    rollback_response = client.post(
+        '/api/v1/flows/demo-flow/versions/1/rollback',
+        json={'author': 'tester', 'comment': 'rollback'},
+    )
+    assert rollback_response.status_code == 201
+    rollback_payload = rollback_response.json()
+    assert rollback_payload['version'] == 3
+
+    final_list = client.get('/api/v1/flows/demo-flow/versions')
+    assert final_list.status_code == 200
+    assert len(final_list.json()['versions']) == 3

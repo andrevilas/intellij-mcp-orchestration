@@ -42,6 +42,26 @@ def test_plan_intent_add_agent_generates_expected_structure() -> None:
                 "target_path": "agents-hub/app/agents/generated/agent.yaml",
             },
         ),
+        (
+            AssistantIntent.CREATE_FLOW,
+            {
+                "flow_id": "flow-a",
+                "graph": {
+                    "id": "flow-a",
+                    "label": "Flow A",
+                    "entry": "start",
+                    "exit": "end",
+                    "nodes": [
+                        {"id": "start", "type": "state", "label": "Start", "config": {}},
+                        {"id": "end", "type": "state", "label": "End", "config": {}},
+                    ],
+                    "edges": [
+                        {"id": "edge-start-end", "source": "start", "target": "end"},
+                    ],
+                },
+                "target_path": "agents-hub/app/agents/flow-a/agent.py",
+            },
+        ),
     ],
 )
 def test_plan_intent_handles_supported_intents(intent: AssistantIntent, payload: dict[str, str]) -> None:
@@ -72,3 +92,38 @@ def test_plan_intent_generate_artifact_includes_write_action() -> None:
 def test_plan_intent_validates_required_fields() -> None:
     with pytest.raises(ValueError):
         plan_intent(AssistantIntent.ADD_AGENT, {})
+
+
+def test_plan_intent_create_flow_generates_actions_for_langgraph() -> None:
+    graph_payload = {
+        "id": "flow-x",
+        "label": "Flow X",
+        "entry": "inicio",
+        "exit": "fim",
+        "nodes": [
+            {"id": "inicio", "type": "state", "label": "Início", "config": {}},
+            {"id": "revisao", "type": "checkpoint", "label": "Revisão HITL", "config": {}},
+            {"id": "fim", "type": "state", "label": "Fim", "config": {}},
+        ],
+        "edges": [
+            {"id": "edge-1", "source": "inicio", "target": "revisao"},
+            {"id": "edge-2", "source": "revisao", "target": "fim"},
+        ],
+    }
+
+    plan = plan_intent(
+        AssistantIntent.CREATE_FLOW,
+        {
+            "flow_id": "flow-x",
+            "graph": graph_payload,
+            "target_path": "agents-hub/app/agents/flow-x/agent.py",
+            "baseline_agent_code": "# antigo\n",
+        },
+    )
+
+    assert plan.intent == AssistantIntent.CREATE_FLOW.value
+    assert any(step.id == "compile-agent" for step in plan.steps)
+    checkpoint_steps = [step for step in plan.steps if "checkpoint" in step.id]
+    assert checkpoint_steps, "deve existir etapa para checkpoints"
+    assert plan.diffs and plan.diffs[0].path.endswith("flow-x/agent.py")
+    assert any("checkpoint" in risk.title.lower() for risk in plan.risks)

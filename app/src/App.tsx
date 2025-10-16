@@ -37,6 +37,7 @@ import Policies from './pages/Policies';
 import Routing from './pages/Routing';
 import Servers from './pages/Servers';
 import AdminChat from './pages/AdminChat';
+import Flows from './pages/Flows';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -134,6 +135,12 @@ const VIEW_DEFINITIONS = [
     label: 'Routing',
     description: 'Simulações what-if e gestão de estratégias de roteamento',
     keywords: ['rota', 'failover', 'latência'],
+  },
+  {
+    id: 'flows',
+    label: 'Flows',
+    description: 'Editor LangGraph com checkpoints HITL e versionamento',
+    keywords: ['langgraph', 'hitl', 'versão'],
   },
   {
     id: 'finops',
@@ -742,6 +749,11 @@ function App() {
         {activeView === 'routing' && (
           <section role="tabpanel" id="panel-routing" aria-labelledby="tab-routing">
             <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        )}
+        {activeView === 'flows' && (
+          <section role="tabpanel" id="panel-flows" aria-labelledby="tab-flows">
+            <Flows />
           </section>
         )}
         {activeView === 'finops' && (

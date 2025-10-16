@@ -673,3 +673,65 @@ class FinOpsPullRequestReportsResponse(BaseModel):
     """Envelope para relatórios estilo pull request."""
 
     items: List[FinOpsPullRequestReport]
+
+
+class FlowNodePayload(BaseModel):
+    id: str = Field(..., min_length=1)
+    type: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FlowEdgePayload(BaseModel):
+    id: str = Field(..., min_length=1)
+    source: str = Field(..., min_length=1)
+    target: str = Field(..., min_length=1)
+    condition: Optional[str] = None
+
+
+class FlowGraphPayload(BaseModel):
+    id: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
+    entry: str = Field(..., min_length=1)
+    exit: str = Field(..., min_length=1)
+    nodes: List[FlowNodePayload] = Field(default_factory=list)
+    edges: List[FlowEdgePayload] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FlowVersionResponse(BaseModel):
+    flow_id: str
+    version: int
+    created_at: datetime
+    created_by: Optional[str] = None
+    comment: Optional[str] = None
+    graph: FlowGraphPayload
+    agent_code: str
+    hitl_checkpoints: List[str] = Field(default_factory=list)
+    diff: Optional[str] = None
+
+
+class FlowVersionsResponse(BaseModel):
+    flow_id: str
+    versions: List[FlowVersionResponse]
+
+
+class FlowVersionCreateRequest(BaseModel):
+    graph: FlowGraphPayload
+    target_path: str = Field(..., min_length=1)
+    agent_class: Optional[str] = None
+    comment: Optional[str] = None
+    author: Optional[str] = None
+    baseline_agent_code: Optional[str] = None
+
+
+class FlowVersionRollbackRequest(BaseModel):
+    author: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class FlowVersionDiffResponse(BaseModel):
+    flow_id: str
+    from_version: int
+    to_version: int
+    diff: str
