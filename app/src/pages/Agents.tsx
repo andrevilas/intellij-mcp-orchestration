@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentSmokeRun, AgentStatus, AgentSummary } from '../api';
 import { ApiError, fetchAgents, postAgentSmokeRun } from '../api';
+import AgentDetailPanel from '../components/AgentDetailPanel';
+import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
 
 type StatusFilter = 'all' | AgentStatus;
 
@@ -13,25 +15,7 @@ interface ToastState {
   agent: AgentSummary | null;
 }
 
-const STATUS_LABELS: Record<AgentStatus, string> = {
-  healthy: 'Saudável',
-  degraded: 'Instável',
-  pending: 'Pendente',
-  inactive: 'Inativo',
-  failed: 'Falha',
-  unknown: 'Desconhecido',
-};
-
 const STATUS_ORDER: AgentStatus[] = ['healthy', 'degraded', 'pending', 'failed', 'inactive', 'unknown'];
-
-const STATUS_CLASS: Record<AgentStatus, string> = {
-  healthy: 'agents__status--healthy',
-  degraded: 'agents__status--degraded',
-  pending: 'agents__status--pending',
-  inactive: 'agents__status--inactive',
-  failed: 'agents__status--failed',
-  unknown: 'agents__status--unknown',
-};
 
 const SMOKE_STATUS_LABELS = {
   queued: 'Na fila',
@@ -40,43 +24,8 @@ const SMOKE_STATUS_LABELS = {
   failed: 'Falhou',
 } as const;
 
-function formatTimestamp(value: string | null): string {
-  if (!value) {
-    return '—';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const year = date.getUTCFullYear();
-  const hours = String(date.getUTCHours()).padStart(2, '0');
-  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-
-  return `${day}/${month}/${year} ${hours}:${minutes} UTC`;
-}
-
-function formatStatus(status: AgentStatus): string {
-  return STATUS_LABELS[status] ?? STATUS_LABELS.unknown;
-}
-
 function formatSmokeStatus(status: AgentSmokeRun['status']): string {
   return SMOKE_STATUS_LABELS[status] ?? status;
-}
-
-function formatModel(agent: AgentSummary): string {
-  if (!agent.model) {
-    return '—';
-  }
-
-  if (agent.model.name && agent.model.provider) {
-    return `${agent.model.name} (${agent.model.provider})`;
-  }
-
-  return agent.model.name ?? agent.model.provider ?? '—';
 }
 
 const AUTO_DISMISS_MS = 8000;
@@ -89,6 +38,7 @@ function Agents(): JSX.Element {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [pendingSmoke, setPendingSmoke] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [activeAgent, setActiveAgent] = useState<AgentSummary | null>(null);
   const smokeControllers = useRef(new Map<string, AbortController>());
 
   useEffect(() => {
@@ -135,6 +85,22 @@ function Agents(): JSX.Element {
       smokeControllers.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeAgent) {
+      return;
+    }
+
+    const latest = agents.find((candidate) => candidate.name === activeAgent.name) ?? null;
+    if (!latest) {
+      setActiveAgent(null);
+      return;
+    }
+
+    if (latest !== activeAgent) {
+      setActiveAgent(latest);
+    }
+  }, [agents, activeAgent]);
 
   useEffect(() => {
     if (!toast) {
@@ -227,6 +193,14 @@ function Agents(): JSX.Element {
         }
         smokeControllers.current.delete(agent.name);
       });
+  }, []);
+
+  const handleDetail = useCallback((agent: AgentSummary) => {
+    setActiveAgent(agent);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setActiveAgent(null);
   }, []);
 
   const renderTable = filteredAgents.length > 0;
@@ -353,20 +327,30 @@ function Agents(): JSX.Element {
                   </td>
                   <td>
                     <time dateTime={agent.lastDeployedAt ?? undefined}>
-                      {formatTimestamp(agent.lastDeployedAt)}
+                      {formatAgentTimestamp(agent.lastDeployedAt)}
                     </time>
                   </td>
                   <td>{agent.owner ?? '—'}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="agents__smoke-button"
-                      onClick={() => handleSmoke(agent)}
-                      disabled={pendingSmoke === agent.name}
-                      aria-label={`Executar smoke para ${agent.title}`}
-                    >
-                      {pendingSmoke === agent.name ? 'Executando…' : 'Smoke'}
-                    </button>
+                    <div className="agents__actions">
+                      <button
+                        type="button"
+                        className="agents__detail-button"
+                        onClick={() => handleDetail(agent)}
+                        aria-label={`Abrir detalhes de ${agent.title}`}
+                      >
+                        Detalhes
+                      </button>
+                      <button
+                        type="button"
+                        className="agents__smoke-button"
+                        onClick={() => handleSmoke(agent)}
+                        disabled={pendingSmoke === agent.name}
+                        aria-label={`Executar smoke para ${agent.title}`}
+                      >
+                        {pendingSmoke === agent.name ? 'Executando…' : 'Smoke'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -397,7 +381,7 @@ function Agents(): JSX.Element {
                   </div>
                   <div>
                     <dt>Último deploy</dt>
-                    <dd>{formatTimestamp(agent.lastDeployedAt)}</dd>
+                    <dd>{formatAgentTimestamp(agent.lastDeployedAt)}</dd>
                   </div>
                   <div>
                     <dt>Owner</dt>
@@ -410,21 +394,34 @@ function Agents(): JSX.Element {
                       ? agent.capabilities.join(', ')
                       : 'Sem capabilities cadastradas'}
                   </span>
-                  <button
-                    type="button"
-                    className="agents__smoke-button"
-                    onClick={() => handleSmoke(agent)}
-                    disabled={pendingSmoke === agent.name}
-                    aria-label={`Executar smoke para ${agent.title}`}
-                  >
-                    {pendingSmoke === agent.name ? 'Executando…' : 'Smoke'}
-                  </button>
+                  <div className="agents__card-actions">
+                    <button
+                      type="button"
+                      className="agents__detail-button"
+                      onClick={() => handleDetail(agent)}
+                      aria-label={`Abrir detalhes de ${agent.title}`}
+                    >
+                      Detalhes
+                    </button>
+                    <button
+                      type="button"
+                      className="agents__smoke-button"
+                      onClick={() => handleSmoke(agent)}
+                      disabled={pendingSmoke === agent.name}
+                      aria-label={`Executar smoke para ${agent.title}`}
+                    >
+                      {pendingSmoke === agent.name ? 'Executando…' : 'Smoke'}
+                    </button>
+                  </div>
                 </div>
               </li>
             ))}
           </ul>
         </>
       )}
+      {activeAgent ? (
+        <AgentDetailPanel key={activeAgent.name} agent={activeAgent} onClose={handleCloseDetail} />
+      ) : null}
     </section>
   );
 }
