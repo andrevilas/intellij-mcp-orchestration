@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 
 import useAdminChat from '../../hooks/useAdminChat';
-import DiffViewer from './DiffViewer';
+import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
 import PlanSummary from './PlanSummary';
 import RiskCard from './RiskCard';
 import McpOnboardingWizard from './McpOnboardingWizard';
@@ -129,6 +129,17 @@ export default function AdminChat() {
 
   const hasRisks = risks.length > 0;
   const roleLabels = useMemo(() => ROLE_LABELS, []);
+
+  const planDiffItems = useMemo<PlanDiffItem[]>(
+    () =>
+      diffs.map((diff) => ({
+        id: diff.id,
+        title: diff.file,
+        summary: diff.summary,
+        diff: diff.diff,
+      })),
+    [diffs],
+  );
 
   const planActions = (
     <div className="admin-chat__plan-actions">
@@ -297,7 +308,7 @@ export default function AdminChat() {
 
         <aside className="admin-chat__panel admin-chat__panel--summary">
           <PlanSummary plan={plan} isLoading={isPlanLoading} actions={planActions} />
-          <DiffViewer diffs={diffs} />
+          <PlanDiffViewer diffs={planDiffItems} />
           <section className="admin-chat__risks">
             <h2>Riscos e checkpoints</h2>
             {hasRisks ? (
