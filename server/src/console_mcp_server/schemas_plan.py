@@ -17,6 +17,14 @@ class PlanExecutionStatus(str, Enum):
     FAILED = "failed"
 
 
+class PlanExecutionMode(str, Enum):
+    """Supported execution strategies when applying configuration changes."""
+
+    DRY_RUN = "dry_run"
+    BRANCH_PR = "branch_pr"
+    DIRECT = "direct"
+
+
 class PlanStep(BaseModel):
     """Represents a single step that should be performed during plan execution."""
 

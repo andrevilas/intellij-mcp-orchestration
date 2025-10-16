@@ -214,6 +214,37 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=7,
+        description="store configuration change plans",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS change_plans (
+                id TEXT PRIMARY KEY,
+                plan_id TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                status TEXT NOT NULL,
+                branch TEXT,
+                commit_sha TEXT,
+                diff_stat TEXT NOT NULL,
+                diff_patch TEXT NOT NULL,
+                risks TEXT NOT NULL DEFAULT '[]',
+                metadata TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_change_plans_plan
+                ON change_plans (plan_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_change_plans_created_at
+                ON change_plans (created_at)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None

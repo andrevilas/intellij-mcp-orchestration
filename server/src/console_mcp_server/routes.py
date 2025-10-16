@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field
 
 from .policies import (
     CostPolicyAlreadyExistsError,
@@ -52,6 +53,7 @@ from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
 from .config_assistant.intents import AssistantIntent
 from .config_assistant.planner import plan_intent
 from .config_assistant.renderers import render_chat_reply
+from .config_assistant.plan_executor import PlanExecutionResult, PlanExecutor, PlanExecutorError
 from .schemas import (
     CostPoliciesResponse,
     CostPolicyCreateRequest,
@@ -145,7 +147,7 @@ from .telemetry import (
     query_timeseries,
     render_telemetry_export,
 )
-from .schemas_plan import Plan, PlanExecutionStatus
+from .schemas_plan import Plan, PlanExecutionMode, PlanExecutionStatus
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessLogEntry,
@@ -157,6 +159,25 @@ from .supervisor import (
 
 router = APIRouter(prefix="/api/v1", tags=["console"])
 assistant_logger = structlog.get_logger("console.config.routes")
+
+_PLAN_EXECUTOR: PlanExecutor | None = None
+
+
+def get_plan_executor() -> PlanExecutor:
+    global _PLAN_EXECUTOR
+    if _PLAN_EXECUTOR is None:
+        repo_root = Path(__file__).resolve().parents[3]
+        _PLAN_EXECUTOR = PlanExecutor(repo_root)
+    return _PLAN_EXECUTOR
+
+
+def _notify_hitl(url: AnyHttpUrl, result: PlanExecutionResult) -> None:
+    assistant_logger.info(
+        "config.apply.hitl_callback",
+        url=str(url),
+        plan_id=result.plan_id,
+        record_id=result.record_id,
+    )
 
 
 class ChatRequest(BaseModel):
@@ -180,14 +201,32 @@ class PlanResponse(BaseModel):
     plan: Plan
 
 
+class PlanExecutionDiff(BaseModel):
+    stat: str
+    patch: str
+
+
 class ApplyPlanRequest(BaseModel):
+    plan_id: str = Field(..., min_length=1)
     plan: Plan
-    dry_run: bool = Field(default=False)
+    patch: str = Field(..., min_length=1)
+    mode: PlanExecutionMode = Field(default=PlanExecutionMode.DRY_RUN)
+    actor: str = Field(..., min_length=1)
+    actor_email: str | None = Field(default=None)
+    commit_message: str = Field(default="chore: aplicar plano de configuração")
+    hitl_callback_url: AnyHttpUrl | None = Field(default=None)
 
 
 class ApplyPlanResponse(BaseModel):
     status: PlanExecutionStatus
-    applied_steps: list[str] = Field(default_factory=list)
+    mode: PlanExecutionMode
+    plan_id: str
+    record_id: str
+    branch: str | None = None
+    base_branch: str | None = None
+    commit_sha: str | None = None
+    diff: PlanExecutionDiff
+    hitl_required: bool = False
     message: str
 
 
@@ -259,30 +298,67 @@ def create_plan(request: PlanRequest) -> PlanResponse:
 
 @router.post("/config/apply", response_model=ApplyPlanResponse)
 def apply_plan_endpoint(request: ApplyPlanRequest) -> ApplyPlanResponse:
-    """Simulate applying a configuration plan and return execution status."""
+    """Apply a configuration plan leveraging Git workflows."""
 
-    if request.dry_run:
-        assistant_logger.info(
-            "config.apply.dry_run",
-            intent=request.plan.intent,
-            step_count=len(request.plan.steps),
-        )
-        return ApplyPlanResponse(
-            status=PlanExecutionStatus.PENDING,
-            applied_steps=[],
-            message="Execução em modo dry-run: nenhuma alteração aplicada.",
-        )
+    executor = get_plan_executor()
 
-    applied = [step.id for step in request.plan.steps]
+    try:
+        if request.mode is PlanExecutionMode.DRY_RUN:
+            result = executor.dry_run(
+                plan=request.plan,
+                plan_id=request.plan_id,
+                patch=request.patch,
+                actor=request.actor,
+            )
+        else:
+            if request.actor_email is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="actor_email é obrigatório para aplicar o plano.",
+                )
+            if "@" not in request.actor_email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="actor_email precisa ser um endereço válido.",
+                )
+            hitl_callback = (
+                (lambda outcome: _notify_hitl(request.hitl_callback_url, outcome))
+                if request.hitl_callback_url
+                else None
+            )
+            result = executor.apply(
+                plan=request.plan,
+                plan_id=request.plan_id,
+                patch=request.patch,
+                actor=request.actor,
+                actor_email=request.actor_email,
+                commit_message=request.commit_message,
+                mode=request.mode,
+                hitl_callback=hitl_callback,
+            )
+    except PlanExecutorError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    diff = PlanExecutionDiff(stat=result.diff_stat, patch=result.diff_patch)
     assistant_logger.info(
-        "config.apply.executed",
-        intent=request.plan.intent,
-        steps=applied,
+        "config.apply.result",
+        plan_id=request.plan_id,
+        status=result.status.value,
+        mode=result.mode.value,
+        branch=result.branch,
+        record_id=result.record_id,
     )
     return ApplyPlanResponse(
-        status=PlanExecutionStatus.COMPLETED,
-        applied_steps=applied,
-        message="Plano aplicado com sucesso.",
+        status=result.status,
+        mode=result.mode,
+        plan_id=result.plan_id,
+        record_id=result.record_id,
+        branch=result.branch,
+        base_branch=result.base_branch,
+        commit_sha=result.commit_sha,
+        diff=diff,
+        hitl_required=result.hitl_required,
+        message=result.message,
     )
 
 
