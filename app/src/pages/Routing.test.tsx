@@ -142,18 +142,22 @@ describe('Routing page remote simulation', () => {
     await waitFor(() => expect(simulateRoutingMock).toHaveBeenCalledTimes(2));
 
     const [baselinePayload, planPayload] = simulateRoutingMock.mock.calls.map((call) => call[0]);
-    expect(baselinePayload).toEqual({
+    expect(baselinePayload).toMatchObject({
       strategy: 'balanced',
       providerIds: ['glm', 'claude'],
       failoverProviderId: null,
       volumeMillions: 12,
     });
-    expect(planPayload).toEqual({
+    expect(planPayload).toMatchObject({
       strategy: 'finops',
       providerIds: ['glm', 'claude'],
       failoverProviderId: null,
       volumeMillions: 12,
     });
+    expect(baselinePayload.intents).toEqual([]);
+    expect(baselinePayload.rules).toEqual([]);
+    expect(planPayload.intents).toEqual([]);
+    expect(planPayload.rules).toEqual([]);
 
     await waitFor(() => expect(screen.getByTestId('routing-total-cost')).toHaveTextContent(/US\$/));
     expect(screen.getByTestId('routing-savings')).toHaveTextContent(/US\$/);

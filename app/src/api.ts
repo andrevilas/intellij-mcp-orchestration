@@ -307,6 +307,24 @@ export interface FinOpsPolicyConfig {
   abHistory: FinOpsAbExperiment[];
 }
 
+export interface RoutingIntentConfig {
+  intent: string;
+  description: string | null;
+  tags: string[];
+  defaultTier: RoutingTierId;
+  fallbackProviderId: string | null;
+}
+
+export interface RoutingRuleConfig {
+  id: string;
+  description: string | null;
+  intent: string | null;
+  matcher: string;
+  targetTier: RoutingTierId | null;
+  providerId: string | null;
+  weight: number | null;
+}
+
 export interface RoutingPolicyConfig {
   maxIters: number;
   maxAttempts: number;
@@ -315,6 +333,8 @@ export interface RoutingPolicyConfig {
   defaultTier: RoutingTierId;
   allowedTiers: RoutingTierId[];
   fallbackTier: RoutingTierId | null;
+  intents: RoutingIntentConfig[];
+  rules: RoutingRuleConfig[];
 }
 
 export interface RuntimeTimeoutsConfig {
@@ -632,6 +652,24 @@ interface FinOpsConfigPayload {
   ab_history?: FinOpsAbExperimentPayload[];
 }
 
+interface RoutingIntentPayload {
+  intent: string;
+  description?: string | null;
+  tags?: string[];
+  default_tier?: RoutingTierId;
+  fallback_provider_id?: string | null;
+}
+
+interface RoutingRulePayload {
+  id: string;
+  description?: string | null;
+  intent?: string | null;
+  matcher?: string;
+  target_tier?: RoutingTierId | null;
+  provider_id?: string | null;
+  weight?: number | null;
+}
+
 interface RoutingPolicyPayload {
   max_iters?: number;
   max_attempts?: number;
@@ -640,6 +678,8 @@ interface RoutingPolicyPayload {
   default_tier?: RoutingTierId;
   allowed_tiers?: RoutingTierId[];
   fallback_tier?: RoutingTierId | null;
+  intents?: RoutingIntentPayload[];
+  rules?: RoutingRulePayload[];
 }
 
 interface RuntimeTimeoutsPayload {
@@ -946,6 +986,8 @@ export interface SimulateRoutingPayload {
   providerIds?: string[];
   failoverProviderId?: string | null;
   volumeMillions: number;
+  intents?: RoutingIntentConfig[];
+  rules?: RoutingRuleConfig[];
 }
 
 interface RoutingRouteProfilePayload {
@@ -1531,6 +1573,22 @@ export async function simulateRouting(
       provider_ids: payload.providerIds ?? [],
       failover_provider_id: payload.failoverProviderId ?? null,
       volume_millions: payload.volumeMillions,
+      intents: payload.intents?.map((intent) => ({
+        intent: intent.intent,
+        description: intent.description ?? undefined,
+        tags: intent.tags,
+        default_tier: intent.defaultTier,
+        fallback_provider_id: intent.fallbackProviderId ?? undefined,
+      })),
+      custom_rules: payload.rules?.map((rule) => ({
+        id: rule.id,
+        description: rule.description ?? undefined,
+        intent: rule.intent ?? undefined,
+        matcher: rule.matcher,
+        target_tier: rule.targetTier ?? undefined,
+        provider_id: rule.providerId ?? undefined,
+        weight: rule.weight ?? undefined,
+      })),
     }),
     signal,
   });
@@ -1698,6 +1756,33 @@ function mapFinOpsConfigPayload(payload?: FinOpsConfigPayload): FinOpsPolicyConf
   };
 }
 
+function mapRoutingIntentPayload(payload: RoutingIntentPayload): RoutingIntentConfig {
+  const defaultTier: RoutingTierId = payload.default_tier ?? 'balanced';
+  const tags = Array.isArray(payload.tags) ? payload.tags.filter((tag) => typeof tag === 'string') : [];
+  return {
+    intent: payload.intent,
+    description: payload.description ?? null,
+    tags,
+    defaultTier,
+    fallbackProviderId: payload.fallback_provider_id ?? null,
+  };
+}
+
+function mapRoutingRulePayload(payload: RoutingRulePayload): RoutingRuleConfig {
+  const weightValue =
+    typeof payload.weight === 'number' && Number.isFinite(payload.weight) ? payload.weight : null;
+  const targetTier = payload.target_tier ?? null;
+  return {
+    id: payload.id,
+    description: payload.description ?? null,
+    intent: payload.intent ?? null,
+    matcher: payload.matcher ?? '',
+    targetTier,
+    providerId: payload.provider_id ?? null,
+    weight: weightValue,
+  };
+}
+
 function mapRoutingPolicyPayload(payload?: RoutingPolicyPayload): RoutingPolicyConfig {
   const defaultTier: RoutingTierId = payload?.default_tier ?? 'balanced';
   const allowed = payload?.allowed_tiers && payload.allowed_tiers.length > 0 ? payload.allowed_tiers : [defaultTier];
@@ -1719,6 +1804,8 @@ function mapRoutingPolicyPayload(payload?: RoutingPolicyPayload): RoutingPolicyC
     defaultTier,
     allowedTiers,
     fallbackTier,
+    intents: (payload?.intents ?? []).map(mapRoutingIntentPayload),
+    rules: (payload?.rules ?? []).map(mapRoutingRulePayload),
   };
 }
 
@@ -1963,6 +2050,26 @@ function serializePolicyOverrides(overrides?: PolicyOverridesConfig | null): Pol
     if (overrides.routing.fallbackTier !== undefined) {
       routing.fallback_tier = overrides.routing.fallbackTier ?? null;
     }
+    if (overrides.routing.intents !== undefined) {
+      routing.intents = overrides.routing.intents?.map((intent) => ({
+        intent: intent.intent,
+        description: intent.description ?? undefined,
+        tags: intent.tags,
+        default_tier: intent.defaultTier,
+        fallback_provider_id: intent.fallbackProviderId ?? undefined,
+      }));
+    }
+    if (overrides.routing.rules !== undefined) {
+      routing.rules = overrides.routing.rules?.map((rule) => ({
+        id: rule.id,
+        description: rule.description ?? undefined,
+        intent: rule.intent ?? undefined,
+        matcher: rule.matcher,
+        target_tier: rule.targetTier ?? undefined,
+        provider_id: rule.providerId ?? undefined,
+        weight: rule.weight ?? undefined,
+      }));
+    }
     if (Object.keys(routing).length > 0) {
       payload.routing = routing;
     }
@@ -2074,6 +2181,26 @@ function serializePolicyManifestUpdate(payload: PolicyManifestUpdateInput): Poli
     }
     if (payload.routing.fallbackTier !== undefined) {
       routing.fallback_tier = payload.routing.fallbackTier ?? null;
+    }
+    if (payload.routing.intents !== undefined) {
+      routing.intents = payload.routing.intents?.map((intent) => ({
+        intent: intent.intent,
+        description: intent.description ?? undefined,
+        tags: intent.tags,
+        default_tier: intent.defaultTier,
+        fallback_provider_id: intent.fallbackProviderId ?? undefined,
+      }));
+    }
+    if (payload.routing.rules !== undefined) {
+      routing.rules = payload.routing.rules?.map((rule) => ({
+        id: rule.id,
+        description: rule.description ?? undefined,
+        intent: rule.intent ?? undefined,
+        matcher: rule.matcher,
+        target_tier: rule.targetTier ?? undefined,
+        provider_id: rule.providerId ?? undefined,
+        weight: rule.weight ?? undefined,
+      }));
     }
     if (Object.keys(routing).length > 0) {
       result.routing = routing;
