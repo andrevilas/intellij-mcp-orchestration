@@ -18,10 +18,16 @@ class TelemetryRecord:
     status: str
     cost_estimated_usd: Optional[float]
     metadata: dict
+    experiment_cohort: Optional[str] = None
+    experiment_tag: Optional[str] = None
 
     def to_json(self) -> str:
         payload = asdict(self)
         payload["metadata"] = self.metadata or {}
+        if payload.get("experiment_cohort") is None:
+            payload.pop("experiment_cohort", None)
+        if payload.get("experiment_tag") is None:
+            payload.pop("experiment_tag", None)
         return json.dumps(payload, ensure_ascii=False)
 
 
@@ -36,7 +42,13 @@ class TelemetryLogger:
             fh.write(line + "\n")
 
     @staticmethod
-    def create(tool: str, route: Optional[str]) -> TelemetryRecord:
+    def create(
+        tool: str,
+        route: Optional[str],
+        *,
+        experiment_cohort: Optional[str] = None,
+        experiment_tag: Optional[str] = None,
+    ) -> TelemetryRecord:
         return TelemetryRecord(
             ts=datetime.utcnow().isoformat() + "Z",
             route=route,
@@ -47,4 +59,6 @@ class TelemetryLogger:
             status="pending",
             cost_estimated_usd=None,
             metadata={},
+            experiment_cohort=experiment_cohort,
+            experiment_tag=experiment_tag,
         )

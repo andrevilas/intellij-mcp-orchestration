@@ -987,11 +987,64 @@ export interface TelemetryRunEntry {
   status: string;
   cost_usd: number;
   metadata: Record<string, unknown>;
+  experiment_cohort: string | null;
+  experiment_tag: string | null;
 }
 
 interface TelemetryRunsResponsePayload {
   items: TelemetryRunEntry[];
   next_cursor?: string | null;
+}
+
+export interface TelemetryExperimentSummaryEntry {
+  cohort: string | null;
+  tag: string | null;
+  run_count: number;
+  success_rate: number;
+  error_rate: number;
+  avg_latency_ms: number;
+  total_cost_usd: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
+  mttr_ms: number | null;
+  recovery_events: number;
+}
+
+interface TelemetryExperimentsResponsePayload {
+  items: TelemetryExperimentSummaryEntry[];
+}
+
+export interface TelemetryLaneCostEntry {
+  lane: 'economy' | 'balanced' | 'turbo';
+  run_count: number;
+  total_cost_usd: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
+  avg_latency_ms: number;
+}
+
+interface TelemetryLaneCostResponsePayload {
+  items: TelemetryLaneCostEntry[];
+}
+
+export interface MarketplacePerformanceEntry {
+  entry_id: string;
+  name: string;
+  origin: string;
+  rating: number;
+  cost: number;
+  run_count: number;
+  success_rate: number;
+  avg_latency_ms: number;
+  total_cost_usd: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
+  cohorts: string[];
+  adoption_score: number;
+}
+
+interface MarketplacePerformanceResponsePayload {
+  items: MarketplacePerformanceEntry[];
 }
 
 interface McpServerPayload {
@@ -1065,6 +1118,16 @@ export interface TelemetryRunsFilters extends TelemetryMetricsFilters {
   limit?: number;
   cursor?: string;
 }
+
+export interface TelemetryExperimentsFilters extends TelemetryMetricsFilters {
+  lane?: string;
+}
+
+export interface TelemetryLaneCostFilters extends TelemetryMetricsFilters {
+  lane?: string;
+}
+
+export interface MarketplacePerformanceFilters extends TelemetryMetricsFilters {}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -2234,6 +2297,51 @@ export async function fetchTelemetryRuns(
     cursor: filters?.cursor,
   });
   return request<TelemetryRunsResponsePayload>(`/telemetry/runs${query}`, { signal });
+}
+
+export async function fetchTelemetryExperiments(
+  filters?: TelemetryExperimentsFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryExperimentsResponsePayload> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    route: filters?.route,
+    lane: filters?.lane,
+  });
+  return request<TelemetryExperimentsResponsePayload>(`/telemetry/experiments${query}`, {
+    signal,
+  });
+}
+
+export async function fetchTelemetryLaneCosts(
+  filters?: TelemetryLaneCostFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryLaneCostResponsePayload> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    route: filters?.route,
+    lane: filters?.lane,
+  });
+  return request<TelemetryLaneCostResponsePayload>(`/telemetry/lane-costs${query}`, { signal });
+}
+
+export async function fetchMarketplacePerformance(
+  filters?: MarketplacePerformanceFilters,
+  signal?: AbortSignal,
+): Promise<MarketplacePerformanceResponsePayload> {
+  const query = buildQuery({
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    route: filters?.route,
+  });
+  return request<MarketplacePerformanceResponsePayload>(`/telemetry/marketplace/performance${query}`, {
+    signal,
+  });
 }
 
 export interface FinOpsReportsFilters {

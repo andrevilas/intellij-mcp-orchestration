@@ -33,6 +33,8 @@ class SampleTelemetryEvent:
     cost_estimated_usd: float | None
     ts: datetime
     metadata: dict[str, object]
+    experiment_cohort: str | None = None
+    experiment_tag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -86,7 +88,9 @@ def seed_telemetry_events(engine: Engine, events: Iterable[SampleTelemetryEvent]
                         ts,
                         source_file,
                         line_number,
-                        ingested_at
+                        ingested_at,
+                        experiment_cohort,
+                        experiment_tag
                     ) VALUES (
                         :provider_id,
                         :tool,
@@ -100,7 +104,9 @@ def seed_telemetry_events(engine: Engine, events: Iterable[SampleTelemetryEvent]
                         :ts,
                         :source_file,
                         :line_number,
-                        :ingested_at
+                        :ingested_at,
+                        :experiment_cohort,
+                        :experiment_tag
                     )
                     """
                 ),
@@ -117,8 +123,10 @@ def seed_telemetry_events(engine: Engine, events: Iterable[SampleTelemetryEvent]
                     "ts": event.ts.isoformat(),
                     "source_file": f"{event.provider_id}/sample.jsonl",
                     "line_number": index,
-                    "ingested_at": (base_ts + timedelta(seconds=index)).isoformat(),
-                },
+                "ingested_at": (base_ts + timedelta(seconds=index)).isoformat(),
+                "experiment_cohort": event.experiment_cohort,
+                "experiment_tag": event.experiment_tag,
+            },
         )
 
 

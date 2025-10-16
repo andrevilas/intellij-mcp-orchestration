@@ -145,6 +145,12 @@ from .schemas import (
     TelemetryRunsResponse,
     TelemetryTimeseriesPoint as TelemetryTimeseriesPointModel,
     TelemetryTimeseriesResponse,
+    TelemetryExperimentsResponse,
+    TelemetryExperimentSummaryEntry,
+    TelemetryLaneCostEntry,
+    TelemetryLaneCostResponse,
+    MarketplacePerformanceEntry,
+    MarketplacePerformanceResponse,
     SecretMetadataResponse,
     SecretValueResponse,
     SecretWriteRequest,
@@ -187,6 +193,9 @@ from .telemetry import (
     aggregate_metrics,
     compute_finops_pull_request_reports,
     compute_finops_sprint_reports,
+    compute_lane_cost_breakdown,
+    compute_marketplace_performance,
+    query_experiment_summaries,
     query_route_breakdown,
     query_runs,
     query_timeseries,
@@ -1049,11 +1058,134 @@ def read_telemetry_runs(
             status=record.status,
             cost_usd=record.cost_usd,
             metadata=record.metadata,
+            experiment_cohort=record.experiment_cohort,
+            experiment_tag=record.experiment_tag,
         )
         for record in records
     ]
 
     return TelemetryRunsResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get("/telemetry/experiments", response_model=TelemetryExperimentsResponse)
+def read_telemetry_experiments(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Optional route identifier to filter telemetry events",
+    ),
+    lane: str | None = Query(
+        default=None,
+        description="Optional lane (economy/balanced/turbo) to limit providers",
+    ),
+) -> TelemetryExperimentsResponse:
+    try:
+        summaries = query_experiment_summaries(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+            lane=lane,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    return TelemetryExperimentsResponse(
+        items=[TelemetryExperimentSummaryEntry(**summary.to_dict()) for summary in summaries]
+    )
+
+
+@router.get("/telemetry/lane-costs", response_model=TelemetryLaneCostResponse)
+def read_telemetry_lane_costs(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Optional route identifier to filter telemetry events",
+    ),
+    lane: str | None = Query(
+        default=None,
+        description="Optional lane (economy/balanced/turbo) to limit providers",
+    ),
+) -> TelemetryLaneCostResponse:
+    try:
+        lane_costs = compute_lane_cost_breakdown(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+            lane=lane,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    return TelemetryLaneCostResponse(
+        items=[TelemetryLaneCostEntry(**entry.to_dict()) for entry in lane_costs]
+    )
+
+
+@router.get(
+    "/telemetry/marketplace/performance",
+    response_model=MarketplacePerformanceResponse,
+)
+def read_marketplace_performance(
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) for filtering telemetry events",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) for filtering telemetry events",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Optional provider identifier to filter telemetry events",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Optional route identifier to filter telemetry events",
+    ),
+) -> MarketplacePerformanceResponse:
+    try:
+        performance = compute_marketplace_performance(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    return MarketplacePerformanceResponse(
+        items=[MarketplacePerformanceEntry(**entry.to_dict()) for entry in performance]
+    )
 
 
 @router.get("/telemetry/finops/sprints", response_model=FinOpsSprintReportsResponse)

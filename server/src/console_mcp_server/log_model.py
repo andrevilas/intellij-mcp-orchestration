@@ -69,6 +69,19 @@ _COST_KEYS: tuple[str, ...] = (
     "price_usd",
 )
 _METADATA_KEYS: tuple[str, ...] = ("metadata", "details", "extra", "info")
+_EXPERIMENT_KEYS: tuple[str, ...] = ("experiment", "experiment_context", "experimentMetadata")
+_EXPERIMENT_COHORT_KEYS: tuple[str, ...] = (
+    "experiment_cohort",
+    "cohort",
+    "experimentCohort",
+    "experiment_cohort_id",
+)
+_EXPERIMENT_TAG_KEYS: tuple[str, ...] = (
+    "experiment_tag",
+    "tag",
+    "variant",
+    "experimentVariant",
+)
 _TOOL_KEYS: tuple[str, ...] = ("tool", "model", "name", "service", "target")
 
 
@@ -155,6 +168,8 @@ class TelemetryLogRecord:
     status: str = "unknown"
     cost_estimated_usd: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    experiment_cohort: str | None = None
+    experiment_tag: str | None = None
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "TelemetryLogRecord":
@@ -190,6 +205,38 @@ class TelemetryLogRecord:
 
         metadata = _extract_first_mapping(payload, _METADATA_KEYS) or {}
 
+        experiment_payload = _extract_first_mapping(payload, _EXPERIMENT_KEYS)
+
+        def _resolve_experiment_value(
+            mapping: Mapping[str, Any] | None,
+            *,
+            fallback_keys: tuple[str, ...],
+        ) -> str | None:
+            if mapping:
+                try:
+                    value = _extract_first_str(mapping, fallback_keys, required=False)
+                    if value:
+                        return value
+                except ValueError:
+                    pass
+            value = _extract_first_str(payload, fallback_keys, required=False)
+            if value:
+                return value
+            for key in fallback_keys:
+                raw = metadata.get(key)
+                if isinstance(raw, str) and raw.strip():
+                    return raw.strip()
+            return None
+
+        cohort = _resolve_experiment_value(
+            experiment_payload,
+            fallback_keys=_EXPERIMENT_COHORT_KEYS,
+        )
+        tag = _resolve_experiment_value(
+            experiment_payload,
+            fallback_keys=_EXPERIMENT_TAG_KEYS,
+        )
+
         return cls(
             ts=timestamp,
             tool=tool,
@@ -200,6 +247,8 @@ class TelemetryLogRecord:
             status=normalized_status,
             cost_estimated_usd=_extract_first_float(payload, _COST_KEYS),
             metadata=dict(metadata),
+            experiment_cohort=cohort,
+            experiment_tag=tag,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -215,6 +264,8 @@ class TelemetryLogRecord:
             "status": self.status,
             "cost_estimated_usd": self.cost_estimated_usd,
             "metadata": dict(self.metadata),
+            "experiment_cohort": self.experiment_cohort,
+            "experiment_tag": self.experiment_tag,
         }
 
 

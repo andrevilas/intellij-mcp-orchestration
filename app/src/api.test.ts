@@ -31,6 +31,9 @@ import {
   fetchSessions,
   fetchTelemetryHeatmap,
   fetchTelemetryMetrics,
+  fetchTelemetryExperiments,
+  fetchTelemetryLaneCosts,
+  fetchMarketplacePerformance,
   fetchMarketplaceEntries,
   importMarketplaceEntry,
   readSecret,
@@ -872,6 +875,49 @@ describe('api client', () => {
       }),
     );
     expect(result).toEqual(payload.buckets);
+  });
+
+  it('requests telemetry experiments with filters', async () => {
+    const payload = { items: [] };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const start = new Date('2024-03-01T00:00:00Z');
+    await fetchTelemetryExperiments({ start, lane: 'balanced' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `/api/v1/telemetry/experiments?start=${encodeURIComponent(start.toISOString())}&lane=balanced`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+  });
+
+  it('requests telemetry lane costs', async () => {
+    const payload = { items: [] };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    await fetchTelemetryLaneCosts({ providerId: 'glm46' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/telemetry/lane-costs?provider_id=glm46',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+  });
+
+  it('requests marketplace performance metrics', async () => {
+    const payload = { items: [] };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    await fetchMarketplacePerformance({ route: 'default' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/telemetry/marketplace/performance?route=default',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
   });
 
   it('fetches FinOps sprint reports with normalized filters', async () => {

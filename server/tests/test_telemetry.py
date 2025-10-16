@@ -242,6 +242,8 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
             "ts": base_ts.isoformat(),
             "source_file": "glm46/2025-01-15.jsonl",
             "ingested_at": base_ts.isoformat(),
+            "experiment_cohort": "baseline",
+            "experiment_tag": "control",
         },
         {
             "provider_id": "glm46",
@@ -256,6 +258,8 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
             "ts": (base_ts + timedelta(minutes=15)).isoformat(),
             "source_file": "glm46/2025-01-15.jsonl",
             "ingested_at": (base_ts + timedelta(minutes=1)).isoformat(),
+            "experiment_cohort": "baseline",
+            "experiment_tag": "control",
         },
         {
             "provider_id": "gemini",
@@ -270,6 +274,8 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
             "ts": (base_ts + timedelta(minutes=30)).isoformat(),
             "source_file": "gemini/2025-01-15.jsonl",
             "ingested_at": (base_ts + timedelta(minutes=2)).isoformat(),
+            "experiment_cohort": "canary",
+            "experiment_tag": "variant-a",
         },
     ]
 
@@ -291,7 +297,9 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
                         ts,
                         source_file,
                         line_number,
-                        ingested_at
+                        ingested_at,
+                        experiment_cohort,
+                        experiment_tag
                     ) VALUES (
                         :provider_id,
                         :tool,
@@ -305,7 +313,9 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
                         :ts,
                         :source_file,
                         :line_number,
-                        :ingested_at
+                        :ingested_at,
+                        :experiment_cohort,
+                        :experiment_tag
                     )
                     """
                 ),
@@ -374,6 +384,8 @@ def test_aggregate_heatmap_groups_by_day_and_provider(database, telemetry_module
             "ts": base_ts.isoformat(),
             "source_file": "glm46/2025-03-20.jsonl",
             "ingested_at": base_ts.isoformat(),
+            "experiment_cohort": "baseline",
+            "experiment_tag": "control",
         },
         {
             "provider_id": "glm46",
@@ -388,6 +400,8 @@ def test_aggregate_heatmap_groups_by_day_and_provider(database, telemetry_module
             "ts": (base_ts + timedelta(hours=1)).isoformat(),
             "source_file": "glm46/2025-03-20.jsonl",
             "ingested_at": (base_ts + timedelta(minutes=5)).isoformat(),
+            "experiment_cohort": "baseline",
+            "experiment_tag": "control",
         },
         {
             "provider_id": "gemini",
@@ -402,6 +416,8 @@ def test_aggregate_heatmap_groups_by_day_and_provider(database, telemetry_module
             "ts": (base_ts + timedelta(days=1)).isoformat(),
             "source_file": "gemini/2025-03-21.jsonl",
             "ingested_at": (base_ts + timedelta(days=1, minutes=3)).isoformat(),
+            "experiment_cohort": "canary",
+            "experiment_tag": "variant-b",
         },
     ]
 
@@ -423,7 +439,9 @@ def test_aggregate_heatmap_groups_by_day_and_provider(database, telemetry_module
                         ts,
                         source_file,
                         line_number,
-                        ingested_at
+                        ingested_at,
+                        experiment_cohort,
+                        experiment_tag
                     ) VALUES (
                         :provider_id,
                         :tool,
@@ -437,7 +455,9 @@ def test_aggregate_heatmap_groups_by_day_and_provider(database, telemetry_module
                         :ts,
                         :source_file,
                         :line_number,
-                        :ingested_at
+                        :ingested_at,
+                        :experiment_cohort,
+                        :experiment_tag
                     )
                     """
                 ),
@@ -536,9 +556,12 @@ def test_render_export_generates_csv_and_html(database, telemetry_module) -> Non
     csv_doc, csv_type = telemetry_module.render_telemetry_export("csv")
     assert csv_type == "text/csv"
     csv_lines = [line for line in csv_doc.strip().splitlines() if line]
-    assert csv_lines[0] == "timestamp,provider_id,tool,route,status,tokens_in,tokens_out,duration_ms,cost_estimated_usd,source_file"
+    assert (
+        csv_lines[0]
+        == "timestamp,provider_id,tool,route,status,tokens_in,tokens_out,duration_ms,cost_estimated_usd,experiment_cohort,experiment_tag,metadata,source_file"
+    )
     assert "glm46" in csv_lines[1]
-    assert csv_lines[2].endswith(",,gemini/2025-02-01.jsonl")
+    assert csv_lines[2].endswith(",{},gemini/2025-02-01.jsonl")
 
     html_doc, html_type = telemetry_module.render_telemetry_export(
         "html", provider_id="glm46"

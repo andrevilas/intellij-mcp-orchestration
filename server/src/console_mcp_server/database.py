@@ -416,6 +416,22 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=11,
+        description="add experiment metadata to telemetry events",
+        statements=(
+            """
+            ALTER TABLE telemetry_events ADD COLUMN experiment_cohort TEXT
+            """,
+            """
+            ALTER TABLE telemetry_events ADD COLUMN experiment_tag TEXT
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_telemetry_experiment
+                ON telemetry_events (experiment_cohort, experiment_tag)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None

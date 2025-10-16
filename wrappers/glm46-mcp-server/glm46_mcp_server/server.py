@@ -4,7 +4,7 @@ import json
 import sys
 import time
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .client import GLMClient
 from .config import LimitConfig, Settings
@@ -154,29 +154,81 @@ class MCPServer:
             },
         ]
 
+    def _extract_experiment(self, arguments: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+        experiment = arguments.get("experiment")
+        if isinstance(experiment, dict):
+            cohort = experiment.get("cohort")
+            tag = experiment.get("tag")
+            cohort_str = None
+            if isinstance(cohort, str):
+                cohort_str = cohort.strip() or None
+            elif cohort is not None:
+                cohort_str = str(cohort)
+            tag_str = None
+            if isinstance(tag, str):
+                tag_str = tag.strip() or None
+            elif tag is not None:
+                tag_str = str(tag)
+            return cohort_str, tag_str
+        return None, None
+
     def _handle_tool_call(self, msg_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         name = params.get("name")
         arguments = params.get("arguments") or {}
+        experiment_cohort, experiment_tag = self._extract_experiment(arguments)
         try:
             if name == "glm46.chat":
-                return self._chat_tool(msg_id, arguments)
+                return self._chat_tool(
+                    msg_id,
+                    arguments,
+                    experiment_cohort=experiment_cohort,
+                    experiment_tag=experiment_tag,
+                )
             if name == "glm46.embedding":
-                return self._embedding_tool(msg_id, arguments)
+                return self._embedding_tool(
+                    msg_id,
+                    arguments,
+                    experiment_cohort=experiment_cohort,
+                    experiment_tag=experiment_tag,
+                )
             if name == "glm46.token_count":
-                return self._token_count_tool(msg_id, arguments)
+                return self._token_count_tool(
+                    msg_id,
+                    arguments,
+                    experiment_cohort=experiment_cohort,
+                    experiment_tag=experiment_tag,
+                )
             raise ValueError(f"Tool desconhecida: {name}")
         except Exception as exc:  # pylint: disable=broad-except
-            telemetry = TelemetryLogger.create(name or "unknown", arguments.get("route"))
+            telemetry = TelemetryLogger.create(
+                name or "unknown",
+                arguments.get("route"),
+                experiment_cohort=experiment_cohort,
+                experiment_tag=experiment_tag,
+            )
             telemetry.status = "error"
             telemetry.metadata = {"error": str(exc)}
             self.telemetry.log(telemetry)
             return self._error(msg_id, code=-32000, message=str(exc))
 
-    def _chat_tool(self, msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def _chat_tool(
+        self,
+        msg_id: Any,
+        arguments: Dict[str, Any],
+        *,
+        experiment_cohort: Optional[str],
+        experiment_tag: Optional[str],
+    ) -> Dict[str, Any]:
         data = ChatArguments(**arguments)
         route = data.route
         limits = self._limits_for_route(route)
-        telemetry = TelemetryLogger.create("glm46.chat", route)
+        telemetry = TelemetryLogger.create(
+            "glm46.chat",
+            route,
+            experiment_cohort=experiment_cohort
+            or (data.experiment.cohort if data.experiment else None),
+            experiment_tag=experiment_tag or (data.experiment.tag if data.experiment else None),
+        )
         start_time = time.perf_counter()
 
         tokens_in = count_tokens_from_messages([msg.dict() for msg in data.messages])
@@ -259,11 +311,24 @@ class MCPServer:
             self._finalize_telemetry(telemetry, start_time)
             return self._error(msg_id, code=500, message=str(exc))
 
-    def _embedding_tool(self, msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def _embedding_tool(
+        self,
+        msg_id: Any,
+        arguments: Dict[str, Any],
+        *,
+        experiment_cohort: Optional[str],
+        experiment_tag: Optional[str],
+    ) -> Dict[str, Any]:
         data = EmbeddingArguments(**arguments)
         route = data.route
         limits = self._limits_for_route(route)
-        telemetry = TelemetryLogger.create("glm46.embedding", route)
+        telemetry = TelemetryLogger.create(
+            "glm46.embedding",
+            route,
+            experiment_cohort=experiment_cohort
+            or (data.experiment.cohort if data.experiment else None),
+            experiment_tag=experiment_tag or (data.experiment.tag if data.experiment else None),
+        )
         start_time = time.perf_counter()
 
         tokens_in = count_tokens_from_iterable(data.texts)
@@ -323,11 +388,24 @@ class MCPServer:
             self._finalize_telemetry(telemetry, start_time)
             return self._error(msg_id, code=500, message=str(exc))
 
-    def _token_count_tool(self, msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def _token_count_tool(
+        self,
+        msg_id: Any,
+        arguments: Dict[str, Any],
+        *,
+        experiment_cohort: Optional[str],
+        experiment_tag: Optional[str],
+    ) -> Dict[str, Any]:
         data = TokenCountArguments(**arguments)
         route = data.route
         limits = self._limits_for_route(route)
-        telemetry = TelemetryLogger.create("glm46.token_count", route)
+        telemetry = TelemetryLogger.create(
+            "glm46.token_count",
+            route,
+            experiment_cohort=experiment_cohort
+            or (data.experiment.cohort if data.experiment else None),
+            experiment_tag=experiment_tag or (data.experiment.tag if data.experiment else None),
+        )
         start_time = time.perf_counter()
 
         tokens = count_tokens_from_iterable(data.texts)

@@ -19,6 +19,9 @@ import type {
   FinOpsBudget,
   FinOpsAlertThreshold,
   PolicyManifestUpdateInput,
+  TelemetryExperimentSummaryEntry,
+  TelemetryLaneCostEntry,
+  MarketplacePerformanceEntry,
 } from '../api';
 import {
   fetchFinOpsPullRequestReports,
@@ -26,6 +29,9 @@ import {
   fetchTelemetryPareto,
   fetchTelemetryRuns,
   fetchTelemetryTimeseries,
+  fetchTelemetryExperiments,
+  fetchTelemetryLaneCosts,
+  fetchMarketplacePerformance,
   fetchPolicyManifest,
   updatePolicyManifest,
   type BudgetPeriod,
@@ -93,6 +99,45 @@ interface RunDrilldownEntry {
   latencyMs: number;
   status: RunStatus;
   consumer: string;
+}
+
+interface ExperimentView {
+  key: string;
+  cohort: string | null;
+  tag: string | null;
+  runCount: number;
+  successRate: number;
+  errorRate: number;
+  avgLatencyMs: number;
+  totalCostUsd: number;
+  tokensMillions: number;
+  mttrMs: number | null;
+  recoveryEvents: number;
+}
+
+interface LaneCostView {
+  lane: LaneCategory;
+  runCount: number;
+  totalCostUsd: number;
+  tokensMillions: number;
+  avgLatencyMs: number;
+  costShare: number;
+  costPerMillion: number;
+}
+
+interface MarketplaceRowView {
+  id: string;
+  name: string;
+  origin: string;
+  rating: number;
+  cost: number;
+  runCount: number;
+  successRate: number;
+  avgLatencyMs: number;
+  totalCostUsd: number;
+  tokensMillions: number;
+  cohorts: string[];
+  adoptionScore: number;
 }
 
 interface SprintReport {
@@ -306,6 +351,31 @@ function formatTimestamp(timestamp: string): string {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
+function formatDurationMs(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value <= 0) {
+    return '—';
+  }
+  if (value >= 3_600_000) {
+    return `${(value / 3_600_000).toFixed(1)} h`;
+  }
+  if (value >= 60_000) {
+    return `${(value / 60_000).toFixed(1)} min`;
+  }
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)} s`;
+  }
+  return `${Math.round(value)} ms`;
+}
+
+function formatTokensMillions(value: number): string {
+  const normalized = Number.isFinite(value) ? value : 0;
+  const digits = normalized >= 10 ? 1 : 2;
+  return `${new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(normalized)} mi`;
+}
+
 type NumericSeriesKey = 'costUsd' | 'tokensMillions';
 
 function averageSeries(series: TimeSeriesPoint[], key: NumericSeriesKey): number {
@@ -489,19 +559,34 @@ const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
   regression: 'Regressão',
 };
 
-function exportCsv(data: TimeSeriesPoint[]): void {
-  const header = ['data', 'custo_usd', 'tokens_milhoes', 'latencia_ms'];
-  const rows = data.map((point) =>
-    [point.date, point.costUsd.toFixed(2), point.tokensMillions.toFixed(2), point.avgLatencyMs.toString()].join(','),
-  );
-  const csv = [header.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+function triggerDownload(filename: string, mimeType: string, contents: string): void {
+  const blob = new Blob([contents], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.setAttribute('download', `finops-${Date.now()}.csv`);
+  link.setAttribute('download', filename);
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportDatasetAsCsv(filename: string, header: string[], rows: string[][]): void {
+  const csv = [header.join(','), ...rows.map((row) => row.join(','))].join('\n');
+  triggerDownload(filename, 'text/csv;charset=utf-8;', csv);
+}
+
+function exportDatasetAsJson(filename: string, payload: unknown): void {
+  triggerDownload(filename, 'application/json;charset=utf-8;', JSON.stringify(payload, null, 2));
+}
+
+function exportCsv(data: TimeSeriesPoint[]): void {
+  const header = ['data', 'custo_usd', 'tokens_milhoes', 'latencia_ms'];
+  const rows = data.map((point) => [
+    point.date,
+    point.costUsd.toFixed(2),
+    point.tokensMillions.toFixed(2),
+    point.avgLatencyMs.toString(),
+  ]);
+  exportDatasetAsCsv(`finops-${Date.now()}.csv`, header, rows);
 }
 
 export default function FinOps({ providers, isLoading, initialError }: FinOpsProps) {
@@ -522,6 +607,12 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [sprintReportsError, setSprintReportsError] = useState<string | null>(null);
   const [pullRequestReportsError, setPullRequestReportsError] = useState<string | null>(null);
   const [drilldownError, setDrilldownError] = useState<string | null>(null);
+  const [experimentSummaries, setExperimentSummaries] = useState<TelemetryExperimentSummaryEntry[]>([]);
+  const [laneCosts, setLaneCosts] = useState<TelemetryLaneCostEntry[]>([]);
+  const [marketplacePerformance, setMarketplacePerformance] = useState<MarketplacePerformanceEntry[]>([]);
+  const [experimentError, setExperimentError] = useState<string | null>(null);
+  const [laneCostError, setLaneCostError] = useState<string | null>(null);
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [manifest, setManifest] = useState<PolicyManifestSnapshot | null>(null);
   const [isManifestLoading, setManifestLoading] = useState(false);
   const [manifestError, setManifestError] = useState<string | null>(null);
@@ -901,6 +992,12 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   useEffect(() => {
     if (!hasProviders) {
       setRouteBreakdownEntries([]);
+      setExperimentSummaries([]);
+      setLaneCosts([]);
+      setMarketplacePerformance([]);
+      setExperimentError(null);
+      setLaneCostError(null);
+      setMarketplaceError(null);
       return;
     }
 
@@ -940,6 +1037,85 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     };
   }, [hasProviders, providers, selectedProvider, selectedRange]);
 
+  useEffect(() => {
+    if (!hasProviders) {
+      return;
+    }
+
+    const days = RANGE_TO_DAYS[selectedRange];
+    const { start, end } = computeWindowBounds(days);
+    const controller = new AbortController();
+    let cancelled = false;
+    const providerFilter = selectedProvider === 'all' ? undefined : selectedProvider;
+
+    setExperimentError(null);
+    setLaneCostError(null);
+    setMarketplaceError(null);
+
+    const experimentsPromise = fetchTelemetryExperiments(
+      { start, end, providerId: providerFilter },
+      controller.signal,
+    ).catch((error) => {
+      if (!cancelled) {
+        setExperimentSummaries([]);
+        const message =
+          error instanceof Error ? error.message : 'Não foi possível carregar os experimentos.';
+        setExperimentError(message);
+      }
+      return null;
+    });
+
+    const lanePromise = fetchTelemetryLaneCosts(
+      { start, end, providerId: providerFilter },
+      controller.signal,
+    ).catch((error) => {
+      if (!cancelled) {
+        setLaneCosts([]);
+        const message =
+          error instanceof Error ? error.message : 'Falha ao carregar o custo por tier.';
+        setLaneCostError(message);
+      }
+      return null;
+    });
+
+    const marketplacePromise = fetchMarketplacePerformance(
+      { start, end, providerId: providerFilter },
+      controller.signal,
+    ).catch((error) => {
+      if (!cancelled) {
+        setMarketplacePerformance([]);
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível carregar a performance do marketplace.';
+        setMarketplaceError(message);
+      }
+      return null;
+    });
+
+    Promise.all([experimentsPromise, lanePromise, marketplacePromise]).then(
+      ([experiments, laneBreakdown, marketplace]) => {
+        if (cancelled) {
+          return;
+        }
+        if (experiments) {
+          setExperimentSummaries(experiments.items);
+        }
+        if (laneBreakdown) {
+          setLaneCosts(laneBreakdown.items);
+        }
+        if (marketplace) {
+          setMarketplacePerformance(marketplace.items);
+        }
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [hasProviders, providers, selectedProvider, selectedRange]);
+
   const availableSeries = useMemo(() => {
     const days = RANGE_TO_DAYS[selectedRange];
 
@@ -972,6 +1148,340 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const breakdownEntries = routeBreakdownEntries;
 
   const paretoEntries = useMemo(() => computePareto(breakdownEntries), [breakdownEntries]);
+
+  const experimentRows = useMemo<ExperimentView[]>(() => {
+    return experimentSummaries
+      .map((entry) => {
+        const tokensTotal = entry.total_tokens_in + entry.total_tokens_out;
+        return {
+          key: `${entry.cohort ?? '—'}::${entry.tag ?? '—'}`,
+          cohort: entry.cohort,
+          tag: entry.tag,
+          runCount: entry.run_count,
+          successRate: entry.success_rate,
+          errorRate: entry.error_rate,
+          avgLatencyMs: Math.round(entry.avg_latency_ms),
+          totalCostUsd: entry.total_cost_usd,
+          tokensMillions: tokensTotal / 1_000_000,
+          mttrMs: entry.mttr_ms,
+          recoveryEvents: entry.recovery_events,
+        } satisfies ExperimentView;
+      })
+      .sort((a, b) => (b.totalCostUsd - a.totalCostUsd) || b.runCount - a.runCount);
+  }, [experimentSummaries]);
+
+  const experimentAggregate = useMemo(() => {
+    if (experimentSummaries.length === 0) {
+      return {
+        totalRuns: 0,
+        totalCost: 0,
+        totalTokensMillions: 0,
+        successRate: 0,
+        errorRate: 0,
+        averageMttr: null,
+        recoveryEvents: 0,
+      };
+    }
+
+    let totalRuns = 0;
+    let totalCost = 0;
+    let totalTokens = 0;
+    let weightedSuccess = 0;
+    let weightedError = 0;
+    let mttrAccumulator = 0;
+    let mttrCount = 0;
+    let recoveryEvents = 0;
+
+    experimentSummaries.forEach((entry) => {
+      totalRuns += entry.run_count;
+      totalCost += entry.total_cost_usd;
+      totalTokens += entry.total_tokens_in + entry.total_tokens_out;
+      weightedSuccess += entry.success_rate * entry.run_count;
+      weightedError += entry.error_rate * entry.run_count;
+      if (entry.mttr_ms !== null && Number.isFinite(entry.mttr_ms)) {
+        mttrAccumulator += entry.mttr_ms;
+        mttrCount += 1;
+      }
+      recoveryEvents += entry.recovery_events;
+    });
+
+    return {
+      totalRuns,
+      totalCost,
+      totalTokensMillions: totalTokens / 1_000_000,
+      successRate: totalRuns > 0 ? weightedSuccess / totalRuns : 0,
+      errorRate: totalRuns > 0 ? weightedError / totalRuns : 0,
+      averageMttr: mttrCount > 0 ? mttrAccumulator / mttrCount : null,
+      recoveryEvents,
+    };
+  }, [experimentSummaries]);
+
+  const laneOverview = useMemo(() => {
+    const totals = laneCosts.reduce(
+      (acc, entry) => {
+        acc.cost += entry.total_cost_usd;
+        acc.tokens += entry.total_tokens_in + entry.total_tokens_out;
+        acc.runs += entry.run_count;
+        acc.latency += entry.avg_latency_ms * entry.run_count;
+        return acc;
+      },
+      { cost: 0, tokens: 0, runs: 0, latency: 0 },
+    );
+
+    const byLane = new Map(laneCosts.map((entry) => [entry.lane as LaneCategory, entry]));
+
+    const rows = (['economy', 'balanced', 'turbo'] as LaneCategory[]).map((lane) => {
+      const entry = byLane.get(lane);
+      const cost = entry?.total_cost_usd ?? 0;
+      const tokens = entry ? entry.total_tokens_in + entry.total_tokens_out : 0;
+      const tokensMillions = tokens / 1_000_000;
+      const runCount = entry?.run_count ?? 0;
+      const costShare = totals.cost > 0 ? cost / totals.cost : 0;
+      const costPerMillion = tokensMillions > 0 ? cost / tokensMillions : 0;
+
+      return {
+        lane,
+        runCount,
+        totalCostUsd: cost,
+        tokensMillions,
+        avgLatencyMs: entry ? Math.round(entry.avg_latency_ms) : 0,
+        costShare,
+        costPerMillion,
+      } satisfies LaneCostView;
+    });
+
+    const averageLatencyDenominator = totals.runs > 0 ? totals.runs : 1;
+
+    return {
+      rows,
+      totals: {
+        totalCostUsd: totals.cost,
+        totalTokensMillions: totals.tokens / 1_000_000,
+        totalRuns: totals.runs,
+        averageLatencyMs:
+          totals.runs > 0 ? Math.round(totals.latency / averageLatencyDenominator) : 0,
+      },
+    };
+  }, [laneCosts]);
+
+  const marketplaceRows = useMemo<MarketplaceRowView[]>(() => {
+    return marketplacePerformance
+      .map((entry) => {
+        const tokens = entry.total_tokens_in + entry.total_tokens_out;
+        return {
+          id: entry.entry_id,
+          name: entry.name,
+          origin: entry.origin,
+          rating: entry.rating,
+          cost: entry.cost,
+          runCount: entry.run_count,
+          successRate: entry.success_rate,
+          avgLatencyMs: Math.round(entry.avg_latency_ms),
+          totalCostUsd: entry.total_cost_usd,
+          tokensMillions: tokens / 1_000_000,
+          cohorts: entry.cohorts,
+          adoptionScore: entry.adoption_score,
+        } satisfies MarketplaceRowView;
+      })
+      .sort((a, b) => (b.adoptionScore - a.adoptionScore) || b.runCount - a.runCount);
+  }, [marketplacePerformance]);
+
+  const marketplaceAggregate = useMemo(() => {
+    if (marketplacePerformance.length === 0) {
+      return {
+        totalRuns: 0,
+        totalCostUsd: 0,
+        totalTokensMillions: 0,
+        avgRating: null as number | null,
+        avgSuccessRate: 0,
+        avgAdoption: 0,
+      };
+    }
+
+    let totalRuns = 0;
+    let totalCost = 0;
+    let totalTokens = 0;
+    let weightedRating = 0;
+    let weightedSuccess = 0;
+    let weightedAdoption = 0;
+
+    marketplacePerformance.forEach((entry) => {
+      totalRuns += entry.run_count;
+      totalCost += entry.total_cost_usd;
+      totalTokens += entry.total_tokens_in + entry.total_tokens_out;
+      weightedRating += entry.rating * entry.run_count;
+      weightedSuccess += entry.success_rate * entry.run_count;
+      weightedAdoption += entry.adoption_score * entry.run_count;
+    });
+
+    return {
+      totalRuns,
+      totalCostUsd: totalCost,
+      totalTokensMillions: totalTokens / 1_000_000,
+      avgRating: totalRuns > 0 ? weightedRating / totalRuns : null,
+      avgSuccessRate: totalRuns > 0 ? weightedSuccess / totalRuns : 0,
+      avgAdoption: totalRuns > 0 ? weightedAdoption / totalRuns : 0,
+    };
+  }, [marketplacePerformance]);
+
+  const hasExperimentData = experimentRows.length > 0;
+  const hasLaneData = laneCosts.length > 0;
+  const hasMarketplaceData = marketplaceRows.length > 0;
+
+  const handleExperimentExport = useCallback(
+    (format: 'csv' | 'json') => {
+      if (!hasExperimentData) {
+        return;
+      }
+
+      const timestamp = Date.now();
+      const dataset = experimentRows.map((row) => ({
+        cohort: row.cohort,
+        tag: row.tag,
+        run_count: row.runCount,
+        success_rate: Number(row.successRate.toFixed(4)),
+        error_rate: Number(row.errorRate.toFixed(4)),
+        avg_latency_ms: row.avgLatencyMs,
+        total_cost_usd: Number(row.totalCostUsd.toFixed(2)),
+        tokens_millions: Number(row.tokensMillions.toFixed(3)),
+        mttr_ms: row.mttrMs,
+        recovery_events: row.recoveryEvents,
+      }));
+
+      if (format === 'json') {
+        exportDatasetAsJson(`finops-experiments-${timestamp}.json`, dataset);
+        return;
+      }
+
+      const header = [
+        'cohort',
+        'tag',
+        'run_count',
+        'success_rate',
+        'error_rate',
+        'avg_latency_ms',
+        'total_cost_usd',
+        'tokens_millions',
+        'mttr_ms',
+        'recovery_events',
+      ];
+      const rows = dataset.map((item) => [
+        item.cohort ?? '',
+        item.tag ?? '',
+        item.run_count.toString(),
+        item.success_rate.toFixed(4),
+        item.error_rate.toFixed(4),
+        item.avg_latency_ms.toString(),
+        item.total_cost_usd.toFixed(2),
+        item.tokens_millions.toFixed(3),
+        item.mttr_ms !== null ? item.mttr_ms.toString() : '',
+        item.recovery_events.toString(),
+      ]);
+      exportDatasetAsCsv(`finops-experiments-${timestamp}.csv`, header, rows);
+    },
+    [experimentRows, hasExperimentData],
+  );
+
+  const handleLaneExport = useCallback(
+    (format: 'csv' | 'json') => {
+      const timestamp = Date.now();
+      const dataset = laneOverview.rows.map((row) => ({
+        lane: row.lane,
+        run_count: row.runCount,
+        total_cost_usd: Number(row.totalCostUsd.toFixed(2)),
+        tokens_millions: Number(row.tokensMillions.toFixed(3)),
+        avg_latency_ms: row.avgLatencyMs,
+        cost_share: Number(row.costShare.toFixed(4)),
+        cost_per_million_usd: Number(row.costPerMillion.toFixed(2)),
+      }));
+
+      if (format === 'json') {
+        exportDatasetAsJson(`finops-lane-costs-${timestamp}.json`, dataset);
+        return;
+      }
+
+      const header = [
+        'lane',
+        'run_count',
+        'total_cost_usd',
+        'tokens_millions',
+        'avg_latency_ms',
+        'cost_share',
+        'cost_per_million_usd',
+      ];
+      const rows = dataset.map((item) => [
+        item.lane,
+        item.run_count.toString(),
+        item.total_cost_usd.toFixed(2),
+        item.tokens_millions.toFixed(3),
+        item.avg_latency_ms.toString(),
+        item.cost_share.toFixed(4),
+        item.cost_per_million_usd.toFixed(2),
+      ]);
+      exportDatasetAsCsv(`finops-lane-costs-${timestamp}.csv`, header, rows);
+    },
+    [laneOverview.rows],
+  );
+
+  const handleMarketplaceExport = useCallback(
+    (format: 'csv' | 'json') => {
+      if (!hasMarketplaceData) {
+        return;
+      }
+
+      const timestamp = Date.now();
+      const dataset = marketplaceRows.map((row) => ({
+        entry_id: row.id,
+        name: row.name,
+        origin: row.origin,
+        rating: Number(row.rating.toFixed(2)),
+        unit_cost_usd: Number(row.cost.toFixed(4)),
+        run_count: row.runCount,
+        success_rate: Number(row.successRate.toFixed(4)),
+        avg_latency_ms: row.avgLatencyMs,
+        total_cost_usd: Number(row.totalCostUsd.toFixed(2)),
+        tokens_millions: Number(row.tokensMillions.toFixed(3)),
+        cohorts: row.cohorts,
+        adoption_score: Number(row.adoptionScore.toFixed(4)),
+      }));
+
+      if (format === 'json') {
+        exportDatasetAsJson(`finops-marketplace-${timestamp}.json`, dataset);
+        return;
+      }
+
+      const header = [
+        'entry_id',
+        'name',
+        'origin',
+        'rating',
+        'unit_cost_usd',
+        'run_count',
+        'success_rate',
+        'avg_latency_ms',
+        'total_cost_usd',
+        'tokens_millions',
+        'cohorts',
+        'adoption_score',
+      ];
+      const rows = dataset.map((item) => [
+        item.entry_id,
+        item.name,
+        item.origin,
+        item.rating.toFixed(2),
+        item.unit_cost_usd.toFixed(4),
+        item.run_count.toString(),
+        item.success_rate.toFixed(4),
+        item.avg_latency_ms.toString(),
+        item.total_cost_usd.toFixed(2),
+        item.tokens_millions.toFixed(3),
+        item.cohorts.join('|'),
+        item.adoption_score.toFixed(4),
+      ]);
+      exportDatasetAsCsv(`finops-marketplace-${timestamp}.csv`, header, rows);
+    },
+    [hasMarketplaceData, marketplaceRows],
+  );
 
   useEffect(() => {
     if (!hasProviders) {
@@ -1791,6 +2301,315 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           </table>
         </div>
       </section>
+
+      <div className="finops__dashboards">
+        <section className="finops__insight" aria-label="Resumo de experimentos e cohorts">
+          <header className="finops__insight-header">
+            <div>
+              <h3>Experimentos e cohorts</h3>
+              <p>Monitore MTTR, confiabilidade e custo por variação executada na janela.</p>
+            </div>
+            <div className="finops__insight-actions" role="group" aria-label="Exportar experimentos">
+              <button
+                type="button"
+                className="finops__action"
+                onClick={() => handleExperimentExport('csv')}
+                disabled={!hasExperimentData}
+                aria-label="Exportar experimentos em CSV"
+              >
+                CSV
+              </button>
+              <button
+                type="button"
+                className="finops__action"
+                onClick={() => handleExperimentExport('json')}
+                disabled={!hasExperimentData}
+                aria-label="Exportar experimentos em JSON"
+              >
+                JSON
+              </button>
+            </div>
+          </header>
+          {experimentError ? (
+            <p className="finops__state" role="status">
+              {experimentError}
+            </p>
+          ) : !hasExperimentData ? (
+            <p className="finops__state">Nenhum experimento registrado para o filtro aplicado.</p>
+          ) : (
+            <>
+              <dl className="finops__insight-metrics">
+                <div>
+                  <dt>MTTR médio</dt>
+                  <dd>{formatDurationMs(experimentAggregate.averageMttr)}</dd>
+                </div>
+                <div>
+                  <dt>Sucesso ponderado</dt>
+                  <dd>{formatPercent(experimentAggregate.successRate)}</dd>
+                </div>
+                <div>
+                  <dt>Erro ponderado</dt>
+                  <dd>{formatPercent(experimentAggregate.errorRate)}</dd>
+                </div>
+                <div>
+                  <dt>Custo total</dt>
+                  <dd>{METRIC_CONFIG.cost.formatter(Number(experimentAggregate.totalCost.toFixed(2)))}</dd>
+                </div>
+                <div>
+                  <dt>Tokens</dt>
+                  <dd>{formatTokensMillions(experimentAggregate.totalTokensMillions)}</dd>
+                </div>
+                <div>
+                  <dt>Eventos de recovery</dt>
+                  <dd>{experimentAggregate.recoveryEvents}</dd>
+                </div>
+              </dl>
+              <div className="finops__insight-table" role="region" aria-label="Tabela de experimentos e cohorts">
+                <table aria-label="Tabela de experimentos e cohorts">
+                  <thead>
+                    <tr>
+                      <th scope="col">Variação</th>
+                      <th scope="col">Runs</th>
+                      <th scope="col">Sucesso</th>
+                      <th scope="col">Erro</th>
+                      <th scope="col">MTTR</th>
+                      <th scope="col">Recuperações</th>
+                      <th scope="col">Custo (USD)</th>
+                      <th scope="col">Tokens (mi)</th>
+                      <th scope="col">Latência</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {experimentRows.map((row) => {
+                      const variationLabel =
+                        row.cohort && row.tag
+                          ? `${row.cohort} · ${row.tag}`
+                          : row.cohort ?? row.tag ?? 'Tráfego padrão';
+                      const cohortLabel = row.cohort ?? '—';
+                      const tagLabel = row.tag ?? '—';
+                      return (
+                        <tr key={row.key}>
+                          <th scope="row">
+                            <span>{variationLabel}</span>
+                            <span className="finops__insight-subtitle">Cohort: {cohortLabel} · Tag: {tagLabel}</span>
+                          </th>
+                          <td>{row.runCount}</td>
+                          <td>{formatPercent(row.successRate)}</td>
+                          <td>{formatPercent(row.errorRate)}</td>
+                          <td>{formatDurationMs(row.mttrMs)}</td>
+                          <td>{row.recoveryEvents}</td>
+                          <td>{METRIC_CONFIG.cost.formatter(Number(row.totalCostUsd.toFixed(2)))}</td>
+                          <td>{formatTokensMillions(row.tokensMillions)}</td>
+                          <td>{formatLatency(row.avgLatencyMs)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+
+        <section className="finops__insight" aria-label="Custo por tier roteado">
+          <header className="finops__insight-header">
+            <div>
+              <h3>Custo por tier</h3>
+              <p>Distribuição de custo, volume e latência para economy, balanced e turbo.</p>
+            </div>
+            <div className="finops__insight-actions" role="group" aria-label="Exportar custos por tier">
+              <button
+                type="button"
+                className="finops__action"
+                onClick={() => handleLaneExport('csv')}
+                disabled={!hasLaneData}
+                aria-label="Exportar custos por tier em CSV"
+              >
+                CSV
+              </button>
+              <button
+                type="button"
+                className="finops__action"
+                onClick={() => handleLaneExport('json')}
+                disabled={!hasLaneData}
+                aria-label="Exportar custos por tier em JSON"
+              >
+                JSON
+              </button>
+            </div>
+          </header>
+          {laneCostError ? (
+            <p className="finops__state" role="status">
+              {laneCostError}
+            </p>
+          ) : (
+            <>
+              <dl className="finops__insight-metrics">
+                <div>
+                  <dt>Custo total</dt>
+                  <dd>{METRIC_CONFIG.cost.formatter(Number(laneOverview.totals.totalCostUsd.toFixed(2)))}</dd>
+                </div>
+                <div>
+                  <dt>Tokens</dt>
+                  <dd>{formatTokensMillions(laneOverview.totals.totalTokensMillions)}</dd>
+                </div>
+                <div>
+                  <dt>Runs</dt>
+                  <dd>{laneOverview.totals.totalRuns}</dd>
+                </div>
+                <div>
+                  <dt>Latência média</dt>
+                  <dd>{formatLatency(laneOverview.totals.averageLatencyMs)}</dd>
+                </div>
+              </dl>
+              <ul className="finops__lane-grid" role="list">
+                {laneOverview.rows.map((row) => {
+                  const laneConfig = LANE_CONFIG[row.lane];
+                  return (
+                    <li key={row.lane} className="finops__lane-card" role="listitem">
+                      <div className="finops__lane-card-header">
+                        <span className={`finops__lane finops__lane--${row.lane}`}>{laneConfig.label}</span>
+                        <strong>{METRIC_CONFIG.cost.formatter(Number(row.totalCostUsd.toFixed(2)))}</strong>
+                      </div>
+                      <div className="finops__lane-progress" aria-hidden="true">
+                        <span style={{ width: `${Math.min(100, row.costShare * 100)}%` }} />
+                      </div>
+                      <dl className="finops__lane-details">
+                        <div>
+                          <dt>Share de custo</dt>
+                          <dd>{formatPercent(row.costShare)}</dd>
+                        </div>
+                        <div>
+                          <dt>Runs</dt>
+                          <dd>{row.runCount}</dd>
+                        </div>
+                        <div>
+                          <dt>Tokens</dt>
+                          <dd>{formatTokensMillions(row.tokensMillions)}</dd>
+                        </div>
+                        <div>
+                          <dt>Latência</dt>
+                          <dd>{formatLatency(row.avgLatencyMs)}</dd>
+                        </div>
+                        <div>
+                          <dt>Custo / 1M tokens</dt>
+                          <dd>{METRIC_CONFIG.cost.formatter(Number(row.costPerMillion.toFixed(2)))}</dd>
+                        </div>
+                      </dl>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </section>
+
+        <section className="finops__insight" aria-label="Performance do marketplace monitorado">
+          <header className="finops__insight-header">
+            <div>
+              <h3>Performance do marketplace</h3>
+              <p>Comparativo entre entradas monitoradas com rating, adoção e custo acumulado.</p>
+            </div>
+            <div className="finops__insight-actions" role="group" aria-label="Exportar marketplace">
+              <button
+                type="button"
+                className="finops__action"
+                onClick={() => handleMarketplaceExport('csv')}
+                disabled={!hasMarketplaceData}
+                aria-label="Exportar marketplace em CSV"
+              >
+                CSV
+              </button>
+              <button
+                type="button"
+                className="finops__action"
+                onClick={() => handleMarketplaceExport('json')}
+                disabled={!hasMarketplaceData}
+                aria-label="Exportar marketplace em JSON"
+              >
+                JSON
+              </button>
+            </div>
+          </header>
+          {marketplaceError ? (
+            <p className="finops__state" role="status">
+              {marketplaceError}
+            </p>
+          ) : !hasMarketplaceData ? (
+            <p className="finops__state">Sem entradas de marketplace para o filtro selecionado.</p>
+          ) : (
+            <>
+              <dl className="finops__insight-metrics">
+                <div>
+                  <dt>Custo total</dt>
+                  <dd>{METRIC_CONFIG.cost.formatter(Number(marketplaceAggregate.totalCostUsd.toFixed(2)))}</dd>
+                </div>
+                <div>
+                  <dt>Tokens</dt>
+                  <dd>{formatTokensMillions(marketplaceAggregate.totalTokensMillions)}</dd>
+                </div>
+                <div>
+                  <dt>Runs</dt>
+                  <dd>{marketplaceAggregate.totalRuns}</dd>
+                </div>
+                <div>
+                  <dt>Rating médio</dt>
+                  <dd>{
+                    marketplaceAggregate.avgRating !== null
+                      ? marketplaceAggregate.avgRating.toFixed(1)
+                      : '—'
+                  }</dd>
+                </div>
+                <div>
+                  <dt>Sucesso ponderado</dt>
+                  <dd>{formatPercent(marketplaceAggregate.avgSuccessRate)}</dd>
+                </div>
+                <div>
+                  <dt>Adoção média</dt>
+                  <dd>{formatPercent(marketplaceAggregate.avgAdoption)}</dd>
+                </div>
+              </dl>
+              <div className="finops__insight-table" role="region" aria-label="Tabela de marketplace monitorado">
+                <table aria-label="Tabela de marketplace monitorado">
+                  <thead>
+                    <tr>
+                      <th scope="col">Entrada</th>
+                      <th scope="col">Cohorts</th>
+                      <th scope="col">Runs</th>
+                      <th scope="col">Rating</th>
+                      <th scope="col">Adoção</th>
+                      <th scope="col">Sucesso</th>
+                      <th scope="col">Latência</th>
+                      <th scope="col">Custo unitário</th>
+                      <th scope="col">Custo total</th>
+                      <th scope="col">Tokens (mi)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {marketplaceRows.map((row) => (
+                      <tr key={row.id}>
+                        <th scope="row">
+                          <span>{row.name}</span>
+                          <span className="finops__insight-subtitle">{row.origin}</span>
+                        </th>
+                        <td>{row.cohorts.length ? row.cohorts.join(', ') : '—'}</td>
+                        <td>{row.runCount}</td>
+                        <td>{row.rating.toFixed(1)}</td>
+                        <td>{formatPercent(row.adoptionScore)}</td>
+                        <td>{formatPercent(row.successRate)}</td>
+                        <td>{formatLatency(row.avgLatencyMs)}</td>
+                        <td>{METRIC_CONFIG.cost.formatter(Number(row.cost.toFixed(2)))}</td>
+                        <td>{METRIC_CONFIG.cost.formatter(Number(row.totalCostUsd.toFixed(2)))}</td>
+                        <td>{formatTokensMillions(row.tokensMillions)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
 
       <section className="finops__reports" aria-label="Relatórios consolidados por sprint e PR">
         <header className="finops__reports-header">
