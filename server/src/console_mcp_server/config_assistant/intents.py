@@ -43,8 +43,8 @@ INTENT_METADATA: Mapping[AssistantIntent, IntentMetadata] = {
     ),
     AssistantIntent.GENERATE_ARTIFACT: IntentMetadata(
         description="Produce or refresh generated configuration artifacts.",
-        required_fields=("artifact_path",),
-        optional_fields=("trigger", "owner"),
+        required_fields=("artifact_type", "target_path"),
+        optional_fields=("parameters",),
     ),
 }
 

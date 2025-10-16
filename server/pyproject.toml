@@ -13,6 +13,7 @@ dependencies = [
   "structlog>=23.2.0",
   "GitPython>=3.1.43",
   "httpx>=0.26.0",
+  "PyYAML>=6.0.0",
 ]
 
 [project.optional-dependencies]

@@ -257,8 +257,9 @@ class PolicyPatchRequest(BaseModel):
 
 
 class ReloadRequest(BaseModel):
-    artifact_path: str = Field(..., min_length=1)
-    owner: str | None = Field(default=None)
+    artifact_type: str = Field(..., min_length=1)
+    target_path: str = Field(..., min_length=1)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ReloadResponse(BaseModel):
@@ -512,19 +513,20 @@ def reload_artifacts(request: ReloadRequest, http_request: Request) -> ReloadRes
     """Create a plan for regenerating configuration artifacts."""
 
     user = require_roles(http_request, Role.APPROVER)
-    payload: Dict[str, Any] = {"artifact_path": request.artifact_path}
-    if request.owner:
-        payload["owner"] = request.owner
+    payload: Dict[str, Any] = {
+        "artifact_type": request.artifact_type,
+        "target_path": request.target_path,
+    }
+    if request.parameters:
+        payload["parameters"] = request.parameters
 
     plan = _build_plan(AssistantIntent.GENERATE_ARTIFACT, payload)
-    message = (
-        "Plano gerado para regerar artefatos." if request.owner is None else "Plano gerado para regerar artefato sob nova responsabilidade."
-    )
+    message = f"Plano gerado para regerar '{request.artifact_type}'."
     get_audit_logger(http_request).log(
         actor=user,
         action="config.reload",
         resource="/config/reload",
-        metadata={"artifact_path": request.artifact_path},
+        metadata={"artifact_type": request.artifact_type, "target_path": request.target_path},
     )
     return ReloadResponse(message=message, plan=plan)
 @router.get("/healthz", response_model=HealthStatus)

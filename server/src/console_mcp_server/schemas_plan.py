@@ -25,6 +25,16 @@ class PlanExecutionMode(str, Enum):
     DIRECT = "direct"
 
 
+class PlanAction(BaseModel):
+    """Concrete operation that can be executed automatically by the assistant."""
+
+    type: str = Field(..., min_length=1)
+    path: str = Field(..., min_length=1)
+    contents: str = Field(..., min_length=1)
+    encoding: str = Field(default="utf-8")
+    overwrite: bool = Field(default=True)
+
+
 class PlanStep(BaseModel):
     """Represents a single step that should be performed during plan execution."""
 
@@ -32,6 +42,7 @@ class PlanStep(BaseModel):
     title: str = Field(..., min_length=1)
     description: str = Field(..., min_length=1)
     depends_on: List[str] = Field(default_factory=list)
+    actions: List[PlanAction] = Field(default_factory=list)
 
 
 class DiffSummary(BaseModel):

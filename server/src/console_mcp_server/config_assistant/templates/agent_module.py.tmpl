@@ -1,0 +1,61 @@
+"""LangGraph-style stub that wires a single tool node declared in the manifest."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Mapping
+
+from app.schemas.manifest import AgentManifest
+from app.schemas.manifest import load_manifest as _load_manifest
+
+from ..orchestration import ExecutionState, GraphBackedAgent
+
+
+class $agent_class(GraphBackedAgent):
+    """Deterministic scaffold ready to be customised with business logic."""
+
+    def __init__(self, manifest: AgentManifest | Mapping[str, Any]) -> None:
+        if not isinstance(manifest, AgentManifest):
+            manifest = AgentManifest.model_validate(manifest)
+        super().__init__(manifest)
+
+    def _execute_tool(self, state: ExecutionState) -> Mapping[str, Any]:
+        payload = dict(state.payload)
+        topic = str(payload.get("topic") or "").strip()
+        context = str(payload.get("context") or "").strip()
+
+        if not topic:
+            return {
+                "status": "error",
+                "reason": "Campo 'topic' obrigatório para a ferramenta '$tool_name'.",
+            }
+
+        summary = "TODO: substitua este stub por lógica específica do agente."
+        if context:
+            summary = f"{summary} Contexto: {context}."
+
+        return {
+            "status": "ok",
+            "topic": topic,
+            "context": context,
+            "summary": summary,
+        }
+
+    def _post_process(self, state: ExecutionState) -> Mapping[str, Any]:
+        return dict(state.result)
+
+
+def build_agent(manifest: Mapping[str, Any]) -> $agent_class:
+    """Factory used by the registry to construct the agent instance."""
+
+    return $agent_class(manifest=manifest)
+
+
+def get_tools() -> list[Any]:
+    """Expose tool metadata derived from the manifest for discovery APIs."""
+
+    manifest = _load_manifest(Path(__file__).resolve().parent)
+    return [tool.model_dump(mode="json") for tool in manifest.tools]
+
+
+__all__ = ["$agent_class", "build_agent", "get_tools"]

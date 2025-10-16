@@ -1,0 +1,84 @@
+name: $agent_slug
+title: $agent_title
+version: 0.1.0
+description: $description
+capabilities:
+$capabilities_block
+tools:
+  - name: $tool_name
+    description: Gera resposta determinística baseada em parâmetros estruturados.
+    slo:
+      latency_p95_ms: 400
+      success_rate: 0.99
+      max_error_rate: 0.01
+    schema:
+      type: object
+      additionalProperties: false
+      properties:
+        topic:
+          type: string
+          description: Assunto principal para geração de resposta.
+        context:
+          type: string
+          description: Contexto opcional complementando a solicitação.
+      required:
+        - topic
+model:
+  provider: openai
+  name: o3-mini
+  parameters:
+    temperature: 0
+policies:
+  rate_limits:
+    requests_per_minute: 120
+    burst: 60
+    concurrent_requests: 4
+  safety:
+    mode: balanced
+    blocked_categories:
+      - pii
+  budget:
+    currency: USD
+    limit: 150.0
+    period: monthly
+routing:
+  default_tier: balanced
+  allowed_tiers:
+    - economy
+    - balanced
+  fallback_tier: economy
+  max_attempts: 2
+  max_iters: 4
+  max_parallel_requests: 1
+  request_timeout_seconds: 30
+finops:
+  cost_center: $cost_center
+  budgets:
+    economy:
+      amount: 40
+      currency: USD
+      period: monthly
+    balanced:
+      amount: 90
+      currency: USD
+      period: monthly
+  alerts:
+    - threshold: 0.75
+      channel: slack
+hitl:
+  checkpoints:
+    - name: Revisão inicial
+      description: Confirmação humana antes de promover mudanças significativas.
+      required: false
+      escalation_channel: email
+observability:
+  logging:
+    level: info
+    destination: stdout
+  metrics:
+    enabled: true
+    exporters:
+      - prometheus
+    interval_seconds: 60
+  tracing:
+    enabled: false

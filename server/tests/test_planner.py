@@ -37,7 +37,10 @@ def test_plan_intent_add_agent_generates_expected_structure() -> None:
         (AssistantIntent.EDIT_FINOPS, {"report_id": "q2-forecast"}),
         (
             AssistantIntent.GENERATE_ARTIFACT,
-            {"artifact_path": "generated/summary.json"},
+            {
+                "artifact_type": "agent.manifest",
+                "target_path": "agents-hub/app/agents/generated/agent.yaml",
+            },
         ),
     ],
 )
@@ -48,6 +51,22 @@ def test_plan_intent_handles_supported_intents(intent: AssistantIntent, payload:
     assert plan.steps, "planner must return at least one step"
     assert plan.diffs, "planner must return at least one diff"
     assert plan.risks, "planner must capture known risks"
+
+
+def test_plan_intent_generate_artifact_includes_write_action() -> None:
+    plan = plan_intent(
+        AssistantIntent.GENERATE_ARTIFACT,
+        {
+            "artifact_type": "agent.langgraph",
+            "target_path": "agents-hub/app/agents/sentinel/agent.py",
+        },
+    )
+
+    write_steps = [step for step in plan.steps if any(action.type == "write_file" for action in step.actions)]
+    assert write_steps, "generate_artifact plans must include a write_file action"
+    action = write_steps[0].actions[0]
+    assert action.path.endswith("agents-hub/app/agents/sentinel/agent.py")
+    assert "SentinelAgent" in action.contents
 
 
 def test_plan_intent_validates_required_fields() -> None:
