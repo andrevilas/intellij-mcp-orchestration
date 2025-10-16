@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -61,6 +61,16 @@ class Risk(BaseModel):
     mitigation: str = Field(default="")
 
 
+class PlanContextReference(BaseModel):
+    """Reference material suggested alongside a plan for additional context."""
+
+    path: str = Field(..., min_length=1)
+    snippet: str = Field(..., min_length=1)
+    score: float = Field(default=0.0, ge=0.0)
+    title: Optional[str] = None
+    chunk: int = Field(default=0, ge=0)
+
+
 class Plan(BaseModel):
     """Top level plan returned to clients of the configuration assistant."""
 
@@ -70,5 +80,6 @@ class Plan(BaseModel):
     diffs: List[DiffSummary] = Field(default_factory=list)
     risks: List[Risk] = Field(default_factory=list)
     status: PlanExecutionStatus = Field(default=PlanExecutionStatus.PENDING)
+    context: List[PlanContextReference] = Field(default_factory=list)
 
     model_config = ConfigDict(use_enum_values=True)

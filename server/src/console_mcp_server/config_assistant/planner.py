@@ -8,11 +8,12 @@ import re
 
 import structlog
 
-from ..schemas_plan import Plan, PlanAction, PlanExecutionStatus, PlanStep, Risk
+from ..schemas_plan import Plan, PlanAction, PlanContextReference, PlanExecutionStatus, PlanStep, Risk
 from .artifacts import generate_artifact
 from .langgraph import FlowGraph, graph_to_agent
 from .git import create_diff
 from .intents import AssistantIntent, validate_intent_payload
+from .rag import rag_service
 
 logger = structlog.get_logger("console.config.planner")
 
@@ -40,6 +41,7 @@ def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None
 
     builder = _BUILDERS[resolved]
     plan = builder(payload)
+    plan = _attach_context(plan, resolved, payload)
     logger.info(
         "plan.generated",
         intent=resolved.value,
@@ -48,6 +50,22 @@ def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None
         risks=len(plan.risks),
     )
     return plan
+
+
+def _attach_context(plan: Plan, intent: AssistantIntent, payload: Mapping[str, Any]) -> Plan:
+    references = [
+        PlanContextReference(
+            path=result.path,
+            snippet=result.snippet,
+            score=result.score,
+            title=result.title,
+            chunk=result.chunk,
+        )
+        for result in rag_service.suggest_context(intent, payload)
+    ]
+    if not references:
+        return plan
+    return plan.model_copy(update={"context": references})
 
 
 def _plan_add_agent(payload: Mapping[str, Any]) -> Plan:

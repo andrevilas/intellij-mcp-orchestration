@@ -16,6 +16,7 @@ from console_mcp_server import notifications as notifications_module
 from console_mcp_server import routes as routes_module
 from console_mcp_server import secret_validation as secret_validation_module
 from console_mcp_server import telemetry as telemetry_module
+from console_mcp_server.security import hash_token, Role
 
 def resolve_repo_root(start: Path) -> Path:
     for candidate in (start,) + tuple(start.parents):
@@ -54,6 +55,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     import console_mcp_server.secret_validation as secret_validation_module
     import console_mcp_server.database as database_module
     import console_mcp_server.routes as routes_module
+    import console_mcp_server.config_assistant.rag as rag_module
     import console_mcp_server.supervisor as supervisor_module
     import console_mcp_server.main as main_module
 
@@ -63,6 +65,8 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     secret_validation = importlib.reload(secret_validation_module)
     database = importlib.reload(database_module)
     supervisor = importlib.reload(supervisor_module)
+    rag = importlib.reload(rag_module)
+    rag.rag_service.reset()
     importlib.reload(routes_module)
     main = importlib.reload(main_module)
 
@@ -1538,3 +1542,66 @@ def test_flow_version_endpoints_support_versioning(client: TestClient) -> None:
     final_list = client.get('/api/v1/flows/demo-flow/versions')
     assert final_list.status_code == 200
     assert len(final_list.json()['versions']) == 3
+
+def _seed_rag_user(database, *, token: str, roles: tuple[Role, ...] = (Role.PLANNER,)) -> None:
+    hashed = hash_token(token)
+    now = datetime.now(tz=timezone.utc).isoformat()
+    with database.session_scope() as session:
+        session.execute(
+            text(
+                """
+                INSERT INTO users (id, name, email, api_token_hash, created_at, updated_at)
+                VALUES (:id, :name, :email, :hash, :created_at, :updated_at)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    email = excluded.email,
+                    api_token_hash = excluded.api_token_hash,
+                    updated_at = excluded.updated_at
+                """
+            ),
+            {
+                "id": "user-rag",
+                "name": "RAG Tester",
+                "email": "rag@example.com",
+                "hash": hashed,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        for role in roles:
+            session.execute(
+                text(
+                    """
+                    INSERT OR REPLACE INTO user_roles (user_id, role_id, assigned_at, assigned_by)
+                    VALUES (
+                        :user_id,
+                        (SELECT id FROM roles WHERE name = :role_name),
+                        :assigned_at,
+                        :assigned_by
+                    )
+                    """
+                ),
+                {
+                    "user_id": "user-rag",
+                    "role_name": role.value,
+                    "assigned_at": now,
+                    "assigned_by": "pytest",
+                },
+            )
+
+
+def test_config_rag_query_endpoint(client: TestClient, database) -> None:
+    token = "rag-token"
+    _seed_rag_user(database, token=token)
+
+    response = client.post(
+        "/api/v1/config/rag/query",
+        json={"query": "LangGraph checkpoints", "top_k": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["documents"], "expected rag documents to be returned"
+    assert payload["latency_ms"] >= 0
+    assert all(doc["path"].startswith("docs/") for doc in payload["documents"])

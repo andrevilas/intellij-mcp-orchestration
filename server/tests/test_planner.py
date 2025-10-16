@@ -28,6 +28,9 @@ def test_plan_intent_add_agent_generates_expected_structure() -> None:
     impacts = {risk.impact for risk in plan.risks}
     assert "high" in impacts
     assert any("reload" in risk.title.lower() for risk in plan.risks)
+    assert plan.context, "planner must suggest contextual references for add_agent"
+    assert all(ref.path.startswith("docs/") for ref in plan.context)
+    assert all(ref.score >= 0.0 for ref in plan.context)
 
 
 @pytest.mark.parametrize(
@@ -71,6 +74,7 @@ def test_plan_intent_handles_supported_intents(intent: AssistantIntent, payload:
     assert plan.steps, "planner must return at least one step"
     assert plan.diffs, "planner must return at least one diff"
     assert plan.risks, "planner must capture known risks"
+    assert isinstance(plan.context, list)
 
 
 def test_plan_intent_generate_artifact_includes_write_action() -> None:
@@ -87,6 +91,7 @@ def test_plan_intent_generate_artifact_includes_write_action() -> None:
     action = write_steps[0].actions[0]
     assert action.path.endswith("agents-hub/app/agents/sentinel/agent.py")
     assert "SentinelAgent" in action.contents
+    assert plan.context == []
 
 
 def test_plan_intent_validates_required_fields() -> None:
@@ -127,3 +132,4 @@ def test_plan_intent_create_flow_generates_actions_for_langgraph() -> None:
     assert checkpoint_steps, "deve existir etapa para checkpoints"
     assert plan.diffs and plan.diffs[0].path.endswith("flow-x/agent.py")
     assert any("checkpoint" in risk.title.lower() for risk in plan.risks)
+    assert plan.context, "create_flow deve sugerir referências de RAG"
