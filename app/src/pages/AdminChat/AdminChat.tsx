@@ -11,6 +11,41 @@ const ROLE_LABELS = {
   system: 'Sistema',
 } as const;
 
+const SUPPORTED_ARTIFACTS = [
+  {
+    id: 'agent.manifest',
+    title: 'Manifesto MCP',
+    description:
+      'Estrutura base com defaults determinísticos e validação automática antes do merge.',
+    risk:
+      'Risco: manifesto incompatível. Mitigação: validar contra o schema AgentManifest antes de aplicar.',
+  },
+  {
+    id: 'agent.readme',
+    title: 'README do agente',
+    description:
+      'Documentação operacional cobrindo deploy, rollback e responsáveis pelo suporte.',
+    risk:
+      'Risco: documentação desatualizada. Mitigação: revisar checklist com o time responsável.',
+  },
+  {
+    id: 'agent.langgraph',
+    title: 'Stub LangGraph',
+    description:
+      'Módulo Python conectando manifesto a um tool determinístico com validações básicas.',
+    risk:
+      'Risco: tool inconsistente. Mitigação: executar testes de fumaça e validar o retorno determinístico.',
+  },
+  {
+    id: 'finops.checklist',
+    title: 'Checklist FinOps',
+    description:
+      'Checklist padronizado para revisões de custo e risco antes de promover alterações.',
+    risk:
+      'Risco: checklist incompleto. Mitigação: sincronizar revisão com o time de FinOps.',
+  },
+] as const;
+
 export default function AdminChat() {
   const {
     messages,
@@ -348,6 +383,18 @@ export default function AdminChat() {
                 Nenhum risco elevado encontrado. Gere um plano para visualizar checkpoints sugeridos.
               </p>
             )}
+          </section>
+          <section className="admin-chat__assistant-docs">
+            <h2>Templates suportados</h2>
+            <ul>
+              {SUPPORTED_ARTIFACTS.map((artifact) => (
+                <li key={artifact.id}>
+                  <h3>{artifact.title}</h3>
+                  <p>{artifact.description}</p>
+                  <p className="admin-chat__assistant-risk">{artifact.risk}</p>
+                </li>
+              ))}
+            </ul>
           </section>
         </aside>
       </div>

@@ -98,7 +98,10 @@ def test_approver_role_required_for_reload(client: TestClient, database) -> None
 
     response = client.post(
         "/api/v1/config/reload",
-        json={"artifact_path": "generated/out.json"},
+        json={
+            "artifact_type": "agent.readme",
+            "target_path": "generated/out.md",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
 

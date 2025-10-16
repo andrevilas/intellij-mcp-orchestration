@@ -143,7 +143,10 @@ def test_apply_endpoint_supports_dry_run(
         "/api/v1/config/plan",
         json={
             "intent": "generate_artifact",
-            "payload": {"artifact_path": "generated/foo.json"},
+            "payload": {
+                "artifact_type": "agent.manifest",
+                "target_path": "agents-hub/app/agents/foo/agent.yaml",
+            },
         },
         headers=auth_header,
     )
@@ -360,8 +363,9 @@ def test_reload_endpoint_returns_plan_with_message(
     response = client.post(
         "/api/v1/config/reload",
         json={
-            "artifact_path": "generated/cache.json",
-            "owner": "finops",
+            "artifact_type": "finops.checklist",
+            "target_path": "generated/cache.md",
+            "parameters": {"owner": "finops"},
         },
         headers=auth_header,
     )
@@ -369,4 +373,5 @@ def test_reload_endpoint_returns_plan_with_message(
     assert response.status_code == 200
     payload = response.json()
     assert payload["plan"]["intent"] == "generate_artifact"
+    assert any(step["actions"] for step in payload["plan"]["steps"])
     assert "Plano gerado" in payload["message"]

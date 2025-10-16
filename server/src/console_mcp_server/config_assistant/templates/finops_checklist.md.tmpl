@@ -1,0 +1,21 @@
+# Checklist FinOps · $checklist_title
+
+Utilize esta lista para revisar custos e riscos do agente `$agent_slug` antes de promover alterações.
+
+## Revisões obrigatórias
+
+- [ ] Conferir budgets definidos no manifesto (`agent.yaml`) e validar limites com FinOps.
+- [ ] Revisar alertas configurados (canal $alert_channel) garantindo cobertura 24/7.
+- [ ] Avaliar consumo de tokens dos últimos 7 dias e comparar com projeções.
+- [ ] Confirmar que checkpoints HITL estão alinhados com políticas operacionais vigentes.
+
+## Riscos monitorados
+
+1. **Deriva de custos** — Mitigar com dashboards atualizados e alertas proativos.
+2. **Latência acima do acordado** — Reavaliar tiers configurados em `routing.allowed_tiers`.
+3. **Carga operacional** — Coordenar com $owner para planejar janelas de manutenção.
+
+## Próximos passos
+
+Registre evidências da revisão e compartilhe com o canal `$owner`. Caso novos riscos sejam
+identificados, abra uma tarefa para atualizar manifesto, README e esta checklist.

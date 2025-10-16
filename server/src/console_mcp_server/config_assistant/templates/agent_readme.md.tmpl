@@ -1,0 +1,32 @@
+# $agent_title · Operação MCP
+
+Este documento acompanha o agente `$agent_slug` e consolida procedimentos para rollout seguro.
+
+## Visão geral
+
+- Manifesto: `$manifest_path`
+- Stub LangGraph: `$module_path`
+- Responsável: $owner
+
+O objetivo do agente é entregar respostas determinísticas para o domínio descrito no manifesto,
+mantendo custo previsível e checkpoints humanos quando necessário.
+
+## Checklist de preparação
+
+1. Validar credenciais e segredos necessários para execução local.
+2. Confirmar conectividade com o servidor MCP cadastrado na `mcp-registry.yaml`.
+3. Revisar budgets configurados em `agent.yaml` alinhando limites com FinOps.
+4. Executar testes de fumaça (`pytest -k "$agent_module"`) garantindo tool determinística.
+
+## Fluxo de deploy
+
+1. Abrir pull request com alterações do agente e aguardar aprovação.
+2. Aplicar `make deploy-agent AGENT=$agent_slug` para promover a versão.
+3. Monitorar métricas em Observability · seção do agente por pelo menos 30 minutos.
+4. Validar checkpoints HITL caso estejam ativos no manifesto.
+
+## Recuperação e suporte
+
+- Em caso de falha, reverter para a tag estável anterior usando `make rollback-agent AGENT=$agent_slug`.
+- Notificar o canal `$owner` com resumo do incidente e ações tomadas.
+- Atualizar este README sempre que novos riscos forem identificados pelo time.

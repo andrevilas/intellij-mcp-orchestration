@@ -7,7 +7,8 @@ import re
 
 import structlog
 
-from ..schemas_plan import Plan, PlanExecutionStatus, PlanStep, Risk
+from ..schemas_plan import Plan, PlanAction, PlanExecutionStatus, PlanStep, Risk
+from .artifacts import generate_artifact
 from .git import create_diff
 from .intents import AssistantIntent, validate_intent_payload
 
@@ -274,48 +275,72 @@ def _plan_edit_finops(payload: Mapping[str, Any]) -> Plan:
 
 
 def _plan_generate_artifact(payload: Mapping[str, Any]) -> Plan:
-    artifact_path = str(payload["artifact_path"])
-    owner = payload.get("owner", "platform-team")
+    artifact_type = str(payload["artifact_type"])
+    target_path = str(payload["target_path"])
+    parameters = payload.get("parameters")
+    if parameters is not None and not isinstance(parameters, Mapping):
+        raise ValueError("parameters deve ser um mapeamento de chaves para valores")
+
+    result = generate_artifact(
+        artifact_type,
+        target_path,
+        parameters=parameters or {},
+    )
+
+    owner = str(result.context.get("owner") or "platform-team")
 
     steps = [
         PlanStep(
             id="collect-inputs",
             title="Coletar insumos",
-            description="Validar fontes de dados e templates necessários.",
+            description=(
+                f"Confirmar parâmetros obrigatórios para o template {result.template.title.lower()}."
+            ),
         ),
         PlanStep(
-            id="generate-artifact",
-            title="Gerar artefato",
-            description="Executar pipeline de geração e armazenar saída.",
+            id="write-artifact",
+            title=result.template.step_title,
+            description=result.template.step_description,
             depends_on=["collect-inputs"],
+            actions=[
+                PlanAction(
+                    type="write_file",
+                    path=result.target_path,
+                    contents=result.content,
+                )
+            ],
         ),
         PlanStep(
             id="validar-artifact",
             title="Validar resultado",
-            description="Revisar artefato com responsável e aprovar publicação.",
-            depends_on=["generate-artifact"],
+            description=(
+                f"Revisar entrega com {owner} e registrar evidências do checklist de riscos."
+            ),
+            depends_on=["write-artifact"],
         ),
     ]
 
     diffs = [
         create_diff(
-            path=artifact_path,
-            summary=f"Gerar artefato de configuração mantido por {owner}",
+            path=result.target_path,
+            summary=result.template.diff_summary,
             change_type="create",
-        ),
+        )
     ]
 
     risks = [
         Risk(
-            title="Dados desatualizados",
-            impact="medium",
-            mitigation="Agendar revisões periódicas do artefato gerado.",
+            title=result.template.risk.title,
+            impact=result.template.risk.impact,
+            mitigation=result.template.risk.mitigation,
         )
     ]
 
+    summary = f"Gerar {result.template.title} em {result.target_path}"
+
     return Plan(
         intent=AssistantIntent.GENERATE_ARTIFACT.value,
-        summary=f"Gerar artefato em {artifact_path}",
+        summary=summary,
         steps=steps,
         diffs=diffs,
         risks=risks,
