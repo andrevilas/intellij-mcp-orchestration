@@ -347,7 +347,36 @@ MIGRATIONS: tuple[Migration, ...] = (
                     'Aprova execuções HITL de planos',
                     strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
                     strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-                )
+            )
+            """,
+        ),
+    ),
+    Migration(
+        version=9,
+        description="track langgraph flow versions",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS flow_versions (
+                id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                graph TEXT NOT NULL,
+                agent_code TEXT NOT NULL,
+                hitl_checkpoints TEXT NOT NULL DEFAULT '[]',
+                comment TEXT,
+                created_at TEXT NOT NULL,
+                created_by TEXT,
+                diff TEXT,
+                UNIQUE(flow_id, version)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_flow_versions_flow
+                ON flow_versions (flow_id, version)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_flow_versions_created
+                ON flow_versions (created_at)
             """,
         ),
     ),

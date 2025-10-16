@@ -53,6 +53,14 @@ from .registry import provider_registry, session_registry
 from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
 from .config_assistant.intents import AssistantIntent
 from .config_assistant.planner import plan_intent
+from .config_assistant.langgraph import (
+    FlowGraph,
+    FlowVersionRecord,
+    create_flow_version,
+    diff_flow_versions,
+    list_flow_versions,
+    rollback_flow_version,
+)
 from .config_assistant.renderers import render_chat_reply
 from .config_assistant.plan_executor import (
     PlanExecutionResult,
@@ -125,6 +133,12 @@ from .schemas import (
     SessionCreateRequest,
     SessionResponse,
     SessionsResponse,
+    FlowVersionCreateRequest,
+    FlowVersionDiffResponse,
+    FlowVersionResponse,
+    FlowVersionsResponse,
+    FlowVersionRollbackRequest,
+    FlowGraphPayload,
 )
 from .secrets import secret_store
 from .secret_validation import (
@@ -169,6 +183,31 @@ assistant_logger = structlog.get_logger("console.config.routes")
 _PLAN_EXECUTOR: PlanExecutor | None = None
 
 
+def _serialize_flow_version(record: FlowVersionRecord) -> FlowVersionResponse:
+    graph_payload = FlowGraphPayload.model_validate(record.graph.model_dump(mode="python"))
+    return FlowVersionResponse(
+        flow_id=record.flow_id,
+        version=record.version,
+        created_at=record.created_at,
+        created_by=record.created_by,
+        comment=record.comment,
+        graph=graph_payload,
+        agent_code=record.agent_code,
+        hitl_checkpoints=list(record.hitl_checkpoints),
+        diff=record.diff,
+    )
+
+
+def _build_flow_graph(request: FlowVersionCreateRequest) -> FlowGraph:
+    payload = request.graph.model_dump(mode="python")
+    metadata = dict(payload.get("metadata") or {})
+    metadata.setdefault("target_path", request.target_path)
+    if request.agent_class:
+        metadata["agent_class"] = request.agent_class
+    payload["metadata"] = metadata
+    return FlowGraph.model_validate(payload)
+
+
 def get_plan_executor() -> PlanExecutor:
     global _PLAN_EXECUTOR
     if _PLAN_EXECUTOR is None:
@@ -184,6 +223,72 @@ def _notify_hitl(url: AnyHttpUrl, result: PlanExecutionResult) -> None:
         plan_id=result.plan_id,
         record_id=result.record_id,
     )
+
+
+@router.get("/flows/{flow_id}/versions", response_model=FlowVersionsResponse)
+def list_flow_versions_route(flow_id: str) -> FlowVersionsResponse:
+    records = list_flow_versions(flow_id)
+    return FlowVersionsResponse(
+        flow_id=flow_id,
+        versions=[_serialize_flow_version(record) for record in records],
+    )
+
+
+@router.post(
+    "/flows/{flow_id}/versions",
+    response_model=FlowVersionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_flow_version_route(flow_id: str, request: FlowVersionCreateRequest) -> FlowVersionResponse:
+    existing = list_flow_versions(flow_id)
+    if request.baseline_agent_code and existing:
+        latest = existing[0]
+        if latest.agent_code.strip() != request.baseline_agent_code.strip():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Versão base divergente; recarregue o fluxo antes de salvar.",
+            )
+
+    graph = _build_flow_graph(request)
+    record = create_flow_version(
+        flow_id=flow_id,
+        graph=graph,
+        comment=request.comment,
+        author=request.author,
+    )
+    return _serialize_flow_version(record)
+
+
+@router.post(
+    "/flows/{flow_id}/versions/{version}/rollback",
+    response_model=FlowVersionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def rollback_flow_version_route(
+    flow_id: str,
+    version: int,
+    request: FlowVersionRollbackRequest,
+) -> FlowVersionResponse:
+    record = rollback_flow_version(
+        flow_id=flow_id,
+        version=version,
+        author=request.author,
+        comment=request.comment,
+    )
+    return _serialize_flow_version(record)
+
+
+@router.get(
+    "/flows/{flow_id}/versions/compare",
+    response_model=FlowVersionDiffResponse,
+)
+def compare_flow_versions_route(
+    flow_id: str,
+    from_version: int = Query(..., ge=1),
+    to_version: int = Query(..., ge=1),
+) -> FlowVersionDiffResponse:
+    diff = diff_flow_versions(flow_id, from_version, to_version)
+    return FlowVersionDiffResponse.model_validate(diff.model_dump())
 
 
 class ChatRequest(BaseModel):

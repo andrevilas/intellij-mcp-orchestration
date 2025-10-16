@@ -363,6 +363,70 @@ export interface ServerProcessLogsResult {
   cursor: string | null;
 }
 
+export interface FlowNodeConfig extends Record<string, unknown> {}
+
+export interface FlowNode {
+  id: string;
+  type: string;
+  label: string;
+  config: FlowNodeConfig;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  condition?: string | null;
+}
+
+export interface FlowGraph {
+  id: string;
+  label: string;
+  entry: string;
+  exit: string;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  metadata: Record<string, unknown>;
+}
+
+export interface FlowVersion {
+  flowId: string;
+  version: number;
+  createdAt: string;
+  createdBy: string | null;
+  comment: string | null;
+  graph: FlowGraph;
+  agentCode: string;
+  hitlCheckpoints: string[];
+  diff?: string | null;
+}
+
+export interface FlowVersionList {
+  flowId: string;
+  versions: FlowVersion[];
+}
+
+export interface FlowVersionCreateInput {
+  graph: FlowGraph;
+  targetPath: string;
+  agentClass?: string | null;
+  comment?: string | null;
+  author?: string | null;
+  baselineAgentCode?: string | null;
+}
+
+export interface FlowVersionRollbackInput {
+  author?: string | null;
+  comment?: string | null;
+}
+
+export interface FlowVersionDiff {
+  flowId: string;
+  fromVersion: number;
+  toVersion: number;
+  diff: string;
+}
+
 interface PolicyTemplatePayload {
   id: PolicyTemplateId;
   name: string;
@@ -2240,6 +2304,144 @@ export async function postConfigMcpOnboard(
     body: JSON.stringify(intent),
     signal,
   });
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mapFlowNodePayload(payload: unknown): FlowNode {
+  const source = isPlainRecord(payload) ? payload : {};
+  const configValue = source.config;
+  return {
+    id: String(source.id ?? ''),
+    type: String(source.type ?? ''),
+    label: String(source.label ?? ''),
+    config: isPlainRecord(configValue) ? (configValue as FlowNodeConfig) : {},
+  };
+}
+
+function mapFlowEdgePayload(payload: unknown): FlowEdge {
+  const source = isPlainRecord(payload) ? payload : {};
+  return {
+    id: String(source.id ?? ''),
+    source: String(source.source ?? ''),
+    target: String(source.target ?? ''),
+    condition:
+      typeof source.condition === 'string' && source.condition.length > 0
+        ? source.condition
+        : null,
+  };
+}
+
+function mapFlowGraphPayload(payload: unknown): FlowGraph {
+  const source = isPlainRecord(payload) ? payload : {};
+  const nodesValue = Array.isArray(source.nodes) ? source.nodes : [];
+  const edgesValue = Array.isArray(source.edges) ? source.edges : [];
+  return {
+    id: String(source.id ?? ''),
+    label: String(source.label ?? ''),
+    entry: String(source.entry ?? ''),
+    exit: String(source.exit ?? ''),
+    nodes: nodesValue.map(mapFlowNodePayload),
+    edges: edgesValue.map(mapFlowEdgePayload),
+    metadata: isPlainRecord(source.metadata) ? source.metadata : {},
+  };
+}
+
+function mapFlowVersionPayload(payload: unknown): FlowVersion {
+  const source = isPlainRecord(payload) ? payload : {};
+  const checkpoints = Array.isArray(source.hitl_checkpoints)
+    ? source.hitl_checkpoints.map((value) => String(value))
+    : [];
+  return {
+    flowId: String(source.flow_id ?? ''),
+    version: Number(source.version ?? 0),
+    createdAt: String(source.created_at ?? ''),
+    createdBy:
+      typeof source.created_by === 'string' && source.created_by.length > 0
+        ? source.created_by
+        : null,
+    comment:
+      typeof source.comment === 'string' && source.comment.length > 0
+        ? source.comment
+        : null,
+    graph: mapFlowGraphPayload(source.graph),
+    agentCode: String(source.agent_code ?? ''),
+    hitlCheckpoints: checkpoints,
+    diff:
+      typeof source.diff === 'string' && source.diff.length > 0 ? source.diff : null,
+  };
+}
+
+export async function listFlowVersions(flowId: string): Promise<FlowVersionList> {
+  const payload = await request<{ flow_id: string; versions: unknown[] }>(
+    `/flows/${encodeURIComponent(flowId)}/versions`,
+  );
+  return {
+    flowId: payload.flow_id,
+    versions: payload.versions.map(mapFlowVersionPayload),
+  };
+}
+
+export async function createFlowVersion(
+  flowId: string,
+  input: FlowVersionCreateInput,
+): Promise<FlowVersion> {
+  const body: Record<string, unknown> = {
+    graph: input.graph,
+    target_path: input.targetPath,
+  };
+
+  if (input.agentClass !== undefined) {
+    body.agent_class = input.agentClass;
+  }
+  if (input.comment !== undefined) {
+    body.comment = input.comment;
+  }
+  if (input.author !== undefined) {
+    body.author = input.author;
+  }
+  if (input.baselineAgentCode !== undefined) {
+    body.baseline_agent_code = input.baselineAgentCode;
+  }
+
+  const payload = await request<unknown>(`/flows/${encodeURIComponent(flowId)}/versions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return mapFlowVersionPayload(payload);
+}
+
+export async function rollbackFlowVersion(
+  flowId: string,
+  version: number,
+  input: FlowVersionRollbackInput,
+): Promise<FlowVersion> {
+  const payload = await request<unknown>(
+    `/flows/${encodeURIComponent(flowId)}/versions/${version}/rollback`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ author: input.author, comment: input.comment }),
+    },
+  );
+  return mapFlowVersionPayload(payload);
+}
+
+export async function compareFlowVersions(
+  flowId: string,
+  fromVersion: number,
+  toVersion: number,
+): Promise<FlowVersionDiff> {
+  const payload = await request<{ flow_id: string; from_version: number; to_version: number; diff: string }>(
+    `/flows/${encodeURIComponent(flowId)}/versions/compare?from_version=${fromVersion}&to_version=${toVersion}`,
+  );
+  return {
+    flowId: payload.flow_id,
+    fromVersion: payload.from_version,
+    toVersion: payload.to_version,
+    diff: payload.diff,
+  };
 }
 
 export const apiBase = getApiBaseUrl();

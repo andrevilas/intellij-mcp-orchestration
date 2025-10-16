@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Sequence
+import difflib
 import re
 
 import structlog
 
 from ..schemas_plan import Plan, PlanAction, PlanExecutionStatus, PlanStep, Risk
 from .artifacts import generate_artifact
+from .langgraph import FlowGraph, graph_to_agent
 from .git import create_diff
 from .intents import AssistantIntent, validate_intent_payload
 
@@ -348,9 +350,133 @@ def _plan_generate_artifact(payload: Mapping[str, Any]) -> Plan:
     )
 
 
+def _preview_diff(previous: str | None, current: str) -> str | None:
+    if not previous:
+        return None
+    diff_lines = list(
+        difflib.unified_diff(
+            previous.splitlines(),
+            current.splitlines(),
+            fromfile="baseline",
+            tofile="proposed",
+            n=3,
+        )
+    )
+    if not diff_lines:
+        return None
+    return "\n".join(diff_lines[:20])
+
+
+def _plan_create_flow(payload: Mapping[str, Any]) -> Plan:
+    flow_id = str(payload["flow_id"])
+    target_path = str(payload["target_path"])
+    raw_graph = payload.get("graph")
+    if isinstance(raw_graph, FlowGraph):
+        graph_payload = raw_graph.model_dump(mode="python")
+    elif isinstance(raw_graph, Mapping):
+        graph_payload = dict(raw_graph)
+    else:
+        raise ValueError("graph deve ser um mapeamento com nós e arestas")
+
+    base_metadata = dict(graph_payload.get("metadata") or {})
+    agent_class = str(payload.get("agent_class") or base_metadata.get("agent_class") or "FlowAgent")
+    base_metadata.setdefault("agent_class", agent_class)
+    base_metadata.setdefault("target_path", target_path)
+
+    graph = FlowGraph.model_validate({**graph_payload, "metadata": base_metadata})
+    agent_module = graph_to_agent(graph)
+
+    baseline_code = payload.get("baseline_agent_code")
+    diff_preview = _preview_diff(str(baseline_code) if baseline_code else None, agent_module)
+    checkpoint_count = len(graph.hitl_nodes())
+
+    steps = [
+        PlanStep(
+            id="design-flow",
+            title=f"Modelar fluxo {flow_id}",
+            description=(
+                f"Confirmar nós ({len(graph.nodes)}) e arestas ({len(graph.edges)}) necessários para o LangGraph."
+            ),
+        ),
+        PlanStep(
+            id="compile-agent",
+            title="Gerar agent.py",
+            description=(
+                "Converter o grafo em módulo LangGraph com wiring de HITL e registrar arquivo no repositório."
+            ),
+            depends_on=["design-flow"],
+            actions=[
+                PlanAction(
+                    type="write_file",
+                    path=target_path,
+                    contents=agent_module,
+                )
+            ],
+        ),
+        PlanStep(
+            id="checkpoint-review",
+            title="Orquestrar checkpoints",
+            description=(
+                "Catalogar checkpoints HITL e definir responsáveis por aprovação." if checkpoint_count
+                else "Validar ausência de checkpoints HITL obrigatórios."
+            ),
+            depends_on=["compile-agent"],
+        ),
+        PlanStep(
+            id="versionar-flow",
+            title="Versionar fluxo",
+            description=(
+                "Registrar nova versão na tabela flow_versions com diff consolidado." if diff_preview
+                else "Persistir primeira versão do fluxo no catálogo."),
+            depends_on=["compile-agent"],
+        ),
+    ]
+
+    diffs = [
+        create_diff(
+            path=target_path,
+            summary=(
+                f"Atualizar LangGraph de {flow_id} com {len(graph.nodes)} nós e {len(graph.edges)} arestas"
+            ),
+            change_type="update",
+        )
+    ]
+
+    risks = [
+        Risk(
+            title="Checkpoints sem responsáveis",
+            impact="high" if checkpoint_count else "medium",
+            mitigation="Mapear aprovadores HITL antes da execução automatizada.",
+        ),
+        Risk(
+            title="Diferenças não validadas",
+            impact="medium",
+            mitigation="Revisar diff do módulo LangGraph e executar testes de regressão.",
+        ),
+    ]
+
+    summary = f"Versionar fluxo LangGraph {flow_id}"
+
+    if diff_preview:
+        summary += " (diff disponível)"
+
+    if checkpoint_count:
+        summary += f" com {checkpoint_count} checkpoint(s) HITL"
+
+    return Plan(
+        intent=AssistantIntent.CREATE_FLOW.value,
+        summary=summary,
+        steps=steps,
+        diffs=diffs,
+        risks=risks,
+        status=PlanExecutionStatus.PENDING,
+    )
+
+
 _BUILDERS: Mapping[AssistantIntent, PlanBuilder] = {
     AssistantIntent.ADD_AGENT: _plan_add_agent,
     AssistantIntent.EDIT_POLICIES: _plan_edit_policies,
     AssistantIntent.EDIT_FINOPS: _plan_edit_finops,
     AssistantIntent.GENERATE_ARTIFACT: _plan_generate_artifact,
+    AssistantIntent.CREATE_FLOW: _plan_create_flow,
 }

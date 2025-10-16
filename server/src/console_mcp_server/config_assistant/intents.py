@@ -14,6 +14,7 @@ class AssistantIntent(str, Enum):
     EDIT_POLICIES = "edit_policies"
     EDIT_FINOPS = "edit_finops"
     GENERATE_ARTIFACT = "generate_artifact"
+    CREATE_FLOW = "create_flow"
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,11 @@ INTENT_METADATA: Mapping[AssistantIntent, IntentMetadata] = {
         description="Produce or refresh generated configuration artifacts.",
         required_fields=("artifact_type", "target_path"),
         optional_fields=("parameters",),
+    ),
+    AssistantIntent.CREATE_FLOW: IntentMetadata(
+        description="Criar ou versionar fluxos LangGraph com checkpoints HITL.",
+        required_fields=("flow_id", "graph", "target_path"),
+        optional_fields=("agent_class", "comment", "author"),
     ),
 }
 
