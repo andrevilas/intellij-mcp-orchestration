@@ -74,6 +74,12 @@ class GitRepository:
     def active_branch(self) -> str:
         return self._repo.active_branch.name
 
+    def checkout(self, branch: str) -> None:
+        try:
+            self._repo.git.checkout(branch)
+        except GitCommandError as exc:
+            raise GitWorkflowError(f"Failed to checkout branch {branch}") from exc
+
     def create_working_branch(self, plan_id: str, *, prefix: str = "chore/config-assistant") -> CreatedBranch:
         base_branch = self.active_branch()
         slug = _slugify_branch_component(plan_id)

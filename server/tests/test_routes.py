@@ -44,6 +44,8 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     monkeypatch.setenv('CONSOLE_MCP_SECRETS_PATH', str(secrets_path))
     db_path = tmp_path / 'console.db'
     monkeypatch.setenv('CONSOLE_MCP_DB_PATH', str(db_path))
+    audit_path = tmp_path / 'audit.log'
+    monkeypatch.setenv('CONSOLE_MCP_AUDIT_LOG_PATH', str(audit_path))
     assert MANIFEST_PATH.exists()
 
     import console_mcp_server.config as config_module
@@ -72,7 +74,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     database.reset_state()
     supervisor.process_supervisor.prune(only_finished=False)
 
-    with TestClient(main.app) as test_client:
+    with TestClient(main.app, raise_server_exceptions=False) as test_client:
         yield test_client
 
     registry.session_registry = registry.SessionRegistry()

@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import bootstrap_database, database_path
 from .routes import router as api_router
 from .supervisor import process_supervisor
+from .security import AuditLogger, RBACMiddleware
 
 logger = logging.getLogger("console_mcp_server")
 
@@ -107,6 +108,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_AUDIT_LOGGER = AuditLogger()
+app.add_middleware(RBACMiddleware, audit_logger=_AUDIT_LOGGER)
 
 
 @app.on_event("startup")
