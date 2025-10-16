@@ -16,7 +16,7 @@ from .errors import AgentExecutionError, AgentNotFoundError, ValidationError, er
 from .logging_config import configure_logging
 from .middleware import APIKeyMiddleware, LoggingMiddleware, RequestIdMiddleware
 from .registry import AgentRegistry
-from .schemas.invoke import InvokeRequest
+from .schemas.invoke import ConfigMetadata, InvokeRequest
 from .schemas.responses import AgentDetailResponse, AgentListResponse, AgentMetadata
 
 settings = get_settings()
@@ -113,12 +113,12 @@ async def invoke_agent(
     settings: Settings = Depends(provide_settings),
     logger=Depends(get_request_logger),
 ) -> Any:
-    if (
-        invoke_request.config
-        and invoke_request.config.metadata
-        and not invoke_request.config.metadata.request_id
-    ):
-        invoke_request.config.metadata.request_id = getattr(http_request.state, "request_id", None)
+    request_id_value = getattr(http_request.state, "request_id", None)
+    if invoke_request.config and request_id_value:
+        if invoke_request.config.metadata is None:
+            invoke_request.config.metadata = ConfigMetadata(request_id=request_id_value)
+        else:
+            invoke_request.config.metadata.request_id = request_id_value
 
     payload = invoke_request.input or {}
     config = invoke_request.config.model_dump(mode="json", by_alias=True, exclude_none=True)
