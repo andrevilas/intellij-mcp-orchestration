@@ -370,6 +370,26 @@ export interface McpServer {
 
 export type ServerProcessLifecycle = 'running' | 'stopped' | 'error';
 
+export type ServerHealthStatus = 'healthy' | 'degraded' | 'error';
+
+export interface ServerHealthCheck {
+  status: ServerHealthStatus;
+  checkedAt: string;
+  latencyMs: number | null;
+  message: string;
+  actor?: string | null;
+  planId?: string | null;
+}
+
+export interface McpServerUpdateInput {
+  name: string;
+  command: string;
+  description?: string | null;
+  tags?: string[];
+  capabilities?: string[];
+  transport: string;
+}
+
 export interface ServerProcessLogEntry {
   id: string;
   timestamp: string;
@@ -1096,6 +1116,23 @@ interface ServerProcessLogsResponsePayload {
   cursor?: string | null;
 }
 
+interface ServerHealthCheckPayload {
+  status: ServerHealthStatus;
+  checked_at: string;
+  latency_ms?: number | null;
+  message?: string | null;
+  actor?: string | null;
+  plan_id?: string | null;
+}
+
+interface ServerHealthHistoryResponsePayload {
+  checks: ServerHealthCheckPayload[];
+}
+
+interface ServerHealthPingResponsePayload {
+  check: ServerHealthCheckPayload;
+}
+
 export interface TelemetryMetricsFilters {
   start?: Date | string;
   end?: Date | string;
@@ -1203,6 +1240,17 @@ function mapServerProcessState(payload: ServerProcessStatePayload): ServerProces
   };
 }
 
+function mapServerHealthCheck(payload: ServerHealthCheckPayload): ServerHealthCheck {
+  return {
+    status: payload.status,
+    checkedAt: payload.checked_at,
+    latencyMs: payload.latency_ms ?? null,
+    message: payload.message ?? '',
+    actor: payload.actor ?? null,
+    planId: payload.plan_id ?? null,
+  };
+}
+
 export async function fetchServerCatalog(signal?: AbortSignal): Promise<McpServer[]> {
   const data = await request<McpServersResponsePayload>('/servers', { signal });
   return data.servers.map(mapMcpServer);
@@ -1260,6 +1308,48 @@ export async function fetchServerProcessLogs(
     logs: payload.logs.map(mapServerProcessLog),
     cursor: payload.cursor ?? cursor ?? null,
   };
+}
+
+export async function fetchServerHealthHistory(
+  serverId: string,
+  signal?: AbortSignal,
+): Promise<ServerHealthCheck[]> {
+  const payload = await request<ServerHealthHistoryResponsePayload>(`/servers/${serverId}/health`, {
+    signal,
+  });
+  return (payload.checks ?? []).map(mapServerHealthCheck);
+}
+
+export async function pingServerHealth(serverId: string, signal?: AbortSignal): Promise<ServerHealthCheck> {
+  const payload = await request<ServerHealthPingResponsePayload>(`/servers/${serverId}/health/ping`, {
+    method: 'POST',
+    signal,
+  });
+  return mapServerHealthCheck(payload.check);
+}
+
+export async function updateServerDefinition(
+  serverId: string,
+  payload: McpServerUpdateInput,
+  signal?: AbortSignal,
+): Promise<McpServer> {
+  const response = await request<McpServerPayload>(`/servers/${serverId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: payload.name,
+      command: payload.command,
+      description: payload.description ?? null,
+      tags: payload.tags ?? [],
+      capabilities: payload.capabilities ?? [],
+      transport: payload.transport,
+    }),
+    signal,
+  });
+  return mapMcpServer(response);
+}
+
+export async function deleteServerDefinition(serverId: string, signal?: AbortSignal): Promise<void> {
+  await request<undefined>(`/servers/${serverId}`, { method: 'DELETE', signal });
 }
 
 export async function fetchProviders(signal?: AbortSignal): Promise<ProviderSummary[]> {
