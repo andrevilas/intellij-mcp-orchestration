@@ -518,6 +518,26 @@ describe('App provider orchestration flow', () => {
     let processStoppedAt: string | null = null;
     let processReturnCode: number | null = null;
     let processLastError: string | null = null;
+    let currentServerRecord: typeof serverRecord | null = { ...serverRecord };
+    let healthPingCounter = 2;
+    let currentHealthChecks = [
+      {
+        status: 'healthy' as const,
+        checked_at: '2024-06-01T11:00:00.000Z',
+        latency_ms: 245,
+        message: 'Ping automatizado dentro do SLA.',
+        actor: 'console-mcp',
+        plan_id: 'plan-operacoes',
+      },
+      {
+        status: 'degraded' as const,
+        checked_at: '2024-06-01T10:30:00.000Z',
+        latency_ms: 980,
+        message: 'Oscilação detectada durante deploy canário.',
+        actor: 'mcp-telemetry',
+        plan_id: 'plan-operacoes',
+      },
+    ];
 
     function appendProcessLog(message: string, level: 'info' | 'error' = 'info') {
       processLogCounter += 1;
@@ -561,15 +581,39 @@ describe('App provider orchestration flow', () => {
       processStoppedAt = null;
       processReturnCode = null;
       processLastError = null;
+      currentServerRecord = { ...serverRecord };
+      currentHealthChecks = [
+        {
+          status: 'healthy',
+          checked_at: '2024-06-01T11:00:00.000Z',
+          latency_ms: 245,
+          message: 'Ping automatizado dentro do SLA.',
+          actor: 'console-mcp',
+          plan_id: 'plan-operacoes',
+        },
+        {
+          status: 'degraded',
+          checked_at: '2024-06-01T10:30:00.000Z',
+          latency_ms: 980,
+          message: 'Oscilação detectada durante deploy canário.',
+          actor: 'mcp-telemetry',
+          plan_id: 'plan-operacoes',
+        },
+      ];
+      healthPingCounter = currentHealthChecks.length;
 
       fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : input.toString();
         const method = (init?.method ?? 'GET').toUpperCase();
 
       if (url === '/api/v1/servers' && method === 'GET') {
-        return createFetchResponse({ servers: [serverRecord] });
+        const servers = currentServerRecord ? [currentServerRecord] : [];
+        return createFetchResponse({ servers });
       }
       if (url === '/api/v1/servers/processes' && method === 'GET') {
+        if (!currentServerRecord) {
+          return createFetchResponse({ processes: [] });
+        }
         return createFetchResponse({ processes: [buildProcessSnapshot()] });
       }
       if (url.startsWith(`/api/v1/servers/${provider.id}/process/logs`) && method === 'GET') {
@@ -616,6 +660,49 @@ describe('App provider orchestration flow', () => {
         appendProcessLog('Reinício solicitado pelo operador.');
         appendProcessLog('Processo reiniciado com PID 654.');
         return createFetchResponse({ process: buildProcessSnapshot() });
+      }
+
+      if (url === `/api/v1/servers/${provider.id}/health` && method === 'GET') {
+        return createFetchResponse({ checks: currentHealthChecks });
+      }
+      if (url === `/api/v1/servers/${provider.id}/health/ping` && method === 'POST') {
+        healthPingCounter += 1;
+        const newCheck = {
+          status: 'healthy' as const,
+          checked_at: new Date(processBaseTime + healthPingCounter * 60000).toISOString(),
+          latency_ms: 210,
+          message: 'Ping de monitoramento manual concluído com sucesso.',
+          actor: 'Console MCP',
+          plan_id: 'plan-operacoes',
+        };
+        currentHealthChecks = [newCheck, ...currentHealthChecks].slice(0, 6);
+        return createFetchResponse({ check: newCheck });
+      }
+
+      if (url === `/api/v1/servers/${provider.id}` && method === 'PUT') {
+        const body = init?.body ? JSON.parse(init.body.toString()) : {};
+        const baseRecord = currentServerRecord ?? serverRecord;
+        currentServerRecord = {
+          ...baseRecord,
+          name: body.name ?? baseRecord.name,
+          command: body.command ?? baseRecord.command,
+          description: body.description ?? baseRecord.description,
+          tags: body.tags ?? baseRecord.tags,
+          capabilities: body.capabilities ?? baseRecord.capabilities,
+          transport: body.transport ?? baseRecord.transport,
+          updated_at: new Date(processBaseTime + healthPingCounter * 1000).toISOString(),
+        };
+        return createFetchResponse(currentServerRecord);
+      }
+
+      if (url === `/api/v1/servers/${provider.id}` && method === 'DELETE') {
+        currentServerRecord = null;
+        currentHealthChecks = [];
+        return Promise.resolve({
+          ok: true,
+          status: 204,
+          json: () => Promise.resolve(undefined),
+        } as Response);
       }
 
       if (url === '/api/v1/providers' && method === 'GET') {
@@ -980,6 +1067,143 @@ describe('App provider orchestration flow', () => {
       },
       { timeout: 2000 },
     );
+  });
+
+  it('permite editar, pingar e remover servidores MCP pela página de servidores', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+    });
+
+    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const serversTab = screen.getByRole('button', { name: 'Servidores' });
+    await user.click(serversTab);
+
+    await screen.findByRole('heading', { name: /Servidores MCP/i });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/servers/${provider.id}/health`,
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+
+    const healthRegion = await screen.findByRole('region', { name: 'Resumo de health-checks' });
+    await waitFor(() => {
+      const healthCounts = within(healthRegion).getAllByText((_, element) => element?.tagName === 'STRONG');
+      expect(healthCounts.map((node) => node.textContent)).toEqual(['1', '0', '0', '0']);
+    });
+
+    const serverHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
+    const serverCard = serverHeading.closest('article');
+    expect(serverCard).not.toBeNull();
+    const scoped = within(serverCard as HTMLElement);
+
+    await scoped.findByText('Ping automatizado dentro do SLA.');
+    await scoped.findByText('Oscilação detectada durante deploy canário.');
+
+    const pingButton = scoped.getByRole('button', { name: 'Ping agora' });
+    await user.click(pingButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/servers/${provider.id}/health/ping`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(scoped.getByText('Ping de monitoramento manual concluído com sucesso.')).toBeInTheDocument();
+    });
+
+    const editButton = scoped.getByRole('button', { name: 'Editar servidor' });
+    await user.click(editButton);
+
+    const editDialog = await screen.findByRole('dialog', { name: 'Editar servidor MCP' });
+    const nameInput = within(editDialog).getByLabelText('Nome exibido');
+    const commandInput = within(editDialog).getByLabelText('Comando/endpoint');
+    const descriptionInput = within(editDialog).getByLabelText('Descrição');
+    const transportInput = within(editDialog).getByLabelText('Transporte');
+    const tagsInput = within(editDialog).getByLabelText('Tags (separadas por vírgula)');
+    const capabilitiesInput = within(editDialog).getByLabelText('Capacidades (separadas por vírgula)');
+
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Gemini MCP · Observabilidade');
+    await user.clear(commandInput);
+    await user.type(commandInput, '/opt/mcp/gemini');
+    await user.clear(descriptionInput);
+    await user.type(descriptionInput, 'Servidor MCP supervisionado pela console.');
+    await user.clear(transportInput);
+    await user.type(transportInput, 'http');
+    await user.clear(tagsInput);
+    await user.type(tagsInput, 'llm,observabilidade');
+    await user.clear(capabilitiesInput);
+    await user.type(capabilitiesInput, 'chat,embeddings');
+
+    const confirmEdit = within(editDialog).getByRole('button', { name: 'Salvar alterações' });
+    await user.click(confirmEdit);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/servers/${provider.id}`,
+        expect.objectContaining({ method: 'PUT' }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Editar servidor MCP' })).not.toBeInTheDocument();
+    });
+
+    const updateCall = fetchMock.mock.calls.find(
+      ([url, options]) => url === `/api/v1/servers/${provider.id}` && (options as RequestInit | undefined)?.method === 'PUT',
+    );
+    expect(updateCall).toBeDefined();
+    const payload = JSON.parse(((updateCall?.[1] as RequestInit | undefined)?.body as string) ?? '{}');
+    expect(payload).toEqual({
+      name: 'Gemini MCP · Observabilidade',
+      command: '/opt/mcp/gemini',
+      description: 'Servidor MCP supervisionado pela console.',
+      tags: ['llm', 'observabilidade'],
+      capabilities: ['chat', 'embeddings'],
+      transport: 'http',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' })).toBeInTheDocument();
+    });
+
+    const updatedHeading = await screen.findByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' });
+    const updatedCard = updatedHeading.closest('article');
+    expect(updatedCard).not.toBeNull();
+    const updatedScoped = within(updatedCard as HTMLElement);
+    expect(updatedScoped.getByText('Servidor MCP supervisionado pela console.')).toBeInTheDocument();
+    expect(updatedScoped.getByText('/opt/mcp/gemini')).toBeInTheDocument();
+    expect(updatedScoped.getByText('http')).toBeInTheDocument();
+
+    const deleteButton = updatedScoped.getByRole('button', { name: 'Remover servidor' });
+    await user.click(deleteButton);
+
+    const deleteDialog = await screen.findByRole('dialog', { name: 'Remover servidor MCP' });
+    const confirmDelete = within(deleteDialog).getByRole('button', { name: 'Remover servidor' });
+    await user.click(confirmDelete);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/servers/${provider.id}`,
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' })).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const emptyHealthCounts = within(healthRegion).getAllByText((_, element) => element?.tagName === 'STRONG');
+      expect(emptyHealthCounts.map((node) => node.textContent)).toEqual(['0', '0', '0', '0']);
+    });
   });
 
   it('executes connectivity checks from the keys view', async () => {

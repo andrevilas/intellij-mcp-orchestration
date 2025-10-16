@@ -1,17 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import {
   ApiError,
+  type McpServer,
   type ProviderSummary,
+  type ServerHealthCheck,
+  type ServerHealthStatus,
   type ServerProcessLifecycle,
-  type ServerProcessLogsResult,
   type ServerProcessLogEntry,
+  type ServerProcessLogsResult,
   type ServerProcessStateSnapshot,
+  deleteServerDefinition,
+  fetchServerHealthHistory,
   fetchServerProcessLogs,
   fetchServerProcesses,
+  pingServerHealth,
   restartServerProcess,
   startServerProcess,
   stopServerProcess,
+  updateServerDefinition,
 } from '../api';
 import ServerActions, { type ServerAction } from '../components/ServerActions';
 
@@ -22,6 +29,39 @@ export interface ServersProps {
 }
 
 const MAX_LOG_ENTRIES = 20;
+const MAX_HEALTH_ENTRIES = 6;
+
+interface EditServerFormData {
+  name: string;
+  command: string;
+  description: string;
+  tags: string[];
+  capabilities: string[];
+  transport: string;
+}
+
+interface EditDialogProps {
+  provider: ProviderSummary | null;
+  isOpen: boolean;
+  isSubmitting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: (data: EditServerFormData) => void;
+}
+
+interface DeleteDialogProps {
+  provider: ProviderSummary | null;
+  isOpen: boolean;
+  isSubmitting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+interface PingStatus {
+  isLoading: boolean;
+  error: string | null;
+}
 
 function createFallbackState(provider: ProviderSummary): ServerProcessStateSnapshot {
   return {
@@ -146,22 +186,284 @@ function getStatusClass(status: ServerProcessLifecycle): string {
   }
 }
 
+function formatHealthStatus(status: ServerHealthStatus): string {
+  switch (status) {
+    case 'healthy':
+      return 'Saudável';
+    case 'degraded':
+      return 'Instável';
+    case 'error':
+      return 'Falha';
+    default:
+      return status;
+  }
+}
+
+function getHealthBadgeClass(status: ServerHealthStatus | null | undefined): string {
+  switch (status) {
+    case 'healthy':
+      return 'server-health__badge server-health__badge--healthy';
+    case 'degraded':
+      return 'server-health__badge server-health__badge--degraded';
+    case 'error':
+      return 'server-health__badge server-health__badge--error';
+    default:
+      return 'server-health__badge';
+  }
+}
+
+function formatCheckedAt(checkedAt: string): string {
+  const parsed = new Date(checkedAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return checkedAt;
+  }
+  return `${parsed.toLocaleDateString()} ${parsed.toLocaleTimeString()}`;
+}
+
+function parseCommaSeparated(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function mapServerToProvider(server: McpServer, fallback?: ProviderSummary): ProviderSummary {
+  return {
+    id: server.id,
+    name: server.name,
+    command: server.command,
+    description: server.description ?? undefined,
+    tags: server.tags,
+    capabilities: server.capabilities,
+    transport: server.transport,
+    is_available: fallback?.is_available ?? true,
+  };
+}
+
+function EditServerDialog({ provider, isOpen, isSubmitting, error, onCancel, onSubmit }: EditDialogProps) {
+  const [name, setName] = useState('');
+  const [command, setCommand] = useState('');
+  const [description, setDescription] = useState('');
+  const [tags, setTags] = useState('');
+  const [capabilities, setCapabilities] = useState('');
+  const [transport, setTransport] = useState('stdio');
+  const [validationErrors, setValidationErrors] = useState<{ name?: string; command?: string }>({});
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !provider) {
+      return;
+    }
+    setValidationErrors({});
+    setName(provider.name);
+    setCommand(provider.command);
+    setDescription(provider.description ?? '');
+    setTags(provider.tags.join(', '));
+    setCapabilities(provider.capabilities.join(', '));
+    setTransport(provider.transport);
+
+    const frame = requestAnimationFrame(() => {
+      nameInputRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, provider?.id]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    function handleKeydown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
+      }
+    }
+    document.addEventListener('keydown', handleKeydown);
+    return () => document.removeEventListener('keydown', handleKeydown);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen || !provider) {
+    return null;
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    const trimmedCommand = command.trim();
+    const errors: { name?: string; command?: string } = {};
+    if (!trimmedName) {
+      errors.name = 'Informe um nome legível para o servidor MCP.';
+    }
+    if (!trimmedCommand) {
+      errors.command = 'Informe o comando de execução ou endpoint do servidor MCP.';
+    }
+    setValidationErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+    onSubmit({
+      name: trimmedName,
+      command: trimmedCommand,
+      description: description.trim(),
+      tags: parseCommaSeparated(tags),
+      capabilities: parseCommaSeparated(capabilities),
+      transport: transport.trim() || 'stdio',
+    });
+  };
+
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target === dialogRef.current) {
+      onCancel();
+    }
+  }
+
+  return (
+    <div className="server-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-server-title" ref={dialogRef} onClick={handleBackdropClick}>
+      <div className="server-dialog__content">
+        <header className="server-dialog__header">
+          <h2 id="edit-server-title">Editar servidor MCP</h2>
+          <p>Atualize metadados, comando de execução e taxonomia utilizada nas automações.</p>
+        </header>
+        <form className="server-dialog__form" onSubmit={handleSubmit}>
+          <label className="server-dialog__field">
+            <span>Nome exibido</span>
+            <input ref={nameInputRef} value={name} onChange={(event) => setName(event.target.value)} disabled={isSubmitting} />
+            {validationErrors.name && <span className="server-dialog__error">{validationErrors.name}</span>}
+          </label>
+          <label className="server-dialog__field">
+            <span>Comando/endpoint</span>
+            <input value={command} onChange={(event) => setCommand(event.target.value)} disabled={isSubmitting} />
+            {validationErrors.command && <span className="server-dialog__error">{validationErrors.command}</span>}
+          </label>
+          <label className="server-dialog__field">
+            <span>Descrição</span>
+            <textarea value={description} onChange={(event) => setDescription(event.target.value)} disabled={isSubmitting} rows={3} />
+          </label>
+          <label className="server-dialog__field">
+            <span>Transporte</span>
+            <input value={transport} onChange={(event) => setTransport(event.target.value)} disabled={isSubmitting} />
+          </label>
+          <label className="server-dialog__field">
+            <span>Tags (separadas por vírgula)</span>
+            <input value={tags} onChange={(event) => setTags(event.target.value)} disabled={isSubmitting} />
+          </label>
+          <label className="server-dialog__field">
+            <span>Capacidades (separadas por vírgula)</span>
+            <input value={capabilities} onChange={(event) => setCapabilities(event.target.value)} disabled={isSubmitting} />
+          </label>
+          {error && <p className="server-dialog__error" role="alert">{error}</p>}
+          <div className="server-dialog__actions">
+            <button type="button" onClick={onCancel} disabled={isSubmitting}>
+              Cancelar
+            </button>
+            <button type="submit" className="server-dialog__primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Salvando…' : 'Salvar alterações'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeleteDialog({ provider, isOpen, isSubmitting, error, onCancel, onConfirm }: DeleteDialogProps) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    function handleKeydown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
+      }
+    }
+    document.addEventListener('keydown', handleKeydown);
+    return () => document.removeEventListener('keydown', handleKeydown);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen || !provider) {
+    return null;
+  }
+
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target === dialogRef.current) {
+      onCancel();
+    }
+  }
+
+  return (
+    <div className="server-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-server-title" ref={dialogRef} onClick={handleBackdropClick}>
+      <div className="server-dialog__content">
+        <header className="server-dialog__header">
+          <h2 id="delete-server-title">Remover servidor MCP</h2>
+          <p>Essa ação remove o servidor do catálogo. Supervisão e históricos deixarão de ser exibidos.</p>
+        </header>
+        <div className="server-dialog__body">
+          <p>
+            Deseja realmente remover <strong>{provider.name}</strong>? Essa ação não é reversível.
+          </p>
+          {error && <p className="server-dialog__error" role="alert">{error}</p>}
+        </div>
+        <div className="server-dialog__actions">
+          <button type="button" onClick={onCancel} disabled={isSubmitting}>
+            Cancelar
+          </button>
+          <button type="button" className="server-dialog__danger" onClick={onConfirm} disabled={isSubmitting}>
+            {isSubmitting ? 'Removendo…' : 'Remover servidor'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Servers({ providers, isLoading, initialError }: ServersProps) {
   const [processStates, setProcessStates] = useState<Record<string, ServerProcessStateSnapshot>>({});
   const [pendingAction, setPendingAction] = useState<{ providerId: string; action: ServerAction } | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [providerOverrides, setProviderOverrides] = useState<Record<string, ProviderSummary>>({});
+  const [hiddenProviders, setHiddenProviders] = useState<string[]>([]);
+  const [healthHistory, setHealthHistory] = useState<Record<string, ServerHealthCheck[]>>({});
+  const [healthErrors, setHealthErrors] = useState<Record<string, string | null>>({});
+  const [pingStatus, setPingStatus] = useState<Record<string, PingStatus>>({});
+  const [editState, setEditState] = useState<{ isOpen: boolean; provider: ProviderSummary | null; isSubmitting: boolean; error: string | null }>({
+    isOpen: false,
+    provider: null,
+    isSubmitting: false,
+    error: null,
+  });
+  const [deleteState, setDeleteState] = useState<{ isOpen: boolean; provider: ProviderSummary | null; isSubmitting: boolean; error: string | null }>({
+    isOpen: false,
+    provider: null,
+    isSubmitting: false,
+    error: null,
+  });
 
   const processStatesRef = useRef<Record<string, ServerProcessStateSnapshot>>({});
   const actionControllers = useRef<Map<string, AbortController>>(new Map());
+  const pingControllers = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef(true);
+
+  const visibleProviders = useMemo(() => {
+    const hidden = new Set(hiddenProviders);
+    return providers
+      .filter((provider) => !hidden.has(provider.id))
+      .map((provider) => providerOverrides[provider.id] ?? provider);
+  }, [providers, providerOverrides, hiddenProviders]);
 
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
       actionControllers.current.forEach((controller) => controller.abort());
       actionControllers.current.clear();
+      pingControllers.current.forEach((controller) => controller.abort());
+      pingControllers.current.clear();
     };
   }, []);
 
@@ -170,7 +472,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
   }, [processStates]);
 
   useEffect(() => {
-    if (providers.length === 0) {
+    if (visibleProviders.length === 0) {
       setProcessStates({});
       return;
     }
@@ -184,15 +486,13 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         if (!isMountedRef.current || controller.signal.aborted) {
           return;
         }
-
         setProcessStates((current) => {
           const snapshotMap = new Map<string, ServerProcessStateSnapshot>();
           for (const snapshot of snapshots) {
             snapshotMap.set(snapshot.serverId, snapshot);
           }
-
           const next: Record<string, ServerProcessStateSnapshot> = {};
-          for (const provider of providers) {
+          for (const provider of visibleProviders) {
             const incoming = snapshotMap.get(provider.id) ?? createFallbackState(provider);
             next[provider.id] = mergeSnapshots(current[provider.id], incoming);
           }
@@ -212,7 +512,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
       });
 
     return () => controller.abort();
-  }, [providers]);
+  }, [visibleProviders]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -265,6 +565,43 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (visibleProviders.length === 0) {
+      setHealthHistory({});
+      setHealthErrors({});
+      return;
+    }
+
+    const controller = new AbortController();
+
+    for (const provider of visibleProviders) {
+      setHealthErrors((current) => ({ ...current, [provider.id]: null }));
+    }
+
+    void Promise.all(
+      visibleProviders.map(async (provider) => {
+        try {
+          const history = await fetchServerHealthHistory(provider.id, controller.signal);
+          if (!isMountedRef.current || controller.signal.aborted) {
+            return;
+          }
+          setHealthHistory((current) => ({
+            ...current,
+            [provider.id]: history.slice(0, MAX_HEALTH_ENTRIES),
+          }));
+        } catch (error) {
+          if (!isMountedRef.current || controller.signal.aborted) {
+            return;
+          }
+          const message = error instanceof ApiError ? error.message : 'Falha ao carregar histórico de health.';
+          setHealthErrors((current) => ({ ...current, [provider.id]: message }));
+        }
+      }),
+    );
+
+    return () => controller.abort();
+  }, [visibleProviders]);
+
   const handleAction = useCallback(
     (providerId: string, action: ServerAction) => {
       const previousController = actionControllers.current.get(providerId);
@@ -312,12 +649,192 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     [],
   );
 
-  const hasProviders = providers.length > 0;
+  const handlePing = useCallback((providerId: string) => {
+    const previous = pingControllers.current.get(providerId);
+    previous?.abort();
+
+    const controller = new AbortController();
+    pingControllers.current.set(providerId, controller);
+
+    setPingStatus((current) => ({
+      ...current,
+      [providerId]: { isLoading: true, error: null },
+    }));
+
+    pingServerHealth(providerId, controller.signal)
+      .then((check) => {
+        if (!isMountedRef.current || controller.signal.aborted) {
+          return;
+        }
+        setHealthHistory((current) => {
+          const history = current[providerId] ?? [];
+          return {
+            ...current,
+            [providerId]: [check, ...history].slice(0, MAX_HEALTH_ENTRIES),
+          };
+        });
+        setHealthErrors((current) => ({ ...current, [providerId]: null }));
+        setPingStatus((current) => ({
+          ...current,
+          [providerId]: { isLoading: false, error: null },
+        }));
+      })
+      .catch((error) => {
+        if (!isMountedRef.current || controller.signal.aborted) {
+          return;
+        }
+        const message = error instanceof ApiError ? error.message : 'Falha ao executar ping no servidor MCP.';
+        setPingStatus((current) => ({
+          ...current,
+          [providerId]: { isLoading: false, error: message },
+        }));
+      })
+      .finally(() => {
+        pingControllers.current.delete(providerId);
+      });
+  }, []);
+
+  const openEditDialog = useCallback((provider: ProviderSummary) => {
+    setEditState({ isOpen: true, provider, isSubmitting: false, error: null });
+  }, []);
+
+  const closeEditDialog = useCallback(() => {
+    setEditState({ isOpen: false, provider: null, isSubmitting: false, error: null });
+  }, []);
+
+  const submitEdit = useCallback(
+    (data: EditServerFormData) => {
+      const target = editState.provider;
+      if (!target) {
+        return;
+      }
+      setEditState((current) => ({ ...current, isSubmitting: true, error: null }));
+      updateServerDefinition(target.id, {
+        name: data.name,
+        command: data.command,
+        description: data.description || null,
+        tags: data.tags,
+        capabilities: data.capabilities,
+        transport: data.transport,
+      })
+        .then((server) => {
+          if (!isMountedRef.current) {
+            return;
+          }
+          const updatedProvider = mapServerToProvider(server, target);
+          setProviderOverrides((current) => ({ ...current, [server.id]: updatedProvider }));
+          setProcessStates((current) => {
+            const existing = current[server.id];
+            if (!existing) {
+              return current;
+            }
+            return { ...current, [server.id]: { ...existing, command: server.command } };
+          });
+          setEditState({ isOpen: false, provider: null, isSubmitting: false, error: null });
+        })
+        .catch((error) => {
+          if (!isMountedRef.current) {
+            return;
+          }
+          const message = error instanceof ApiError ? error.message : 'Falha ao atualizar servidor MCP.';
+          setEditState((current) => ({ ...current, isSubmitting: false, error: message }));
+        });
+    },
+    [editState.provider],
+  );
+
+  const openDeleteDialog = useCallback((provider: ProviderSummary) => {
+    setDeleteState({ isOpen: true, provider, isSubmitting: false, error: null });
+  }, []);
+
+  const closeDeleteDialog = useCallback(() => {
+    setDeleteState({ isOpen: false, provider: null, isSubmitting: false, error: null });
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    const target = deleteState.provider;
+    if (!target) {
+      return;
+    }
+    setDeleteState((current) => ({ ...current, isSubmitting: true, error: null }));
+    deleteServerDefinition(target.id)
+      .then(() => {
+        if (!isMountedRef.current) {
+          return;
+        }
+        setHiddenProviders((current) => (current.includes(target.id) ? current : [...current, target.id]));
+        setProviderOverrides((current) => {
+          if (!(target.id in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[target.id];
+          return next;
+        });
+        setProcessStates((current) => {
+          if (!(target.id in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[target.id];
+          return next;
+        });
+        setPendingAction((current) => (current && current.providerId === target.id ? null : current));
+        setActionErrors((current) => {
+          if (!(target.id in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[target.id];
+          return next;
+        });
+        setHealthHistory((current) => {
+          if (!(target.id in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[target.id];
+          return next;
+        });
+        setHealthErrors((current) => {
+          if (!(target.id in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[target.id];
+          return next;
+        });
+        setPingStatus((current) => {
+          if (!(target.id in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[target.id];
+          return next;
+        });
+        const actionController = actionControllers.current.get(target.id);
+        actionController?.abort();
+        actionControllers.current.delete(target.id);
+        const pingController = pingControllers.current.get(target.id);
+        pingController?.abort();
+        pingControllers.current.delete(target.id);
+        setDeleteState({ isOpen: false, provider: null, isSubmitting: false, error: null });
+      })
+      .catch((error) => {
+        if (!isMountedRef.current) {
+          return;
+        }
+        const message = error instanceof ApiError ? error.message : 'Falha ao remover servidor MCP.';
+        setDeleteState((current) => ({ ...current, isSubmitting: false, error: message }));
+      });
+  }, [deleteState.provider]);
+
+  const hasProviders = visibleProviders.length > 0;
 
   const statusSummary = useMemo(() => {
     let running = 0;
     let offline = 0;
-    for (const provider of providers) {
+    for (const provider of visibleProviders) {
       const status = processStates[provider.id]?.status ?? 'stopped';
       if (status === 'running') {
         running += 1;
@@ -325,17 +842,40 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         offline += 1;
       }
     }
-    return { running, offline };
-  }, [processStates, providers]);
+    return { running, offline, total: visibleProviders.length };
+  }, [processStates, visibleProviders]);
+
+  const healthSummary = useMemo(() => {
+    let healthy = 0;
+    let degraded = 0;
+    let errorCount = 0;
+    let unchecked = 0;
+    for (const provider of visibleProviders) {
+      const history = healthHistory[provider.id];
+      if (!history || history.length === 0) {
+        unchecked += 1;
+        continue;
+      }
+      switch (history[0].status) {
+        case 'healthy':
+          healthy += 1;
+          break;
+        case 'degraded':
+          degraded += 1;
+          break;
+        default:
+          errorCount += 1;
+          break;
+      }
+    }
+    return { healthy, degraded, error: errorCount, unchecked };
+  }, [healthHistory, visibleProviders]);
 
   return (
     <main className="servers">
       <section className="servers__hero">
         <h1>Servidores MCP · operações</h1>
-        <p>
-          Gerencie o ciclo de vida dos servidores MCP diretamente pela console. Acompanhe status em tempo real, uptime e eventos
-          recentes.
-        </p>
+        <p>Gerencie o ciclo de vida dos servidores MCP diretamente pela console. Acompanhe status em tempo real, uptime, health-checks recentes e eventos relevantes.</p>
       </section>
 
       <section className="servers__status" aria-label="Resumo dos servidores">
@@ -351,8 +891,31 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         </div>
         <div className="status-pill status-pill--total">
           <span className="status-pill__dot status-pill__dot--total" />
-          <strong>{providers.length}</strong>
+          <strong>{statusSummary.total}</strong>
           <span>total</span>
+        </div>
+      </section>
+
+      <section className="servers__health" aria-label="Resumo de health-checks">
+        <div className="status-pill status-pill--healthy">
+          <span className="status-pill__dot status-pill__dot--healthy" />
+          <strong>{healthSummary.healthy}</strong>
+          <span>saudáveis</span>
+        </div>
+        <div className="status-pill status-pill--degraded">
+          <span className="status-pill__dot status-pill__dot--degraded" />
+          <strong>{healthSummary.degraded}</strong>
+          <span>instáveis</span>
+        </div>
+        <div className="status-pill status-pill--error">
+          <span className="status-pill__dot status-pill__dot--error" />
+          <strong>{healthSummary.error}</strong>
+          <span>falhas</span>
+        </div>
+        <div className="status-pill status-pill--unknown">
+          <span className="status-pill__dot status-pill__dot--unknown" />
+          <strong>{healthSummary.unchecked}</strong>
+          <span>sem ping</span>
         </div>
       </section>
 
@@ -365,11 +928,15 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
       )}
 
       <section className="server-grid" aria-live="polite">
-        {providers.map((provider) => {
+        {visibleProviders.map((provider) => {
           const state = processStates[provider.id] ?? createFallbackState(provider);
           const pendingForProvider =
             pendingAction && pendingAction.providerId === provider.id ? pendingAction.action : null;
           const actionMessage = actionErrors[provider.id] ?? state.lastError ?? null;
+          const history = healthHistory[provider.id] ?? [];
+          const latestHealth = history.length > 0 ? history[0] : null;
+          const pingState = pingStatus[provider.id];
+          const healthError = healthErrors[provider.id];
 
           return (
             <article key={provider.id} className="server-card">
@@ -414,6 +981,60 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                 {actionMessage && <p className="server-actions__feedback">{actionMessage}</p>}
               </ServerActions>
 
+              <div className="server-card__health">
+                <div className="server-card__health-header">
+                  <h3>Saúde operacional</h3>
+                  <div className="server-card__health-controls">
+                    <span className={getHealthBadgeClass(latestHealth?.status)}>
+                      {latestHealth ? formatHealthStatus(latestHealth.status) : 'Sem dados'}
+                    </span>
+                    <button
+                      type="button"
+                      className="server-card__health-button"
+                      onClick={() => handlePing(provider.id)}
+                      disabled={pingState?.isLoading}
+                    >
+                      {pingState?.isLoading ? 'Pingando…' : 'Ping agora'}
+                    </button>
+                  </div>
+                </div>
+                <p className="server-health__meta">
+                  {latestHealth
+                    ? `Último ping: ${formatCheckedAt(latestHealth.checkedAt)}${
+                        latestHealth.latencyMs != null ? ` · ${latestHealth.latencyMs} ms` : ''
+                      }`
+                    : 'Nenhum ping registrado.'}
+                </p>
+                {healthError && (
+                  <p className="server-health__error" role="alert">{healthError}</p>
+                )}
+                {pingState?.error && (
+                  <p className="server-health__error" role="alert">{pingState.error}</p>
+                )}
+                <ul className="server-health__list">
+                  {history.length === 0 ? (
+                    <li className="server-health__empty">Sem histórico recente.</li>
+                  ) : (
+                    history.map((entry, index) => (
+                      <li
+                        key={`${entry.checkedAt}-${index}`}
+                        className={`server-health__item server-health__item--${entry.status}`}
+                      >
+                        <div className="server-health__item-header">
+                          <span className="server-health__timestamp">{formatCheckedAt(entry.checkedAt)}</span>
+                          <span className="server-health__status">{formatHealthStatus(entry.status)}</span>
+                          {entry.latencyMs != null && (
+                            <span className="server-health__latency">{entry.latencyMs} ms</span>
+                          )}
+                        </div>
+                        {entry.message && <p className="server-health__note">{entry.message}</p>}
+                        {entry.actor && <p className="server-health__actor">Ação registrada por {entry.actor}</p>}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+
               <div className="server-card__logs">
                 <header>
                   <h3>Log tail</h3>
@@ -430,10 +1051,41 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                   ))}
                 </ol>
               </div>
+
+              <div className="server-card__actions-panel">
+                <button type="button" className="server-card__action" onClick={() => openEditDialog(provider)}>
+                  Editar servidor
+                </button>
+                <button
+                  type="button"
+                  className="server-card__action server-card__action--danger"
+                  onClick={() => openDeleteDialog(provider)}
+                >
+                  Remover servidor
+                </button>
+              </div>
             </article>
           );
         })}
       </section>
+
+      <EditServerDialog
+        provider={editState.provider}
+        isOpen={editState.isOpen}
+        isSubmitting={editState.isSubmitting}
+        error={editState.error}
+        onCancel={closeEditDialog}
+        onSubmit={submitEdit}
+      />
+      <ConfirmDeleteDialog
+        provider={deleteState.provider}
+        isOpen={deleteState.isOpen}
+        isSubmitting={deleteState.isSubmitting}
+        error={deleteState.error}
+        onCancel={closeDeleteDialog}
+        onConfirm={confirmDelete}
+      />
     </main>
   );
 }
+

@@ -2197,6 +2197,49 @@ main.dashboard {
   background: #2563eb;
 }
 
+.servers__health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.status-pill--healthy {
+  background: rgba(34, 197, 94, 0.18);
+  color: #15803d;
+}
+
+.status-pill__dot--healthy {
+  background: #16a34a;
+}
+
+.status-pill--degraded {
+  background: rgba(251, 191, 36, 0.2);
+  color: #b45309;
+}
+
+.status-pill__dot--degraded {
+  background: #fbbf24;
+}
+
+.status-pill--error {
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+}
+
+.status-pill__dot--error {
+  background: #dc2626;
+}
+
+.status-pill--unknown {
+  background: rgba(148, 163, 184, 0.22);
+  color: #475569;
+}
+
+.status-pill__dot--unknown {
+  background: #64748b;
+}
+
 .server-grid {
   display: grid;
   gap: 1.75rem;
@@ -2382,6 +2425,253 @@ main.dashboard {
 
 .log-entry--error .log-timestamp {
   color: #b91c1c;
+}
+
+.server-card__health {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 1.25rem;
+  border-radius: 16px;
+}
+
+.server-card__health-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.server-card__health-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.server-card__health-button {
+  border: none;
+  border-radius: 12px;
+  padding: 0.45rem 1rem;
+  background: rgba(59, 130, 246, 0.18);
+  color: #1d4ed8;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.server-card__health-button:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.28);
+  transform: translateY(-1px);
+}
+
+.server-card__health-button:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.server-health__meta {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.server-health__error {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.server-health__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.server-health__item {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  background: rgba(248, 250, 252, 0.85);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.server-health__item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.server-health__timestamp {
+  color: #1f2937;
+}
+
+.server-health__status {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+}
+
+.server-health__latency {
+  color: #0f172a;
+}
+
+.server-health__note,
+.server-health__actor {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.server-health__empty {
+  margin: 0;
+  color: #64748b;
+  font-style: italic;
+}
+
+.server-card__actions-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.server-card__action {
+  border: none;
+  border-radius: 12px;
+  padding: 0.55rem 1.2rem;
+  background: rgba(15, 118, 110, 0.15);
+  color: #0f766e;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.server-card__action:hover {
+  background: rgba(15, 118, 110, 0.25);
+  transform: translateY(-1px);
+}
+
+.server-card__action--danger {
+  background: rgba(248, 113, 113, 0.18);
+  color: #b91c1c;
+}
+
+.server-card__action--danger:hover {
+  background: rgba(248, 113, 113, 0.28);
+}
+
+.server-dialog {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  padding: 2rem 1.5rem;
+  z-index: 1200;
+}
+
+.server-dialog__content {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 26px 60px rgba(15, 23, 42, 0.2);
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.75rem;
+}
+
+.server-dialog__header h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.server-dialog__header p {
+  margin: 0;
+  color: #475569;
+}
+
+.server-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.server-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.server-dialog__field input,
+.server-dialog__field textarea {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.server-dialog__field textarea {
+  resize: vertical;
+}
+
+.server-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.server-dialog__actions button {
+  border: none;
+  border-radius: 12px;
+  padding: 0.55rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.server-dialog__primary {
+  background: rgba(37, 99, 235, 0.9);
+  color: #ffffff;
+}
+
+.server-dialog__primary:hover {
+  background: rgba(37, 99, 235, 1);
+}
+
+.server-dialog__danger {
+  background: rgba(248, 113, 113, 0.9);
+  color: #fff;
+}
+
+.server-dialog__danger:hover {
+  background: rgba(220, 38, 38, 0.95);
+}
+
+.server-dialog__error {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.server-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: #1f2937;
 }
 
 .server-actions__feedback {
