@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable
+from typing import Any, Dict, Iterable, Mapping
 
+import structlog
 from fastapi import APIRouter, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field
 
 from .policies import (
     CostPolicyAlreadyExistsError,
@@ -47,6 +49,9 @@ from .prices import (
 )
 from .registry import provider_registry, session_registry
 from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
+from .config_assistant.intents import AssistantIntent
+from .config_assistant.planner import plan_intent
+from .config_assistant.renderers import render_chat_reply
 from .schemas import (
     CostPoliciesResponse,
     CostPolicyCreateRequest,
@@ -140,6 +145,7 @@ from .telemetry import (
     query_timeseries,
     render_telemetry_export,
 )
+from .schemas_plan import Plan, PlanExecutionStatus
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessLogEntry,
@@ -150,8 +156,174 @@ from .supervisor import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["console"])
+assistant_logger = structlog.get_logger("console.config.routes")
 
 
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    intent: AssistantIntent | None = Field(default=None)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    intent: AssistantIntent | None = None
+    plan: Plan | None = None
+
+
+class PlanRequest(BaseModel):
+    intent: AssistantIntent
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PlanResponse(BaseModel):
+    plan: Plan
+
+
+class ApplyPlanRequest(BaseModel):
+    plan: Plan
+    dry_run: bool = Field(default=False)
+
+
+class ApplyPlanResponse(BaseModel):
+    status: PlanExecutionStatus
+    applied_steps: list[str] = Field(default_factory=list)
+    message: str
+
+
+class OnboardRequest(BaseModel):
+    repository: str = Field(..., min_length=1)
+    agent_name: str | None = Field(default=None)
+    capabilities: list[str] = Field(default_factory=list)
+
+
+class PolicyPatchRequest(BaseModel):
+    policy_id: str = Field(..., min_length=1)
+    changes: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ReloadRequest(BaseModel):
+    artifact_path: str = Field(..., min_length=1)
+    owner: str | None = Field(default=None)
+
+
+class ReloadResponse(BaseModel):
+    message: str
+    plan: Plan
+
+
+def _handle_planner_error(intent: AssistantIntent | None, error: Exception) -> None:
+    assistant_logger.warning(
+        "config.planner_error",
+        intent=intent.value if isinstance(intent, AssistantIntent) else intent,
+        error=str(error),
+    )
+
+
+def _build_plan(intent: AssistantIntent, payload: Mapping[str, Any]) -> Plan:
+    try:
+        return plan_intent(intent, payload)
+    except ValueError as exc:
+        _handle_planner_error(intent, exc)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/config/chat", response_model=ChatResponse)
+def chat_with_config_assistant(request: ChatRequest) -> ChatResponse:
+    """Entry point for conversational interactions with the configuration assistant."""
+
+    plan: Plan | None = None
+    if request.intent is not None:
+        try:
+            plan = plan_intent(request.intent, request.payload)
+        except ValueError as exc:
+            _handle_planner_error(request.intent, exc)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    reply = render_chat_reply(request.message, plan)
+    assistant_logger.info(
+        "config.chat",
+        intent=request.intent.value if isinstance(request.intent, AssistantIntent) else request.intent,
+        has_plan=plan is not None,
+    )
+    return ChatResponse(reply=reply, intent=request.intent, plan=plan)
+
+
+@router.post("/config/plan", response_model=PlanResponse)
+def create_plan(request: PlanRequest) -> PlanResponse:
+    """Generate a configuration plan for the requested intent."""
+
+    plan = _build_plan(request.intent, request.payload)
+    return PlanResponse(plan=plan)
+
+
+@router.post("/config/apply", response_model=ApplyPlanResponse)
+def apply_plan_endpoint(request: ApplyPlanRequest) -> ApplyPlanResponse:
+    """Simulate applying a configuration plan and return execution status."""
+
+    if request.dry_run:
+        assistant_logger.info(
+            "config.apply.dry_run",
+            intent=request.plan.intent,
+            step_count=len(request.plan.steps),
+        )
+        return ApplyPlanResponse(
+            status=PlanExecutionStatus.PENDING,
+            applied_steps=[],
+            message="Execução em modo dry-run: nenhuma alteração aplicada.",
+        )
+
+    applied = [step.id for step in request.plan.steps]
+    assistant_logger.info(
+        "config.apply.executed",
+        intent=request.plan.intent,
+        steps=applied,
+    )
+    return ApplyPlanResponse(
+        status=PlanExecutionStatus.COMPLETED,
+        applied_steps=applied,
+        message="Plano aplicado com sucesso.",
+    )
+
+
+@router.post("/config/mcp/onboard", response_model=PlanResponse)
+def onboard_mcp_agent(request: OnboardRequest) -> PlanResponse:
+    """Produce a plan focused on onboarding a new MCP agent."""
+
+    agent_name = request.agent_name or request.repository.rstrip("/").split("/")[-1]
+    payload: Dict[str, Any] = {
+        "agent_name": agent_name,
+        "repository": request.repository,
+    }
+    if request.capabilities:
+        payload["capabilities"] = request.capabilities
+
+    plan = _build_plan(AssistantIntent.ADD_AGENT, payload)
+    return PlanResponse(plan=plan)
+
+
+@router.patch("/config/policies", response_model=PlanResponse)
+def plan_policy_patch(request: PolicyPatchRequest) -> PlanResponse:
+    """Return a plan for applying policy updates before executing them."""
+
+    payload = {"policy_id": request.policy_id, "changes": request.changes}
+    plan = _build_plan(AssistantIntent.EDIT_POLICIES, payload)
+    return PlanResponse(plan=plan)
+
+
+@router.post("/config/reload", response_model=ReloadResponse)
+def reload_artifacts(request: ReloadRequest) -> ReloadResponse:
+    """Create a plan for regenerating configuration artifacts."""
+
+    payload: Dict[str, Any] = {"artifact_path": request.artifact_path}
+    if request.owner:
+        payload["owner"] = request.owner
+
+    plan = _build_plan(AssistantIntent.GENERATE_ARTIFACT, payload)
+    message = (
+        "Plano gerado para regerar artefatos." if request.owner is None else "Plano gerado para regerar artefato sob nova responsabilidade."
+    )
+    return ReloadResponse(message=message, plan=plan)
 @router.get("/healthz", response_model=HealthStatus)
 def read_health() -> HealthStatus:
     """Return an instantaneous health snapshot."""
