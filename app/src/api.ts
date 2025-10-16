@@ -1,5 +1,11 @@
 import { fetchFromApi, getApiBaseUrl } from './services/httpClient';
 
+export type BudgetPeriod = 'daily' | 'weekly' | 'monthly';
+export type RoutingTierId = 'economy' | 'balanced' | 'turbo';
+export type HitlEscalationChannel = 'email' | 'slack' | 'pagerduty';
+export type HitlRequestStatus = 'pending' | 'approved' | 'rejected';
+export type HitlResolution = 'approved' | 'rejected';
+
 export interface ProviderSummary {
   id: string;
   name: string;
@@ -93,6 +99,28 @@ export interface CostPolicyUpdateInput {
   tags?: string[];
 }
 
+export interface PolicyOverridesConfig {
+  policies?: {
+    confidence?: Partial<PolicyConfidenceConfig> | null;
+  } | null;
+  routing?: Partial<RoutingPolicyConfig> | null;
+  finops?: {
+    costCenter?: string | null;
+    budgets?: FinOpsBudget[] | null;
+    alerts?: FinOpsAlertThreshold[] | null;
+  } | null;
+  hitl?: {
+    enabled?: boolean;
+    checkpoints?: HitlCheckpoint[] | null;
+  } | null;
+  runtime?: {
+    maxIters?: number | null;
+    timeouts?: Partial<RuntimeTimeoutsConfig> | null;
+    retry?: Partial<RuntimeRetryConfig> | null;
+  } | null;
+  tracing?: Partial<TracingConfigSummary> | null;
+}
+
 export interface PolicyOverride {
   id: string;
   route: string;
@@ -102,6 +130,7 @@ export interface PolicyOverride {
   maxCostUsd: number | null;
   requireManualApproval: boolean;
   notes: string | null;
+  overrides: PolicyOverridesConfig | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -115,6 +144,48 @@ export interface PolicyOverrideCreateInput {
   maxCostUsd?: number | null;
   requireManualApproval?: boolean;
   notes?: string | null;
+  overrides?: PolicyOverridesConfig | null;
+}
+
+export interface HitlApprovalRequest {
+  id: string;
+  agent: string;
+  route: string | null;
+  checkpoint: string;
+  checkpointDetails: HitlCheckpoint | null;
+  submittedAt: string;
+  status: HitlRequestStatus;
+  confidence: number | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface HitlQueueSummary {
+  pending: HitlApprovalRequest[];
+  resolved: HitlApprovalRequest[];
+  updatedAt: string | null;
+}
+
+export interface HitlResolutionInput {
+  resolution: HitlResolution;
+  note?: string | null;
+}
+
+export type ComplianceStatus = 'pass' | 'warning' | 'fail';
+
+export interface PolicyComplianceItem {
+  id: string;
+  label: string;
+  description?: string | null;
+  required: boolean;
+  configured: boolean;
+  active: boolean;
+}
+
+export interface PolicyComplianceSummary {
+  status: ComplianceStatus;
+  updatedAt: string | null;
+  items: PolicyComplianceItem[];
 }
 
 export interface PolicyOverrideUpdateInput {
@@ -125,6 +196,7 @@ export interface PolicyOverrideUpdateInput {
   maxCostUsd?: number | null;
   requireManualApproval?: boolean;
   notes?: string | null;
+  overrides?: PolicyOverridesConfig | null;
 }
 
 export interface PolicyDeployment {
@@ -152,6 +224,104 @@ export interface PolicyDeploymentCreateInput {
 export interface PolicyDeploymentsSummary {
   deployments: PolicyDeployment[];
   activeId: string | null;
+}
+
+export interface FinOpsBudget {
+  tier: RoutingTierId;
+  amount: number;
+  currency: string;
+  period: BudgetPeriod;
+}
+
+export interface FinOpsAlertThreshold {
+  threshold: number;
+  channel: HitlEscalationChannel;
+}
+
+export interface FinOpsPolicyConfig {
+  costCenter: string;
+  budgets: FinOpsBudget[];
+  alerts: FinOpsAlertThreshold[];
+}
+
+export interface RoutingPolicyConfig {
+  maxIters: number;
+  maxAttempts: number;
+  requestTimeoutSeconds: number;
+  totalTimeoutSeconds: number | null;
+  defaultTier: RoutingTierId;
+  allowedTiers: RoutingTierId[];
+  fallbackTier: RoutingTierId | null;
+}
+
+export interface RuntimeTimeoutsConfig {
+  perIteration: number | null;
+  total: number | null;
+}
+
+export interface RuntimeRetryConfig {
+  maxAttempts: number;
+  initialDelay: number;
+  backoffFactor: number;
+  maxDelay: number;
+}
+
+export interface TracingConfigSummary {
+  enabled: boolean;
+  sampleRate: number;
+  exporter: 'otlp' | 'zipkin' | 'jaeger' | null;
+}
+
+export interface PolicyRuntimeSettings {
+  maxIters: number;
+  timeouts: RuntimeTimeoutsConfig;
+  retry: RuntimeRetryConfig;
+  tracing: TracingConfigSummary;
+}
+
+export interface HitlCheckpoint {
+  name: string;
+  description?: string | null;
+  required: boolean;
+  escalationChannel?: HitlEscalationChannel | null;
+}
+
+export interface HitlConfig {
+  enabled: boolean;
+  checkpoints: HitlCheckpoint[];
+  pendingApprovals: number;
+  lastUpdated: string | null;
+}
+
+export interface PolicyConfidenceConfig {
+  approval: number;
+  rejection: number;
+}
+
+export interface PolicyManifestSnapshot {
+  policies: { confidence: PolicyConfidenceConfig | null };
+  routing: RoutingPolicyConfig;
+  finops: FinOpsPolicyConfig;
+  hitl: HitlConfig;
+  runtime: PolicyRuntimeSettings;
+  overrides: PolicyOverridesConfig | null;
+  updatedAt: string | null;
+}
+
+export interface PolicyManifestUpdateInput {
+  policies?: { confidence?: Partial<PolicyConfidenceConfig> | null } | null;
+  routing?: Partial<RoutingPolicyConfig> | null;
+  finops?: Partial<FinOpsPolicyConfig> | null;
+  hitl?: {
+    enabled?: boolean;
+    checkpoints?: HitlCheckpoint[] | null;
+  } | null;
+  runtime?: {
+    maxIters?: number | null;
+    timeouts?: Partial<RuntimeTimeoutsConfig> | null;
+    retry?: Partial<RuntimeRetryConfig> | null;
+    tracing?: Partial<TracingConfigSummary> | null;
+  } | null;
 }
 
 export interface McpServer {
@@ -258,10 +428,140 @@ interface PolicyOverridePayload {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  overrides?: PolicyOverridesPayload | null;
 }
 
 interface PolicyOverridesResponsePayload {
   overrides: PolicyOverridePayload[];
+}
+
+interface FinOpsBudgetPayload {
+  tier: RoutingTierId;
+  amount: number;
+  currency: string;
+  period: BudgetPeriod;
+}
+
+interface FinOpsAlertPayload {
+  threshold: number;
+  channel: HitlEscalationChannel;
+}
+
+interface FinOpsConfigPayload {
+  cost_center?: string;
+  budgets?: FinOpsBudgetPayload[];
+  alerts?: FinOpsAlertPayload[];
+}
+
+interface RoutingPolicyPayload {
+  max_iters?: number;
+  max_attempts?: number;
+  request_timeout_seconds?: number;
+  total_timeout_seconds?: number | null;
+  default_tier?: RoutingTierId;
+  allowed_tiers?: RoutingTierId[];
+  fallback_tier?: RoutingTierId | null;
+}
+
+interface RuntimeTimeoutsPayload {
+  per_iteration?: number | null;
+  total?: number | null;
+}
+
+interface RuntimeRetryPayload {
+  max_attempts?: number;
+  initial_delay?: number;
+  backoff_factor?: number;
+  max_delay?: number;
+}
+
+interface TracingConfigPayload {
+  enabled?: boolean;
+  sample_rate?: number;
+  exporter?: 'otlp' | 'zipkin' | 'jaeger' | null;
+}
+
+interface PolicyRuntimePayload {
+  max_iters?: number;
+  timeouts?: RuntimeTimeoutsPayload;
+  retry?: RuntimeRetryPayload;
+  tracing?: TracingConfigPayload;
+}
+
+interface PolicyConfidencePayload {
+  approval?: number;
+  rejection?: number;
+}
+
+interface PoliciesSectionPayload {
+  confidence?: PolicyConfidencePayload;
+}
+
+interface HitlCheckpointPayload {
+  name: string;
+  description?: string | null;
+  required?: boolean;
+  escalation_channel?: HitlEscalationChannel | null;
+}
+
+interface HitlConfigPayload {
+  enabled?: boolean;
+  checkpoints?: HitlCheckpointPayload[];
+  pending_approvals?: number;
+  updated_at?: string | null;
+}
+
+interface PolicyManifestPayload {
+  policies?: PoliciesSectionPayload;
+  routing?: RoutingPolicyPayload;
+  finops?: FinOpsConfigPayload;
+  hitl?: HitlConfigPayload;
+  runtime?: PolicyRuntimePayload;
+  overrides?: PolicyOverridesPayload | null;
+  updated_at?: string | null;
+}
+
+interface PolicyOverridesPayload {
+  policies?: PoliciesSectionPayload;
+  routing?: RoutingPolicyPayload;
+  finops?: FinOpsConfigPayload;
+  hitl?: HitlConfigPayload;
+  runtime?: PolicyRuntimePayload;
+  tracing?: TracingConfigPayload;
+}
+
+interface HitlApprovalPayload {
+  id: string;
+  agent: string;
+  route: string | null;
+  checkpoint: string;
+  checkpoint_details?: HitlCheckpointPayload | null;
+  submitted_at: string;
+  status: HitlRequestStatus;
+  confidence?: number | null;
+  notes?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+interface HitlQueuePayload {
+  pending: HitlApprovalPayload[];
+  resolved?: HitlApprovalPayload[];
+  updated_at?: string | null;
+}
+
+interface PolicyComplianceItemPayload {
+  id: string;
+  label: string;
+  description?: string | null;
+  required: boolean;
+  configured: boolean;
+  active: boolean;
+}
+
+interface PolicyCompliancePayload {
+  status: ComplianceStatus;
+  updated_at?: string | null;
+  items: PolicyComplianceItemPayload[];
 }
 
 interface PolicyDeploymentPayload {
@@ -296,6 +596,7 @@ export interface SessionsResponse {
 export interface SessionCreatePayload {
   reason?: string;
   client?: string;
+  overrides?: PolicyOverridesConfig | null;
 }
 
 export interface SecretMetadata {
@@ -879,6 +1180,537 @@ export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<Policy
   return { templates, rollout };
 }
 
+function normalizeNumber(value: number | null | undefined, fallback: number | null): number | null {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fallback ?? null;
+  }
+  return value;
+}
+
+function clampZeroOne(value: number | undefined, fallback: number): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fallback;
+  }
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 1) {
+    return 1;
+  }
+  return value;
+}
+
+function mapFinOpsBudgetPayload(payload: FinOpsBudgetPayload): FinOpsBudget {
+  return {
+    tier: payload.tier,
+    amount: Number(payload.amount),
+    currency: payload.currency,
+    period: payload.period,
+  };
+}
+
+function mapFinOpsConfigPayload(payload?: FinOpsConfigPayload): FinOpsPolicyConfig {
+  return {
+    costCenter: payload?.cost_center ?? 'default',
+    budgets: (payload?.budgets ?? []).map(mapFinOpsBudgetPayload),
+    alerts: (payload?.alerts ?? []).map((alert) => ({
+      threshold: clampZeroOne(alert.threshold, 0.5),
+      channel: alert.channel,
+    })),
+  };
+}
+
+function mapRoutingPolicyPayload(payload?: RoutingPolicyPayload): RoutingPolicyConfig {
+  const defaultTier: RoutingTierId = payload?.default_tier ?? 'balanced';
+  const allowed = payload?.allowed_tiers && payload.allowed_tiers.length > 0 ? payload.allowed_tiers : [defaultTier];
+  const allowedSet = new Set<RoutingTierId>(allowed);
+  allowedSet.add(defaultTier);
+  const allowedTiers = Array.from(allowedSet);
+  const fallbackTier = payload?.fallback_tier && allowedSet.has(payload.fallback_tier)
+    ? payload.fallback_tier
+    : null;
+  const maxAttempts = Math.max(1, Math.round(payload?.max_attempts ?? 1));
+  const maxItersCandidate = Math.max(1, Math.round(payload?.max_iters ?? maxAttempts));
+  const requestTimeoutSeconds = Math.max(1, Math.round(payload?.request_timeout_seconds ?? 30));
+  const totalTimeoutSeconds = normalizeNumber(payload?.total_timeout_seconds ?? null, null);
+  return {
+    maxIters: maxItersCandidate,
+    maxAttempts,
+    requestTimeoutSeconds,
+    totalTimeoutSeconds,
+    defaultTier,
+    allowedTiers,
+    fallbackTier,
+  };
+}
+
+function mapRuntimeTimeoutsPayload(
+  payload?: RuntimeTimeoutsPayload,
+  defaults?: { perIteration?: number | null; total?: number | null },
+): RuntimeTimeoutsConfig {
+  const perIterationRaw = payload?.per_iteration ?? defaults?.perIteration ?? null;
+  const totalRaw = payload?.total ?? defaults?.total ?? null;
+  const perIteration = perIterationRaw != null && perIterationRaw > 0 ? perIterationRaw : null;
+  const total = totalRaw != null && totalRaw > 0 ? totalRaw : null;
+  return { perIteration, total };
+}
+
+function mapRuntimeRetryPayload(payload?: RuntimeRetryPayload, fallbackAttempts?: number): RuntimeRetryConfig {
+  const maxAttempts = Math.max(1, Math.round(payload?.max_attempts ?? fallbackAttempts ?? 1));
+  const initialDelay = payload?.initial_delay != null && payload.initial_delay >= 0 ? payload.initial_delay : 0.5;
+  const backoffFactor = payload?.backoff_factor != null && payload.backoff_factor >= 1 ? payload.backoff_factor : 2;
+  const maxDelayCandidate = payload?.max_delay != null && payload.max_delay > 0 ? payload.max_delay : initialDelay;
+  const maxDelay = Math.max(initialDelay, maxDelayCandidate);
+  return {
+    maxAttempts,
+    initialDelay,
+    backoffFactor,
+    maxDelay,
+  };
+}
+
+function mapTracingPayload(payload?: TracingConfigPayload): TracingConfigSummary {
+  return {
+    enabled: payload?.enabled ?? false,
+    sampleRate: clampZeroOne(payload?.sample_rate, 0.1),
+    exporter: payload?.exporter ?? null,
+  };
+}
+
+function mapPolicyRuntimePayload(
+  payload: PolicyRuntimePayload | undefined,
+  routing: RoutingPolicyConfig,
+): PolicyRuntimeSettings {
+  const maxIters = Math.max(1, Math.round(payload?.max_iters ?? routing.maxIters));
+  const timeouts = mapRuntimeTimeoutsPayload(payload?.timeouts, {
+    perIteration: routing.requestTimeoutSeconds,
+    total: routing.totalTimeoutSeconds,
+  });
+  const retry = mapRuntimeRetryPayload(payload?.retry, routing.maxAttempts);
+  const tracing = mapTracingPayload(payload?.tracing);
+  return {
+    maxIters,
+    timeouts,
+    retry,
+    tracing,
+  };
+}
+
+function mapHitlCheckpointPayload(payload: HitlCheckpointPayload): HitlCheckpoint {
+  return {
+    name: payload.name,
+    description: payload.description ?? null,
+    required: payload.required ?? false,
+    escalationChannel: payload.escalation_channel ?? null,
+  };
+}
+
+function mapHitlConfigPayload(payload?: HitlConfigPayload): HitlConfig {
+  return {
+    enabled: payload?.enabled ?? false,
+    checkpoints: (payload?.checkpoints ?? []).map(mapHitlCheckpointPayload),
+    pendingApprovals: payload?.pending_approvals ?? 0,
+    lastUpdated: payload?.updated_at ?? null,
+  };
+}
+
+function mapPolicyConfidence(payload?: PolicyConfidencePayload): PolicyConfidenceConfig | null {
+  if (!payload) {
+    return null;
+  }
+  const approval = clampZeroOne(payload.approval, 0.8);
+  const rejectionDefault = Math.min(approval, 0.5);
+  const rejection = clampZeroOne(payload.rejection, rejectionDefault);
+  return { approval, rejection };
+}
+
+function mapPolicyOverridesConfig(payload?: PolicyOverridesPayload | null): PolicyOverridesConfig | null {
+  if (!payload) {
+    return null;
+  }
+
+  const overrides: PolicyOverridesConfig = {};
+
+  if (payload.policies?.confidence) {
+    overrides.policies = { confidence: mapPolicyConfidence(payload.policies.confidence) };
+  }
+
+  if (payload.routing) {
+    const routing: Record<string, unknown> = {};
+    if (payload.routing.max_iters !== undefined) {
+      routing.maxIters = Math.max(1, Math.round(payload.routing.max_iters));
+    }
+    if (payload.routing.max_attempts !== undefined) {
+      routing.maxAttempts = Math.max(1, Math.round(payload.routing.max_attempts));
+    }
+    if (payload.routing.request_timeout_seconds !== undefined) {
+      routing.requestTimeoutSeconds = Math.max(1, Math.round(payload.routing.request_timeout_seconds));
+    }
+    if (payload.routing.total_timeout_seconds !== undefined) {
+      routing.totalTimeoutSeconds = payload.routing.total_timeout_seconds ?? null;
+    }
+    if (payload.routing.default_tier !== undefined) {
+      routing.defaultTier = payload.routing.default_tier;
+    }
+    if (payload.routing.allowed_tiers) {
+      routing.allowedTiers = [...payload.routing.allowed_tiers];
+    }
+    if (payload.routing.fallback_tier !== undefined) {
+      routing.fallbackTier = payload.routing.fallback_tier ?? null;
+    }
+    if (Object.keys(routing).length > 0) {
+      overrides.routing = routing as Partial<RoutingPolicyConfig>;
+    }
+  }
+
+  if (payload.finops) {
+    const finops: { costCenter?: string; budgets?: FinOpsBudget[]; alerts?: FinOpsAlertThreshold[] } = {};
+    if (payload.finops.cost_center !== undefined) {
+      finops.costCenter = payload.finops.cost_center ?? 'default';
+    }
+    if (payload.finops.budgets) {
+      finops.budgets = payload.finops.budgets.map(mapFinOpsBudgetPayload);
+    }
+    if (payload.finops.alerts) {
+      finops.alerts = payload.finops.alerts.map((alert) => ({
+        threshold: clampZeroOne(alert.threshold, 0.5),
+        channel: alert.channel,
+      }));
+    }
+    if (Object.keys(finops).length > 0) {
+      overrides.finops = finops;
+    }
+  }
+
+  if (payload.hitl) {
+    const hitl: { enabled?: boolean; checkpoints?: HitlCheckpoint[] } = {};
+    if (payload.hitl.enabled !== undefined) {
+      hitl.enabled = payload.hitl.enabled ?? false;
+    }
+    if (payload.hitl.checkpoints) {
+      hitl.checkpoints = payload.hitl.checkpoints.map(mapHitlCheckpointPayload);
+    }
+    if (Object.keys(hitl).length > 0) {
+      overrides.hitl = hitl;
+    }
+  }
+
+  if (payload.runtime) {
+    const runtime: PolicyOverridesConfig['runtime'] = {};
+    if (payload.runtime.max_iters !== undefined) {
+      runtime.maxIters = Math.max(1, Math.round(payload.runtime.max_iters));
+    }
+    if (payload.runtime.timeouts) {
+      runtime.timeouts = mapRuntimeTimeoutsPayload(payload.runtime.timeouts);
+    }
+    if (payload.runtime.retry) {
+      runtime.retry = mapRuntimeRetryPayload(payload.runtime.retry);
+    }
+    if (Object.keys(runtime).length > 0) {
+      overrides.runtime = runtime;
+    }
+  }
+
+  if (payload.tracing) {
+    overrides.tracing = mapTracingPayload(payload.tracing);
+  }
+
+  return Object.keys(overrides).length === 0 ? null : overrides;
+}
+
+function mapPolicyManifestPayload(payload: PolicyManifestPayload): PolicyManifestSnapshot {
+  const routing = mapRoutingPolicyPayload(payload.routing);
+  const finops = mapFinOpsConfigPayload(payload.finops);
+  const hitl = mapHitlConfigPayload(payload.hitl);
+  const runtime = mapPolicyRuntimePayload(payload.runtime, routing);
+  return {
+    policies: { confidence: mapPolicyConfidence(payload.policies?.confidence) },
+    routing,
+    finops,
+    hitl,
+    runtime,
+    overrides: mapPolicyOverridesConfig(payload.overrides),
+    updatedAt: payload.updated_at ?? null,
+  };
+}
+
+function serializeHitlCheckpoints(checkpoints?: HitlCheckpoint[] | null): HitlCheckpointPayload[] | undefined {
+  if (!checkpoints || checkpoints.length === 0) {
+    return undefined;
+  }
+  return checkpoints.map((checkpoint) => ({
+    name: checkpoint.name,
+    description: checkpoint.description ?? null,
+    required: checkpoint.required,
+    escalation_channel: checkpoint.escalationChannel ?? null,
+  }));
+}
+
+function serializePolicyOverrides(overrides?: PolicyOverridesConfig | null): PolicyOverridesPayload | undefined {
+  if (!overrides) {
+    return undefined;
+  }
+
+  const payload: PolicyOverridesPayload = {};
+
+  if (overrides.policies?.confidence) {
+    payload.policies = {
+      confidence: {
+        approval: overrides.policies.confidence.approval,
+        rejection: overrides.policies.confidence.rejection,
+      },
+    };
+  }
+
+  if (overrides.routing) {
+    const routing: RoutingPolicyPayload = {};
+    if (overrides.routing.maxIters !== undefined) {
+      routing.max_iters = overrides.routing.maxIters ?? undefined;
+    }
+    if (overrides.routing.maxAttempts !== undefined) {
+      routing.max_attempts = overrides.routing.maxAttempts ?? undefined;
+    }
+    if (overrides.routing.requestTimeoutSeconds !== undefined) {
+      routing.request_timeout_seconds = overrides.routing.requestTimeoutSeconds ?? undefined;
+    }
+    if (overrides.routing.totalTimeoutSeconds !== undefined) {
+      routing.total_timeout_seconds = overrides.routing.totalTimeoutSeconds ?? null;
+    }
+    if (overrides.routing.defaultTier !== undefined) {
+      routing.default_tier = overrides.routing.defaultTier ?? undefined;
+    }
+    if (overrides.routing.allowedTiers !== undefined) {
+      routing.allowed_tiers = overrides.routing.allowedTiers ?? undefined;
+    }
+    if (overrides.routing.fallbackTier !== undefined) {
+      routing.fallback_tier = overrides.routing.fallbackTier ?? null;
+    }
+    if (Object.keys(routing).length > 0) {
+      payload.routing = routing;
+    }
+  }
+
+  if (overrides.runtime) {
+    const runtime: PolicyRuntimePayload = {};
+    if (overrides.runtime.maxIters !== undefined) {
+      runtime.max_iters = overrides.runtime.maxIters ?? undefined;
+    }
+    if (overrides.runtime.timeouts) {
+      runtime.timeouts = {
+        per_iteration: overrides.runtime.timeouts.perIteration ?? undefined,
+        total: overrides.runtime.timeouts.total ?? undefined,
+      };
+    }
+    if (overrides.runtime.retry) {
+      runtime.retry = {
+        max_attempts: overrides.runtime.retry.maxAttempts ?? undefined,
+        initial_delay: overrides.runtime.retry.initialDelay ?? undefined,
+        backoff_factor: overrides.runtime.retry.backoffFactor ?? undefined,
+        max_delay: overrides.runtime.retry.maxDelay ?? undefined,
+      };
+    }
+    if (Object.keys(runtime).length > 0) {
+      payload.runtime = runtime;
+    }
+  }
+
+  if (overrides.finops) {
+    const finops: FinOpsConfigPayload = {};
+    if (overrides.finops.costCenter !== undefined) {
+      finops.cost_center = overrides.finops.costCenter ?? undefined;
+    }
+    if (overrides.finops.budgets) {
+      finops.budgets = overrides.finops.budgets.map((budget) => ({
+        tier: budget.tier,
+        amount: budget.amount,
+        currency: budget.currency,
+        period: budget.period,
+      }));
+    }
+    if (overrides.finops.alerts) {
+      finops.alerts = overrides.finops.alerts.map((alert) => ({
+        threshold: alert.threshold,
+        channel: alert.channel,
+      }));
+    }
+    if (Object.keys(finops).length > 0) {
+      payload.finops = finops;
+    }
+  }
+
+  if (overrides.hitl) {
+    const hitl: HitlConfigPayload = {};
+    if (overrides.hitl.enabled !== undefined) {
+      hitl.enabled = overrides.hitl.enabled;
+    }
+    if (overrides.hitl.checkpoints) {
+      hitl.checkpoints = serializeHitlCheckpoints(overrides.hitl.checkpoints) ?? [];
+    }
+    if (Object.keys(hitl).length > 0) {
+      payload.hitl = hitl;
+    }
+  }
+
+  if (overrides.tracing) {
+    payload.tracing = {
+      enabled: overrides.tracing.enabled,
+      sample_rate: overrides.tracing.sampleRate,
+      exporter: overrides.tracing.exporter ?? null,
+    };
+  }
+
+  return Object.keys(payload).length === 0 ? undefined : payload;
+}
+
+function serializePolicyManifestUpdate(payload: PolicyManifestUpdateInput): PolicyManifestPayload {
+  const result: PolicyManifestPayload = {};
+
+  if (payload.policies?.confidence) {
+    result.policies = {
+      confidence: {
+        approval: payload.policies.confidence.approval,
+        rejection: payload.policies.confidence.rejection,
+      },
+    };
+  }
+
+  if (payload.routing) {
+    const routing: RoutingPolicyPayload = {};
+    if (payload.routing.maxIters !== undefined) {
+      routing.max_iters = payload.routing.maxIters ?? undefined;
+    }
+    if (payload.routing.maxAttempts !== undefined) {
+      routing.max_attempts = payload.routing.maxAttempts ?? undefined;
+    }
+    if (payload.routing.requestTimeoutSeconds !== undefined) {
+      routing.request_timeout_seconds = payload.routing.requestTimeoutSeconds ?? undefined;
+    }
+    if (payload.routing.totalTimeoutSeconds !== undefined) {
+      routing.total_timeout_seconds = payload.routing.totalTimeoutSeconds ?? null;
+    }
+    if (payload.routing.defaultTier !== undefined) {
+      routing.default_tier = payload.routing.defaultTier ?? undefined;
+    }
+    if (payload.routing.allowedTiers !== undefined) {
+      routing.allowed_tiers = payload.routing.allowedTiers ?? undefined;
+    }
+    if (payload.routing.fallbackTier !== undefined) {
+      routing.fallback_tier = payload.routing.fallbackTier ?? null;
+    }
+    if (Object.keys(routing).length > 0) {
+      result.routing = routing;
+    }
+  }
+
+  if (payload.runtime) {
+    const runtime: PolicyRuntimePayload = {};
+    if (payload.runtime.maxIters !== undefined) {
+      runtime.max_iters = payload.runtime.maxIters ?? undefined;
+    }
+    if (payload.runtime.timeouts) {
+      runtime.timeouts = {
+        per_iteration: payload.runtime.timeouts.perIteration ?? undefined,
+        total: payload.runtime.timeouts.total ?? undefined,
+      };
+    }
+    if (payload.runtime.retry) {
+      runtime.retry = {
+        max_attempts: payload.runtime.retry.maxAttempts ?? undefined,
+        initial_delay: payload.runtime.retry.initialDelay ?? undefined,
+        backoff_factor: payload.runtime.retry.backoffFactor ?? undefined,
+        max_delay: payload.runtime.retry.maxDelay ?? undefined,
+      };
+    }
+    if (payload.runtime.tracing) {
+      runtime.tracing = {
+        enabled: payload.runtime.tracing.enabled,
+        sample_rate: payload.runtime.tracing.sampleRate,
+        exporter: payload.runtime.tracing.exporter ?? null,
+      };
+    }
+    if (Object.keys(runtime).length > 0) {
+      result.runtime = runtime;
+    }
+  }
+
+  if (payload.finops) {
+    const finops: FinOpsConfigPayload = {};
+    if (payload.finops.costCenter !== undefined) {
+      finops.cost_center = payload.finops.costCenter ?? undefined;
+    }
+    if (payload.finops.budgets) {
+      finops.budgets = payload.finops.budgets.map((budget) => ({
+        tier: budget.tier,
+        amount: budget.amount,
+        currency: budget.currency,
+        period: budget.period,
+      }));
+    }
+    if (payload.finops.alerts) {
+      finops.alerts = payload.finops.alerts.map((alert) => ({
+        threshold: alert.threshold,
+        channel: alert.channel,
+      }));
+    }
+    if (Object.keys(finops).length > 0) {
+      result.finops = finops;
+    }
+  }
+
+  if (payload.hitl) {
+    const hitl: HitlConfigPayload = {};
+    if (payload.hitl.enabled !== undefined) {
+      hitl.enabled = payload.hitl.enabled;
+    }
+    if (payload.hitl.checkpoints) {
+      hitl.checkpoints = serializeHitlCheckpoints(payload.hitl.checkpoints) ?? [];
+    }
+    if (Object.keys(hitl).length > 0) {
+      result.hitl = hitl;
+    }
+  }
+
+  return result;
+}
+
+function mapHitlApprovalRequestPayload(payload: HitlApprovalPayload): HitlApprovalRequest {
+  return {
+    id: payload.id,
+    agent: payload.agent,
+    route: payload.route ?? null,
+    checkpoint: payload.checkpoint,
+    checkpointDetails: payload.checkpoint_details ? mapHitlCheckpointPayload(payload.checkpoint_details) : null,
+    submittedAt: payload.submitted_at,
+    status: payload.status,
+    confidence: payload.confidence ?? null,
+    notes: payload.notes ?? null,
+    metadata: payload.metadata ?? null,
+  };
+}
+
+function mapHitlQueuePayload(payload: HitlQueuePayload): HitlQueueSummary {
+  return {
+    pending: (payload.pending ?? []).map(mapHitlApprovalRequestPayload),
+    resolved: (payload.resolved ?? []).map(mapHitlApprovalRequestPayload),
+    updatedAt: payload.updated_at ?? null,
+  };
+}
+
+function mapPolicyCompliancePayload(payload: PolicyCompliancePayload): PolicyComplianceSummary {
+  return {
+    status: payload.status,
+    updatedAt: payload.updated_at ?? null,
+    items: (payload.items ?? []).map((item) => ({
+      id: item.id,
+      label: item.label,
+      description: item.description ?? null,
+      required: item.required,
+      configured: item.configured,
+      active: item.active,
+    })),
+  };
+}
+
 function mapCostPolicy(payload: CostPolicyPayload): CostPolicy {
   return {
     id: payload.id,
@@ -949,6 +1781,7 @@ function mapPolicyOverride(payload: PolicyOverridePayload): PolicyOverride {
     maxCostUsd: payload.max_cost_usd,
     requireManualApproval: payload.require_manual_approval,
     notes: payload.notes ?? null,
+    overrides: mapPolicyOverridesConfig(payload.overrides ?? null),
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -963,6 +1796,7 @@ export async function createPolicyOverride(
   payload: PolicyOverrideCreateInput,
   signal?: AbortSignal,
 ): Promise<PolicyOverride> {
+  const overridesPayload = serializePolicyOverrides(payload.overrides ?? null);
   const data = await request<PolicyOverridePayload>('/policies/overrides', {
     method: 'POST',
     body: JSON.stringify({
@@ -974,6 +1808,7 @@ export async function createPolicyOverride(
       max_cost_usd: payload.maxCostUsd ?? null,
       require_manual_approval: payload.requireManualApproval ?? false,
       notes: payload.notes ?? null,
+      overrides: overridesPayload,
     }),
     signal,
   });
@@ -985,6 +1820,7 @@ export async function updatePolicyOverride(
   payload: PolicyOverrideUpdateInput,
   signal?: AbortSignal,
 ): Promise<PolicyOverride> {
+  const overridesPayload = serializePolicyOverrides(payload.overrides ?? null);
   const data = await request<PolicyOverridePayload>(`/policies/overrides/${overrideId}`, {
     method: 'PUT',
     body: JSON.stringify({
@@ -995,6 +1831,7 @@ export async function updatePolicyOverride(
       max_cost_usd: payload.maxCostUsd ?? null,
       require_manual_approval: payload.requireManualApproval ?? false,
       notes: payload.notes ?? null,
+      overrides: overridesPayload,
     }),
     signal,
   });
@@ -1006,6 +1843,59 @@ export async function deletePolicyOverride(
   signal?: AbortSignal,
 ): Promise<void> {
   await request<void>(`/policies/overrides/${overrideId}`, { method: 'DELETE', signal });
+}
+
+export async function fetchPolicyManifest(signal?: AbortSignal): Promise<PolicyManifestSnapshot> {
+  const data = await request<PolicyManifestPayload>('/policies/manifest', {
+    method: 'GET',
+    signal,
+  });
+  return mapPolicyManifestPayload(data);
+}
+
+export async function updatePolicyManifest(
+  payload: PolicyManifestUpdateInput,
+  signal?: AbortSignal,
+): Promise<PolicyManifestSnapshot> {
+  const body = serializePolicyManifestUpdate(payload);
+  const data = await request<PolicyManifestPayload>('/policies/manifest', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+    signal,
+  });
+  return mapPolicyManifestPayload(data);
+}
+
+export async function fetchHitlQueue(signal?: AbortSignal): Promise<HitlQueueSummary> {
+  const data = await request<HitlQueuePayload>('/policies/hitl/queue', {
+    method: 'GET',
+    signal,
+  });
+  return mapHitlQueuePayload(data);
+}
+
+export async function resolveHitlRequest(
+  requestId: string,
+  payload: HitlResolutionInput,
+  signal?: AbortSignal,
+): Promise<HitlApprovalRequest> {
+  const data = await request<HitlApprovalPayload>(`/policies/hitl/queue/${requestId}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      resolution: payload.resolution,
+      note: payload.note ?? null,
+    }),
+    signal,
+  });
+  return mapHitlApprovalRequestPayload(data);
+}
+
+export async function fetchPolicyCompliance(signal?: AbortSignal): Promise<PolicyComplianceSummary> {
+  const data = await request<PolicyCompliancePayload>('/policies/compliance', {
+    method: 'GET',
+    signal,
+  });
+  return mapPolicyCompliancePayload(data);
 }
 
 function mapPolicyDeployment(payload: PolicyDeploymentPayload): PolicyDeployment {
@@ -1069,9 +1959,13 @@ export async function createSession(
   payload: SessionCreatePayload = {},
   signal?: AbortSignal,
 ): Promise<SessionResponse> {
+  const overridesPayload = serializePolicyOverrides(payload.overrides ?? null);
   return request<SessionResponse>(`/providers/${providerId}/sessions`, {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      overrides: overridesPayload,
+    }),
     signal,
   });
 }

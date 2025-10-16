@@ -1,10 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 
 import {
   createPolicyDeployment,
   deletePolicyDeployment,
   fetchPolicyDeployments,
+  fetchPolicyManifest,
+  fetchHitlQueue,
   fetchPolicyTemplates,
+  resolveHitlRequest,
+  updatePolicyManifest,
+  type HitlEscalationChannel,
+  type HitlApprovalRequest,
+  type HitlCheckpoint,
+  type HitlQueueSummary,
+  type PolicyManifestSnapshot,
+  type PolicyManifestUpdateInput,
   type PolicyDeployment,
   type PolicyRolloutAllocation,
   type PolicyTemplate,
@@ -32,6 +43,13 @@ const EMPTY_TEMPLATE: PolicyTemplate = {
   features: [],
 };
 
+const ESCALATION_OPTIONS: Array<{ value: HitlEscalationChannel | ''; label: string }> = [
+  { value: '', label: 'Sem escalonamento' },
+  { value: 'slack', label: 'Slack' },
+  { value: 'email', label: 'E-mail' },
+  { value: 'pagerduty', label: 'PagerDuty' },
+];
+
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('pt-BR', {
     day: '2-digit',
@@ -43,6 +61,24 @@ function formatDateTime(value: string): string {
 }
 
 type BannerKind = 'success' | 'info' | 'warning';
+
+type RuntimeFormState = {
+  maxIters: string;
+  perIteration: string;
+  totalTimeout: string;
+  sampleRate: string;
+};
+
+type RuntimeFormErrors = {
+  maxIters?: string;
+  perIteration?: string;
+  totalTimeout?: string;
+  sampleRate?: string;
+  checkpoints?: string;
+};
+
+type RuntimeUpdateInput = NonNullable<PolicyManifestUpdateInput['runtime']>;
+type HitlUpdateInput = NonNullable<PolicyManifestUpdateInput['hitl']>;
 
 export default function Policies({ providers, isLoading, initialError }: PoliciesProps) {
   const [templates, setTemplates] = useState<PolicyTemplate[]>([]);
@@ -57,6 +93,24 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   const [banner, setBanner] = useState<{ kind: BannerKind; message: string } | null>(null);
   const [rolloutPlans, setRolloutPlans] = useState<Map<PolicyTemplateId, PolicyRolloutAllocation[]>>(new Map());
   const [rolloutTimestamp, setRolloutTimestamp] = useState<string | null>(null);
+  const [manifest, setManifest] = useState<PolicyManifestSnapshot | null>(null);
+  const [isManifestLoading, setManifestLoading] = useState(false);
+  const [manifestError, setManifestError] = useState<string | null>(null);
+  const [runtimeForm, setRuntimeForm] = useState<RuntimeFormState>({
+    maxIters: '',
+    perIteration: '',
+    totalTimeout: '',
+    sampleRate: '10',
+  });
+  const [runtimeErrors, setRuntimeErrors] = useState<RuntimeFormErrors>({});
+  const [isRuntimeSaving, setIsRuntimeSaving] = useState(false);
+  const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
+  const [hitlEnabled, setHitlEnabled] = useState(false);
+  const [checkpoints, setCheckpoints] = useState<HitlCheckpoint[]>([]);
+  const [hitlQueue, setHitlQueue] = useState<HitlQueueSummary | null>(null);
+  const [isHitlLoading, setHitlLoading] = useState(false);
+  const [hitlError, setHitlError] = useState<string | null>(null);
+  const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -107,6 +161,208 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     };
   }, []);
 
+  const handleRuntimeFieldChange = useCallback(
+    (field: 'maxIters' | 'perIteration' | 'totalTimeout' | 'sampleRate', value: string) => {
+      setRuntimeForm((current) => ({ ...current, [field]: value }));
+      setRuntimeErrors((current) => ({ ...current, [field]: undefined }));
+    },
+    [],
+  );
+
+  const handleHitlToggle = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setHitlEnabled(event.target.checked);
+    setRuntimeErrors((current) => ({ ...current, checkpoints: undefined }));
+  }, []);
+
+  const handleAddCheckpoint = useCallback(() => {
+    setCheckpoints((current) => [
+      ...current,
+      { name: '', description: null, required: false, escalationChannel: null },
+    ]);
+    setRuntimeErrors((current) => ({ ...current, checkpoints: undefined }));
+  }, []);
+
+  const handleCheckpointChange = useCallback(
+    (index: number, field: 'name' | 'description' | 'required' | 'escalationChannel', value: string | boolean) => {
+      setCheckpoints((current) => {
+        const next = current.slice();
+        const existing = next[index] ?? { name: '', description: null, required: false, escalationChannel: null };
+        const updated: HitlCheckpoint = { ...existing };
+
+        if (field === 'required') {
+          updated.required = Boolean(value);
+        } else if (field === 'name') {
+          updated.name = String(value);
+        } else if (field === 'description') {
+          const stringValue = String(value);
+          updated.description = stringValue ? stringValue : null;
+        } else {
+          const stringValue = String(value);
+          updated.escalationChannel = stringValue ? (stringValue as HitlEscalationChannel) : null;
+        }
+
+        next[index] = updated;
+        return next;
+      });
+      setRuntimeErrors((current) => ({ ...current, checkpoints: undefined }));
+    },
+    [],
+  );
+
+  const handleRemoveCheckpoint = useCallback((index: number) => {
+    setCheckpoints((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setRuntimeErrors((current) => ({ ...current, checkpoints: undefined }));
+  }, []);
+
+  const refreshHitlQueue = useCallback(async (signal?: AbortSignal) => {
+    setHitlLoading(true);
+    setHitlError(null);
+    try {
+      const queue = await fetchHitlQueue(signal);
+      setHitlQueue(queue);
+    } catch (error) {
+      if ((error as { name?: string }).name === 'AbortError') {
+        return;
+      }
+      console.error('Failed to atualizar fila HITL', error);
+      setHitlError('Falha ao atualizar fila de aprovações humanas.');
+    } finally {
+      setHitlLoading(false);
+    }
+  }, []);
+
+  const handleHitlResolution = useCallback(
+    async (request: HitlApprovalRequest, resolution: 'approved' | 'rejected') => {
+      setResolvingRequestId(request.id);
+      setHitlError(null);
+      try {
+        const updated = await resolveHitlRequest(request.id, {
+          resolution,
+          note: resolution === 'approved' ? 'Aprovado via Console MCP' : 'Rejeitado via Console MCP',
+        });
+        setHitlQueue((current) => {
+          const pending = current?.pending ?? [];
+          const resolved = current?.resolved ?? [];
+          return {
+            pending: pending.filter((item) => item.id !== request.id),
+            resolved: [updated, ...resolved],
+            updatedAt: new Date().toISOString(),
+          };
+        });
+      } catch (error) {
+        console.error('Failed to atualizar aprovação HITL', error);
+        setHitlError('Não foi possível registrar a decisão humana.');
+      } finally {
+        setResolvingRequestId(null);
+      }
+    },
+    [],
+  );
+
+  const handleRuntimeSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const nextErrors: RuntimeFormErrors = {};
+
+      const maxItersValue = runtimeForm.maxIters.trim() ? Number(runtimeForm.maxIters) : null;
+      if (runtimeForm.maxIters && (Number.isNaN(maxItersValue) || (maxItersValue ?? 0) < 1)) {
+        nextErrors.maxIters = 'Informe um número inteiro maior que zero.';
+      }
+
+      const perIterationValue = runtimeForm.perIteration.trim() ? Number(runtimeForm.perIteration) : null;
+      if (runtimeForm.perIteration && (Number.isNaN(perIterationValue) || (perIterationValue ?? 0) <= 0)) {
+        nextErrors.perIteration = 'Timeout por iteração deve ser positivo.';
+      }
+
+      const totalTimeoutValue = runtimeForm.totalTimeout.trim() ? Number(runtimeForm.totalTimeout) : null;
+      if (runtimeForm.totalTimeout && (Number.isNaN(totalTimeoutValue) || (totalTimeoutValue ?? 0) <= 0)) {
+        nextErrors.totalTimeout = 'Timeout total deve ser positivo.';
+      }
+
+      const sampleRateValue = runtimeForm.sampleRate.trim() ? Number(runtimeForm.sampleRate) : null;
+      if (
+        runtimeForm.sampleRate &&
+        (Number.isNaN(sampleRateValue) || (sampleRateValue ?? 0) < 0 || (sampleRateValue ?? 0) > 100)
+      ) {
+        nextErrors.sampleRate = 'Amostragem deve estar entre 0% e 100%.';
+      }
+
+      if (hitlEnabled) {
+        const missingNames = checkpoints.some((checkpoint) => !checkpoint.name.trim());
+        if (missingNames) {
+          nextErrors.checkpoints = 'Todos os checkpoints devem ter um nome.';
+        }
+      }
+
+      if (Object.keys(nextErrors).length > 0) {
+        setRuntimeErrors(nextErrors);
+        return;
+      }
+
+      const runtimeUpdate: RuntimeUpdateInput = {};
+
+      if (maxItersValue !== null) {
+        runtimeUpdate.maxIters = Math.round(maxItersValue);
+      }
+
+      const timeoutsUpdate: { perIteration?: number | null; total?: number | null } = {};
+      if (perIterationValue !== null) {
+        timeoutsUpdate.perIteration = perIterationValue;
+      }
+      if (totalTimeoutValue !== null) {
+        timeoutsUpdate.total = totalTimeoutValue;
+      }
+      if (Object.keys(timeoutsUpdate).length > 0) {
+        runtimeUpdate.timeouts = timeoutsUpdate;
+      }
+
+      if (sampleRateValue !== null) {
+        runtimeUpdate.tracing = {
+          enabled: (sampleRateValue ?? 0) > 0,
+          sampleRate: (Math.min(100, Math.max(0, sampleRateValue ?? 0)) / 100) || 0,
+        };
+      }
+
+      const hitlUpdate: HitlUpdateInput = {
+        enabled: hitlEnabled,
+        checkpoints: checkpoints.map((checkpoint) => ({
+          name: checkpoint.name.trim(),
+          description: checkpoint.description?.trim() || null,
+          required: checkpoint.required,
+          escalationChannel: checkpoint.escalationChannel ?? null,
+        })),
+      };
+
+      setIsRuntimeSaving(true);
+      setRuntimeMessage(null);
+      try {
+        const payload: PolicyManifestUpdateInput = {};
+        if (Object.keys(runtimeUpdate).length > 0) {
+          payload.runtime = runtimeUpdate;
+        }
+        payload.hitl = hitlUpdate;
+
+        const snapshot = await updatePolicyManifest(payload);
+        setManifest(snapshot);
+        setHitlEnabled(snapshot.hitl.enabled);
+        setCheckpoints(snapshot.hitl.checkpoints);
+        setRuntimeForm({
+          maxIters: snapshot.runtime.maxIters ? String(snapshot.runtime.maxIters) : '',
+          perIteration: snapshot.runtime.timeouts.perIteration ? String(snapshot.runtime.timeouts.perIteration) : '',
+          totalTimeout: snapshot.runtime.timeouts.total ? String(snapshot.runtime.timeouts.total) : '',
+          sampleRate: String(Math.round((snapshot.runtime.tracing.sampleRate ?? 0) * 100)),
+        });
+        setRuntimeErrors({});
+        setRuntimeMessage('Configurações atualizadas com sucesso.');
+      } catch (error) {
+        console.error('Failed to atualizar configuração de runtime', error);
+        setRuntimeMessage('Falha ao salvar as alterações. Tente novamente.');
+      } finally {
+        setIsRuntimeSaving(false);
+      }
+    },
+    [checkpoints, hitlEnabled, runtimeForm],
+  );
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -145,6 +401,51 @@ export default function Policies({ providers, isLoading, initialError }: Policie
       controller.abort();
     };
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    async function loadManifestData() {
+      setManifestLoading(true);
+      setManifestError(null);
+      try {
+        const snapshot = await fetchPolicyManifest(controller.signal);
+        if (!active) {
+          return;
+        }
+        setManifest(snapshot);
+        setHitlEnabled(snapshot.hitl.enabled);
+        setCheckpoints(snapshot.hitl.checkpoints);
+        setRuntimeForm({
+          maxIters: snapshot.runtime.maxIters ? String(snapshot.runtime.maxIters) : '',
+          perIteration: snapshot.runtime.timeouts.perIteration ? String(snapshot.runtime.timeouts.perIteration) : '',
+          totalTimeout: snapshot.runtime.timeouts.total ? String(snapshot.runtime.timeouts.total) : '',
+          sampleRate: String(Math.round((snapshot.runtime.tracing.sampleRate ?? 0) * 100)),
+        });
+        setRuntimeErrors({});
+        setRuntimeMessage(null);
+      } catch (error) {
+        if (!active || (error as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to load manifest snapshot', error);
+        setManifestError('Não foi possível carregar a configuração de runtime e HITL.');
+      } finally {
+        if (active) {
+          setManifestLoading(false);
+        }
+      }
+    }
+
+    loadManifestData();
+    refreshHitlQueue(controller.signal);
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [refreshHitlQueue]);
 
   const templateMap = useMemo(
     () => new Map(templates.map((template) => [template.id, template])),
@@ -419,6 +720,261 @@ export default function Policies({ providers, isLoading, initialError }: Policie
                   ) : (
                     <span className="rollout-chip rollout-chip--muted">Sem servidores neste estágio</span>
                   )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="policies__runtime" aria-labelledby="runtime-settings-heading">
+        <header>
+          <div>
+            <h2 id="runtime-settings-heading">Runtime, timeouts e tracing</h2>
+            <p>Edite limites operacionais aplicados durante as execuções MCP.</p>
+          </div>
+        </header>
+        {manifestError && <p className="error">{manifestError}</p>}
+        {runtimeMessage && <p className="status status--inline">{runtimeMessage}</p>}
+        <form className="runtime-settings" onSubmit={handleRuntimeSubmit}>
+          <div className="runtime-settings__grid">
+            <label className="form-field">
+              <span>Máximo de iterações</span>
+              <input
+                type="number"
+                min={1}
+                value={runtimeForm.maxIters}
+                onChange={(event) => handleRuntimeFieldChange('maxIters', event.target.value)}
+                placeholder="ex.: 3"
+                disabled={isManifestLoading || isRuntimeSaving}
+                aria-invalid={runtimeErrors.maxIters ? 'true' : 'false'}
+                aria-describedby={runtimeErrors.maxIters ? 'runtime-maxiters-error' : undefined}
+              />
+              {runtimeErrors.maxIters && (
+                <span id="runtime-maxiters-error" className="form-field__error">
+                  {runtimeErrors.maxIters}
+                </span>
+              )}
+            </label>
+
+            <label className="form-field">
+              <span>Timeout por iteração (s)</span>
+              <input
+                type="number"
+                min={1}
+                value={runtimeForm.perIteration}
+                onChange={(event) => handleRuntimeFieldChange('perIteration', event.target.value)}
+                placeholder="ex.: 45"
+                disabled={isManifestLoading || isRuntimeSaving}
+                aria-invalid={runtimeErrors.perIteration ? 'true' : 'false'}
+                aria-describedby={runtimeErrors.perIteration ? 'runtime-periteration-error' : undefined}
+              />
+              {runtimeErrors.perIteration && (
+                <span id="runtime-periteration-error" className="form-field__error">
+                  {runtimeErrors.perIteration}
+                </span>
+              )}
+            </label>
+
+            <label className="form-field">
+              <span>Timeout total (s)</span>
+              <input
+                type="number"
+                min={1}
+                value={runtimeForm.totalTimeout}
+                onChange={(event) => handleRuntimeFieldChange('totalTimeout', event.target.value)}
+                placeholder="ex.: 180"
+                disabled={isManifestLoading || isRuntimeSaving}
+                aria-invalid={runtimeErrors.totalTimeout ? 'true' : 'false'}
+                aria-describedby={runtimeErrors.totalTimeout ? 'runtime-totaltimeout-error' : undefined}
+              />
+              {runtimeErrors.totalTimeout && (
+                <span id="runtime-totaltimeout-error" className="form-field__error">
+                  {runtimeErrors.totalTimeout}
+                </span>
+              )}
+            </label>
+
+            <label className="form-field">
+              <span>Sample rate de tracing (%)</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={runtimeForm.sampleRate}
+                onChange={(event) => handleRuntimeFieldChange('sampleRate', event.target.value)}
+                placeholder="ex.: 10"
+                disabled={isManifestLoading || isRuntimeSaving}
+                aria-invalid={runtimeErrors.sampleRate ? 'true' : 'false'}
+                aria-describedby={runtimeErrors.sampleRate ? 'runtime-samplerate-error' : undefined}
+              />
+              {runtimeErrors.sampleRate && (
+                <span id="runtime-samplerate-error" className="form-field__error">
+                  {runtimeErrors.sampleRate}
+                </span>
+              )}
+            </label>
+          </div>
+
+          <fieldset className="runtime-settings__hitl">
+            <legend>Checkpoints de aprovação humana (HITL)</legend>
+            <label className="form-field form-field--checkbox">
+              <input
+                type="checkbox"
+                checked={hitlEnabled}
+                onChange={handleHitlToggle}
+                disabled={isManifestLoading || isRuntimeSaving}
+              />
+              <span>Exigir aprovação humana para este agente</span>
+            </label>
+            {hitlEnabled && (
+              <>
+                <p className="help-text">Adicione checkpoints para pausar execuções críticas e acionar o time certo.</p>
+                <div className="checkpoint-list">
+                  {checkpoints.length === 0 && <p className="info">Nenhum checkpoint definido. Adicione um abaixo.</p>}
+                  {checkpoints.map((checkpoint, index) => (
+                    <div key={`checkpoint-${index}`} className="checkpoint-item">
+                      <div className="checkpoint-item__fields">
+                        <label className="form-field">
+                          <span>Nome</span>
+                          <input
+                            type="text"
+                            value={checkpoint.name}
+                            onChange={(event) => handleCheckpointChange(index, 'name', event.target.value)}
+                            disabled={isRuntimeSaving}
+                            placeholder="ex.: Ops review"
+                          />
+                        </label>
+                        <label className="form-field">
+                          <span>Descrição</span>
+                          <input
+                            type="text"
+                            value={checkpoint.description ?? ''}
+                            onChange={(event) => handleCheckpointChange(index, 'description', event.target.value)}
+                            disabled={isRuntimeSaving}
+                            placeholder="Contextualize o checkpoint"
+                          />
+                        </label>
+                      </div>
+                      <div className="checkpoint-item__meta">
+                        <label className="form-field form-field--checkbox">
+                          <input
+                            type="checkbox"
+                            checked={checkpoint.required}
+                            onChange={(event) => handleCheckpointChange(index, 'required', event.target.checked)}
+                            disabled={isRuntimeSaving}
+                          />
+                          <span>Obrigatório para continuar</span>
+                        </label>
+                        <label className="form-field">
+                          <span>Escalonamento</span>
+                          <select
+                            value={checkpoint.escalationChannel ?? ''}
+                            onChange={(event) => handleCheckpointChange(index, 'escalationChannel', event.target.value)}
+                            disabled={isRuntimeSaving}
+                          >
+                            {ESCALATION_OPTIONS.map((option) => (
+                              <option key={option.value || 'none'} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          className="button button--ghost checkpoint-item__remove"
+                          onClick={() => handleRemoveCheckpoint(index)}
+                          disabled={isRuntimeSaving}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  onClick={handleAddCheckpoint}
+                  disabled={isRuntimeSaving}
+                >
+                  Adicionar checkpoint
+                </button>
+              </>
+            )}
+            {runtimeErrors.checkpoints && <p className="form-field__error">{runtimeErrors.checkpoints}</p>}
+          </fieldset>
+
+          <div className="runtime-settings__actions">
+            <button type="submit" className="button button--primary" disabled={isRuntimeSaving || isManifestLoading}>
+              {isRuntimeSaving ? 'Salvando…' : 'Salvar alterações'}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="policies__hitl" aria-labelledby="hitl-queue-heading">
+        <header>
+          <div>
+            <h2 id="hitl-queue-heading">Fila de aprovações humanas</h2>
+            <p>Monitore e aprove ou rejeite execuções que exigem intervenção humana.</p>
+          </div>
+          <button
+            type="button"
+            className="button button--ghost"
+            onClick={() => refreshHitlQueue()}
+            disabled={isHitlLoading}
+          >
+            {isHitlLoading ? 'Atualizando…' : 'Atualizar fila'}
+          </button>
+        </header>
+        <span className="hitl-queue__timestamp">
+          Última atualização: {hitlQueue?.updatedAt ? formatDateTime(hitlQueue.updatedAt) : '—'}
+        </span>
+        {hitlError && <p className="error">{hitlError}</p>}
+        {isHitlLoading && <p className="status">Carregando fila de aprovações…</p>}
+        {!isHitlLoading && hitlQueue && hitlQueue.pending.length === 0 && (
+          <p className="info">Nenhuma aprovação pendente no momento.</p>
+        )}
+        {!isHitlLoading && hitlQueue && hitlQueue.pending.length > 0 && (
+          <ul className="hitl-queue">
+            {hitlQueue.pending.map((request) => (
+              <li key={request.id} className="hitl-queue__item">
+                <div className="hitl-queue__details">
+                  <h3>{request.checkpoint}</h3>
+                  <p>{request.metadata?.reason ? String(request.metadata.reason) : 'Aguardando decisão.'}</p>
+                  <dl>
+                    <div>
+                      <dt>Agente</dt>
+                      <dd>{request.agent}</dd>
+                    </div>
+                    <div>
+                      <dt>Rota</dt>
+                      <dd>{request.route ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Confiança</dt>
+                      <dd>{request.confidence != null ? `${Math.round(request.confidence * 100)}%` : '—'}</dd>
+                    </div>
+                  </dl>
+                </div>
+                <div className="hitl-queue__actions">
+                  <button
+                    type="button"
+                    className="button button--ghost"
+                    onClick={() => handleHitlResolution(request, 'rejected')}
+                    disabled={resolvingRequestId === request.id}
+                  >
+                    Bloquear
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--primary"
+                    onClick={() => handleHitlResolution(request, 'approved')}
+                    disabled={resolvingRequestId === request.id}
+                  >
+                    Liberar
+                  </button>
                 </div>
               </li>
             ))}

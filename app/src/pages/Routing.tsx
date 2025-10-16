@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 
 import {
+  fetchPolicyManifest,
   simulateRouting,
+  updatePolicyManifest,
+  type PolicyManifestSnapshot,
+  type PolicyManifestUpdateInput,
+  type RoutingTierId,
   type ProviderSummary,
   type RoutingSimulationResult,
   type RoutingStrategyId,
@@ -18,6 +24,25 @@ interface Strategy {
   label: string;
   description: string;
   focus: string;
+}
+
+interface RoutingFormState {
+  maxIters: string;
+  maxAttempts: string;
+  requestTimeout: string;
+  totalTimeout: string;
+  defaultTier: RoutingTierId;
+  fallbackTier: RoutingTierId | '';
+  allowedTiers: Set<RoutingTierId>;
+}
+
+interface RoutingFormErrors {
+  maxIters?: string;
+  maxAttempts?: string;
+  requestTimeout?: string;
+  totalTimeout?: string;
+  allowedTiers?: string;
+  fallbackTier?: string;
 }
 
 const STRATEGIES: Strategy[] = [
@@ -48,6 +73,12 @@ const STRATEGIES: Strategy[] = [
 ];
 
 const STRATEGY_MAP = new Map(STRATEGIES.map((strategy) => [strategy.id, strategy]));
+
+const TIER_LABEL: Record<RoutingTierId, string> = {
+  economy: 'Economy',
+  balanced: 'Balanced',
+  turbo: 'Turbo',
+};
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -83,12 +114,80 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   const [plan, setPlan] = useState<RoutingSimulationResult | null>(null);
   const [simulationError, setSimulationError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [manifest, setManifest] = useState<PolicyManifestSnapshot | null>(null);
+  const [isManifestLoading, setManifestLoading] = useState(false);
+  const [manifestError, setManifestError] = useState<string | null>(null);
+  const [routingForm, setRoutingForm] = useState<RoutingFormState>({
+    maxIters: '',
+    maxAttempts: '',
+    requestTimeout: '',
+    totalTimeout: '',
+    defaultTier: 'balanced',
+    fallbackTier: '',
+    allowedTiers: new Set<RoutingTierId>(['balanced']),
+  });
+  const [routingErrors, setRoutingErrors] = useState<RoutingFormErrors>({});
+  const [routingMessage, setRoutingMessage] = useState<string | null>(null);
+  const [isRoutingSaving, setRoutingSaving] = useState(false);
 
   useEffect(() => {
     if (failoverId && !providers.some((provider) => provider.id === failoverId)) {
       setFailoverId(null);
     }
   }, [providers, failoverId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    setManifestLoading(true);
+    setManifestError(null);
+
+    fetchPolicyManifest(controller.signal)
+      .then((snapshot) => {
+        if (!active) {
+          return;
+        }
+        setManifest(snapshot);
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        if ((error as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        setManifestError('Não foi possível carregar o manifesto de roteamento.');
+      })
+      .finally(() => {
+        if (active) {
+          setManifestLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!manifest) {
+      return;
+    }
+
+    const routing = manifest.routing;
+    setRoutingForm({
+      maxIters: routing.maxIters.toString(),
+      maxAttempts: routing.maxAttempts.toString(),
+      requestTimeout: routing.requestTimeoutSeconds.toString(),
+      totalTimeout: routing.totalTimeoutSeconds ? routing.totalTimeoutSeconds.toString() : '',
+      defaultTier: routing.defaultTier,
+      fallbackTier: routing.fallbackTier ?? '',
+      allowedTiers: new Set<RoutingTierId>(routing.allowedTiers),
+    });
+    setRoutingErrors({});
+  }, [manifest]);
 
   useEffect(() => {
     if (providers.length === 0) {
@@ -161,6 +260,161 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   const simulationMessage = simulationError ?? (isSimulating ? 'Carregando simulação…' : 'Simulação indisponível no momento.');
   const statusRole = simulationError ? 'alert' : 'status';
 
+  const allowedTiers = useMemo(() => Array.from(routingForm.allowedTiers.values()), [routingForm.allowedTiers]);
+
+  const fallbackOptions = useMemo(() => {
+    return [''].concat(allowedTiers.filter((tier) => tier !== routingForm.defaultTier));
+  }, [allowedTiers, routingForm.defaultTier]);
+
+  const handleRoutingFieldChange = useCallback(
+    (field: keyof Pick<RoutingFormState, 'maxIters' | 'maxAttempts' | 'requestTimeout' | 'totalTimeout'>, value: string) => {
+      setRoutingForm((current) => ({ ...current, [field]: value }));
+      setRoutingErrors((current) => ({ ...current, [field]: undefined }));
+      setRoutingMessage(null);
+    },
+    [],
+  );
+
+  const handleDefaultTierChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    const nextTier = event.target.value as RoutingTierId;
+    setRoutingForm((current) => {
+      const nextAllowed = new Set<RoutingTierId>(current.allowedTiers);
+      nextAllowed.add(nextTier);
+      const nextFallback = current.fallbackTier === nextTier ? '' : current.fallbackTier;
+      return {
+        ...current,
+        defaultTier: nextTier,
+        fallbackTier: nextFallback,
+        allowedTiers: nextAllowed,
+      };
+    });
+    setRoutingErrors((current) => ({ ...current, allowedTiers: undefined }));
+    setRoutingMessage(null);
+  }, []);
+
+  const handleFallbackChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value as RoutingTierId | '';
+    setRoutingForm((current) => ({ ...current, fallbackTier: value }));
+    setRoutingErrors((current) => ({ ...current, fallbackTier: undefined }));
+    setRoutingMessage(null);
+  }, []);
+
+  const handleAllowedTierToggle = useCallback((tier: RoutingTierId) => {
+    setRoutingForm((current) => {
+      if (tier === current.defaultTier) {
+        return current;
+      }
+
+      const nextAllowed = new Set<RoutingTierId>(current.allowedTiers);
+      if (nextAllowed.has(tier)) {
+        nextAllowed.delete(tier);
+      } else {
+        nextAllowed.add(tier);
+      }
+
+      const nextFallback = nextAllowed.has(current.fallbackTier as RoutingTierId)
+        ? current.fallbackTier
+        : '';
+
+      return { ...current, allowedTiers: nextAllowed, fallbackTier: nextFallback };
+    });
+    setRoutingErrors((current) => ({ ...current, allowedTiers: undefined, fallbackTier: undefined }));
+    setRoutingMessage(null);
+  }, []);
+
+  const handleRoutingSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const errors: RoutingFormErrors = {};
+
+      const maxItersValue = Number(routingForm.maxIters.trim());
+      if (!routingForm.maxIters || Number.isNaN(maxItersValue) || maxItersValue <= 0) {
+        errors.maxIters = 'Informe um número maior que zero.';
+      }
+
+      const maxAttemptsValue = Number(routingForm.maxAttempts.trim());
+      if (!routingForm.maxAttempts || Number.isNaN(maxAttemptsValue) || maxAttemptsValue <= 0) {
+        errors.maxAttempts = 'Máximo de tentativas deve ser maior que zero.';
+      }
+
+      const requestTimeoutValue = Number(routingForm.requestTimeout.trim());
+      if (!routingForm.requestTimeout || Number.isNaN(requestTimeoutValue) || requestTimeoutValue <= 0) {
+        errors.requestTimeout = 'Timeout por iteração deve ser maior que zero.';
+      }
+
+      let totalTimeoutValue: number | null = null;
+      if (routingForm.totalTimeout.trim()) {
+        const parsed = Number(routingForm.totalTimeout.trim());
+        if (Number.isNaN(parsed) || parsed <= 0) {
+          errors.totalTimeout = 'Timeout total deve ser maior que zero ou deixado em branco.';
+        } else {
+          totalTimeoutValue = parsed;
+        }
+      }
+
+      const allowed = Array.from(routingForm.allowedTiers.values());
+      if (!allowed.includes(routingForm.defaultTier)) {
+        allowed.push(routingForm.defaultTier);
+      }
+
+      if (allowed.length === 0) {
+        errors.allowedTiers = 'Selecione pelo menos um tier permitido.';
+      }
+
+      if (routingForm.fallbackTier && !allowed.includes(routingForm.fallbackTier)) {
+        errors.fallbackTier = 'Escolha um fallback que esteja entre os tiers permitidos.';
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setRoutingErrors(errors);
+        setRoutingMessage(null);
+        return;
+      }
+
+      const payload: PolicyManifestUpdateInput = {
+        routing: {
+          maxIters: Math.round(maxItersValue),
+          maxAttempts: Math.round(maxAttemptsValue),
+          requestTimeoutSeconds: Math.round(requestTimeoutValue),
+          totalTimeoutSeconds: totalTimeoutValue !== null ? Math.round(totalTimeoutValue) : null,
+          defaultTier: routingForm.defaultTier,
+          allowedTiers: Array.from(new Set<RoutingTierId>(allowed)),
+          fallbackTier: routingForm.fallbackTier || null,
+        },
+      };
+
+      setRoutingSaving(true);
+      setRoutingMessage(null);
+      setRoutingErrors({});
+
+      updatePolicyManifest(payload)
+        .then(() => {
+          setRoutingMessage('Configuração de roteamento atualizada com sucesso.');
+          setManifest((current) => {
+            if (!current || !payload.routing) {
+              return current;
+            }
+            return {
+              ...current,
+              routing: {
+                ...current.routing,
+                ...payload.routing,
+              },
+              updatedAt: new Date().toISOString(),
+            };
+          });
+        })
+        .catch(() => {
+          setRoutingMessage('Falha ao atualizar o roteamento. Tente novamente.');
+        })
+        .finally(() => {
+          setRoutingSaving(false);
+        });
+    },
+    [routingForm],
+  );
+
   if (isLoading) {
     return (
       <section className="routing-lab">
@@ -199,6 +453,169 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           </p>
         </div>
       </header>
+
+      <section className="routing-manifest" aria-labelledby="routing-manifest-heading">
+        <header className="routing-manifest__header">
+          <div>
+            <h3 id="routing-manifest-heading">Política de roteamento em produção</h3>
+            <p>Atualize limites determinísticos aplicados nas execuções reais.</p>
+          </div>
+          <span className="routing-manifest__timestamp">
+            Última atualização: {manifest?.updatedAt ? new Date(manifest.updatedAt).toLocaleString('pt-BR') : '—'}
+          </span>
+        </header>
+        {manifestError && <p className="error">{manifestError}</p>}
+        {routingMessage && <p className="status status--inline">{routingMessage}</p>}
+        <form className="routing-manifest__form" onSubmit={handleRoutingSubmit}>
+          <div className="routing-manifest__grid">
+            <label className="form-field">
+              <span>Máximo de iterações</span>
+              <input
+                type="number"
+                min={1}
+                value={routingForm.maxIters}
+                onChange={(event) => handleRoutingFieldChange('maxIters', event.target.value)}
+                disabled={isManifestLoading || isRoutingSaving}
+                aria-invalid={routingErrors.maxIters ? 'true' : 'false'}
+                aria-describedby={routingErrors.maxIters ? 'routing-maxiters-error' : undefined}
+              />
+              {routingErrors.maxIters && (
+                <span id="routing-maxiters-error" className="form-field__error">
+                  {routingErrors.maxIters}
+                </span>
+              )}
+            </label>
+
+            <label className="form-field">
+              <span>Máximo de tentativas</span>
+              <input
+                type="number"
+                min={1}
+                value={routingForm.maxAttempts}
+                onChange={(event) => handleRoutingFieldChange('maxAttempts', event.target.value)}
+                disabled={isManifestLoading || isRoutingSaving}
+                aria-invalid={routingErrors.maxAttempts ? 'true' : 'false'}
+                aria-describedby={routingErrors.maxAttempts ? 'routing-maxattempts-error' : undefined}
+              />
+              {routingErrors.maxAttempts && (
+                <span id="routing-maxattempts-error" className="form-field__error">
+                  {routingErrors.maxAttempts}
+                </span>
+              )}
+            </label>
+
+            <label className="form-field">
+              <span>Timeout por tentativa (s)</span>
+              <input
+                type="number"
+                min={1}
+                value={routingForm.requestTimeout}
+                onChange={(event) => handleRoutingFieldChange('requestTimeout', event.target.value)}
+                disabled={isManifestLoading || isRoutingSaving}
+                aria-invalid={routingErrors.requestTimeout ? 'true' : 'false'}
+                aria-describedby={routingErrors.requestTimeout ? 'routing-requesttimeout-error' : undefined}
+              />
+              {routingErrors.requestTimeout && (
+                <span id="routing-requesttimeout-error" className="form-field__error">
+                  {routingErrors.requestTimeout}
+                </span>
+              )}
+            </label>
+
+            <label className="form-field">
+              <span>Timeout total (s)</span>
+              <input
+                type="number"
+                min={1}
+                value={routingForm.totalTimeout}
+                onChange={(event) => handleRoutingFieldChange('totalTimeout', event.target.value)}
+                disabled={isManifestLoading || isRoutingSaving}
+                aria-invalid={routingErrors.totalTimeout ? 'true' : 'false'}
+                aria-describedby={routingErrors.totalTimeout ? 'routing-totaltimeout-error' : undefined}
+                placeholder="Opcional"
+              />
+              {routingErrors.totalTimeout && (
+                <span id="routing-totaltimeout-error" className="form-field__error">
+                  {routingErrors.totalTimeout}
+                </span>
+              )}
+            </label>
+          </div>
+
+          <div className="routing-manifest__tiers">
+            <fieldset>
+              <legend>Tiers permitidos</legend>
+              <p className="routing-manifest__hint">O tier padrão não pode ser removido.</p>
+              <div className="routing-manifest__tiers-grid">
+                {(Object.keys(TIER_LABEL) as RoutingTierId[]).map((tier) => (
+                  <label key={tier} className="form-field form-field--checkbox routing-manifest__tier-option">
+                    <input
+                      type="checkbox"
+                      checked={routingForm.allowedTiers.has(tier) || tier === routingForm.defaultTier}
+                      onChange={() => handleAllowedTierToggle(tier)}
+                      disabled={tier === routingForm.defaultTier || isManifestLoading || isRoutingSaving}
+                    />
+                    <span>{TIER_LABEL[tier]}</span>
+                  </label>
+                ))}
+              </div>
+              {routingErrors.allowedTiers && <p className="form-field__error">{routingErrors.allowedTiers}</p>}
+            </fieldset>
+
+            <div className="routing-manifest__selects">
+              <label className="form-field">
+                <span>Tier padrão</span>
+                <select
+                  value={routingForm.defaultTier}
+                  onChange={handleDefaultTierChange}
+                  disabled={isManifestLoading || isRoutingSaving}
+                >
+                  {(Object.keys(TIER_LABEL) as RoutingTierId[]).map((tier) => (
+                    <option key={tier} value={tier}>
+                      {TIER_LABEL[tier]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-field">
+                <span>Fallback automático</span>
+                <select
+                  value={routingForm.fallbackTier}
+                  onChange={handleFallbackChange}
+                  disabled={isManifestLoading || isRoutingSaving || fallbackOptions.length <= 1}
+                  aria-invalid={routingErrors.fallbackTier ? 'true' : 'false'}
+                  aria-describedby={routingErrors.fallbackTier ? 'routing-fallback-error' : undefined}
+                >
+                  <option value="">Sem fallback dedicado</option>
+                  {fallbackOptions
+                    .filter((option): option is RoutingTierId => option !== '')
+                    .map((tier) => (
+                      <option key={tier} value={tier}>
+                        {TIER_LABEL[tier]}
+                      </option>
+                    ))}
+                </select>
+                {routingErrors.fallbackTier && (
+                  <span id="routing-fallback-error" className="form-field__error">
+                    {routingErrors.fallbackTier}
+                  </span>
+                )}
+              </label>
+            </div>
+          </div>
+
+          <div className="routing-manifest__actions">
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={isManifestLoading || isRoutingSaving}
+            >
+              {isRoutingSaving ? 'Salvando…' : 'Salvar configuração'}
+            </button>
+          </div>
+        </form>
+      </section>
 
       <div className="routing-lab__layout">
         <section className="routing-lab__panel" aria-labelledby="routing-config">
