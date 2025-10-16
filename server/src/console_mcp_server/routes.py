@@ -69,6 +69,12 @@ from .config_assistant.plan_executor import (
     PlanExecutor,
     PlanExecutorError,
 )
+from .git_providers import (
+    GitProviderClient,
+    GitProviderSettings,
+    PullRequestSnapshot,
+    create_git_provider,
+)
 from .schemas import (
     CostPoliciesResponse,
     CostPolicyCreateRequest,
@@ -183,6 +189,7 @@ router = APIRouter(prefix="/api/v1", tags=["console"])
 assistant_logger = structlog.get_logger("console.config.routes")
 
 _PLAN_EXECUTOR: PlanExecutor | None = None
+_GIT_PROVIDER_CLIENT: GitProviderClient | None = None
 
 
 def _serialize_flow_version(record: FlowVersionRecord) -> FlowVersionResponse:
@@ -211,10 +218,13 @@ def _build_flow_graph(request: FlowVersionCreateRequest) -> FlowGraph:
 
 
 def get_plan_executor() -> PlanExecutor:
-    global _PLAN_EXECUTOR
+    global _PLAN_EXECUTOR, _GIT_PROVIDER_CLIENT
     if _PLAN_EXECUTOR is None:
         repo_root = Path(__file__).resolve().parents[3]
-        _PLAN_EXECUTOR = PlanExecutor(repo_root)
+        settings = GitProviderSettings.from_env()
+        provider = create_git_provider(settings)
+        _GIT_PROVIDER_CLIENT = provider
+        _PLAN_EXECUTOR = PlanExecutor(repo_root, git_provider=provider)
     return _PLAN_EXECUTOR
 
 
@@ -225,6 +235,12 @@ def _notify_hitl(url: AnyHttpUrl, result: PlanExecutionResult) -> None:
         plan_id=result.plan_id,
         record_id=result.record_id,
     )
+
+
+def _serialize_pull_request(snapshot: PullRequestSnapshot | None) -> PullRequestDetails | None:
+    if snapshot is None:
+        return None
+    return PullRequestDetails.from_snapshot(snapshot)
 
 
 @router.get("/flows/{flow_id}/versions", response_model=FlowVersionsResponse)
@@ -319,6 +335,32 @@ class PlanExecutionDiff(BaseModel):
     patch: str
 
 
+class PullRequestDetails(BaseModel):
+    provider: str
+    id: str
+    number: str
+    url: str
+    title: str
+    state: str
+    head_sha: str
+    ci_status: str | None = None
+    review_status: str | None = None
+    merged: bool = False
+    last_synced_at: str | None = None
+
+    @classmethod
+    def from_snapshot(cls, snapshot: PullRequestSnapshot) -> "PullRequestDetails":
+        payload = snapshot.to_metadata()
+        payload.setdefault("id", snapshot.identifier)
+        payload.setdefault("number", snapshot.number)
+        payload.setdefault("provider", snapshot.provider)
+        payload.setdefault("url", snapshot.url)
+        payload.setdefault("title", snapshot.title)
+        payload.setdefault("state", snapshot.state)
+        payload.setdefault("head_sha", snapshot.head_sha)
+        return cls(**payload)  # type: ignore[arg-type]
+
+
 class ApprovalDecision(str, Enum):
     APPROVE = "approve"
     REJECT = "reject"
@@ -350,6 +392,13 @@ class ApplyPlanResponse(BaseModel):
     hitl_required: bool = False
     message: str
     approval_id: str | None = None
+    pull_request: PullRequestDetails | None = None
+
+
+class PlanStatusSyncRequest(BaseModel):
+    record_id: str = Field(..., min_length=1)
+    plan_id: str | None = Field(default=None)
+    provider_payload: Dict[str, Any] | None = Field(default=None)
 
 
 class OnboardRequest(BaseModel):
@@ -623,6 +672,54 @@ def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> App
         hitl_required=result.hitl_required,
         message=result.message,
         approval_id=result.approval_id,
+        pull_request=_serialize_pull_request(result.pull_request),
+    )
+
+
+@router.post("/config/apply/status", response_model=ApplyPlanResponse)
+def sync_plan_status(payload: PlanStatusSyncRequest, http_request: Request) -> ApplyPlanResponse:
+    """Update plan execution metadata with the latest status from Git providers."""
+
+    user = require_roles(http_request, Role.APPROVER)
+    executor = get_plan_executor()
+    try:
+        result = executor.sync_external_status(
+            payload.record_id,
+            plan_id=payload.plan_id,
+            provider_payload=payload.provider_payload or None,
+        )
+    except PlanExecutorError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    diff = PlanExecutionDiff(stat=result.diff_stat, patch=result.diff_patch)
+    assistant_logger.info(
+        "config.apply.sync",
+        plan_id=result.plan_id,
+        record_id=result.record_id,
+        status=result.status.value,
+    )
+
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.apply.sync",
+        resource="/config/apply/status",
+        plan_id=result.plan_id,
+        metadata={"record_id": result.record_id},
+    )
+
+    return ApplyPlanResponse(
+        status=result.status,
+        mode=result.mode,
+        plan_id=result.plan_id,
+        record_id=result.record_id,
+        branch=result.branch,
+        base_branch=result.base_branch,
+        commit_sha=result.commit_sha,
+        diff=diff,
+        hitl_required=result.hitl_required,
+        message=result.message,
+        approval_id=result.approval_id,
+        pull_request=_serialize_pull_request(result.pull_request),
     )
 
 

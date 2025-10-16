@@ -81,5 +81,6 @@ class Plan(BaseModel):
     risks: List[Risk] = Field(default_factory=list)
     status: PlanExecutionStatus = Field(default=PlanExecutionStatus.PENDING)
     context: List[PlanContextReference] = Field(default_factory=list)
+    approval_rules: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(use_enum_values=True)

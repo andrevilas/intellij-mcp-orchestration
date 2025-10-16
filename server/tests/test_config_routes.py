@@ -103,6 +103,7 @@ def test_chat_endpoint_with_intent_returns_plan(
     payload = response.json()
     assert payload["plan"]["intent"] == "add_agent"
     assert payload["plan"]["steps"]
+    assert "maintainers" in payload["plan"].get("approval_rules", [])
 
 
 def test_plan_endpoint_validates_payload(
@@ -317,6 +318,7 @@ def test_apply_endpoint_executes_plan_steps(
     assert body["branch"] == expected.branch
     assert body["hitl_required"] is True
     assert body["approval_id"] == approval_id
+    assert body["pull_request"] is None
     assert executor.invocations["submit"]
     assert executor.invocations["approve"][0]["approval_id"] == approval_id
     assert executor.invocations["finalize"][0]["approval_id"] == approval_id
@@ -375,3 +377,51 @@ def test_reload_endpoint_returns_plan_with_message(
     assert payload["plan"]["intent"] == "generate_artifact"
     assert any(step["actions"] for step in payload["plan"]["steps"])
     assert "Plano gerado" in payload["message"]
+
+
+def test_sync_plan_status_endpoint(client: TestClient, monkeypatch, auth_header: dict[str, str]) -> None:
+    expected = PlanExecutionResult(
+        record_id="rec-sync",
+        plan_id="plan-sync",
+        mode=PlanExecutionMode.BRANCH_PR,
+        status=PlanExecutionStatus.COMPLETED,
+        branch="feature",
+        base_branch="main",
+        commit_sha="abc123",
+        diff_stat=" 1 file changed",
+        diff_patch="diff --git a b",
+        hitl_required=True,
+        message="Status sincronizado com o provedor Git.",
+        approval_id=None,
+    )
+
+    class SyncExecutor:
+        def __init__(self, result: PlanExecutionResult):
+            self.result = result
+            self.invocations: list[dict[str, object]] = []
+
+        def sync_external_status(self, record_id: str, *, plan_id=None, provider_payload=None):
+            self.invocations.append(
+                {
+                    "record_id": record_id,
+                    "plan_id": plan_id,
+                    "provider_payload": provider_payload,
+                }
+            )
+            return self.result
+
+    executor = SyncExecutor(expected)
+    monkeypatch.setattr(routes, "get_plan_executor", lambda: executor)
+
+    response = client.post(
+        "/api/v1/config/apply/status",
+        json={"record_id": "rec-sync", "plan_id": "plan-sync"},
+        headers=auth_header,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == PlanExecutionStatus.COMPLETED.value
+    assert body["pull_request"] is None
+    assert executor.invocations[0]["record_id"] == "rec-sync"
+    assert executor.invocations[0]["plan_id"] == "plan-sync"
