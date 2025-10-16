@@ -226,11 +226,42 @@ export interface PolicyDeploymentsSummary {
   activeId: string | null;
 }
 
+export interface FinOpsAdaptiveBudgetConfig {
+  enabled: boolean;
+  targetUtilization: number;
+  lookbackDays: number;
+  maxIncreasePct: number;
+  maxDecreasePct: number;
+  costWeight: number;
+  latencyWeight: number;
+  latencyThresholdMs?: number | null;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+}
+
+export interface FinOpsAbVariant {
+  name: string;
+  trafficPercentage: number;
+  costPerRequest?: number | null;
+  latencyP95Ms?: number | null;
+  isWinner?: boolean | null;
+}
+
+export interface FinOpsAbExperiment {
+  id: string;
+  lane: RoutingTierId | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  summary?: string | null;
+  variants: FinOpsAbVariant[];
+}
+
 export interface FinOpsBudget {
   tier: RoutingTierId;
   amount: number;
   currency: string;
   period: BudgetPeriod;
+  adaptive?: FinOpsAdaptiveBudgetConfig | null;
 }
 
 export interface FinOpsAlertThreshold {
@@ -242,6 +273,7 @@ export interface FinOpsPolicyConfig {
   costCenter: string;
   budgets: FinOpsBudget[];
   alerts: FinOpsAlertThreshold[];
+  abHistory: FinOpsAbExperiment[];
 }
 
 export interface RoutingPolicyConfig {
@@ -499,11 +531,42 @@ interface PolicyOverridesResponsePayload {
   overrides: PolicyOverridePayload[];
 }
 
+interface FinOpsAdaptiveBudgetPayload {
+  enabled?: boolean;
+  target_utilization?: number;
+  lookback_days?: number;
+  max_increase_pct?: number;
+  max_decrease_pct?: number;
+  cost_weight?: number;
+  latency_weight?: number;
+  latency_threshold_ms?: number | null;
+  min_amount?: number | null;
+  max_amount?: number | null;
+}
+
+interface FinOpsAbVariantPayload {
+  name: string;
+  traffic_percentage?: number;
+  cost_per_request?: number | null;
+  latency_p95_ms?: number | null;
+  is_winner?: boolean | null;
+}
+
+interface FinOpsAbExperimentPayload {
+  id: string;
+  lane?: RoutingTierId | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  summary?: string | null;
+  variants?: FinOpsAbVariantPayload[];
+}
+
 interface FinOpsBudgetPayload {
   tier: RoutingTierId;
   amount: number;
   currency: string;
   period: BudgetPeriod;
+  adaptive?: FinOpsAdaptiveBudgetPayload | null;
 }
 
 interface FinOpsAlertPayload {
@@ -515,6 +578,7 @@ interface FinOpsConfigPayload {
   cost_center?: string;
   budgets?: FinOpsBudgetPayload[];
   alerts?: FinOpsAlertPayload[];
+  ab_history?: FinOpsAbExperimentPayload[];
 }
 
 interface RoutingPolicyPayload {
@@ -1264,12 +1328,59 @@ function clampZeroOne(value: number | undefined, fallback: number): number {
   return value;
 }
 
+function normalizePositive(value: number | null | undefined, fallback: number | null): number | null {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fallback ?? null;
+  }
+  return value < 0 ? 0 : value;
+}
+
+function mapAdaptiveBudgetPayload(payload?: FinOpsAdaptiveBudgetPayload | null): FinOpsAdaptiveBudgetConfig | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    enabled: Boolean(payload.enabled),
+    targetUtilization: clampZeroOne(payload.target_utilization, 0.7),
+    lookbackDays: Math.max(1, Math.round(payload.lookback_days ?? 7)),
+    maxIncreasePct: clampZeroOne(payload.max_increase_pct, 0.25),
+    maxDecreasePct: clampZeroOne(payload.max_decrease_pct, 0.4),
+    costWeight: clampZeroOne(payload.cost_weight, 1),
+    latencyWeight: clampZeroOne(payload.latency_weight, 0),
+    latencyThresholdMs: normalizePositive(payload.latency_threshold_ms ?? null, null),
+    minAmount: normalizePositive(payload.min_amount ?? null, null),
+    maxAmount: normalizePositive(payload.max_amount ?? null, null),
+  };
+}
+
+function mapAbVariantPayload(payload: FinOpsAbVariantPayload): FinOpsAbVariant {
+  return {
+    name: payload.name,
+    trafficPercentage: clampZeroOne(payload.traffic_percentage, 0),
+    costPerRequest: normalizePositive(payload.cost_per_request ?? null, null),
+    latencyP95Ms: normalizePositive(payload.latency_p95_ms ?? null, null),
+    isWinner: typeof payload.is_winner === 'boolean' ? payload.is_winner : null,
+  };
+}
+
+function mapAbExperimentPayload(payload: FinOpsAbExperimentPayload): FinOpsAbExperiment {
+  return {
+    id: payload.id,
+    lane: payload.lane ?? null,
+    startedAt: payload.started_at ?? null,
+    completedAt: payload.completed_at ?? null,
+    summary: payload.summary ?? null,
+    variants: (payload.variants ?? []).map(mapAbVariantPayload),
+  };
+}
+
 function mapFinOpsBudgetPayload(payload: FinOpsBudgetPayload): FinOpsBudget {
   return {
     tier: payload.tier,
     amount: Number(payload.amount),
     currency: payload.currency,
     period: payload.period,
+    adaptive: mapAdaptiveBudgetPayload(payload.adaptive ?? null),
   };
 }
 
@@ -1281,6 +1392,7 @@ function mapFinOpsConfigPayload(payload?: FinOpsConfigPayload): FinOpsPolicyConf
       threshold: clampZeroOne(alert.threshold, 0.5),
       channel: alert.channel,
     })),
+    abHistory: (payload?.ab_history ?? []).map(mapAbExperimentPayload),
   };
 }
 

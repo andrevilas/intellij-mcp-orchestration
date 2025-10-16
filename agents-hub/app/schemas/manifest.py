@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable
@@ -248,6 +249,118 @@ class FinOpsAlert(BaseModel):
     )
 
 
+class FinOpsAdaptiveBudget(BaseModel):
+    """Adaptive settings that can automatically resize a budget allocation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(default=False, description="Whether adaptive tuning is enabled")
+    target_utilization: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Desired utilisation ratio used as the steady state target",
+    )
+    lookback_days: int = Field(
+        default=7,
+        ge=1,
+        le=90,
+        description="Window, in days, used when analysing telemetry to adjust the budget",
+    )
+    max_increase_pct: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+        description="Maximum percentage increase applied in a single adjustment",
+    )
+    max_decrease_pct: float = Field(
+        default=0.4,
+        ge=0.0,
+        le=1.0,
+        description="Maximum percentage decrease applied in a single adjustment",
+    )
+    cost_weight: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Relative influence of cost signals when adapting the budget",
+    )
+    latency_weight: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Relative influence of latency signals when adapting the budget",
+    )
+    latency_threshold_ms: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Reference latency used to classify regressions when latency_weight > 0",
+    )
+    min_amount: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Lower bound applied to the dynamically calculated budget",
+    )
+    max_amount: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Upper bound applied to the dynamically calculated budget",
+    )
+
+
+class FinOpsABVariant(BaseModel):
+    """Performance snapshot captured for a single A/B testing variant."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., description="Identifier of the tested variant")
+    traffic_percentage: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Share of traffic directed to the variant during the experiment",
+    )
+    cost_per_request: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Average cost per invocation recorded for the variant",
+    )
+    latency_p95_ms: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="p95 latency observed for the variant in milliseconds",
+    )
+    is_winner: bool | None = Field(
+        default=None,
+        description="Flag indicating whether the variant was deemed successful",
+    )
+
+
+class FinOpsABExperiment(BaseModel):
+    """Historical record of an A/B experiment influencing FinOps decisions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(..., description="Identifier of the experiment")
+    lane: RoutingTier | None = Field(
+        default=None,
+        description="Routing lane affected by the experiment, if applicable",
+    )
+    started_at: datetime | None = Field(
+        default=None, description="Timestamp when the experiment started"
+    )
+    completed_at: datetime | None = Field(
+        default=None, description="Timestamp when the experiment concluded"
+    )
+    summary: str | None = Field(
+        default=None, description="Optional textual summary of the experiment"
+    )
+    variants: list[FinOpsABVariant] = Field(
+        default_factory=list,
+        description="Recorded metrics for each tested variant",
+    )
+
+
 class FinOpsBudget(BaseModel):
     """Budget allocation for a routing tier."""
 
@@ -258,6 +371,10 @@ class FinOpsBudget(BaseModel):
     period: BudgetPeriod = Field(
         default=BudgetPeriod.MONTHLY,
         description="Period over which the allocation applies",
+    )
+    adaptive: FinOpsAdaptiveBudget | None = Field(
+        default=None,
+        description="Optional adaptive configuration applied to the budget",
     )
 
 
@@ -274,6 +391,10 @@ class FinOpsConfig(BaseModel):
     alerts: list[FinOpsAlert] = Field(
         default_factory=list,
         description="Thresholds that trigger FinOps notifications",
+    )
+    ab_history: list[FinOpsABExperiment] = Field(
+        default_factory=list,
+        description="Historical A/B experiments used to inform FinOps decisions",
     )
 
 

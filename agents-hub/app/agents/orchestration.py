@@ -24,10 +24,17 @@ from typing import Any, Callable, Iterable, Mapping, MutableMapping
 from uuid import uuid4
 import json
 
-from app.schemas.manifest import AgentManifest, HitlCheckpoint, RoutingConfig, RoutingTier
+from app.schemas.manifest import (
+    AgentManifest,
+    FinOpsAdaptiveBudget,
+    FinOpsBudget,
+    FinOpsConfig,
+    HitlCheckpoint,
+    ObservabilityConfig,
+    RoutingConfig,
+    RoutingTier,
+)
 from app.schemas.manifest import RoutingTier as RoutingTierEnum
-from app.schemas.manifest import ObservabilityConfig
-from app.schemas.manifest import FinOpsConfig
 from app.schemas.manifest import ModelConfig
 from app.schemas.invoke import _expand_hierarchical_overrides
 
@@ -195,17 +202,122 @@ class FinOpsController:
             return True
 
         tier_key = tier.value if isinstance(tier, RoutingTierEnum) else str(tier)
-        budget = self._config.budgets.get(tier_key) if isinstance(self._config.budgets, Mapping) else None
+        budget = (
+            self._config.budgets.get(tier_key)
+            if isinstance(self._config.budgets, Mapping)
+            else None
+        )
         if budget is None:
             return True
 
+        effective_amount = self._effective_budget_amount(session_id, tier_key, budget)
         current = self._session_usage.get((session_id, tier_key), 0.0)
-        return current + cost <= float(budget.amount)
+        return current + cost <= effective_amount
 
     def _reserve(self, session_id: str, tier: RoutingTier | str, cost: float) -> None:
         tier_key = tier.value if isinstance(tier, RoutingTierEnum) else str(tier)
         current = self._session_usage.get((session_id, tier_key), 0.0)
         self._session_usage[(session_id, tier_key)] = current + cost
+
+    def _effective_budget_amount(
+        self, session_id: str, tier_key: str, budget: FinOpsBudget
+    ) -> float:
+        amount = max(float(budget.amount), 0.0)
+        adaptive = getattr(budget, "adaptive", None)
+        if not isinstance(adaptive, FinOpsAdaptiveBudget) or not adaptive.enabled:
+            return amount
+
+        current = self._session_usage.get((session_id, tier_key), 0.0)
+        adjustment = 0.0
+        target = adaptive.target_utilization
+
+        if amount > 0 and adaptive.cost_weight > 0:
+            utilisation = current / amount
+            if utilisation > target:
+                adjustment -= min(
+                    adaptive.max_decrease_pct,
+                    (utilisation - target) * adaptive.cost_weight,
+                )
+            elif utilisation < target:
+                adjustment += min(
+                    adaptive.max_increase_pct,
+                    (target - utilisation) * adaptive.cost_weight,
+                )
+
+        cost_samples, latency_samples = self._ab_metrics(tier_key)
+        if amount > 0 and cost_samples and adaptive.cost_weight > 0:
+            avg_cost = sum(cost_samples) / len(cost_samples)
+            cost_ratio = avg_cost / amount
+            delta = cost_ratio - target
+            if delta > 0:
+                adjustment -= min(
+                    adaptive.max_decrease_pct,
+                    delta * adaptive.cost_weight,
+                )
+            elif delta < 0:
+                adjustment += min(
+                    adaptive.max_increase_pct,
+                    abs(delta) * adaptive.cost_weight,
+                )
+
+        if (
+            adaptive.latency_weight > 0
+            and adaptive.latency_threshold_ms
+            and latency_samples
+        ):
+            threshold = max(adaptive.latency_threshold_ms, 1.0)
+            avg_latency = sum(latency_samples) / len(latency_samples)
+            latency_delta = (avg_latency - threshold) / threshold
+            if latency_delta > 0:
+                adjustment -= min(
+                    adaptive.max_decrease_pct,
+                    latency_delta * adaptive.latency_weight,
+                )
+            elif latency_delta < 0:
+                adjustment += min(
+                    adaptive.max_increase_pct,
+                    abs(latency_delta) * adaptive.latency_weight,
+                )
+
+        adjustment = max(-adaptive.max_decrease_pct, min(adjustment, adaptive.max_increase_pct))
+        effective = amount * (1.0 + adjustment)
+
+        if adaptive.min_amount is not None:
+            effective = max(adaptive.min_amount, effective)
+        if adaptive.max_amount is not None:
+            effective = min(adaptive.max_amount, effective)
+
+        return max(effective, 0.0)
+
+    def _ab_metrics(self, tier_key: str) -> tuple[list[float], list[float]]:
+        if not self._config or not isinstance(self._config.ab_history, Iterable):
+            return [], []
+
+        cost_samples: list[float] = []
+        latency_samples: list[float] = []
+        for experiment in self._config.ab_history:
+            lane = getattr(experiment, "lane", None)
+            lane_key = None
+            if isinstance(lane, RoutingTierEnum):
+                lane_key = lane.value
+            elif isinstance(lane, str):
+                lane_key = lane
+            if lane_key and lane_key != tier_key:
+                continue
+            for variant in getattr(experiment, "variants", []) or []:
+                cost = getattr(variant, "cost_per_request", None)
+                latency = getattr(variant, "latency_p95_ms", None)
+                if cost is not None:
+                    try:
+                        cost_samples.append(float(cost))
+                    except (TypeError, ValueError):  # pragma: no cover - defensive
+                        continue
+                if latency is not None:
+                    try:
+                        latency_samples.append(float(latency))
+                    except (TypeError, ValueError):  # pragma: no cover - defensive
+                        continue
+        return cost_samples, latency_samples
 
     # ------------------------------------------------------------------
     # Tier selection
@@ -293,8 +405,30 @@ class FinOpsController:
     def snapshot(self) -> dict[str, Any]:
         """Provide an immutable snapshot for tests."""
 
-        usage = {f"{session}:{tier}": value for (session, tier), value in self._session_usage.items()}
-        return {"usage": usage, "cache_size": len(self._cache)}
+        usage = {
+            f"{session}:{tier}": value
+            for (session, tier), value in self._session_usage.items()
+        }
+        budgets: dict[str, dict[str, Any]] = {}
+        if self._config and isinstance(self._config.budgets, Mapping):
+            for tier_key, budget in self._config.budgets.items():
+                if not isinstance(budget, FinOpsBudget):
+                    continue
+                resolved_tier = (
+                    tier_key.value if isinstance(tier_key, RoutingTierEnum) else str(tier_key)
+                )
+                budgets[resolved_tier] = {
+                    "configured": float(budget.amount),
+                    "effective": self._effective_budget_amount(
+                        "__snapshot__", resolved_tier, budget
+                    ),
+                    "adaptive_enabled": bool(
+                        isinstance(budget.adaptive, FinOpsAdaptiveBudget)
+                        and budget.adaptive.enabled
+                    ),
+                }
+
+        return {"usage": usage, "cache_size": len(self._cache), "budgets": budgets}
 
 
 class OrchestrationGraph:
