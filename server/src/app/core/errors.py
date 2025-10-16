@@ -35,6 +35,18 @@ class AgentExecutionError(ApplicationError):
     """Raised when an agent process or invocation fails."""
 
 
+class AgentConfidenceError(AgentExecutionError):
+    """Raised when confidence gating fails for an agent output."""
+
+
+class AgentApprovalRequiredError(AgentConfidenceError):
+    """Raised when human approval is required to continue execution."""
+
+
+class AgentRejectionError(AgentConfidenceError):
+    """Raised when the agent output confidence is below rejection threshold."""
+
+
 class ValidationError(ApplicationError):
     """Raised when request payloads fail validation rules."""
 
@@ -65,6 +77,9 @@ __all__ = [
     "AgentNotFoundError",
     "AgentManifestError",
     "AgentExecutionError",
+    "AgentConfidenceError",
+    "AgentApprovalRequiredError",
+    "AgentRejectionError",
     "ValidationError",
     "error_response",
 ]

@@ -17,14 +17,17 @@ from pydantic import ValidationError as PydanticValidationError
 from structlog.stdlib import BoundLogger
 from yaml import YAMLError
 
-from agents_hub.schemas.manifest import AgentManifest, load_manifest
+from agents_hub.app.schemas.manifest import AgentManifest, load_manifest
 
 from .errors import (
+    AgentApprovalRequiredError,
     AgentExecutionError,
     AgentManifestError,
     AgentNotFoundError,
+    AgentRejectionError,
     ValidationError,
 )
+from .executor import AgentExecutionOutcome, AgentExecutor
 
 
 BuilderCallable = Callable[[dict[str, Any]], Any]
@@ -97,7 +100,7 @@ class AgentRegistry:
         name: str,
         payload: Mapping[str, Any] | None = None,
         config: Mapping[str, Any] | None = None,
-    ) -> Any:
+    ) -> AgentExecutionOutcome:
         """Invoke the specified agent with validated inputs."""
 
         if payload is not None and not isinstance(payload, Mapping):
@@ -134,6 +137,17 @@ class AgentRegistry:
         if tool_name and "tool_name" not in call_config:
             call_config["tool_name"] = tool_name
 
+        executor = AgentExecutor(
+            manifest=manifest,
+            base_config=call_config,
+            logger=self._logger.bind(agent=name, tool=tool_name),
+        )
+
+        async def _call_agent(
+            payload: Mapping[str, Any], config: Mapping[str, Any]
+        ) -> Any:
+            return await self._execute_agent(instance, payload, config)
+
         start_time = time.perf_counter()
         self._logger.info(
             "agent.invoke.start",
@@ -142,8 +156,10 @@ class AgentRegistry:
         )
 
         try:
-            result = await self._execute_agent(instance, payload_dict, call_config)
-        except ValidationError:
+            outcome = await executor.execute(payload_dict, _call_agent)
+        except (ValidationError, AgentApprovalRequiredError, AgentRejectionError):
+            raise
+        except AgentExecutionError:
             raise
         except Exception as exc:
             duration_ms = (time.perf_counter() - start_time) * 1000
@@ -164,8 +180,11 @@ class AgentRegistry:
             agent=name,
             tool=tool_name,
             duration_ms=duration_ms,
+            policies=outcome.metadata.get("policies"),
+            finops=outcome.metadata.get("finops"),
+            overrides=outcome.metadata.get("overrides"),
         )
-        return result
+        return outcome
 
     def reload(self) -> None:
         """Reload manifests and code from disk, clearing cached instances."""
