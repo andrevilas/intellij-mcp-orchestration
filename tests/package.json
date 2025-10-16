@@ -1,0 +1,13 @@
+{
+  "name": "mcp-console-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.46.0",
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5"
+  }
+}

@@ -8,12 +8,7 @@ import type {
   AdminRiskItem,
   ConfigChatResponse,
 } from '../api';
-import {
-  postConfigApply,
-  postConfigChat,
-  postConfigMcpOnboard,
-  postConfigPlan,
-} from '../api';
+import { postConfigApply, postConfigChat, postConfigPlan } from '../api';
 
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -35,7 +30,6 @@ export interface UseAdminChatState {
   isChatLoading: boolean;
   isPlanLoading: boolean;
   isApplyLoading: boolean;
-  isOnboarding: boolean;
   error: string | null;
   statusMessage: string | null;
   sendMessage: (prompt: string) => Promise<void>;
@@ -44,7 +38,6 @@ export interface UseAdminChatState {
   applyPlan: (note?: string | null) => Promise<void>;
   confirmHitl: (note?: string | null) => Promise<void>;
   cancelHitl: () => void;
-  onboardProvider: (providerId: string, command?: string | null) => Promise<void>;
   clearStatus: () => void;
   clearError: () => void;
   hasConversation: boolean;
@@ -60,7 +53,6 @@ export default function useAdminChat(): UseAdminChatState {
   const [isChatLoading, setChatLoading] = useState(false);
   const [isPlanLoading, setPlanLoading] = useState(false);
   const [isApplyLoading, setApplyLoading] = useState(false);
-  const [isOnboarding, setOnboarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -174,7 +166,14 @@ export default function useAdminChat(): UseAdminChatState {
             current ? { ...current, status: 'applied', generatedAt: new Date().toISOString() } : current,
           );
         }
-        setStatusMessage(response.message);
+        const details: string[] = [response.message];
+        if (response.branch) {
+          details.push(`Branch: ${response.branch}`);
+        }
+        if (response.pullRequest?.url) {
+          details.push(`PR: ${response.pullRequest.url}`);
+        }
+        setStatusMessage(details.join(' '));
         setHitlRequest(null);
       } catch (cause) {
         setError(extractErrorMessage(cause));
@@ -215,7 +214,14 @@ export default function useAdminChat(): UseAdminChatState {
             );
           }
           setHitlRequest(null);
-          setStatusMessage(response.message);
+          const details: string[] = [response.message];
+          if (response.branch) {
+            details.push(`Branch: ${response.branch}`);
+          }
+          if (response.pullRequest?.url) {
+            details.push(`PR: ${response.pullRequest.url}`);
+          }
+          setStatusMessage(details.join(' '));
         }
       } catch (cause) {
         setError(extractErrorMessage(cause));
@@ -230,28 +236,6 @@ export default function useAdminChat(): UseAdminChatState {
   const cancelHitl = useCallback(() => {
     setHitlRequest(null);
   }, []);
-
-  const onboardProvider = useCallback(
-    async (providerId: string, command?: string | null) => {
-      setOnboarding(true);
-      setError(null);
-      setStatusMessage(null);
-      try {
-        const response = await postConfigMcpOnboard({
-          intent: 'onboard',
-          providerId,
-          command,
-        });
-        setStatusMessage(response.message);
-      } catch (cause) {
-        setError(extractErrorMessage(cause));
-        throw cause;
-      } finally {
-        setOnboarding(false);
-      }
-    },
-    [],
-  );
 
   const clearStatus = useCallback(() => {
     setStatusMessage(null);
@@ -271,7 +255,6 @@ export default function useAdminChat(): UseAdminChatState {
     isChatLoading,
     isPlanLoading,
     isApplyLoading,
-    isOnboarding,
     error,
     statusMessage,
     sendMessage,
@@ -280,7 +263,6 @@ export default function useAdminChat(): UseAdminChatState {
     applyPlan,
     confirmHitl,
     cancelHitl,
-    onboardProvider,
     clearStatus,
     clearError,
     hasConversation,
