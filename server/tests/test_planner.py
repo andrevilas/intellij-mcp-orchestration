@@ -15,10 +15,19 @@ def test_plan_intent_add_agent_generates_expected_structure() -> None:
     )
 
     assert plan.intent == AssistantIntent.ADD_AGENT.value
-    assert len(plan.steps) == 3
-    assert plan.steps[0].id == "scaffold-agent"
-    assert any(diff.change_type == "create" for diff in plan.diffs)
-    assert any(risk.impact == "high" for risk in plan.risks)
+    assert [step.id for step in plan.steps[:2]] == ["discover-server", "scaffold-agent"]
+    assert plan.steps[-2].id == "reload-agents-hub"
+    assert len(plan.steps) == 5
+
+    diff_paths = {diff.path for diff in plan.diffs}
+    assert "agents-hub/app/agents/sentinel/agent.yaml" in diff_paths
+    assert "agents-hub/app/agents/sentinel/agent.py" in diff_paths
+    assert "agents-hub/mcp-registry.yaml" in diff_paths
+    assert sum(1 for diff in plan.diffs if diff.change_type == "create") >= 3
+
+    impacts = {risk.impact for risk in plan.risks}
+    assert "high" in impacts
+    assert any("reload" in risk.title.lower() for risk in plan.risks)
 
 
 @pytest.mark.parametrize(
