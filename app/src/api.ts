@@ -2738,6 +2738,169 @@ export async function postConfigPlan(
   });
 }
 
+export type ConfigPlanStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+export type ConfigPlanExecutionMode = 'dry_run' | 'branch_pr' | 'direct';
+
+export interface ConfigPlanAction {
+  type: string;
+  path: string;
+  contents: string;
+  encoding: string;
+  overwrite: boolean;
+}
+
+export interface ConfigPlanStep {
+  id: string;
+  title: string;
+  description: string;
+  dependsOn: string[];
+  actions: ConfigPlanAction[];
+}
+
+export interface ConfigPlanDiffSummary {
+  path: string;
+  summary: string;
+  changeType: string;
+  diff?: string | null;
+}
+
+export interface ConfigPlanRiskItem {
+  title: string;
+  impact: string;
+  mitigation: string;
+}
+
+export interface ConfigPlanContextItem {
+  path: string;
+  snippet: string;
+  score: number;
+  title?: string | null;
+  chunk: number;
+}
+
+export interface ConfigPlan {
+  intent: string;
+  summary: string;
+  steps: ConfigPlanStep[];
+  diffs: ConfigPlanDiffSummary[];
+  risks: ConfigPlanRiskItem[];
+  status: ConfigPlanStatus;
+  context: ConfigPlanContextItem[];
+  approvalRules: string[];
+}
+
+export interface ConfigPlanPreviewPullRequest {
+  provider: string | null;
+  title: string;
+  body?: string | null;
+}
+
+export interface ConfigPlanPreview {
+  branch: string;
+  baseBranch: string;
+  commitMessage: string;
+  pullRequest?: ConfigPlanPreviewPullRequest | null;
+}
+
+export interface PlanExecutionDiff {
+  stat: string;
+  patch: string;
+}
+
+export interface PlanExecutionPullRequest {
+  provider: string;
+  id: string;
+  number: string;
+  url: string;
+  title: string;
+  state: string;
+  headSha: string;
+  ciStatus?: string | null;
+  reviewStatus?: string | null;
+  merged: boolean;
+  lastSyncedAt?: string | null;
+}
+
+export interface PolicyPlanRequest {
+  policyId: string;
+  changes: PolicyManifestUpdateInput;
+}
+
+export interface PolicyPlanResponse {
+  plan: ConfigPlan;
+  planPayload: ConfigPlanPayload;
+  preview: ConfigPlanPreview | null;
+  previewPayload: ConfigPlanPreviewPayload | null;
+}
+
+export async function patchConfigPoliciesPlan(
+  requestPayload: PolicyPlanRequest,
+  signal?: AbortSignal,
+): Promise<PolicyPlanResponse> {
+  const body = {
+    policy_id: requestPayload.policyId,
+    changes: serializePolicyManifestUpdate(requestPayload.changes),
+  };
+  const response = await request<ConfigPlanResponsePayload>('/config/policies', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    signal,
+  });
+  return {
+    plan: mapConfigPlanPayload(response.plan),
+    planPayload: response.plan,
+    preview: mapConfigPlanPreview(response.preview ?? null),
+    previewPayload: response.preview ?? null,
+  };
+}
+
+export interface ApplyPolicyPlanRequest {
+  planId: string;
+  plan: ConfigPlanPayload;
+  patch: string;
+  mode?: ConfigPlanExecutionMode;
+  actor: string;
+  actorEmail: string;
+  commitMessage?: string;
+}
+
+export interface ApplyPolicyPlanResponse {
+  status: ConfigPlanStatus;
+  mode: ConfigPlanExecutionMode;
+  planId: string;
+  recordId: string;
+  branch?: string | null;
+  baseBranch?: string | null;
+  commitSha?: string | null;
+  diff: PlanExecutionDiff;
+  hitlRequired: boolean;
+  message: string;
+  approvalId?: string | null;
+  pullRequest?: PlanExecutionPullRequest | null;
+}
+
+export async function postPolicyPlanApply(
+  payload: ApplyPolicyPlanRequest,
+  signal?: AbortSignal,
+): Promise<ApplyPolicyPlanResponse> {
+  const requestBody: ApplyPlanRequestPayload = {
+    plan_id: payload.planId,
+    plan: payload.plan,
+    patch: payload.patch,
+    mode: payload.mode ?? 'branch_pr',
+    actor: payload.actor,
+    actor_email: payload.actorEmail,
+    commit_message: payload.commitMessage ?? 'chore: aplicar plano de configuração',
+  };
+  const response = await request<ApplyPlanResponsePayload>('/config/apply', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+    signal,
+  });
+  return mapApplyPlanResponse(response);
+}
+
 export type ConfigApplyIntent =
   | { intent: 'apply'; threadId: string; planId: string; note?: string | null }
   | { intent: 'confirm'; threadId: string; planId: string; token: string; note?: string | null }
@@ -2992,6 +3155,249 @@ function mapStringArray(value: unknown): string[] {
     return [];
   }
   return value.map((item) => String(item ?? ''));
+}
+
+interface ConfigPlanActionPayload {
+  type: string;
+  path: string;
+  contents: string;
+  encoding: string;
+  overwrite: boolean;
+}
+
+interface ConfigPlanStepPayload {
+  id: string;
+  title: string;
+  description: string;
+  depends_on?: unknown;
+  actions?: unknown;
+}
+
+interface ConfigPlanDiffPayload {
+  path: string;
+  summary: string;
+  change_type: string;
+  diff?: string | null;
+}
+
+interface ConfigPlanRiskPayload {
+  title: string;
+  impact: string;
+  mitigation: string;
+}
+
+interface ConfigPlanContextPayload {
+  path: string;
+  snippet: string;
+  score: number;
+  title?: string | null;
+  chunk: number;
+}
+
+interface ConfigPlanPreviewPullRequestPayload {
+  provider: string | null;
+  title: string;
+  body?: string | null;
+}
+
+interface ConfigPlanPreviewPayload {
+  branch: string;
+  base_branch: string;
+  commit_message: string;
+  pull_request?: ConfigPlanPreviewPullRequestPayload | null;
+}
+
+interface ConfigPlanPayload {
+  intent: string;
+  summary: string;
+  steps?: unknown;
+  diffs?: unknown;
+  risks?: unknown;
+  status: ConfigPlanStatus;
+  context?: unknown;
+  approval_rules?: unknown;
+}
+
+interface ConfigPlanResponsePayload {
+  plan: ConfigPlanPayload;
+  preview?: ConfigPlanPreviewPayload | null;
+  validation?: unknown;
+}
+
+interface PlanExecutionDiffPayload {
+  stat: string;
+  patch: string;
+}
+
+interface PlanExecutionPullRequestPayload {
+  provider: string;
+  id: string;
+  number: string;
+  url: string;
+  title: string;
+  state: string;
+  head_sha: string;
+  ci_status?: string | null;
+  review_status?: string | null;
+  merged: boolean;
+  last_synced_at?: string | null;
+}
+
+interface ApplyPlanRequestPayload {
+  plan_id: string;
+  plan: ConfigPlanPayload;
+  patch: string;
+  mode: ConfigPlanExecutionMode;
+  actor: string;
+  actor_email: string;
+  commit_message: string;
+  approval_id?: string | null;
+  approval_decision?: string | null;
+  approval_reason?: string | null;
+  hitl_callback_url?: string | null;
+}
+
+interface ApplyPlanResponsePayload {
+  status: ConfigPlanStatus;
+  mode: ConfigPlanExecutionMode;
+  plan_id: string;
+  record_id: string;
+  branch?: string | null;
+  base_branch?: string | null;
+  commit_sha?: string | null;
+  diff: PlanExecutionDiffPayload;
+  hitl_required?: boolean;
+  message: string;
+  approval_id?: string | null;
+  pull_request?: PlanExecutionPullRequestPayload | null;
+}
+
+function mapConfigPlanActionPayload(payload: ConfigPlanActionPayload): ConfigPlanAction {
+  return {
+    type: payload.type,
+    path: payload.path,
+    contents: payload.contents,
+    encoding: payload.encoding,
+    overwrite: payload.overwrite,
+  };
+}
+
+function mapConfigPlanStepPayload(payload: ConfigPlanStepPayload): ConfigPlanStep {
+  const dependsOnSource = Array.isArray(payload.depends_on) ? payload.depends_on : [];
+  const actionsSource = Array.isArray(payload.actions) ? (payload.actions as ConfigPlanActionPayload[]) : [];
+  return {
+    id: payload.id,
+    title: payload.title,
+    description: payload.description,
+    dependsOn: dependsOnSource.map((item) => String(item ?? '')),
+    actions: actionsSource.map(mapConfigPlanActionPayload),
+  };
+}
+
+function mapConfigPlanDiffPayload(payload: ConfigPlanDiffPayload): ConfigPlanDiffSummary {
+  return {
+    path: payload.path,
+    summary: payload.summary,
+    changeType: payload.change_type,
+    diff: payload.diff ?? null,
+  };
+}
+
+function mapConfigPlanRiskPayload(payload: ConfigPlanRiskPayload): ConfigPlanRiskItem {
+  return {
+    title: payload.title,
+    impact: payload.impact,
+    mitigation: payload.mitigation,
+  };
+}
+
+function mapConfigPlanContextPayload(payload: ConfigPlanContextPayload): ConfigPlanContextItem {
+  return {
+    path: payload.path,
+    snippet: payload.snippet,
+    score: payload.score,
+    title: payload.title ?? null,
+    chunk: payload.chunk,
+  };
+}
+
+function mapConfigPlanPayload(payload: ConfigPlanPayload): ConfigPlan {
+  const stepsSource = Array.isArray(payload.steps) ? (payload.steps as ConfigPlanStepPayload[]) : [];
+  const diffsSource = Array.isArray(payload.diffs) ? (payload.diffs as ConfigPlanDiffPayload[]) : [];
+  const risksSource = Array.isArray(payload.risks) ? (payload.risks as ConfigPlanRiskPayload[]) : [];
+  const contextSource = Array.isArray(payload.context) ? (payload.context as ConfigPlanContextPayload[]) : [];
+  const approvalSource = Array.isArray(payload.approval_rules) ? payload.approval_rules : [];
+  return {
+    intent: payload.intent,
+    summary: payload.summary,
+    steps: stepsSource.map(mapConfigPlanStepPayload),
+    diffs: diffsSource.map(mapConfigPlanDiffPayload),
+    risks: risksSource.map(mapConfigPlanRiskPayload),
+    status: payload.status,
+    context: contextSource.map(mapConfigPlanContextPayload),
+    approvalRules: approvalSource.map((rule) => String(rule ?? '')),
+  };
+}
+
+function mapConfigPlanPreview(payload: ConfigPlanPreviewPayload | null): ConfigPlanPreview | null {
+  if (!payload) {
+    return null;
+  }
+  const pullRequest = payload.pull_request
+    ? {
+        provider: payload.pull_request.provider,
+        title: payload.pull_request.title,
+        body: payload.pull_request.body ?? null,
+      }
+    : null;
+  return {
+    branch: payload.branch,
+    baseBranch: payload.base_branch,
+    commitMessage: payload.commit_message,
+    pullRequest,
+  };
+}
+
+function mapPlanExecutionDiff(payload: PlanExecutionDiffPayload): PlanExecutionDiff {
+  return { stat: payload.stat, patch: payload.patch };
+}
+
+function mapPlanExecutionPullRequest(
+  payload: PlanExecutionPullRequestPayload | null,
+): PlanExecutionPullRequest | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    provider: payload.provider,
+    id: payload.id,
+    number: payload.number,
+    url: payload.url,
+    title: payload.title,
+    state: payload.state,
+    headSha: payload.head_sha,
+    ciStatus: payload.ci_status ?? null,
+    reviewStatus: payload.review_status ?? null,
+    merged: payload.merged,
+    lastSyncedAt: payload.last_synced_at ?? null,
+  };
+}
+
+function mapApplyPlanResponse(payload: ApplyPlanResponsePayload): ApplyPolicyPlanResponse {
+  return {
+    status: payload.status,
+    mode: payload.mode,
+    planId: payload.plan_id,
+    recordId: payload.record_id,
+    branch: payload.branch ?? null,
+    baseBranch: payload.base_branch ?? null,
+    commitSha: payload.commit_sha ?? null,
+    diff: mapPlanExecutionDiff(payload.diff),
+    hitlRequired: payload.hitl_required ?? false,
+    message: payload.message,
+    approvalId: payload.approval_id ?? null,
+    pullRequest: mapPlanExecutionPullRequest(payload.pull_request ?? null),
+  };
 }
 
 function mapMarketplaceEntryPayload(payload: unknown): MarketplaceEntry {

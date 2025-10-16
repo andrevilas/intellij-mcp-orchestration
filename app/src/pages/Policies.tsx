@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { createTwoFilesPatch } from 'diff';
 
 import {
   createPolicyDeployment,
@@ -9,7 +10,10 @@ import {
   fetchHitlQueue,
   fetchPolicyTemplates,
   resolveHitlRequest,
-  updatePolicyManifest,
+  patchConfigPoliciesPlan,
+  postPolicyPlanApply,
+  type PolicyPlanResponse,
+  type ConfigPlanDiffSummary,
   type HitlEscalationChannel,
   type HitlApprovalRequest,
   type HitlCheckpoint,
@@ -22,6 +26,7 @@ import {
   type PolicyTemplateId,
   type ProviderSummary,
 } from '../api';
+import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
 
 export interface PoliciesProps {
@@ -49,6 +54,171 @@ const ESCALATION_OPTIONS: Array<{ value: HitlEscalationChannel | ''; label: stri
   { value: 'email', label: 'E-mail' },
   { value: 'pagerduty', label: 'PagerDuty' },
 ];
+
+const POLICY_MANIFEST_ID = 'manifest';
+
+const PLAN_ACTOR_STORAGE_KEY = 'mcp-policy-plan-actor';
+const PLAN_ACTOR_EMAIL_STORAGE_KEY = 'mcp-policy-plan-actor-email';
+const PLAN_COMMIT_MESSAGE_STORAGE_KEY = 'mcp-policy-plan-commit-message';
+
+type PendingPolicyPlan = {
+  id: string;
+  plan: PolicyPlanResponse['plan'];
+  planPayload: PolicyPlanResponse['planPayload'];
+  patch: string;
+  diffs: PlanDiffItem[];
+  nextSnapshot: PolicyManifestSnapshot;
+};
+
+function generatePlanId(): string {
+  const cryptoApi = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
+  }
+  return `policy-plan-${Date.now()}`;
+}
+
+function cloneManifest(snapshot: PolicyManifestSnapshot): PolicyManifestSnapshot {
+  return JSON.parse(JSON.stringify(snapshot)) as PolicyManifestSnapshot;
+}
+
+function loadPlanPreference(key: string, fallback: string): string {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return fallback;
+  }
+
+  try {
+    const value = window.localStorage.getItem(key);
+    if (!value) {
+      return fallback;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load plan preference from storage', error);
+    return fallback;
+  }
+}
+
+function persistPlanPreference(key: string, value: string): void {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+    window.localStorage.setItem(key, trimmed);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to persist plan preference to storage', error);
+  }
+}
+
+function applyManifestUpdateToSnapshot(
+  current: PolicyManifestSnapshot,
+  update: PolicyManifestUpdateInput,
+): PolicyManifestSnapshot {
+  const next = cloneManifest(current);
+
+  if (update.runtime) {
+    if (update.runtime.maxIters !== undefined && update.runtime.maxIters !== null) {
+      next.runtime.maxIters = update.runtime.maxIters;
+    }
+    if (update.runtime.timeouts) {
+      if (update.runtime.timeouts.perIteration !== undefined) {
+        next.runtime.timeouts.perIteration = update.runtime.timeouts.perIteration;
+      }
+      if (update.runtime.timeouts.total !== undefined) {
+        next.runtime.timeouts.total = update.runtime.timeouts.total;
+      }
+    }
+    if (update.runtime.retry) {
+      if (update.runtime.retry.maxAttempts !== undefined) {
+        next.runtime.retry.maxAttempts = update.runtime.retry.maxAttempts;
+      }
+      if (update.runtime.retry.initialDelay !== undefined) {
+        next.runtime.retry.initialDelay = update.runtime.retry.initialDelay;
+      }
+      if (update.runtime.retry.backoffFactor !== undefined) {
+        next.runtime.retry.backoffFactor = update.runtime.retry.backoffFactor;
+      }
+      if (update.runtime.retry.maxDelay !== undefined) {
+        next.runtime.retry.maxDelay = update.runtime.retry.maxDelay;
+      }
+    }
+    if (update.runtime.tracing) {
+      if (update.runtime.tracing.enabled !== undefined) {
+        next.runtime.tracing.enabled = Boolean(update.runtime.tracing.enabled);
+      }
+      if (update.runtime.tracing.sampleRate !== undefined && update.runtime.tracing.sampleRate !== null) {
+        next.runtime.tracing.sampleRate = update.runtime.tracing.sampleRate;
+      }
+      if (update.runtime.tracing.exporter !== undefined) {
+        next.runtime.tracing.exporter = update.runtime.tracing.exporter ?? next.runtime.tracing.exporter;
+      }
+    }
+  }
+
+  if (update.hitl) {
+    if (update.hitl.enabled !== undefined) {
+      next.hitl.enabled = Boolean(update.hitl.enabled);
+    }
+    if (update.hitl.checkpoints) {
+      next.hitl.checkpoints = update.hitl.checkpoints.map((checkpoint) => ({ ...checkpoint }));
+    } else if (update.hitl.checkpoints === null) {
+      next.hitl.checkpoints = [];
+    }
+  }
+
+  next.updatedAt = new Date().toISOString();
+  return next;
+}
+
+function formatManifestSnapshot(snapshot: PolicyManifestSnapshot): string {
+  return `${JSON.stringify(snapshot, null, 2)}\n`;
+}
+
+function mapPlanDiffItems(diffs: ConfigPlanDiffSummary[], manifestPatch: string): PlanDiffItem[] {
+  const hasManifestPatch = manifestPatch.trim().length > 0;
+
+  if (!diffs || diffs.length === 0) {
+    if (!hasManifestPatch) {
+      throw new Error('Plano de políticas não retornou diff para o manifesto.');
+    }
+    return [
+      {
+        id: 'policies-manifest',
+        title: 'policies/manifest.json',
+        summary: 'Atualizar manifesto com as novas configurações de runtime e HITL',
+        diff: manifestPatch,
+      },
+    ];
+  }
+
+  return diffs.map((diff, index) => {
+    const isManifestFile = diff.path.endsWith('manifest.json');
+    if (isManifestFile && !hasManifestPatch) {
+      throw new Error('Plano de políticas não forneceu diff detalhado do manifesto.');
+    }
+
+    const diffContent = isManifestFile ? manifestPatch : diff.diff ?? '';
+    if (!diffContent.trim()) {
+      throw new Error(`Plano de políticas retornou diff vazio para ${diff.path}.`);
+    }
+
+    return {
+      id: `${diff.path}-${index}`,
+      title: diff.path,
+      summary: diff.summary,
+      diff: diffContent,
+    };
+  });
+}
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('pt-BR', {
@@ -111,6 +281,17 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   const [isHitlLoading, setHitlLoading] = useState(false);
   const [hitlError, setHitlError] = useState<string | null>(null);
   const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<PendingPolicyPlan | null>(null);
+  const [isPlanModalOpen, setPlanModalOpen] = useState(false);
+  const [isPlanApplying, setPlanApplying] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planActor, setPlanActor] = useState(() => loadPlanPreference(PLAN_ACTOR_STORAGE_KEY, 'Console MCP'));
+  const [planActorEmail, setPlanActorEmail] = useState(() =>
+    loadPlanPreference(PLAN_ACTOR_EMAIL_STORAGE_KEY, 'console@example.com'),
+  );
+  const [planCommitMessage, setPlanCommitMessage] = useState(() =>
+    loadPlanPreference(PLAN_COMMIT_MESSAGE_STORAGE_KEY, 'chore: atualizar políticas MCP'),
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -259,6 +440,103 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     [],
   );
 
+  const handlePlanApply = useCallback(async () => {
+    if (!pendingPlan || !manifest) {
+      setPlanModalOpen(false);
+      return;
+    }
+
+    setPlanApplying(true);
+    setPlanError(null);
+    try {
+      const trimmedActor = planActor.trim();
+      const trimmedEmail = planActorEmail.trim();
+      const trimmedCommit = planCommitMessage.trim();
+
+      if (!trimmedActor || !trimmedEmail) {
+        setPlanError('Informe nome e e-mail para registrar o autor da alteração.');
+        setPlanApplying(false);
+        return;
+      }
+
+      persistPlanPreference(PLAN_ACTOR_STORAGE_KEY, trimmedActor);
+      persistPlanPreference(PLAN_ACTOR_EMAIL_STORAGE_KEY, trimmedEmail);
+      if (trimmedCommit) {
+        persistPlanPreference(PLAN_COMMIT_MESSAGE_STORAGE_KEY, trimmedCommit);
+      }
+
+      const response = await postPolicyPlanApply({
+        planId: pendingPlan.id,
+        plan: pendingPlan.planPayload,
+        patch: pendingPlan.patch,
+        actor: trimmedActor,
+        actorEmail: trimmedEmail,
+        commitMessage: trimmedCommit || undefined,
+      });
+
+      const updatedSnapshot = pendingPlan.nextSnapshot;
+      setManifest(updatedSnapshot);
+      setHitlEnabled(updatedSnapshot.hitl.enabled);
+      setCheckpoints(updatedSnapshot.hitl.checkpoints);
+      setRuntimeForm({
+        maxIters: updatedSnapshot.runtime.maxIters ? String(updatedSnapshot.runtime.maxIters) : '',
+        perIteration: updatedSnapshot.runtime.timeouts.perIteration
+          ? String(updatedSnapshot.runtime.timeouts.perIteration)
+          : '',
+        totalTimeout: updatedSnapshot.runtime.timeouts.total
+          ? String(updatedSnapshot.runtime.timeouts.total)
+          : '',
+        sampleRate: String(Math.round((updatedSnapshot.runtime.tracing.sampleRate ?? 0) * 100)),
+      });
+      setRuntimeErrors({});
+
+      const details = [response.message];
+      if (response.branch) {
+        details.push(`Branch: ${response.branch}`);
+      }
+      if (response.pullRequest?.url) {
+        details.push(`PR: ${response.pullRequest.url}`);
+      }
+      setRuntimeMessage(details.join(' '));
+
+      setPendingPlan(null);
+      setPlanModalOpen(false);
+      void refreshHitlQueue();
+    } catch (error) {
+      console.error('Failed to aplicar plano de políticas', error);
+      setPlanError('Falha ao aplicar plano de políticas. Tente novamente.');
+    } finally {
+      setPlanApplying(false);
+    }
+  }, [pendingPlan, manifest, planActor, planActorEmail, planCommitMessage, refreshHitlQueue]);
+
+  const handlePlanCancel = useCallback(() => {
+    setPlanModalOpen(false);
+    setPlanError(null);
+    setPendingPlan(null);
+  }, []);
+
+  const handlePlanActorChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setPlanActor(value);
+    persistPlanPreference(PLAN_ACTOR_STORAGE_KEY, value);
+    setPlanError(null);
+  }, []);
+
+  const handlePlanActorEmailChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setPlanActorEmail(value);
+    persistPlanPreference(PLAN_ACTOR_EMAIL_STORAGE_KEY, value);
+    setPlanError(null);
+  }, []);
+
+  const handlePlanCommitMessageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setPlanCommitMessage(value);
+    persistPlanPreference(PLAN_COMMIT_MESSAGE_STORAGE_KEY, value);
+    setPlanError(null);
+  }, []);
+
   const handleRuntimeSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -333,8 +611,14 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         })),
       };
 
+      if (!manifest) {
+        setRuntimeMessage('Carregue a configuração atual antes de gerar um plano.');
+        return;
+      }
+
       setIsRuntimeSaving(true);
       setRuntimeMessage(null);
+      setPlanError(null);
       try {
         const payload: PolicyManifestUpdateInput = {};
         if (Object.keys(runtimeUpdate).length > 0) {
@@ -342,21 +626,46 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         }
         payload.hitl = hitlUpdate;
 
-        const snapshot = await updatePolicyManifest(payload);
-        setManifest(snapshot);
-        setHitlEnabled(snapshot.hitl.enabled);
-        setCheckpoints(snapshot.hitl.checkpoints);
-        setRuntimeForm({
-          maxIters: snapshot.runtime.maxIters ? String(snapshot.runtime.maxIters) : '',
-          perIteration: snapshot.runtime.timeouts.perIteration ? String(snapshot.runtime.timeouts.perIteration) : '',
-          totalTimeout: snapshot.runtime.timeouts.total ? String(snapshot.runtime.timeouts.total) : '',
-          sampleRate: String(Math.round((snapshot.runtime.tracing.sampleRate ?? 0) * 100)),
+        const planResponse = await patchConfigPoliciesPlan({
+          policyId: POLICY_MANIFEST_ID,
+          changes: payload,
         });
+
+        const nextSnapshot = applyManifestUpdateToSnapshot(manifest, payload);
+        const currentManifestString = formatManifestSnapshot(manifest);
+        const nextManifestString = formatManifestSnapshot(nextSnapshot);
+        const patch = createTwoFilesPatch(
+          'policies/manifest.json',
+          'policies/manifest.json',
+          currentManifestString,
+          nextManifestString,
+          undefined,
+          undefined,
+          { context: 3 },
+        );
+
+        const diffs = mapPlanDiffItems(planResponse.plan.diffs, patch);
+
+        setPendingPlan({
+          id: generatePlanId(),
+          plan: planResponse.plan,
+          planPayload: planResponse.planPayload,
+          patch,
+          diffs,
+          nextSnapshot,
+        });
+        setPlanModalOpen(true);
         setRuntimeErrors({});
-        setRuntimeMessage('Configurações atualizadas com sucesso.');
+        setPlanError(null);
+        setRuntimeMessage('Plano gerado. Revise as alterações antes de aplicar.');
       } catch (error) {
-        console.error('Failed to atualizar configuração de runtime', error);
-        setRuntimeMessage('Falha ao salvar as alterações. Tente novamente.');
+        console.error('Failed to gerar plano de políticas', error);
+        const message =
+          error instanceof Error && error.message ? error.message : 'Falha ao gerar plano de atualização. Tente novamente.';
+        setPlanError(message);
+        setPendingPlan(null);
+        setPlanModalOpen(false);
+        setRuntimeMessage(message);
       } finally {
         setIsRuntimeSaving(false);
       }
@@ -565,7 +874,85 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   }
 
   return (
-    <main className="policies">
+    <>
+      {isPlanModalOpen && pendingPlan ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="policy-plan-modal-title">
+          <div className="modal">
+            <header className="modal__header">
+              <h2 id="policy-plan-modal-title" className="modal__title">
+                Confirmar alterações nas políticas
+              </h2>
+              <p className="modal__subtitle">{pendingPlan.plan.summary}</p>
+            </header>
+            <div className="modal__body">
+              <PlanDiffViewer diffs={pendingPlan.diffs} />
+              <div className="modal__form" role="group" aria-labelledby="policy-plan-modal-title">
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="policy-plan-actor">
+                    Autor da alteração
+                  </label>
+                  <input
+                    id="policy-plan-actor"
+                    type="text"
+                    className="modal__input"
+                    value={planActor}
+                    onChange={handlePlanActorChange}
+                    placeholder="Nome completo do autor"
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="policy-plan-actor-email">
+                    E-mail do autor
+                  </label>
+                  <input
+                    id="policy-plan-actor-email"
+                    type="email"
+                    className="modal__input"
+                    value={planActorEmail}
+                    onChange={handlePlanActorEmailChange}
+                    placeholder="autor@example.com"
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="policy-plan-commit-message">
+                    Mensagem do commit
+                  </label>
+                  <input
+                    id="policy-plan-commit-message"
+                    type="text"
+                    className="modal__input"
+                    value={planCommitMessage}
+                    onChange={handlePlanCommitMessageChange}
+                    placeholder="Descreva o objetivo das alterações"
+                  />
+                </div>
+              </div>
+              {planError && <p className="modal__error">{planError}</p>}
+            </div>
+            <footer className="modal__footer">
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={handlePlanCancel}
+                disabled={isPlanApplying}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={handlePlanApply}
+                disabled={isPlanApplying}
+              >
+                {isPlanApplying ? 'Aplicando…' : 'Aplicar plano'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+      <main className="policies">
       <section className="policies__hero">
         <h1>Políticas MCP · roteamento inteligente</h1>
         <p>
@@ -906,8 +1293,14 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           </fieldset>
 
           <div className="runtime-settings__actions">
-            <button type="submit" className="button button--primary" disabled={isRuntimeSaving || isManifestLoading}>
-              {isRuntimeSaving ? 'Salvando…' : 'Salvar alterações'}
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={
+                isRuntimeSaving || isManifestLoading || isPlanModalOpen || isPlanApplying
+              }
+            >
+              {isRuntimeSaving ? 'Gerando plano…' : 'Gerar plano'}
             </button>
           </div>
         </form>
@@ -1014,5 +1407,6 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         </ol>
       </section>
     </main>
+    </>
   );
 }

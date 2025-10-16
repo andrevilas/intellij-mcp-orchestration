@@ -19,7 +19,7 @@ import {
   postMcpSmokeRun,
 } from '../../api';
 import PlanSummary from './PlanSummary';
-import DiffViewer from './DiffViewer';
+import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
 
 interface WizardStepDefinition {
   id: WizardStep;
@@ -126,6 +126,17 @@ export default function McpOnboardingWizard() {
   const [trackerStatus, setTrackerStatus] = useState<McpOnboardingStatus | null>(null);
 
   const stepIndex = useMemo(() => STEP_DEFINITIONS.findIndex((step) => step.id === activeStep), [activeStep]);
+
+  const diffItems = useMemo<PlanDiffItem[]>(
+    () =>
+      diffs.map((diff) => ({
+        id: diff.id,
+        title: diff.file,
+        summary: diff.summary,
+        diff: diff.diff,
+      })),
+    [diffs],
+  );
 
   const handleStepChange = (nextStep: WizardStep) => {
     const currentIndex = stepIndex;
@@ -532,7 +543,7 @@ export default function McpOnboardingWizard() {
               </p>
             ) : null}
             <PlanSummary plan={plan} isLoading={isPlanning} />
-            <DiffViewer diffs={diffs} />
+            <PlanDiffViewer diffs={diffItems} />
             {risks.length > 0 ? (
               <section className="mcp-wizard__risks">
                 <h3>Riscos identificados</h3>
