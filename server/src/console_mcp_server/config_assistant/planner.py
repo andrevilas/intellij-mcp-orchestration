@@ -8,7 +8,14 @@ import re
 
 import structlog
 
-from ..schemas_plan import Plan, PlanAction, PlanContextReference, PlanExecutionStatus, PlanStep, Risk
+from ..schemas_plan import (
+    Plan,
+    PlanAction,
+    PlanContextReference,
+    PlanExecutionStatus,
+    PlanStep,
+    Risk,
+)
 from .artifacts import generate_artifact
 from .langgraph import FlowGraph, graph_to_agent
 from .git import create_diff
@@ -24,6 +31,11 @@ PlanBuilder = Callable[[Mapping[str, Any]], Plan]
 def _slugify_agent(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-")
     return slug.casefold() or "agent"
+
+
+DEFAULT_APPROVAL_RULES: dict[AssistantIntent, tuple[str, ...]] = {
+    AssistantIntent.ADD_AGENT: ("maintainers",),
+}
 
 
 def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None = None) -> Plan:
@@ -42,6 +54,7 @@ def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None
     builder = _BUILDERS[resolved]
     plan = builder(payload)
     plan = _attach_context(plan, resolved, payload)
+    plan = _apply_approval_rules(plan, resolved, payload)
     logger.info(
         "plan.generated",
         intent=resolved.value,
@@ -50,6 +63,30 @@ def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None
         risks=len(plan.risks),
     )
     return plan
+
+
+def _apply_approval_rules(
+    plan: Plan, intent: AssistantIntent, payload: Mapping[str, Any]
+) -> Plan:
+    requested = payload.get("approval_rules")
+    if requested is None:
+        requested = DEFAULT_APPROVAL_RULES.get(intent, ())
+
+    if isinstance(requested, str):
+        rules: Sequence[str] = (requested,)
+    else:
+        rules = tuple(str(rule) for rule in requested)
+
+    normalized = [
+        rule.strip()
+        for rule in rules
+        if isinstance(rule, str) and rule.strip()
+    ]
+    if not normalized:
+        return plan
+
+    unique_rules = list(dict.fromkeys(normalized))
+    return plan.model_copy(update={"approval_rules": unique_rules})
 
 
 def _attach_context(plan: Plan, intent: AssistantIntent, payload: Mapping[str, Any]) -> Plan:

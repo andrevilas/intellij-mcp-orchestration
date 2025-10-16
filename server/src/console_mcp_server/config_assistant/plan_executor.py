@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 import structlog
 
 from ..approvals import ApprovalStatus, ApprovalStore
-from ..change_plans import ChangePlanStore
+from ..change_plans import ChangePlanRecord, ChangePlanStore
+from ..git_providers import (
+    GitProviderClient,
+    GitProviderError,
+    PullRequestSnapshot,
+    PullRequestStatus,
+)
 from ..schemas_plan import Plan, PlanExecutionMode, PlanExecutionStatus, Risk
 from .git import CreatedBranch, GitRepository, GitWorkflowError
 
@@ -36,6 +43,7 @@ class PlanExecutionResult:
     hitl_required: bool
     message: str
     approval_id: str | None = None
+    pull_request: PullRequestSnapshot | None = None
 
 
 @dataclass(frozen=True)
@@ -83,12 +91,14 @@ class PlanExecutor:
         approval_store: ApprovalStore | None = None,
         event_broker: HitlEventBroker | None = None,
         allow_direct_commits: bool = False,
+        git_provider: GitProviderClient | None = None,
     ) -> None:
         self._repo_path = Path(repo_path)
         self._store = change_plan_store or ChangePlanStore()
         self._approvals = approval_store or ApprovalStore()
         self._events = event_broker or HitlEventBroker()
         self._allow_direct_commits = allow_direct_commits
+        self._git_provider = git_provider
 
     def dry_run(
         self,
@@ -165,6 +175,8 @@ class PlanExecutor:
                 "base_branch": repo.active_branch(),
                 "commit_message": commit_message,
                 "actor_email": actor_email,
+                "plan_summary": plan.summary,
+                "approval_rules": list(plan.approval_rules),
             },
         )
 
@@ -323,29 +335,57 @@ class PlanExecutor:
         diff_stat = repo.diff_stat(branch_info.base, branch_info.name)
         diff_patch = repo.diff_patch(branch_info.base, branch_info.name)
 
+        pr_snapshot: PullRequestSnapshot | None = None
+        metadata_update = {"base_branch": branch_info.base, "approved_by": approval.approver_id}
+        status_after_commit = PlanExecutionStatus.COMPLETED
+
+        existing_pr = {}
+        if isinstance(record.metadata, dict):
+            existing_pr = record.metadata.get("pull_request") or {}
+
+        if (
+            record.mode is PlanExecutionMode.BRANCH_PR
+            and self._git_provider is not None
+            and not existing_pr
+        ):
+            pr_snapshot = self._open_pull_request(
+                branch_name=branch_info.name,
+                base_branch=branch_info.base,
+                record=record,
+                commit_sha=commit_sha,
+            )
+            if pr_snapshot is not None:
+                metadata_update["pull_request"] = pr_snapshot.to_metadata()
+                status_after_commit = PlanExecutionStatus.IN_PROGRESS
+
         updated_record = self._store.update(
             record.id,
-            status=PlanExecutionStatus.COMPLETED,
+            status=status_after_commit,
             branch=branch_info.name,
             commit_sha=commit_sha,
             diff_stat=diff_stat,
             diff_patch=diff_patch,
-            metadata={"base_branch": branch_info.base, "approved_by": approval.approver_id},
+            metadata=metadata_update,
         )
 
         result = PlanExecutionResult(
             record_id=updated_record.id,
             plan_id=updated_record.plan_id,
             mode=updated_record.mode,
-            status=PlanExecutionStatus.COMPLETED,
+            status=status_after_commit,
             branch=updated_record.branch,
             base_branch=branch_info.base,
             commit_sha=commit_sha,
             diff_stat=diff_stat,
             diff_patch=diff_patch,
             hitl_required=updated_record.mode is PlanExecutionMode.BRANCH_PR,
-            message="Plano aplicado após aprovação.",
+            message=(
+                "Plano aplicado e Pull Request aberto para revisão."
+                if pr_snapshot is not None
+                else "Plano aplicado após aprovação."
+            ),
             approval_id=approval.id,
+            pull_request=pr_snapshot,
         )
 
         logger.info(
@@ -363,7 +403,11 @@ class PlanExecutor:
                 plan_id=approval.plan_id,
                 record_id=approval.change_record_id,
                 status=approval.status.value,
-                payload={"branch": updated_record.branch or "", "commit": commit_sha},
+                payload={
+                    "branch": updated_record.branch or "",
+                    "commit": commit_sha,
+                    "pull_request": pr_snapshot.to_metadata() if pr_snapshot else None,
+                },
             )
         )
 
@@ -374,6 +418,71 @@ class PlanExecutor:
                 logger.warning("plan.hitl_callback_failed", plan_id=updated_record.plan_id, error=str(exc))
 
         return result
+
+    def sync_external_status(
+        self,
+        record_id: str,
+        *,
+        plan_id: str | None = None,
+        provider_payload: Mapping[str, object] | None = None,
+    ) -> PlanExecutionResult:
+        record = self._store.get(record_id)
+        if record is None:
+            raise PlanExecutorError("Registro de plano não encontrado para sincronização.")
+        if plan_id is not None and record.plan_id != plan_id:
+            raise PlanExecutorError("Identificador de plano não corresponde ao registro informado.")
+
+        pr_metadata = record.metadata.get("pull_request") if isinstance(record.metadata, dict) else None
+        if not pr_metadata:
+            raise PlanExecutorError("Registro não possui Pull Request associado para sincronização.")
+
+        snapshot = PullRequestSnapshot.from_metadata(pr_metadata)
+
+        if provider_payload is not None:
+            status = PullRequestStatus(
+                state=str(provider_payload.get("state", snapshot.state)),
+                ci_status=str(provider_payload.get("ci_status"))
+                if provider_payload.get("ci_status") is not None
+                else snapshot.ci_status,
+                review_status=str(provider_payload.get("review_status"))
+                if provider_payload.get("review_status") is not None
+                else snapshot.review_status,
+                merged=bool(provider_payload.get("merged", snapshot.merged)),
+            )
+        else:
+            if self._git_provider is None:
+                raise PlanExecutorError("Integração com provedor Git não configurada para sincronização.")
+            try:
+                status = self._git_provider.fetch_pull_request_status(snapshot)
+            except GitProviderError as exc:
+                raise PlanExecutorError(str(exc)) from exc
+
+        synced_at = datetime.now(tz=timezone.utc).isoformat()
+        snapshot = snapshot.with_status(status, synced_at=synced_at)
+        metadata_update = {"pull_request": snapshot.to_metadata()}
+
+        updated_record = self._store.update(
+            record.id,
+            status=self._derive_status_from_pull_request(status),
+            metadata=metadata_update,
+        )
+
+        message = "Status sincronizado com o provedor Git."
+        return PlanExecutionResult(
+            record_id=updated_record.id,
+            plan_id=updated_record.plan_id,
+            mode=updated_record.mode,
+            status=updated_record.status,
+            branch=updated_record.branch,
+            base_branch=updated_record.metadata.get("base_branch"),
+            commit_sha=updated_record.commit_sha,
+            diff_stat=updated_record.diff_stat,
+            diff_patch=updated_record.diff_patch,
+            hitl_required=updated_record.mode is PlanExecutionMode.BRANCH_PR,
+            message=message,
+            approval_id=None,
+            pull_request=snapshot,
+        )
 
     def rollback(
         self,
@@ -438,6 +547,71 @@ class PlanExecutor:
         # Direct mode reuses the active branch without creating a new one.
         base = repo.active_branch()
         return CreatedBranch(name=base, base=base)
+
+    def _open_pull_request(
+        self,
+        *,
+        branch_name: str,
+        base_branch: str,
+        record: ChangePlanRecord,
+        commit_sha: str,
+    ) -> PullRequestSnapshot | None:
+        if self._git_provider is None:
+            return None
+
+        plan_summary = str(record.metadata.get("plan_summary", record.plan_id)) if isinstance(record.metadata, dict) else record.plan_id
+        approval_rules = []
+        if isinstance(record.metadata, dict):
+            approval_rules = list(record.metadata.get("approval_rules") or [])
+
+        body_lines = [plan_summary]
+        if approval_rules:
+            body_lines.append("")
+            body_lines.append("Regras de aprovação exigidas: " + ", ".join(approval_rules))
+        body = "\n".join(line for line in body_lines if line is not None)
+
+        commit_message = record.metadata.get("commit_message", "Atualizar configuração") if isinstance(record.metadata, dict) else "Atualizar configuração"
+        title = str(commit_message)
+
+        try:
+            snapshot = self._git_provider.open_pull_request(
+                source_branch=branch_name,
+                target_branch=base_branch,
+                title=title,
+                body=body,
+                head_sha=commit_sha,
+            )
+        except GitProviderError as exc:
+            logger.warning(
+                "plan.pull_request_failed",
+                plan_id=record.plan_id,
+                branch=branch_name,
+                error=str(exc),
+            )
+            return None
+
+        return snapshot
+
+    @staticmethod
+    def _derive_status_from_pull_request(status: PullRequestStatus) -> PlanExecutionStatus:
+        if status.merged or status.state.lower() in {"merged", "closed_with_merged"}:
+            return PlanExecutionStatus.COMPLETED
+        if status.ci_status and status.ci_status.lower() in {"failed", "failure"}:
+            return PlanExecutionStatus.FAILED
+        if status.review_status and status.review_status.lower() in {"changes_requested", "rejected"}:
+            return PlanExecutionStatus.FAILED
+        if (
+            status.ci_status
+            and status.ci_status.lower() in {"success", "passed"}
+            and status.review_status
+            and status.review_status.lower() in {"approved", "satisfied"}
+        ):
+            return PlanExecutionStatus.COMPLETED
+        if status.ci_status and status.ci_status.lower() in {"pending", "running", "in_progress"}:
+            return PlanExecutionStatus.IN_PROGRESS
+        if status.review_status and status.review_status.lower() in {"pending", "draft"}:
+            return PlanExecutionStatus.IN_PROGRESS
+        return PlanExecutionStatus.IN_PROGRESS
 
 
     @property

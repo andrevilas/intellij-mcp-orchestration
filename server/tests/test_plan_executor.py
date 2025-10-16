@@ -8,6 +8,7 @@ from git import Repo
 
 from console_mcp_server.change_plans import ChangePlanStore
 from console_mcp_server.config_assistant.plan_executor import PlanExecutor
+from console_mcp_server.git_providers import PullRequestSnapshot, PullRequestStatus
 from console_mcp_server.schemas_plan import (
     Plan,
     PlanExecutionMode,
@@ -36,6 +37,47 @@ def _sample_plan() -> Plan:
         diffs=[],
         risks=[Risk(title="Validação manual", impact="low", mitigation="Revisar com par.")],
     )
+
+
+class DummyGitProvider:
+    name = "dummy"
+
+    def __init__(self) -> None:
+        self.open_calls: list[dict[str, str]] = []
+        self.status_calls: list[PullRequestSnapshot] = []
+        self.status = PullRequestStatus(state="open", ci_status="pending", review_status="pending")
+
+    def open_pull_request(
+        self,
+        *,
+        source_branch: str,
+        target_branch: str,
+        title: str,
+        body: str,
+        head_sha: str,
+    ) -> PullRequestSnapshot:
+        self.open_calls.append(
+            {
+                "source": source_branch,
+                "target": target_branch,
+                "title": title,
+                "body": body,
+                "sha": head_sha,
+            }
+        )
+        return PullRequestSnapshot(
+            provider=self.name,
+            identifier="pr-1",
+            number="101",
+            url="https://example.test/pr/101",
+            title=title,
+            state="open",
+            head_sha=head_sha,
+        )
+
+    def fetch_pull_request_status(self, pr: PullRequestSnapshot) -> PullRequestStatus:
+        self.status_calls.append(pr)
+        return self.status
 
 
 def test_dry_run_records_plan_execution(tmp_path: Path, database) -> None:
@@ -143,3 +185,70 @@ def test_rollback_removes_branch_and_logs_history(tmp_path: Path, database) -> N
     records = store.list_for_plan("PLAN-ROLLBACK")
     assert len(records) == 2
     assert records[-1].status is PlanExecutionStatus.FAILED
+
+
+def test_finalize_opens_pull_request_with_provider(tmp_path: Path, database) -> None:
+    database.bootstrap_database()
+    repo_dir = tmp_path / "workspace"
+    repo_dir.mkdir()
+    _, patch = _bootstrap_repository(repo_dir)
+
+    store = ChangePlanStore()
+    provider = DummyGitProvider()
+    executor = PlanExecutor(repo_dir, change_plan_store=store, git_provider=provider)
+    plan = _sample_plan()
+
+    submission = executor.submit_for_approval(
+        plan=plan,
+        plan_id="PLAN-PR",
+        patch=patch,
+        actor="Dana Doe",
+        actor_email="dana@example.com",
+        commit_message="feat: add integration",
+        mode=PlanExecutionMode.BRANCH_PR,
+    )
+
+    executor.approve_request(submission.approval_id or "", approver_id="approver")
+    result = executor.finalize_approval(submission.approval_id or "")
+
+    assert provider.open_calls, "provider should be invoked to open a pull request"
+    assert result.pull_request is not None
+    assert result.pull_request.number == "101"
+    assert result.status is PlanExecutionStatus.IN_PROGRESS
+
+    record = store.get(result.record_id)
+    assert record is not None
+    assert record.metadata.get("pull_request", {}).get("number") == "101"
+
+
+def test_sync_plan_status_updates_metadata(tmp_path: Path, database) -> None:
+    database.bootstrap_database()
+    repo_dir = tmp_path / "workspace"
+    repo_dir.mkdir()
+    _, patch = _bootstrap_repository(repo_dir)
+
+    store = ChangePlanStore()
+    provider = DummyGitProvider()
+    executor = PlanExecutor(repo_dir, change_plan_store=store, git_provider=provider)
+    plan = _sample_plan()
+
+    submission = executor.submit_for_approval(
+        plan=plan,
+        plan_id="PLAN-SYNC",
+        patch=patch,
+        actor="Eve Doe",
+        actor_email="eve@example.com",
+        commit_message="feat: sync status",
+        mode=PlanExecutionMode.BRANCH_PR,
+    )
+    executor.approve_request(submission.approval_id or "", approver_id="approver")
+    applied = executor.finalize_approval(submission.approval_id or "")
+
+    provider.status = PullRequestStatus(state="open", ci_status="success", review_status="approved")
+    synced = executor.sync_external_status(applied.record_id)
+
+    assert provider.status_calls, "provider should be queried during sync"
+    assert synced.status is PlanExecutionStatus.COMPLETED
+    assert synced.pull_request is not None
+    assert synced.pull_request.ci_status == "success"
+    assert synced.pull_request.review_status == "approved"
