@@ -4,6 +4,7 @@ import useAdminChat from '../../hooks/useAdminChat';
 import DiffViewer from './DiffViewer';
 import PlanSummary from './PlanSummary';
 import RiskCard from './RiskCard';
+import McpOnboardingWizard from './McpOnboardingWizard';
 
 const ROLE_LABELS = {
   user: 'Operador',
@@ -56,7 +57,6 @@ export default function AdminChat() {
     isChatLoading,
     isPlanLoading,
     isApplyLoading,
-    isOnboarding,
     error,
     statusMessage,
     sendMessage,
@@ -64,7 +64,6 @@ export default function AdminChat() {
     applyPlan,
     confirmHitl,
     cancelHitl,
-    onboardProvider,
     clearStatus,
     clearError,
     hasConversation,
@@ -73,10 +72,7 @@ export default function AdminChat() {
   const [prompt, setPrompt] = useState('');
   const [scope, setScope] = useState('');
   const [note, setNote] = useState('');
-  const [providerId, setProviderId] = useState('');
-  const [command, setCommand] = useState('');
   const [scopeError, setScopeError] = useState<string | null>(null);
-  const [onboardError, setOnboardError] = useState<string | null>(null);
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -126,23 +122,6 @@ export default function AdminChat() {
     try {
       await confirmHitl(note.trim() ? note.trim() : null);
       setNote('');
-    } catch {
-      // handled
-    }
-  };
-
-  const handleOnboard = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedId = providerId.trim();
-    if (!trimmedId) {
-      setOnboardError('Informe o ID do provedor MCP.');
-      return;
-    }
-    try {
-      await onboardProvider(trimmedId, command.trim() ? command.trim() : null);
-      setOnboardError(null);
-      setProviderId('');
-      setCommand('');
     } catch {
       // handled
     }
@@ -313,58 +292,7 @@ export default function AdminChat() {
             </div>
           </form>
 
-          <form className="admin-chat__form admin-chat__form--inline" onSubmit={handleOnboard}>
-            <fieldset disabled={isOnboarding} className="admin-chat__fieldset">
-              <legend>Onboarding de servidores MCP</legend>
-              <div className="admin-chat__form-row">
-                <label className="admin-chat__label" htmlFor="admin-chat-provider">
-                  ID do servidor
-                </label>
-                <input
-                  id="admin-chat-provider"
-                  name="provider"
-                  type="text"
-                  value={providerId}
-                  onChange={(event) => {
-                    setProviderId(event.target.value);
-                    if (onboardError) {
-                      setOnboardError(null);
-                    }
-                  }}
-                  placeholder="Ex.: openai-gpt4o"
-                  aria-invalid={onboardError ? 'true' : 'false'}
-                  aria-describedby={onboardError ? 'admin-chat-provider-error' : undefined}
-                />
-              </div>
-              <div className="admin-chat__form-row">
-                <label className="admin-chat__label" htmlFor="admin-chat-command">
-                  Comando (opcional)
-                </label>
-                <input
-                  id="admin-chat-command"
-                  name="command"
-                  type="text"
-                  value={command}
-                  onChange={(event) => setCommand(event.target.value)}
-                  placeholder="Ex.: ./run-mcp --profile production"
-                />
-              </div>
-              {onboardError ? (
-                <p id="admin-chat-provider-error" className="admin-chat__helper admin-chat__helper--error">
-                  {onboardError}
-                </p>
-              ) : (
-                <p className="admin-chat__helper">
-                  O assistente irá provisionar o servidor e atualizar o catálogo de forma segura.
-                </p>
-              )}
-              <div className="admin-chat__button-row">
-                <button type="submit" className="admin-chat__button" disabled={isOnboarding}>
-                  Iniciar onboarding
-                </button>
-              </div>
-            </fieldset>
-          </form>
+          <McpOnboardingWizard />
         </section>
 
         <aside className="admin-chat__panel admin-chat__panel--summary">

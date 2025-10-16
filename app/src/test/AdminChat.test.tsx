@@ -10,12 +10,17 @@ import type {
   ConfigPlanResponse,
   ConfigApplyResponse,
   ConfigOnboardResponse,
+  ConfigOnboardRequest,
+  McpSmokeRunResponse,
+  McpOnboardingStatus,
 } from '../api';
 import {
   postConfigChat,
   postConfigPlan,
   postConfigApply,
   postConfigMcpOnboard,
+  postMcpSmokeRun,
+  fetchMcpOnboardingStatus,
 } from '../api';
 
 type ApiModule = typeof import('../api');
@@ -28,6 +33,8 @@ vi.mock('../api', async () => {
     postConfigPlan: vi.fn(),
     postConfigApply: vi.fn(),
     postConfigMcpOnboard: vi.fn(),
+    postMcpSmokeRun: vi.fn(),
+    fetchMcpOnboardingStatus: vi.fn(),
   } satisfies Partial<ApiModule>;
 });
 
@@ -97,24 +104,110 @@ describe('AdminChat view', () => {
     status: 'applied',
     message: 'Plano aplicado com sucesso.',
     plan: { ...planSummary, status: 'applied', generatedAt: '2025-01-10T10:05:00Z' },
+    branch: 'feature/mcp-openai-gpt4o',
+    baseBranch: 'main',
+    commitSha: 'abc123',
+    recordId: 'rec-apply-1',
+    pullRequest: {
+      provider: 'github',
+      id: 'pr-42',
+      number: '42',
+      url: 'https://github.com/prom/demo/pull/42',
+      title: 'feat: onboard openai-gpt4o',
+      state: 'open',
+      headSha: 'abc123',
+      ciStatus: 'pending',
+      reviewStatus: 'pending',
+      merged: false,
+    },
+  };
+
+  const onboardPlan: AdminPlanSummary = {
+    id: 'onboard-plan-1',
+    threadId: 'thread-onboard',
+    status: 'ready',
+    generatedAt: '2025-01-11T09:00:00Z',
+    author: 'Console MCP',
+    scope: 'Onboarding do agente openai-gpt4o',
+    steps: [
+      {
+        id: 'onboard-step-1',
+        title: 'Criar manifesto',
+        description: 'Gera manifesto MCP com metadata básica.',
+        status: 'ready',
+      },
+      {
+        id: 'onboard-step-2',
+        title: 'Atualizar registro',
+        description: 'Registra agente no catálogo principal.',
+        status: 'pending',
+      },
+    ],
   };
 
   const onboardResponse: ConfigOnboardResponse = {
-    status: 'queued',
-    message: 'Onboarding iniciado para openai-gpt4o.',
+    plan: onboardPlan,
+    diffs: [
+      {
+        id: 'onboard-diff-1',
+        file: 'agents/openai-gpt4o/agent.manifest.json',
+        summary: 'Adiciona manifesto inicial para o agente.',
+        diff: '{\n  "name": "openai-gpt4o"\n}',
+      },
+    ],
+    risks: [
+      {
+        id: 'onboard-risk-1',
+        level: 'medium',
+        title: 'Manifesto sem validação',
+        description: 'Executar validação contra schema antes de merge.',
+      },
+    ],
+    message: 'Plano de onboarding preparado para openai-gpt4o.',
+  };
+
+  const smokeResponse: McpSmokeRunResponse = {
+    runId: 'smoke-1',
+    status: 'running',
+    summary: 'Smoke em execução no ambiente production.',
+    startedAt: '2025-01-11T09:05:00Z',
+    finishedAt: null,
+  };
+
+  const trackerStatus: McpOnboardingStatus = {
+    recordId: applySuccessResponse.recordId,
+    status: 'running',
+    branch: applySuccessResponse.branch,
+    baseBranch: applySuccessResponse.baseBranch,
+    commitSha: applySuccessResponse.commitSha,
+    pullRequest: applySuccessResponse.pullRequest,
+    updatedAt: '2025-01-11T09:10:00Z',
   };
 
   const postChatMock = postConfigChat as unknown as Mock;
   const postPlanMock = postConfigPlan as unknown as Mock;
   const postApplyMock = postConfigApply as unknown as Mock;
   const postOnboardMock = postConfigMcpOnboard as unknown as Mock;
+  const postSmokeMock = postMcpSmokeRun as unknown as Mock;
+  const fetchStatusMock = fetchMcpOnboardingStatus as unknown as Mock;
 
   beforeEach(() => {
     vi.clearAllMocks();
     postChatMock.mockResolvedValue(chatResponse);
-    postPlanMock.mockResolvedValue(planResponse);
-    postApplyMock.mockResolvedValueOnce(applyHitlResponse).mockResolvedValueOnce(applySuccessResponse);
+    postPlanMock.mockImplementation((payload: unknown) => {
+      const typed = payload as { intent: string };
+      if (typed.intent === 'summarize') {
+        return Promise.resolve({ plan: onboardPlan, diffs: onboardResponse.diffs, risks: onboardResponse.risks });
+      }
+      return Promise.resolve(planResponse);
+    });
+    postApplyMock
+      .mockResolvedValueOnce(applyHitlResponse)
+      .mockResolvedValueOnce(applySuccessResponse)
+      .mockResolvedValue(applySuccessResponse);
     postOnboardMock.mockResolvedValue(onboardResponse);
+    postSmokeMock.mockResolvedValue(smokeResponse);
+    fetchStatusMock.mockResolvedValue(trackerStatus);
   });
 
   it('permite conversar, gerar plano, aprovar HITL e iniciar onboarding', async () => {
@@ -162,7 +255,10 @@ describe('AdminChat view', () => {
     await userEvent.type(approvalNote, 'Aprovado manualmente pelo time de risco.');
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar aplicação' }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(applySuccessResponse.message));
+    const statusBanner = await screen.findByRole('status');
+    expect(statusBanner).toHaveTextContent(applySuccessResponse.message);
+    expect(statusBanner).toHaveTextContent(applySuccessResponse.branch as string);
+    expect(statusBanner).toHaveTextContent('PR:');
     expect(postApplyMock).toHaveBeenNthCalledWith(2, {
       intent: 'confirm',
       threadId: chatResponse.threadId,
@@ -172,17 +268,99 @@ describe('AdminChat view', () => {
     });
     expect(screen.getByText('Aplicado')).toBeInTheDocument();
 
-    const providerInput = screen.getByLabelText('ID do servidor');
-    await userEvent.type(providerInput, 'openai-gpt4o');
-    const commandInput = screen.getByLabelText('Comando (opcional)');
-    await userEvent.type(commandInput, './run-mcp --profile production');
-    await userEvent.click(screen.getByRole('button', { name: 'Iniciar onboarding' }));
+    await userEvent.type(screen.getByLabelText('Identificador do agente'), 'openai-gpt4o');
+    await userEvent.type(screen.getByLabelText('Nome exibido'), 'OpenAI GPT-4o');
+    await userEvent.type(screen.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
+    await userEvent.type(screen.getByLabelText('Owner responsável'), '@squad-mcp');
+    await userEvent.type(screen.getByLabelText('Tags (separadas por vírgula)'), 'openai,prod');
+    await userEvent.type(screen.getByLabelText('Capacidades (separadas por vírgula)'), 'chat');
+    await userEvent.type(screen.getByLabelText('Descrição'), 'Agente com fallback para GPT-4o.');
+    await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
 
-    await waitFor(() => expect(postOnboardMock).toHaveBeenCalledWith({
-      intent: 'onboard',
-      providerId: 'openai-gpt4o',
-      command: './run-mcp --profile production',
-    }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(onboardResponse.message));
+    await userEvent.click(screen.getByLabelText('API Key'));
+    await userEvent.type(screen.getByLabelText('Nome da credencial'), 'OPENAI_API_KEY');
+    await userEvent.type(screen.getByLabelText('Ambiente/namespace'), 'production');
+    await userEvent.type(screen.getByLabelText('Instruções para provisionamento'), 'Gerar no vault e replicar.');
+    await userEvent.click(screen.getByRole('button', { name: 'Avançar para tools' }));
+
+    await userEvent.type(screen.getByLabelText('Nome da tool 1'), 'catalog.search');
+    await userEvent.type(screen.getByLabelText('Descrição da tool 1'), 'Busca recursos homologados.');
+    await userEvent.type(screen.getByLabelText('Entry point da tool 1'), 'catalog/search.py');
+    await userEvent.click(screen.getByRole('button', { name: 'Ir para validação' }));
+
+    const notesField = screen.getByLabelText('Checklist/observações adicionais');
+    await userEvent.type(notesField, 'Checklist final com owners.');
+    const gatesField = screen.getByLabelText('Quality gates (separados por vírgula)');
+    await userEvent.clear(gatesField);
+    await userEvent.type(gatesField, 'operacao,finops,confianca');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Gerar plano de onboarding' }));
+
+    const expectedPayload: ConfigOnboardRequest = {
+      agent: {
+        id: 'openai-gpt4o',
+        name: 'OpenAI GPT-4o',
+        repository: 'agents/openai-gpt4o',
+        description: 'Agente com fallback para GPT-4o.',
+        owner: '@squad-mcp',
+        tags: ['openai', 'prod'],
+        capabilities: ['chat'],
+      },
+      authentication: {
+        mode: 'api_key',
+        secretName: 'OPENAI_API_KEY',
+        instructions: 'Gerar no vault e replicar.',
+        environment: 'production',
+      },
+      tools: [
+        { name: 'catalog.search', description: 'Busca recursos homologados.', entryPoint: 'catalog/search.py' },
+      ],
+      validation: {
+        runSmokeTests: true,
+        qualityGates: ['operacao', 'finops', 'confianca'],
+        notes: 'Checklist final com owners.',
+      },
+    };
+
+    await waitFor(() => expect(postOnboardMock).toHaveBeenCalledWith(expectedPayload));
+    await waitFor(() => expect(screen.getByText(onboardResponse.message)).toBeInTheDocument());
+    expect(screen.getByText('Criar manifesto')).toBeInTheDocument();
+    expect(screen.getByText('Adiciona manifesto inicial para o agente.')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Nota para aplicação'), 'Aplicar com acompanhamento do time de plataforma.');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar e aplicar plano' }));
+
+    await waitFor(() =>
+      expect(postPlanMock).toHaveBeenCalledWith({ intent: 'summarize', threadId: onboardPlan.threadId }),
+    );
+    await waitFor(() =>
+      expect(postApplyMock).toHaveBeenLastCalledWith({
+        intent: 'apply',
+        threadId: onboardPlan.threadId,
+        planId: onboardPlan.id,
+        note: 'Aplicar com acompanhamento do time de plataforma.',
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(`Registro`)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(applySuccessResponse.recordId)).toBeInTheDocument();
+    expect(screen.getByText(applySuccessResponse.branch as string)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: applySuccessResponse.pullRequest?.title })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar status' }));
+    await waitFor(() => expect(fetchStatusMock).toHaveBeenCalledWith(applySuccessResponse.recordId));
+    expect(screen.getByText(/Situação atual:/)).toHaveTextContent('Situação atual: running');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Executar smoke tests' }));
+    await waitFor(() =>
+      expect(postSmokeMock).toHaveBeenCalledWith({
+        recordId: applySuccessResponse.recordId,
+        planId: onboardPlan.id,
+        providerId: 'openai-gpt4o',
+      }),
+    );
+    expect(screen.getByText(/Smoke em execução/)).toBeInTheDocument();
   });
 });

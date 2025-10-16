@@ -2445,6 +2445,19 @@ export interface AdminHitlRequest {
   message: string;
 }
 
+export interface ConfigApplyPullRequest {
+  provider: string;
+  id: string;
+  number: string;
+  url: string;
+  title: string;
+  state: string;
+  headSha: string;
+  ciStatus?: string | null;
+  reviewStatus?: string | null;
+  merged: boolean;
+}
+
 export type ConfigChatIntent =
   | { intent: 'message'; prompt: string; threadId?: string | null; context?: string | null }
   | { intent: 'history'; threadId: string; limit?: number };
@@ -2491,9 +2504,23 @@ export type ConfigApplyIntent =
   | { intent: 'confirm'; threadId: string; planId: string; token: string; note?: string | null }
   | { intent: 'abort'; threadId: string; planId: string; reason?: string | null };
 
-export type ConfigApplyResponse =
-  | { status: 'applied'; message: string; plan?: AdminPlanSummary | null }
-  | { status: 'hitl_required'; request: AdminHitlRequest };
+export interface ConfigApplySuccessResponse {
+  status: 'applied';
+  message: string;
+  plan?: AdminPlanSummary | null;
+  branch?: string | null;
+  baseBranch?: string | null;
+  commitSha?: string | null;
+  recordId: string;
+  pullRequest?: ConfigApplyPullRequest | null;
+}
+
+export interface ConfigApplyHitlResponse {
+  status: 'hitl_required';
+  request: AdminHitlRequest;
+}
+
+export type ConfigApplyResponse = ConfigApplySuccessResponse | ConfigApplyHitlResponse;
 
 export async function postConfigApply(
   intent: ConfigApplyIntent,
@@ -2506,22 +2533,96 @@ export async function postConfigApply(
   });
 }
 
-export type ConfigOnboardIntent =
-  | { intent: 'onboard'; providerId: string; command?: string | null }
-  | { intent: 'status'; providerId: string };
+export interface ConfigOnboardRequest {
+  agent: {
+    id: string;
+    name: string;
+    repository: string;
+    description?: string | null;
+    owner?: string | null;
+    tags: string[];
+    capabilities: string[];
+  };
+  authentication: {
+    mode: 'api_key' | 'oauth_client' | 'none';
+    secretName?: string | null;
+    instructions?: string | null;
+    environment?: string | null;
+  };
+  tools: {
+    name: string;
+    description: string;
+    entryPoint: string;
+  }[];
+  validation: {
+    runSmokeTests: boolean;
+    qualityGates: string[];
+    notes?: string | null;
+  };
+}
 
 export interface ConfigOnboardResponse {
-  status: 'queued' | 'running' | 'completed';
+  plan: AdminPlanSummary;
+  diffs: AdminPlanDiff[];
+  risks: AdminRiskItem[];
   message: string;
 }
 
 export async function postConfigMcpOnboard(
-  intent: ConfigOnboardIntent,
+  payload: ConfigOnboardRequest,
   signal?: AbortSignal,
 ): Promise<ConfigOnboardResponse> {
   return request<ConfigOnboardResponse>('/config/mcp/onboard', {
     method: 'POST',
-    body: JSON.stringify(intent),
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+export interface McpSmokeRunRequest {
+  recordId: string;
+  planId: string;
+  providerId: string;
+}
+
+export type McpSmokeRunStatus = 'queued' | 'running' | 'passed' | 'failed';
+
+export interface McpSmokeRunResponse {
+  runId: string;
+  status: McpSmokeRunStatus;
+  summary: string;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface McpOnboardingStatus {
+  recordId: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  branch?: string | null;
+  baseBranch?: string | null;
+  commitSha?: string | null;
+  pullRequest?: ConfigApplyPullRequest | null;
+  updatedAt: string | null;
+}
+
+export async function postMcpSmokeRun(
+  payload: McpSmokeRunRequest,
+  signal?: AbortSignal,
+): Promise<McpSmokeRunResponse> {
+  return request<McpSmokeRunResponse>('/config/mcp/smoke', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+export async function fetchMcpOnboardingStatus(
+  recordId: string,
+  signal?: AbortSignal,
+): Promise<McpOnboardingStatus> {
+  const searchParams = new URLSearchParams({ recordId });
+  return request<McpOnboardingStatus>(`/config/mcp/onboard/status?${searchParams.toString()}`, {
+    method: 'GET',
     signal,
   });
 }
