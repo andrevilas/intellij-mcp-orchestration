@@ -1,124 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { fetchFromAgents } from '../services/httpClient';
+import type {
+  AgentError,
+  AgentInvokeConfig,
+  AgentInvokeMetadata,
+  AgentInvokeRequest,
+  AgentInvokeResult,
+  InvokeOptions,
+  ResetOptions,
+  UseAgentOptions,
+} from '../types/agent';
+import { createAgentRequestId, mergeAgentConfigs, mergeAgentInputs } from '../utils/agentRequest';
 
-export interface AgentInvokeMetadata extends Record<string, unknown> {
-  requestId?: string;
-  caller?: string;
-  traceId?: string;
-}
-
-export interface AgentInvokeConfig extends Record<string, unknown> {
-  metadata?: AgentInvokeMetadata;
-  parameters?: Record<string, unknown>;
-}
-
-export interface AgentInvokeRequest<Input extends Record<string, unknown>, Config extends AgentInvokeConfig> {
-  input?: Input;
-  config?: Config;
-}
-
-export interface InvokeOptions<Input extends Record<string, unknown>, Config extends AgentInvokeConfig>
-  extends AgentInvokeRequest<Input, Config> {
-  requestId?: string;
-  signal?: AbortSignal;
-}
-
-export interface AgentInvokeResult<Result = unknown> {
-  requestId: string;
-  status: number;
-  result: Result;
-}
-
-export interface AgentError {
-  status: number;
-  message: string;
-  details?: Record<string, unknown>;
-  cause?: unknown;
-}
-
-export interface UseAgentOptions<Input extends Record<string, unknown>, Config extends AgentInvokeConfig> {
-  defaultInput?: Input;
-  defaultConfig?: Config;
-}
-
-export interface ResetOptions {
-  preserveFallback?: boolean;
-}
-
-interface AgentState<Result> {
-  data: AgentInvokeResult<Result> | null;
+interface AgentState<
+  Result,
+  Input extends Record<string, unknown>,
+  Config extends AgentInvokeConfig,
+> {
+  data: AgentInvokeResult<Result, Input, Config> | null;
   error: AgentError | null;
   isLoading: boolean;
   isFallback: boolean;
 }
 
-export interface UseAgentResult<Result, Input extends Record<string, unknown>, Config extends AgentInvokeConfig>
-  extends AgentState<Result> {
-  invoke: (options?: InvokeOptions<Input, Config>) => Promise<AgentInvokeResult<Result> | null>;
+export interface UseAgentResult<
+  Result,
+  Input extends Record<string, unknown>,
+  Config extends AgentInvokeConfig,
+> extends AgentState<Result, Input, Config> {
+  invoke: (
+    options?: InvokeOptions<Input, Config>,
+  ) => Promise<AgentInvokeResult<Result, Input, Config> | null>;
   reset: (options?: ResetOptions) => void;
-}
-
-function createRequestId(): string {
-  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-  return `req_${Math.random().toString(36).slice(2, 12)}`;
-}
-
-function mergeInputs<Input extends Record<string, unknown>>(
-  base?: Input,
-  override?: Input,
-): Input | undefined {
-  if (!base && !override) {
-    return undefined;
-  }
-  if (!base) {
-    return override;
-  }
-  if (!override) {
-    return base;
-  }
-  return { ...base, ...override } as Input;
-}
-
-function mergeConfigs(base?: AgentInvokeConfig, override?: AgentInvokeConfig): AgentInvokeConfig {
-  const merged: AgentInvokeConfig = { ...(base ?? {}) };
-
-  if (base?.metadata) {
-    merged.metadata = { ...base.metadata };
-  }
-
-  if (base?.parameters) {
-    merged.parameters = { ...base.parameters };
-  }
-
-  if (override) {
-    for (const [key, value] of Object.entries(override)) {
-      if (key === 'metadata' || key === 'parameters') {
-        continue;
-      }
-      (merged as Record<string, unknown>)[key] = value;
-    }
-
-    if (override.metadata) {
-      merged.metadata = { ...(merged.metadata ?? {}), ...override.metadata };
-    }
-
-    if (override.parameters) {
-      merged.parameters = { ...(merged.parameters ?? {}), ...override.parameters };
-    }
-  }
-
-  if (merged.metadata && Object.keys(merged.metadata).length === 0) {
-    delete merged.metadata;
-  }
-
-  if (merged.parameters && Object.keys(merged.parameters).length === 0) {
-    delete merged.parameters;
-  }
-
-  return merged;
 }
 
 async function parseAgentError(response: Response): Promise<AgentError> {
@@ -181,7 +95,7 @@ export function useAgent<
   Input extends Record<string, unknown> = Record<string, unknown>,
   Config extends AgentInvokeConfig = AgentInvokeConfig,
 >(agentName: string, options?: UseAgentOptions<Input, Config>): UseAgentResult<Result, Input, Config> {
-  const [state, setState] = useState<AgentState<Result>>({
+  const [state, setState] = useState<AgentState<Result, Input, Config>>({
     data: null,
     error: null,
     isLoading: false,
@@ -195,29 +109,39 @@ export function useAgent<
   }, [options]);
 
   const invoke = useCallback(
-    async (invokeOptions?: InvokeOptions<Input, Config>): Promise<AgentInvokeResult<Result> | null> => {
+    async (
+      invokeOptions?: InvokeOptions<Input, Config>,
+    ): Promise<AgentInvokeResult<Result, Input, Config> | null> => {
       const currentDefaults = defaultsRef.current;
       const callId = requestSeq.current + 1;
       requestSeq.current = callId;
 
-      const payloadInput = mergeInputs(currentDefaults?.defaultInput, invokeOptions?.input) ?? ({} as Input);
-      const mergedConfig = mergeConfigs(
+      const payloadInput =
+        mergeAgentInputs(currentDefaults?.defaultInput, invokeOptions?.input) ?? ({} as Input);
+      const mergedConfig = mergeAgentConfigs(
         currentDefaults?.defaultConfig as AgentInvokeConfig | undefined,
         invokeOptions?.config as AgentInvokeConfig | undefined,
       );
 
       const metadata = { ...(mergedConfig.metadata ?? {}) } as AgentInvokeMetadata;
       const requestId =
-        invokeOptions?.requestId ?? (typeof metadata.requestId === 'string' ? metadata.requestId : undefined) ?? createRequestId();
+        invokeOptions?.requestId ??
+        (typeof metadata.requestId === 'string' ? metadata.requestId : undefined) ??
+        createAgentRequestId();
       metadata.requestId = requestId;
       mergedConfig.metadata = metadata;
+
+      const requestPayload: AgentInvokeRequest<Input, AgentInvokeConfig> = {
+        input: payloadInput,
+        config: mergedConfig,
+      };
 
       setState((current) => ({ ...current, isLoading: true, error: null }));
 
       try {
         const response = await fetchFromAgents(`/${agentName}/invoke`, {
           method: 'POST',
-          body: JSON.stringify({ input: payloadInput, config: mergedConfig }),
+          body: JSON.stringify(requestPayload),
           signal: invokeOptions?.signal,
         });
 
@@ -237,15 +161,24 @@ export function useAgent<
           throw agentError;
         }
 
-        const body = (await response.json()) as { result: Result } | Result;
-        const resultPayload: Result = (body && typeof body === 'object' && 'result' in body
-          ? (body as { result: Result }).result
-          : (body as Result));
+        const rawBody = (await response.json()) as { result?: Result; trace?: unknown } | Result;
+        const hasResultProperty =
+          rawBody && typeof rawBody === 'object' && 'result' in rawBody && rawBody.result !== undefined;
+        const resultPayload: Result = hasResultProperty
+          ? ((rawBody as { result: Result }).result as Result)
+          : (rawBody as Result);
+        const tracePayload =
+          rawBody && typeof rawBody === 'object' && 'trace' in rawBody
+            ? (rawBody as { trace?: unknown }).trace
+            : undefined;
 
-        const result: AgentInvokeResult<Result> = {
+        const result: AgentInvokeResult<Result, Input, Config> = {
           requestId,
           status: response.status,
           result: resultPayload,
+          trace: tracePayload,
+          raw: rawBody,
+          request: requestPayload as AgentInvokeRequest<Input, Config>,
         };
 
         setState({ data: result, error: null, isLoading: false, isFallback: false });
@@ -283,3 +216,14 @@ export function useAgent<
     reset,
   };
 }
+
+export type {
+  AgentError,
+  AgentInvokeConfig,
+  AgentInvokeMetadata,
+  AgentInvokeRequest,
+  AgentInvokeResult,
+  InvokeOptions,
+  ResetOptions,
+  UseAgentOptions,
+} from '../types/agent';

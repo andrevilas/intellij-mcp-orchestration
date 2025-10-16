@@ -1,42 +1,33 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-test('filtra catálogo de agents e executa smoke tests', async ({ page }) => {
-  const agentsResponse = {
-    agents: [
-      {
-        name: 'catalog-search',
-        title: 'Catalog Search',
-        version: '1.2.0',
-        description: 'Busca estruturada.',
-        capabilities: ['search'],
-        model: { provider: 'openai', name: 'o3-mini', parameters: { temperature: 0 } },
-        status: 'healthy',
-        last_deployed_at: '2025-01-02T10:00:00Z',
-        owner: '@catalog',
-      },
-      {
-        name: 'orchestrator-control',
-        title: 'Orchestrator Control',
-        version: '2.4.1',
-        description: 'Orquestra prompts e fluxos de validação.',
-        capabilities: ['routing', 'finops'],
-        model: { provider: 'anthropic', name: 'claude-3-opus', parameters: { temperature: 0.2 } },
-        status: 'degraded',
-        last_deployed_at: '2025-01-03T12:30:00Z',
-        owner: '@orchestrators',
-      },
-    ],
-  };
+const agentsResponse = {
+  agents: [
+    {
+      name: 'catalog-search',
+      title: 'Catalog Search',
+      version: '1.2.0',
+      description: 'Busca estruturada.',
+      capabilities: ['search'],
+      model: { provider: 'openai', name: 'o3-mini', parameters: { temperature: 0 } },
+      status: 'healthy',
+      last_deployed_at: '2025-01-02T10:00:00Z',
+      owner: '@catalog',
+    },
+    {
+      name: 'orchestrator-control',
+      title: 'Orchestrator Control',
+      version: '2.4.1',
+      description: 'Orquestra prompts e fluxos de validação.',
+      capabilities: ['routing', 'finops'],
+      model: { provider: 'anthropic', name: 'claude-3-opus', parameters: { temperature: 0.2 } },
+      status: 'degraded',
+      last_deployed_at: '2025-01-03T12:30:00Z',
+      owner: '@orchestrators',
+    },
+  ],
+};
 
-  const smokeResponse = {
-    run_id: 'smoke-run-42',
-    status: 'passed',
-    summary: 'Execução concluída sem falhas.',
-    report_url: 'https://runner.example/report/smoke-run-42',
-    started_at: '2025-01-03T12:45:00Z',
-    finished_at: '2025-01-03T12:48:00Z',
-  };
-
+async function registerBaseRoutes(page: Page) {
   await page.route('**/api/v1/servers', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ servers: [] }), contentType: 'application/json' }),
   );
@@ -61,10 +52,22 @@ test('filtra catálogo de agents e executa smoke tests', async ({ page }) => {
   await page.route('**/api/v1/policy/compliance', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ status: 'pass', items: [] }), contentType: 'application/json' }),
   );
-
   await page.route('**/agents/agents', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify(agentsResponse), contentType: 'application/json' }),
   );
+}
+
+test('filtra catálogo de agents e executa smoke tests', async ({ page }) => {
+  await registerBaseRoutes(page);
+
+  const smokeResponse = {
+    run_id: 'smoke-run-42',
+    status: 'passed',
+    summary: 'Execução concluída sem falhas.',
+    report_url: 'https://runner.example/report/smoke-run-42',
+    started_at: '2025-01-03T12:45:00Z',
+    finished_at: '2025-01-03T12:48:00Z',
+  };
 
   const smokeRequests: unknown[] = [];
   await page.route('**/agents/orchestrator-control/smoke', (route) => {
@@ -101,4 +104,59 @@ test('filtra catálogo de agents e executa smoke tests', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Abrir relatório' })).toHaveAttribute('href', smokeResponse.report_url);
 
   expect(smokeRequests).toHaveLength(1);
+});
+
+test('abre detalhes do agente e executa playground com overrides', async ({ page }) => {
+  await registerBaseRoutes(page);
+
+  const invokeRequests: unknown[] = [];
+  await page.route('**/agents/catalog-search/invoke', (route) => {
+    invokeRequests.push(route.request().postDataJSON());
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify({
+        result: { message: 'Consulta concluída', items: 3 },
+        trace: [
+          { step: 'model-call', tokens: 120 },
+          { step: 'rerank', tokens: 42 },
+        ],
+      }),
+      contentType: 'application/json',
+    });
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Agents' }).click();
+
+  const table = page.locator('.agents__table');
+  await table.getByRole('row', { name: /Catalog Search/ }).getByRole('button', { name: 'Detalhes' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Catalog Search' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Playground' })).toHaveAttribute('aria-selected', 'true');
+
+  await page.getByLabel('Payload').fill('{\n  "query": "latency budget"\n}');
+  await page.getByLabel('Overrides').fill('{\n  "parameters": { "temperature": 0.5 }\n}');
+
+  await page.getByRole('button', { name: 'Invocar agent' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Trace' })).toBeVisible();
+  await expect(page.getByText('model-call')).toBeVisible();
+  await expect(page.getByText('tokens": 120')).toBeVisible();
+
+  const snippet = page.locator('.agent-detail__snippet code');
+  await expect(snippet).toContainText('curl -X POST');
+  await expect(snippet).toContainText('"temperature": 0.5');
+  await expect(snippet).toContainText('X-API-Key:');
+
+  expect(invokeRequests).toHaveLength(1);
+  const requestBody = invokeRequests[0] as {
+    input?: { query?: string };
+    config?: { metadata?: Record<string, unknown>; parameters?: Record<string, unknown> };
+  };
+
+  expect(requestBody?.input?.query).toBe('latency budget');
+  expect(requestBody?.config?.parameters?.temperature).toBe(0.5);
+  expect(typeof requestBody?.config?.metadata?.requestId).toBe('string');
+  expect(requestBody?.config?.metadata?.caller).toBe('console-playground');
+  expect(requestBody?.config?.metadata?.surface).toBe('agent-detail');
 });
