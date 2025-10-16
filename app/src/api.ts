@@ -2107,4 +2107,139 @@ export async function fetchFinOpsPullRequestReports(
   return data.items;
 }
 
+export type AdminChatRole = 'user' | 'assistant' | 'system';
+
+export interface AdminChatMessage {
+  id: string;
+  role: AdminChatRole;
+  content: string;
+  createdAt: string;
+}
+
+export type AdminPlanStepStatus = 'pending' | 'ready' | 'blocked';
+
+export interface AdminPlanStep {
+  id: string;
+  title: string;
+  description: string;
+  status: AdminPlanStepStatus;
+  impact?: string | null;
+}
+
+export type AdminPlanStatus = 'draft' | 'ready' | 'applied';
+
+export interface AdminPlanSummary {
+  id: string;
+  threadId: string;
+  status: AdminPlanStatus;
+  generatedAt: string;
+  author: string;
+  scope: string;
+  steps: AdminPlanStep[];
+}
+
+export interface AdminPlanDiff {
+  id: string;
+  file: string;
+  summary: string;
+  diff: string;
+}
+
+export type AdminRiskLevel = 'low' | 'medium' | 'high';
+
+export interface AdminRiskItem {
+  id: string;
+  level: AdminRiskLevel;
+  title: string;
+  description: string;
+  mitigation?: string | null;
+}
+
+export interface AdminHitlRequest {
+  token: string;
+  approver: string | null;
+  message: string;
+}
+
+export type ConfigChatIntent =
+  | { intent: 'message'; prompt: string; threadId?: string | null; context?: string | null }
+  | { intent: 'history'; threadId: string; limit?: number };
+
+export interface ConfigChatResponse {
+  threadId: string;
+  messages: AdminChatMessage[];
+}
+
+export async function postConfigChat(
+  intent: ConfigChatIntent,
+  signal?: AbortSignal,
+): Promise<ConfigChatResponse> {
+  return request<ConfigChatResponse>('/config/chat', {
+    method: 'POST',
+    body: JSON.stringify(intent),
+    signal,
+  });
+}
+
+export type ConfigPlanIntent =
+  | { intent: 'generate'; threadId: string; scope: string; refresh?: boolean }
+  | { intent: 'summarize'; threadId: string };
+
+export interface ConfigPlanResponse {
+  plan: AdminPlanSummary;
+  diffs: AdminPlanDiff[];
+  risks: AdminRiskItem[];
+}
+
+export async function postConfigPlan(
+  intent: ConfigPlanIntent,
+  signal?: AbortSignal,
+): Promise<ConfigPlanResponse> {
+  return request<ConfigPlanResponse>('/config/plan', {
+    method: 'POST',
+    body: JSON.stringify(intent),
+    signal,
+  });
+}
+
+export type ConfigApplyIntent =
+  | { intent: 'apply'; threadId: string; planId: string; note?: string | null }
+  | { intent: 'confirm'; threadId: string; planId: string; token: string; note?: string | null }
+  | { intent: 'abort'; threadId: string; planId: string; reason?: string | null };
+
+export type ConfigApplyResponse =
+  | { status: 'applied'; message: string; plan?: AdminPlanSummary | null }
+  | { status: 'hitl_required'; request: AdminHitlRequest };
+
+export async function postConfigApply(
+  intent: ConfigApplyIntent,
+  signal?: AbortSignal,
+): Promise<ConfigApplyResponse> {
+  return request<ConfigApplyResponse>('/config/apply', {
+    method: 'POST',
+    body: JSON.stringify(intent),
+    signal,
+  });
+}
+
+export type ConfigOnboardIntent =
+  | { intent: 'onboard'; providerId: string; command?: string | null }
+  | { intent: 'status'; providerId: string };
+
+export interface ConfigOnboardResponse {
+  status: 'queued' | 'running' | 'completed';
+  message: string;
+}
+
+export async function postConfigMcpOnboard(
+  intent: ConfigOnboardIntent,
+  signal?: AbortSignal,
+): Promise<ConfigOnboardResponse> {
+  return request<ConfigOnboardResponse>('/config/mcp/onboard', {
+    method: 'POST',
+    body: JSON.stringify(intent),
+    signal,
+  });
+}
+
 export const apiBase = getApiBaseUrl();

@@ -36,6 +36,7 @@ import Keys from './pages/Keys';
 import Policies from './pages/Policies';
 import Routing from './pages/Routing';
 import Servers from './pages/Servers';
+import AdminChat from './pages/AdminChat';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -139,6 +140,12 @@ const VIEW_DEFINITIONS = [
     label: 'FinOps',
     description: 'Análises de custo, séries temporais e pareto',
     keywords: ['custos', 'financeiro', 'pareto'],
+  },
+  {
+    id: 'admin-chat',
+    label: 'Admin Chat',
+    description: 'Assistente para gerar e aplicar planos de configuração',
+    keywords: ['chat', 'config', 'plano', 'hitl'],
   },
 ] as const;
 
@@ -740,6 +747,11 @@ function App() {
         {activeView === 'finops' && (
           <section role="tabpanel" id="panel-finops" aria-labelledby="tab-finops">
             <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        )}
+        {activeView === 'admin-chat' && (
+          <section role="tabpanel" id="panel-admin-chat" aria-labelledby="tab-admin-chat">
+            <AdminChat />
           </section>
         )}
       </main>
