@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Sequence
+import re
 
 import structlog
 
@@ -14,6 +15,11 @@ logger = structlog.get_logger("console.config.planner")
 
 
 PlanBuilder = Callable[[Mapping[str, Any]], Plan]
+
+
+def _slugify_agent(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-")
+    return slug.casefold() or "agent"
 
 
 def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None = None) -> Plan:
@@ -44,58 +50,93 @@ def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None
 def _plan_add_agent(payload: Mapping[str, Any]) -> Plan:
     agent_name = str(payload["agent_name"])
     repository = str(payload.get("repository", "agents-hub"))
+    agent_slug = _slugify_agent(agent_name)
     capabilities: Sequence[str] = tuple(payload.get("capabilities", ()))
+
+    manifest_path = f"{repository}/app/agents/{agent_slug}/agent.yaml"
+    module_path = f"{repository}/app/agents/{agent_slug}/agent.py"
+    package_init = f"{repository}/app/agents/{agent_slug}/__init__.py"
+    registry_path = f"{repository}/mcp-registry.yaml"
 
     capability_summary = ", ".join(capabilities) if capabilities else "default capabilities"
 
     steps = [
         PlanStep(
-            id="scaffold-agent",
-            title=f"Scaffold agent '{agent_name}'",
+            id="discover-server",
+            title="Descobrir servidor MCP",
             description=(
-                "Create agent manifest and default configuration inside the repository."
+                "Executar o cliente MCP interno para listar tools e schemas via stdio/WebSocket "
+                "antes de gerar o scaffold."
             ),
         ),
         PlanStep(
-            id="register-agent",
-            title="Register agent with console",
-            description="Update the registry to make the agent discoverable in the UI.",
+            id="scaffold-agent",
+            title=f"Scaffold agent '{agent_slug}'",
+            description=(
+                "Gerar manifesto e stub LangGraph com o template padrão, garantindo pacote Python válido."
+            ),
+            depends_on=["discover-server"],
+        ),
+        PlanStep(
+            id="merge-registry",
+            title="Atualizar mcp-registry",
+            description="Mesclar entrada do agente no mcp-registry.yaml apontando para o servidor MCP escolhido.",
             depends_on=["scaffold-agent"],
         ),
         PlanStep(
+            id="reload-agents-hub",
+            title="Recarregar Agents Hub",
+            description=(
+                "Emitir POST /reload ou tocar o sentinel .reload para aplicar as alterações; "
+                "se o processo não recarregar, planejar reinício controlado."
+            ),
+            depends_on=["merge-registry"],
+        ),
+        PlanStep(
             id="document-agent",
-            title="Document onboarding steps",
-            description="Add README section describing capabilities and rollout steps.",
-            depends_on=["register-agent"],
+            title="Documentar onboarding",
+            description="Atualizar README com capacidades, fluxo de reload e fallback de restart quando necessário.",
+            depends_on=["reload-agents-hub"],
         ),
     ]
 
     diffs = [
         create_diff(
-            path=f"{repository}/{agent_name}/manifest.json",
-            summary="Add new agent manifest with metadata",
+            path=manifest_path,
+            summary="Gerar manifesto MCP inicial com tool stub estruturado",
             change_type="create",
         ),
         create_diff(
-            path="config/console-mcp/registry.json",
-            summary=f"Register agent {agent_name} exposing {capability_summary}",
+            path=module_path,
+            summary="Adicionar stub LangGraph com nó de tool determinístico",
+            change_type="create",
         ),
         create_diff(
-            path=f"{repository}/{agent_name}/README.md",
-            summary="Document configuration and operational steps",
+            path=package_init,
+            summary="Criar pacote Python para o novo agente",
+            change_type="create",
+        ),
+        create_diff(
+            path=registry_path,
+            summary=f"Registrar agente {agent_slug} expondo {capability_summary}",
         ),
     ]
 
     risks = [
         Risk(
-            title="Missing secrets",
+            title="Servidor MCP inacessível",
             impact="high",
-            mitigation="Provision required provider credentials before rollout.",
+            mitigation="Validar respostas de tools/list e schemas/list antes do merge.",
         ),
         Risk(
-            title="Capability mismatch",
+            title="Reload inconclusivo",
             impact="medium",
-            mitigation="Validate capabilities against QA workspace before production rollout.",
+            mitigation="Se /reload falhar, tocar sentinel .reload ou reiniciar o serviço controladamente.",
+        ),
+        Risk(
+            title="Dependências operacionais",
+            impact="medium",
+            mitigation="Provisionar secrets e budgets necessários antes da promoção a produção.",
         ),
     ]
 
