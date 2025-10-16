@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from app.schemas.manifest import AgentManifest
 from app.schemas.manifest import load_manifest as _load_manifest
+
+from ..orchestration import ExecutionState, GraphBackedAgent
 
 _TEMPLATES: dict[str, str] = {
     "playful": "Let's make {product}{audience_text} your next obsession. Tap to explore!",
@@ -35,20 +37,16 @@ def _select_template(tone: str) -> str:
     return _TEMPLATES.get(key, _DEFAULT_TEMPLATE)
 
 
-@dataclass(slots=True)
-class ContentAgent:
+class ContentAgent(GraphBackedAgent):
     """Small deterministic agent that maps tone and product into a CTA string."""
 
-    manifest: dict[str, Any] = field(repr=False)
+    def __init__(self, manifest: AgentManifest | Mapping[str, Any]) -> None:
+        if not isinstance(manifest, AgentManifest):
+            manifest = AgentManifest.model_validate(manifest)
+        super().__init__(manifest)
 
-    def invoke(
-        self,
-        payload: Mapping[str, Any] | None = None,
-        config: Mapping[str, Any] | None = None,
-    ) -> dict[str, str]:
-        del config
-
-        payload = payload or {}
+    def _execute_tool(self, state: ExecutionState) -> dict[str, str]:
+        payload = state.payload or {}
         tone = str(payload.get("tone", "")).strip()
         product_title = str(payload.get("product_title", "")).strip()
         audience = payload.get("audience")
@@ -57,6 +55,20 @@ class ContentAgent:
         template = _select_template(tone)
         cta = template.format(product=product, audience_text=_format_audience(audience))
         return {"cta": cta}
+
+    def _post_process(self, state: ExecutionState) -> dict[str, str]:
+        return dict(state.result)
+
+    def _degraded_payload(self, reason: str) -> dict[str, Any]:
+        return {"cta": "", "status": "degraded", "reason": reason}
+
+    def _hitl_blocked_payload(self, checkpoint: Any) -> dict[str, Any]:
+        return {
+            "cta": "",
+            "status": "hitl_blocked",
+            "checkpoint": getattr(checkpoint, "name", str(checkpoint)),
+            "reason": getattr(checkpoint, "description", None) or "Manual approval required",
+        }
 
 
 def build_agent(manifest: dict[str, Any]) -> ContentAgent:

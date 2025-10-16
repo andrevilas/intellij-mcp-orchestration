@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from app.schemas.manifest import AgentManifest
 from app.schemas.manifest import load_manifest as _load_manifest
+
+from ..orchestration import ExecutionState, GraphBackedAgent
 
 _DEFAULT_LIMIT = 5
 _MAX_LIMIT = 10
@@ -65,27 +66,18 @@ def _iter_manifest_tools(manifest: AgentManifest) -> Iterable[Any]:
         yield tool
 
 
-@dataclass(slots=True)
-class CatalogAgent:
+class CatalogAgent(GraphBackedAgent):
     """Simple deterministic agent that performs substring filtering over the static dataset."""
 
-    manifest: dict[str, Any] = field(repr=False)
-    default_limit: int = field(default=_DEFAULT_LIMIT)
-    _catalog: list[dict[str, Any]] = field(init=False, repr=False, default_factory=list)
-
-    def __post_init__(self) -> None:
+    def __init__(self, manifest: AgentManifest | Mapping[str, Any]) -> None:
+        if not isinstance(manifest, AgentManifest):
+            manifest = AgentManifest.model_validate(manifest)
+        super().__init__(manifest)
+        self.default_limit = _DEFAULT_LIMIT
         self._catalog = [dict(item) for item in _CATALOG]
 
-    def invoke(
-        self,
-        payload: Mapping[str, Any] | None = None,
-        config: Mapping[str, Any] | None = None,
-    ) -> dict[str, list[dict[str, Any]]]:
-        """Return catalogue entries matching ``query`` with a deterministic limit."""
-
-        del config  # The agent is deterministic and ignores invocation config.
-
-        payload = payload or {}
+    def _execute_tool(self, state: ExecutionState) -> dict[str, list[dict[str, Any]]]:
+        payload = state.payload
         query = _lower(str(payload.get("query", "")).strip())
 
         limit = payload.get("limit")
@@ -105,6 +97,20 @@ class CatalogAgent:
             ]
 
         return {"items": [dict(item) for item in matches[:limit_value]]}
+
+    def _post_process(self, state: ExecutionState) -> dict[str, list[dict[str, Any]]]:
+        return dict(state.result)
+
+    def _degraded_payload(self, reason: str) -> dict[str, Any]:
+        return {"items": [], "status": "degraded", "reason": reason}
+
+    def _hitl_blocked_payload(self, checkpoint: Any) -> dict[str, Any]:
+        return {
+            "items": [],
+            "status": "hitl_blocked",
+            "checkpoint": getattr(checkpoint, "name", str(checkpoint)),
+            "reason": getattr(checkpoint, "description", None) or "Manual approval required",
+        }
 
 
 def build_agent(manifest: dict[str, Any]) -> CatalogAgent:
