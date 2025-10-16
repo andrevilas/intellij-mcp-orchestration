@@ -670,6 +670,8 @@ class TelemetryRunEntry(BaseModel):
     status: str
     cost_usd: float
     metadata: Dict[str, Any]
+    experiment_cohort: Optional[str] = None
+    experiment_tag: Optional[str] = None
 
 
 class TelemetryRunsResponse(BaseModel):
@@ -677,6 +679,69 @@ class TelemetryRunsResponse(BaseModel):
 
     items: List[TelemetryRunEntry]
     next_cursor: Optional[str] = None
+
+
+class TelemetryExperimentSummaryEntry(BaseModel):
+    """Aggregated metrics grouped by experiment cohort/tag."""
+
+    cohort: Optional[str] = None
+    tag: Optional[str] = None
+    run_count: int
+    success_rate: float
+    error_rate: float
+    avg_latency_ms: float
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    mttr_ms: Optional[float] = None
+    recovery_events: int
+
+
+class TelemetryExperimentsResponse(BaseModel):
+    """Envelope returned when listing experiment summaries."""
+
+    items: List[TelemetryExperimentSummaryEntry]
+
+
+class TelemetryLaneCostEntry(BaseModel):
+    """Cost breakdown grouped by routing lane."""
+
+    lane: Literal["economy", "balanced", "turbo"]
+    run_count: int
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    avg_latency_ms: float
+
+
+class TelemetryLaneCostResponse(BaseModel):
+    """Envelope returned when aggregating cost per routing lane."""
+
+    items: List[TelemetryLaneCostEntry]
+
+
+class MarketplacePerformanceEntry(BaseModel):
+    """Marketplace catalog entry enriched with telemetry metrics."""
+
+    entry_id: str
+    name: str
+    origin: str
+    rating: float
+    cost: float
+    run_count: int
+    success_rate: float
+    avg_latency_ms: float
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    cohorts: List[str]
+    adoption_score: float
+
+
+class MarketplacePerformanceResponse(BaseModel):
+    """Envelope returned when listing marketplace telemetry performance."""
+
+    items: List[MarketplacePerformanceEntry]
 
 
 ReportStatus = Literal["on_track", "attention", "regression"]

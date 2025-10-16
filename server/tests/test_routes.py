@@ -17,6 +17,7 @@ from console_mcp_server import routes as routes_module
 from console_mcp_server import secret_validation as secret_validation_module
 from console_mcp_server import telemetry as telemetry_module
 from console_mcp_server.security import hash_token, Role
+from server.tests.fixtures import SampleMarketplaceEntry, seed_marketplace_entries
 
 def resolve_repo_root(start: Path) -> Path:
     for candidate in (start,) + tuple(start.parents):
@@ -334,6 +335,8 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
             'ts': base_ts.isoformat(),
             'source_file': 'glm46/sample.jsonl',
             'ingested_at': base_ts.isoformat(),
+            'experiment_cohort': 'baseline',
+            'experiment_tag': 'control',
         },
         {
             'provider_id': 'gemini',
@@ -348,6 +351,8 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
             'ts': (base_ts + timedelta(minutes=10)).isoformat(),
             'source_file': 'gemini/sample.jsonl',
             'ingested_at': (base_ts + timedelta(minutes=1)).isoformat(),
+            'experiment_cohort': 'canary',
+            'experiment_tag': 'variant-a',
         },
     ]
 
@@ -369,7 +374,9 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
                         ts,
                         source_file,
                         line_number,
-                        ingested_at
+                        ingested_at,
+                        experiment_cohort,
+                        experiment_tag
                     ) VALUES (
                         :provider_id,
                         :tool,
@@ -383,7 +390,9 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
                         :ts,
                         :source_file,
                         :line_number,
-                        :ingested_at
+                        :ingested_at,
+                        :experiment_cohort,
+                        :experiment_tag
                     )
                     """
                 ),
@@ -417,6 +426,128 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
         },
     )
     assert filtered.status_code == 200
+
+
+def test_telemetry_experiments_endpoint_returns_summary(
+    telemetry_dataset, client: TestClient
+) -> None:
+    response = client.get('/api/v1/telemetry/experiments')
+    assert response.status_code == 200
+    payload = response.json()
+    items = payload['items']
+    assert len(items) == 2
+
+    canary = next(item for item in items if item['cohort'] == 'canary')
+    assert canary['run_count'] == 2
+    assert canary['success_rate'] == pytest.approx(0.5)
+    assert canary['total_tokens_in'] == 3000
+    assert canary['mttr_ms'] is None
+
+    baseline = next(item for item in items if item['cohort'] == 'baseline')
+    assert baseline['run_count'] == 2
+    assert baseline['error_rate'] == pytest.approx(0.5)
+    assert baseline['total_tokens_out'] == 900
+
+
+def test_telemetry_lane_costs_endpoint_returns_breakdown(
+    telemetry_dataset, client: TestClient
+) -> None:
+    response = client.get('/api/v1/telemetry/lane-costs')
+    assert response.status_code == 200
+    payload = response.json()
+    items = payload['items']
+    assert any(entry['lane'] == 'balanced' for entry in items)
+    total_runs = sum(entry['run_count'] for entry in items)
+    assert total_runs == 4
+
+
+def test_marketplace_performance_endpoint_returns_entries(
+    database, client: TestClient
+) -> None:
+    engine = database.bootstrap_database()
+    seed_marketplace_entries(
+        [
+            SampleMarketplaceEntry(
+                entry_id='agent-alpha',
+                name='Agent Alpha',
+                slug='agent-alpha',
+                summary='Test agent',
+                origin='internal',
+                rating=4.5,
+                cost=12.5,
+                package_path='agents/alpha',
+                signature='signed',
+            )
+        ]
+    )
+
+    event_payload = {
+        'provider_id': 'glm46',
+        'tool': 'glm46.chat',
+        'route': 'default',
+        'tokens_in': 120,
+        'tokens_out': 40,
+        'duration_ms': 900,
+        'status': 'success',
+        'cost_estimated_usd': 0.42,
+        'metadata': json.dumps({'marketplace_entry_id': 'agent-alpha'}),
+        'ts': datetime(2025, 3, 10, tzinfo=timezone.utc).isoformat(),
+        'source_file': 'glm46/perf.jsonl',
+        'ingested_at': datetime(2025, 3, 10, tzinfo=timezone.utc).isoformat(),
+        'experiment_cohort': 'pilot',
+        'experiment_tag': 'exp-a',
+    }
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO telemetry_events (
+                    provider_id,
+                    tool,
+                    route,
+                    tokens_in,
+                    tokens_out,
+                    duration_ms,
+                    status,
+                    cost_estimated_usd,
+                    metadata,
+                    ts,
+                    source_file,
+                    line_number,
+                    ingested_at,
+                    experiment_cohort,
+                    experiment_tag
+                ) VALUES (
+                    :provider_id,
+                    :tool,
+                    :route,
+                    :tokens_in,
+                    :tokens_out,
+                    :duration_ms,
+                    :status,
+                    :cost_estimated_usd,
+                    :metadata,
+                    :ts,
+                    :source_file,
+                    1,
+                    :ingested_at,
+                    :experiment_cohort,
+                    :experiment_tag
+                )
+                """
+            ),
+            event_payload,
+        )
+
+    response = client.get('/api/v1/telemetry/marketplace/performance')
+    assert response.status_code == 200
+    items = response.json()['items']
+    assert len(items) == 1
+    entry = items[0]
+    assert entry['entry_id'] == 'agent-alpha'
+    assert entry['run_count'] == 1
+    assert entry['cohorts'] == ['pilot']
 
     filtered_payload = filtered.json()
     assert filtered_payload['total_runs'] == 1
@@ -457,6 +588,8 @@ def test_telemetry_heatmap_endpoint_returns_daily_buckets(client: TestClient) ->
             'ts': (base_ts + timedelta(hours=2)).isoformat(),
             'source_file': 'glm46/2025-04-02.jsonl',
             'ingested_at': (base_ts + timedelta(minutes=10)).isoformat(),
+            'experiment_cohort': 'baseline',
+            'experiment_tag': 'control',
         },
         {
             'provider_id': 'gemini',
@@ -471,6 +604,8 @@ def test_telemetry_heatmap_endpoint_returns_daily_buckets(client: TestClient) ->
             'ts': (base_ts + timedelta(days=1)).isoformat(),
             'source_file': 'gemini/2025-04-03.jsonl',
             'ingested_at': (base_ts + timedelta(days=1, minutes=5)).isoformat(),
+            'experiment_cohort': 'canary',
+            'experiment_tag': 'variant-a',
         },
     ]
 
@@ -492,7 +627,9 @@ def test_telemetry_heatmap_endpoint_returns_daily_buckets(client: TestClient) ->
                         ts,
                         source_file,
                         line_number,
-                        ingested_at
+                        ingested_at,
+                        experiment_cohort,
+                        experiment_tag
                     ) VALUES (
                         :provider_id,
                         :tool,
@@ -506,7 +643,9 @@ def test_telemetry_heatmap_endpoint_returns_daily_buckets(client: TestClient) ->
                         :ts,
                         :source_file,
                         :line_number,
-                        :ingested_at
+                        :ingested_at,
+                        :experiment_cohort,
+                        :experiment_tag
                     )
                     """
                 ),
@@ -782,6 +921,8 @@ def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> 
         'ts': base_ts.isoformat(),
         'source_file': 'glm46/sample.jsonl',
         'ingested_at': base_ts.isoformat(),
+        'experiment_cohort': 'pilot',
+        'experiment_tag': 'v1',
     }
 
     with engine.begin() as connection:
@@ -801,7 +942,9 @@ def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> 
                     ts,
                     source_file,
                     line_number,
-                    ingested_at
+                    ingested_at,
+                    experiment_cohort,
+                    experiment_tag
                 ) VALUES (
                     :provider_id,
                     :tool,
@@ -815,7 +958,9 @@ def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> 
                     :ts,
                     :source_file,
                     1,
-                    :ingested_at
+                    :ingested_at,
+                    :experiment_cohort,
+                    :experiment_tag
                 )
                 """
             ),
@@ -835,6 +980,16 @@ def test_telemetry_export_endpoint_supports_csv_and_html(client: TestClient) -> 
     assert html_response.headers['content-type'].startswith('text/html')
     assert '<table' in html_response.text
     assert 'glm46' in html_response.text
+
+    json_response = client.get(
+        '/api/v1/telemetry/export',
+        params={'format': 'json', 'provider_id': 'glm46'},
+    )
+    assert json_response.status_code == 200
+    assert json_response.headers['content-type'].startswith('application/json')
+    json_payload = json_response.json()
+    assert isinstance(json_payload, list)
+    assert json_payload[0]['experiment_cohort'] == 'pilot'
 
     bad_format = client.get('/api/v1/telemetry/export', params={'format': 'xml'})
     assert bad_format.status_code == 400

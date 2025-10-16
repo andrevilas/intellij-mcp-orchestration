@@ -222,6 +222,93 @@ describe('App provider orchestration flow', () => {
       next_cursor: null,
     };
 
+    const experimentsPayload = {
+      items: [
+        {
+          cohort: 'beta',
+          tag: 'treatment',
+          run_count: 8,
+          success_rate: 0.82,
+          error_rate: 0.12,
+          avg_latency_ms: 780,
+          total_cost_usd: 12.3,
+          total_tokens_in: 4800,
+          total_tokens_out: 2100,
+          mttr_ms: 3200,
+          recovery_events: 3,
+        },
+        {
+          cohort: 'control',
+          tag: null,
+          run_count: 5,
+          success_rate: 0.9,
+          error_rate: 0.05,
+          avg_latency_ms: 860,
+          total_cost_usd: 6.1,
+          total_tokens_in: 3200,
+          total_tokens_out: 1500,
+          mttr_ms: null,
+          recovery_events: 1,
+        },
+      ],
+    };
+
+    const laneCostsPayload = {
+      items: [
+        {
+          lane: 'economy',
+          run_count: 5,
+          total_cost_usd: 6.5,
+          total_tokens_in: 3200,
+          total_tokens_out: 1800,
+          avg_latency_ms: 1250,
+        },
+        {
+          lane: 'balanced',
+          run_count: 9,
+          total_cost_usd: 9.2,
+          total_tokens_in: 5000,
+          total_tokens_out: 2600,
+          avg_latency_ms: 890,
+        },
+      ],
+    };
+
+    const marketplacePayload = {
+      items: [
+        {
+          entry_id: 'market-01',
+          name: 'Guardrails Turbo',
+          origin: 'Console',
+          rating: 4.6,
+          cost: 0.45,
+          run_count: 14,
+          success_rate: 0.9,
+          avg_latency_ms: 860,
+          total_cost_usd: 6.3,
+          total_tokens_in: 3200,
+          total_tokens_out: 1800,
+          cohorts: ['beta', 'prod'],
+          adoption_score: 0.67,
+        },
+        {
+          entry_id: 'market-02',
+          name: 'Summaries Balanced',
+          origin: 'Marketplace',
+          rating: 4.2,
+          cost: 0.38,
+          run_count: 6,
+          success_rate: 0.86,
+          avg_latency_ms: 910,
+          total_cost_usd: 2.1,
+          total_tokens_in: 1800,
+          total_tokens_out: 900,
+          cohorts: ['beta'],
+          adoption_score: 0.44,
+        },
+      ],
+    };
+
     const templateMetrics = {
       economy: { slo: 857, budget: 66, incidents: 2, guard: 78 },
       balanced: { slo: 985, budget: 80, incidents: 0, guard: 70 },
@@ -589,6 +676,15 @@ describe('App provider orchestration flow', () => {
       }
       if (url.startsWith('/api/v1/telemetry/runs')) {
         return createFetchResponse(runsPayload);
+      }
+      if (url.startsWith('/api/v1/telemetry/experiments')) {
+        return createFetchResponse(experimentsPayload);
+      }
+      if (url.startsWith('/api/v1/telemetry/lane-costs')) {
+        return createFetchResponse(laneCostsPayload);
+      }
+      if (url.startsWith('/api/v1/telemetry/marketplace/performance')) {
+        return createFetchResponse(marketplacePayload);
       }
       if (url === '/api/v1/policies/templates' && method === 'GET') {
         return createFetchResponse(policyTemplatesPayload);
@@ -1003,6 +1099,22 @@ describe('App provider orchestration flow', () => {
     const runsTable = await screen.findByRole('table', { name: /Runs da rota selecionada/i });
     expect(within(runsTable).getAllByRole('row').length).toBeGreaterThan(1);
 
+    const experimentsHeading = await screen.findByRole('heading', { name: 'Experimentos e cohorts' });
+    expect(experimentsHeading).toBeInTheDocument();
+    const experimentsTable = await screen.findByRole('table', { name: /Tabela de experimentos e cohorts/i });
+    expect(within(experimentsTable).getByText(/Cohort: beta/i)).toBeInTheDocument();
+
+    const laneSection = experimentsHeading.closest('section')?.nextElementSibling as HTMLElement | null;
+    expect(laneSection).not.toBeNull();
+    const laneHeading = within(laneSection as HTMLElement).getByRole('heading', { name: 'Custo por tier' });
+    const laneList = within(laneSection as HTMLElement).getByRole('list');
+    expect(within(laneList).getAllByRole('listitem').length).toBeGreaterThan(1);
+
+    const marketplaceHeading = await screen.findByRole('heading', { name: 'Performance do marketplace' });
+    expect(marketplaceHeading).toBeInTheDocument();
+    const marketplaceTable = await screen.findByRole('table', { name: /Tabela de marketplace monitorado/i });
+    expect(within(marketplaceTable).getByText('Guardrails Turbo')).toBeInTheDocument();
+
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
 
@@ -1021,8 +1133,32 @@ describe('App provider orchestration flow', () => {
     try {
       await user.click(exportButton);
 
-      expect(createObjectURLSpy).toHaveBeenCalled();
-      expect(anchorClickSpy).toHaveBeenCalled();
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+
+      const experimentCsvButton = await screen.findByRole('button', {
+        name: 'Exportar experimentos em CSV',
+      });
+      await user.click(experimentCsvButton);
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(2);
+
+      const experimentJsonButton = screen.getByRole('button', {
+        name: 'Exportar experimentos em JSON',
+      });
+      await user.click(experimentJsonButton);
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(3);
+
+      const laneCsvButton = screen.getByRole('button', {
+        name: 'Exportar custos por tier em CSV',
+      });
+      await user.click(laneCsvButton);
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(4);
+
+      const marketplaceJsonButton = screen.getByRole('button', {
+        name: 'Exportar marketplace em JSON',
+      });
+      await user.click(marketplaceJsonButton);
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(5);
+      expect(anchorClickSpy).toHaveBeenCalledTimes(5);
     } finally {
       anchorClickSpy.mockRestore();
       createObjectURLSpy.mockRestore();

@@ -3723,6 +3723,216 @@ main.dashboard {
   color: var(--text-muted);
 }
 
+.finops__dashboards {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1100px) {
+  .finops__dashboards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .finops__dashboards > .finops__insight:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.finops__insight {
+  background: var(--surface-elevated);
+  border-radius: 1.5rem;
+  border: 1px solid var(--border-subtle);
+  padding: 1.5rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.finops__insight-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.finops__insight-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.finops__insight-header p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  max-width: 38ch;
+}
+
+.finops__insight-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.finops__action {
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.finops__action:disabled {
+  border-color: var(--border-subtle);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.finops__action:not(:disabled):hover,
+.finops__action:not(:disabled):focus-visible {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.55);
+  transform: translateY(-1px);
+}
+
+.finops__insight-metrics {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.finops__insight-metrics div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.finops__insight-metrics dt {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.finops__insight-metrics dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.finops__insight-table {
+  overflow-x: auto;
+  border-radius: 1rem;
+  border: 1px solid var(--border-subtle);
+}
+
+.finops__insight-table table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.finops__insight-table th,
+.finops__insight-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.finops__insight-table tbody tr:last-child th,
+.finops__insight-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.finops__insight-table th {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.finops__insight-subtitle {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.finops__lane-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.finops__lane-card {
+  background: rgba(15, 23, 42, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.25rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.finops__lane-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.finops__lane-card-header strong {
+  font-size: 1rem;
+}
+
+.finops__lane-progress {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  overflow: hidden;
+}
+
+.finops__lane-progress span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--accent-primary);
+}
+
+.finops__lane-details {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.finops__lane-details div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.finops__lane-details dt {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.finops__lane-details dd {
+  margin: 0;
+  font-weight: 600;
+}
+
 .finops__state {
   color: var(--text-muted);
   padding: 2rem;

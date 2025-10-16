@@ -10,13 +10,14 @@ import os
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Mapping, MutableMapping, cast
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from .database import bootstrap_database
 from .log_model import TelemetryLogRecord
+from .marketplace import list_marketplace_entries
 from .prices import list_price_entries
 from .registry import provider_registry
 from .routing import build_routes
@@ -42,6 +43,8 @@ class TelemetryEvent:
     source_file: str
     line_number: int
     ingested_at: str
+    experiment_cohort: str | None
+    experiment_tag: str | None
 
 
 def ingest_logs(provider_id: str | None = None, logs_dir: Path | None = None) -> int:
@@ -131,7 +134,9 @@ def _ingest_file(
                     ts,
                     source_file,
                     line_number,
-                    ingested_at
+                    ingested_at,
+                    experiment_cohort,
+                    experiment_tag
                 ) VALUES (
                     :provider_id,
                     :tool,
@@ -145,7 +150,9 @@ def _ingest_file(
                     :ts,
                     :source_file,
                     :line_number,
-                    :ingested_at
+                    :ingested_at,
+                    :experiment_cohort,
+                    :experiment_tag
                 )
                 """
             ),
@@ -194,6 +201,8 @@ def _parse_record(
         source_file=source_file,
         line_number=line_number,
         ingested_at=ingested_at,
+        experiment_cohort=record.experiment_cohort,
+        experiment_tag=record.experiment_tag,
     )
 
 
@@ -229,9 +238,15 @@ __all__ = [
     "TelemetryTimeseriesPoint",
     "TelemetryRouteBreakdown",
     "TelemetryRunRecord",
+    "TelemetryExperimentSummary",
+    "TelemetryLaneCost",
+    "MarketplacePerformance",
     "query_timeseries",
     "query_route_breakdown",
     "query_runs",
+    "query_experiment_summaries",
+    "compute_lane_cost_breakdown",
+    "compute_marketplace_performance",
     "render_telemetry_export",
 ]
 
@@ -371,6 +386,8 @@ class TelemetryRunRecord:
     status: str
     cost_usd: float
     metadata: dict[str, object]
+    experiment_cohort: str | None
+    experiment_tag: str | None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -386,8 +403,99 @@ class TelemetryRunRecord:
             "status": self.status,
             "cost_usd": self.cost_usd,
             "metadata": self.metadata,
+            "experiment_cohort": self.experiment_cohort,
+            "experiment_tag": self.experiment_tag,
         }
 
+
+@dataclass(frozen=True)
+class TelemetryExperimentSummary:
+    """Aggregated telemetry metrics grouped by experiment metadata."""
+
+    cohort: str | None
+    tag: str | None
+    run_count: int
+    success_rate: float
+    error_rate: float
+    avg_latency_ms: float
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    mttr_ms: float | None
+    recovery_events: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "cohort": self.cohort,
+            "tag": self.tag,
+            "run_count": self.run_count,
+            "success_rate": self.success_rate,
+            "error_rate": self.error_rate,
+            "avg_latency_ms": self.avg_latency_ms,
+            "total_cost_usd": self.total_cost_usd,
+            "total_tokens_in": self.total_tokens_in,
+            "total_tokens_out": self.total_tokens_out,
+            "mttr_ms": self.mttr_ms,
+            "recovery_events": self.recovery_events,
+        }
+
+
+@dataclass(frozen=True)
+class TelemetryLaneCost:
+    """Cost distribution grouped by routing lane."""
+
+    lane: str
+    run_count: int
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    avg_latency_ms: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "lane": self.lane,
+            "run_count": self.run_count,
+            "total_cost_usd": self.total_cost_usd,
+            "total_tokens_in": self.total_tokens_in,
+            "total_tokens_out": self.total_tokens_out,
+            "avg_latency_ms": self.avg_latency_ms,
+        }
+
+
+@dataclass(frozen=True)
+class MarketplacePerformance:
+    """Synthetic performance metrics combining marketplace catalog and telemetry."""
+
+    entry_id: str
+    name: str
+    origin: str
+    rating: float
+    cost: float
+    run_count: int
+    success_rate: float
+    avg_latency_ms: float
+    total_cost_usd: float
+    total_tokens_in: int
+    total_tokens_out: int
+    cohorts: tuple[str, ...]
+    adoption_score: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "entry_id": self.entry_id,
+            "name": self.name,
+            "origin": self.origin,
+            "rating": self.rating,
+            "cost": self.cost,
+            "run_count": self.run_count,
+            "success_rate": self.success_rate,
+            "avg_latency_ms": self.avg_latency_ms,
+            "total_cost_usd": self.total_cost_usd,
+            "total_tokens_in": self.total_tokens_in,
+            "total_tokens_out": self.total_tokens_out,
+            "cohorts": list(self.cohorts),
+            "adoption_score": self.adoption_score,
+        }
 
 @dataclass(frozen=True)
 class FinOpsSprintReport:
@@ -508,6 +616,27 @@ def _augment_cost(
     if missing_tokens_out and prices.get("output") is not None:
         cost += (missing_tokens_out / 1000.0) * float(prices["output"])
     return cost
+
+
+def _extract_marketplace_entry_id(metadata: Mapping[str, object]) -> str | None:
+    for key in (
+        "marketplace_entry_id",
+        "marketplace_id",
+        "entry_id",
+        "marketplace",
+    ):
+        value = metadata.get(key)
+        if isinstance(value, str):
+            candidate = value.strip()
+            if candidate:
+                return candidate
+        if isinstance(value, Mapping):
+            nested = value.get("entry_id") or value.get("id")
+            if isinstance(nested, str):
+                candidate = nested.strip()
+                if candidate:
+                    return candidate
+    return None
 
 
 def _coerce_date(value: object) -> date | None:
@@ -823,6 +952,17 @@ def query_runs(
         else:
             metadata = {}
 
+        cohort_raw = row.get("experiment_cohort")
+        cohort_value = None
+        if cohort_raw is not None:
+            candidate = str(cohort_raw).strip()
+            cohort_value = candidate or None
+        tag_raw = row.get("experiment_tag")
+        tag_value = None
+        if tag_raw is not None:
+            candidate_tag = str(tag_raw).strip()
+            tag_value = candidate_tag or None
+
         base_cost = float(row["cost_estimated_usd"] or 0.0)
         if row.get("cost_estimated_usd") is None:
             missing_tokens_in = int(row["tokens_in"] or 0)
@@ -846,11 +986,453 @@ def query_runs(
                 status=str(row["status"] or "unknown").lower(),
                 cost_usd=round(cost, 6),
                 metadata=metadata,
+                experiment_cohort=cohort_value,
+                experiment_tag=tag_value,
             )
         )
 
     next_cursor = str(offset + len(items)) if has_more else None
     return tuple(items), next_cursor
+
+
+def query_experiment_summaries(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    route: str | None = None,
+    lane: str | None = None,
+) -> tuple[TelemetryExperimentSummary, ...]:
+    lane_providers = _providers_for_lane(lane) if lane else None
+    normalized_start, normalized_end, where_clause, params = _prepare_filters(
+        start=start,
+        end=end,
+        provider_id=provider_id,
+        route=route,
+        allowed_provider_ids=lane_providers,
+    )
+
+    experiment_clause = "(experiment_cohort IS NOT NULL OR experiment_tag IS NOT NULL)"
+    if where_clause:
+        where_clause = f"{where_clause} AND {experiment_clause}"
+    else:
+        where_clause = f" WHERE {experiment_clause}"
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                f"""
+                SELECT
+                    provider_id,
+                    ts,
+                    status,
+                    duration_ms,
+                    tokens_in,
+                    tokens_out,
+                    cost_estimated_usd,
+                    experiment_cohort,
+                    experiment_tag
+                FROM telemetry_events
+                {where_clause}
+                ORDER BY experiment_cohort, experiment_tag, ts
+                """
+            ),
+            params,
+        ).mappings().all()
+
+    if not rows:
+        return tuple()
+
+    experiments: MutableMapping[
+        tuple[str | None, str | None],
+        dict[str, object],
+    ] = {}
+    for row in rows:
+        cohort_raw = row.get("experiment_cohort")
+        tag_raw = row.get("experiment_tag")
+        cohort = str(cohort_raw).strip() if isinstance(cohort_raw, str) else None
+        tag = str(tag_raw).strip() if isinstance(tag_raw, str) else None
+        if cohort_raw is not None and not cohort:
+            cohort = None
+        if tag_raw is not None and not tag:
+            tag = None
+        if cohort is None and tag is None:
+            continue
+        key = (cohort, tag)
+        stats = experiments.setdefault(
+            key,
+            {
+                "run_count": 0,
+                "success_count": 0,
+                "tokens_in": 0,
+                "tokens_out": 0,
+                "duration_sum": 0.0,
+                "providers": {},
+                "timeline": [],
+            },
+        )
+        status_value = str(row.get("status") or "unknown").lower()
+        stats["run_count"] = int(stats["run_count"]) + 1
+        if status_value == "success":
+            stats["success_count"] = int(stats["success_count"]) + 1
+        tokens_in = int(row.get("tokens_in") or 0)
+        tokens_out = int(row.get("tokens_out") or 0)
+        stats["tokens_in"] = int(stats["tokens_in"]) + tokens_in
+        stats["tokens_out"] = int(stats["tokens_out"]) + tokens_out
+        stats["duration_sum"] = float(stats["duration_sum"]) + float(
+            row.get("duration_ms") or 0.0
+        )
+
+        provider = str(row.get("provider_id"))
+        provider_costs = cast(
+            MutableMapping[str, dict[str, float | int]],
+            stats.setdefault("providers", {}),
+        )
+        cost_bucket = provider_costs.setdefault(
+            provider,
+            {"base_cost": 0.0, "missing_in": 0, "missing_out": 0},
+        )
+        if row.get("cost_estimated_usd") is None:
+            cost_bucket["missing_in"] = int(cost_bucket["missing_in"]) + tokens_in
+            cost_bucket["missing_out"] = int(cost_bucket["missing_out"]) + tokens_out
+        else:
+            cost_bucket["base_cost"] = float(cost_bucket["base_cost"]) + float(
+                row.get("cost_estimated_usd") or 0.0
+            )
+
+        ts_raw = row.get("ts")
+        timestamp = None
+        if isinstance(ts_raw, datetime):
+            timestamp = ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=timezone.utc)
+        elif isinstance(ts_raw, str):
+            timestamp = _parse_iso(ts_raw)
+        timeline = cast(list[tuple[datetime, str]], stats.setdefault("timeline", []))
+        if timestamp is not None:
+            timeline.append((timestamp, status_value))
+
+    summaries: list[TelemetryExperimentSummary] = []
+    for (cohort, tag), stats in experiments.items():
+        run_count = int(stats["run_count"])
+        if run_count <= 0:
+            continue
+        success_count = int(stats["success_count"])
+        success_rate = success_count / run_count if run_count else 0.0
+        error_rate = max(0.0, 1.0 - success_rate)
+        duration_sum = float(stats["duration_sum"])
+        avg_latency = duration_sum / run_count if run_count else 0.0
+
+        cost_total = 0.0
+        provider_costs = cast(
+            Mapping[str, dict[str, float | int]],
+            stats.get("providers", {}),
+        )
+        for provider, bucket in provider_costs.items():
+            base_cost = float(bucket.get("base_cost") or 0.0)
+            missing_in = int(bucket.get("missing_in") or 0)
+            missing_out = int(bucket.get("missing_out") or 0)
+            cost_total += _augment_cost(provider, base_cost, missing_in, missing_out)
+
+        timeline = sorted(
+            cast(list[tuple[datetime, str]], stats.get("timeline", [])),
+            key=lambda item: item[0],
+        )
+        recovery_total = 0.0
+        recovery_events = 0
+        last_failure: datetime | None = None
+        for timestamp, status_value in timeline:
+            if status_value in {"error", "denied", "retry"}:
+                last_failure = timestamp
+            elif status_value == "success" and last_failure is not None:
+                delta = (timestamp - last_failure).total_seconds() * 1000.0
+                if delta >= 0:
+                    recovery_total += delta
+                    recovery_events += 1
+                last_failure = None
+
+        mttr_ms = (recovery_total / recovery_events) if recovery_events else None
+
+        summaries.append(
+            TelemetryExperimentSummary(
+                cohort=cohort,
+                tag=tag,
+                run_count=run_count,
+                success_rate=round(success_rate, 6),
+                error_rate=round(error_rate, 6),
+                avg_latency_ms=avg_latency,
+                total_cost_usd=round(cost_total, 6),
+                total_tokens_in=int(stats.get("tokens_in", 0)),
+                total_tokens_out=int(stats.get("tokens_out", 0)),
+                mttr_ms=mttr_ms,
+                recovery_events=recovery_events,
+            )
+        )
+
+    return tuple(
+        sorted(
+            summaries,
+            key=lambda item: (item.total_cost_usd, item.run_count),
+            reverse=True,
+        )
+    )
+
+
+def compute_lane_cost_breakdown(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    route: str | None = None,
+    lane: str | None = None,
+) -> tuple[TelemetryLaneCost, ...]:
+    lane_providers = _providers_for_lane(lane) if lane else None
+    _, _, where_clause, params = _prepare_filters(
+        start=start,
+        end=end,
+        provider_id=provider_id,
+        route=route,
+        allowed_provider_ids=lane_providers,
+    )
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                f"""
+                SELECT
+                    provider_id,
+                    COUNT(*) AS run_count,
+                    SUM(tokens_in) AS tokens_in,
+                    SUM(tokens_out) AS tokens_out,
+                    SUM(duration_ms) AS duration_sum,
+                    SUM(cost_estimated_usd) AS base_cost,
+                    SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_in ELSE 0 END) AS missing_tokens_in,
+                    SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_out ELSE 0 END) AS missing_tokens_out
+                FROM telemetry_events
+                {where_clause}
+                GROUP BY provider_id
+                """
+            ),
+            params,
+        ).mappings().all()
+
+    provider_lanes = _provider_lane_index()
+    lane_totals: MutableMapping[str, dict[str, float]] = {}
+    for row in rows:
+        provider = str(row.get("provider_id"))
+        lane_id = provider_lanes.get(provider, "balanced")
+        bucket = lane_totals.setdefault(
+            lane_id,
+            {
+                "run_count": 0.0,
+                "tokens_in": 0.0,
+                "tokens_out": 0.0,
+                "duration_sum": 0.0,
+                "cost": 0.0,
+            },
+        )
+        run_count = float(row.get("run_count") or 0.0)
+        bucket["run_count"] += run_count
+        bucket["tokens_in"] += float(row.get("tokens_in") or 0.0)
+        bucket["tokens_out"] += float(row.get("tokens_out") or 0.0)
+        bucket["duration_sum"] += float(row.get("duration_sum") or 0.0)
+        base_cost = float(row.get("base_cost") or 0.0)
+        missing_in = int(row.get("missing_tokens_in") or 0)
+        missing_out = int(row.get("missing_tokens_out") or 0)
+        bucket["cost"] += _augment_cost(provider, base_cost, missing_in, missing_out)
+
+    summaries: list[TelemetryLaneCost] = []
+    for lane_id in ("economy", "balanced", "turbo"):
+        bucket = lane_totals.get(lane_id)
+        if not bucket:
+            continue
+        run_count = int(bucket["run_count"])
+        if run_count <= 0:
+            continue
+        duration_sum = bucket["duration_sum"]
+        avg_latency = duration_sum / run_count if run_count else 0.0
+        summaries.append(
+            TelemetryLaneCost(
+                lane=lane_id,
+                run_count=run_count,
+                total_cost_usd=round(bucket["cost"], 6),
+                total_tokens_in=int(bucket["tokens_in"]),
+                total_tokens_out=int(bucket["tokens_out"]),
+                avg_latency_ms=avg_latency,
+            )
+        )
+
+    return tuple(sorted(summaries, key=lambda item: item.total_cost_usd, reverse=True))
+
+
+def compute_marketplace_performance(
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    provider_id: str | None = None,
+    route: str | None = None,
+) -> tuple[MarketplacePerformance, ...]:
+    catalog = {entry.entry_id: entry for entry in list_marketplace_entries()}
+    if not catalog:
+        return tuple()
+
+    _, _, where_clause, params = _prepare_filters(
+        start=start,
+        end=end,
+        provider_id=provider_id,
+        route=route,
+    )
+
+    engine = bootstrap_database()
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                f"""
+                SELECT
+                    provider_id,
+                    ts,
+                    status,
+                    duration_ms,
+                    tokens_in,
+                    tokens_out,
+                    cost_estimated_usd,
+                    metadata,
+                    experiment_cohort
+                FROM telemetry_events
+                {where_clause}
+                ORDER BY ts
+                """
+            ),
+            params,
+        ).mappings().all()
+
+    performances: MutableMapping[
+        str,
+        dict[str, object],
+    ] = {}
+
+    for row in rows:
+        metadata_raw = row.get("metadata")
+        metadata: Mapping[str, object] | None
+        if isinstance(metadata_raw, str):
+            try:
+                metadata = json.loads(metadata_raw)
+            except json.JSONDecodeError:
+                metadata = None
+        elif isinstance(metadata_raw, Mapping):
+            metadata = metadata_raw
+        else:
+            metadata = None
+        if not metadata:
+            continue
+
+        entry_id = _extract_marketplace_entry_id(metadata)
+        if not entry_id:
+            continue
+        entry = catalog.get(entry_id)
+        if entry is None:
+            continue
+
+        provider = str(row.get("provider_id"))
+        status_value = str(row.get("status") or "unknown").lower()
+        tokens_in = int(row.get("tokens_in") or 0)
+        tokens_out = int(row.get("tokens_out") or 0)
+        duration = int(row.get("duration_ms") or 0)
+        cohort_raw = row.get("experiment_cohort")
+        cohort = None
+        if isinstance(cohort_raw, str):
+            cohort = cohort_raw.strip() or None
+
+        stats = performances.setdefault(
+            entry.entry_id,
+            {
+                "entry": entry,
+                "run_count": 0,
+                "success_count": 0,
+                "duration_sum": 0.0,
+                "tokens_in": 0,
+                "tokens_out": 0,
+                "providers": {},
+                "cohorts": set(),
+            },
+        )
+        stats["run_count"] = int(stats["run_count"]) + 1
+        if status_value == "success":
+            stats["success_count"] = int(stats["success_count"]) + 1
+        stats["tokens_in"] = int(stats["tokens_in"]) + tokens_in
+        stats["tokens_out"] = int(stats["tokens_out"]) + tokens_out
+        stats["duration_sum"] = float(stats["duration_sum"]) + float(duration)
+
+        provider_bucket = cast(
+            MutableMapping[str, dict[str, float | int]],
+            stats.setdefault("providers", {}),
+        )
+        cost_data = provider_bucket.setdefault(
+            provider,
+            {"base_cost": 0.0, "missing_in": 0, "missing_out": 0},
+        )
+        if row.get("cost_estimated_usd") is None:
+            cost_data["missing_in"] = int(cost_data["missing_in"]) + tokens_in
+            cost_data["missing_out"] = int(cost_data["missing_out"]) + tokens_out
+        else:
+            cost_data["base_cost"] = float(cost_data["base_cost"]) + float(
+                row.get("cost_estimated_usd") or 0.0
+            )
+
+        if cohort:
+            cohorts = cast(set[str], stats.setdefault("cohorts", set()))
+            cohorts.add(cohort)
+
+    results: list[MarketplacePerformance] = []
+    for entry_id, stats in performances.items():
+        run_count = int(stats["run_count"])
+        if run_count <= 0:
+            continue
+        success_count = int(stats["success_count"])
+        success_rate = success_count / run_count if run_count else 0.0
+        duration_sum = float(stats["duration_sum"])
+        avg_latency = duration_sum / run_count if run_count else 0.0
+
+        provider_buckets = cast(
+            Mapping[str, dict[str, float | int]],
+            stats.get("providers", {}),
+        )
+        total_cost = 0.0
+        for provider, data in provider_buckets.items():
+            base_cost = float(data.get("base_cost") or 0.0)
+            missing_in = int(data.get("missing_in") or 0)
+            missing_out = int(data.get("missing_out") or 0)
+            total_cost += _augment_cost(provider, base_cost, missing_in, missing_out)
+
+        entry = stats["entry"]
+        cohorts = tuple(sorted(cast(set[str], stats.get("cohorts", set()))))
+        adoption_score = run_count * success_rate
+
+        results.append(
+            MarketplacePerformance(
+                entry_id=entry.entry_id,
+                name=entry.name,
+                origin=entry.origin,
+                rating=float(entry.rating),
+                cost=float(entry.cost),
+                run_count=run_count,
+                success_rate=round(success_rate, 6),
+                avg_latency_ms=avg_latency,
+                total_cost_usd=round(total_cost, 6),
+                total_tokens_in=int(stats.get("tokens_in", 0)),
+                total_tokens_out=int(stats.get("tokens_out", 0)),
+                cohorts=cohorts,
+                adoption_score=round(adoption_score, 6),
+            )
+        )
+
+    return tuple(
+        sorted(
+            results,
+            key=lambda item: (item.adoption_score, item.run_count),
+            reverse=True,
+        )
+    )
 
 
 def compute_finops_sprint_reports(
@@ -1299,7 +1881,9 @@ def _fetch_runs(
             status,
             cost_estimated_usd,
             metadata,
-            ts
+            ts,
+            experiment_cohort,
+            experiment_tag
         FROM telemetry_events
         {where_clause}
         ORDER BY ts DESC, id DESC
@@ -1384,6 +1968,8 @@ def render_telemetry_export(
             ),
             "text/html",
         )
+    if format_key == "json":
+        return _render_json(rows), "application/json"
     raise ValueError(f"Unsupported export format: {fmt}")
 
 
@@ -1452,7 +2038,10 @@ def _fetch_events(
             cost_estimated_usd,
             source_file,
             line_number,
-            ingested_at
+            ingested_at,
+            metadata,
+            experiment_cohort,
+            experiment_tag
         FROM telemetry_events
         {where_clause}
         ORDER BY ts ASC, provider_id ASC, line_number ASC
@@ -1476,10 +2065,18 @@ def _render_csv(rows: list[dict[str, object]]) -> str:
             "tokens_out",
             "duration_ms",
             "cost_estimated_usd",
+            "experiment_cohort",
+            "experiment_tag",
+            "metadata",
             "source_file",
         ]
     )
     for row in rows:
+        raw_metadata = row.get("metadata")
+        if isinstance(raw_metadata, str):
+            metadata_value = raw_metadata
+        else:
+            metadata_value = json.dumps(raw_metadata or {}, ensure_ascii=False, sort_keys=True)
         writer.writerow(
             [
                 row.get("ts", ""),
@@ -1491,10 +2088,46 @@ def _render_csv(rows: list[dict[str, object]]) -> str:
                 row.get("tokens_out", 0),
                 row.get("duration_ms", 0),
                 "" if row.get("cost_estimated_usd") is None else row["cost_estimated_usd"],
+                row.get("experiment_cohort") or "",
+                row.get("experiment_tag") or "",
+                metadata_value,
                 row.get("source_file", ""),
             ]
         )
     return output.getvalue()
+
+
+def _render_json(rows: list[dict[str, object]]) -> str:
+    normalized: list[dict[str, object]] = []
+    for row in rows:
+        metadata_raw = row.get("metadata")
+        if isinstance(metadata_raw, str):
+            try:
+                metadata_value: object = json.loads(metadata_raw)
+            except json.JSONDecodeError:
+                metadata_value = metadata_raw
+        else:
+            metadata_value = metadata_raw
+        normalized.append(
+            {
+                "timestamp": row.get("ts"),
+                "provider_id": row.get("provider_id"),
+                "tool": row.get("tool"),
+                "route": row.get("route"),
+                "status": row.get("status"),
+                "tokens_in": row.get("tokens_in"),
+                "tokens_out": row.get("tokens_out"),
+                "duration_ms": row.get("duration_ms"),
+                "cost_estimated_usd": row.get("cost_estimated_usd"),
+                "experiment_cohort": row.get("experiment_cohort"),
+                "experiment_tag": row.get("experiment_tag"),
+                "metadata": metadata_value,
+                "source_file": row.get("source_file"),
+                "line_number": row.get("line_number"),
+                "ingested_at": row.get("ingested_at"),
+            }
+        )
+    return json.dumps(normalized, ensure_ascii=False, indent=2)
 
 
 def _render_html(
@@ -1532,6 +2165,9 @@ def _render_html(
             "Tokens Out",
             "Duration (ms)",
             "Cost (USD)",
+            "Experiment Cohort",
+            "Experiment Tag",
+            "Metadata",
             "Source",
         )
     )
@@ -1551,13 +2187,16 @@ def _render_html(
                     f"<td>{row.get('tokens_out', 0)}</td>",
                     f"<td>{row.get('duration_ms', 0)}</td>",
                     f"<td>{'' if row.get('cost_estimated_usd') is None else row['cost_estimated_usd']}</td>",
+                    f"<td>{html.escape(str(row.get('experiment_cohort') or ''))}</td>",
+                    f"<td>{html.escape(str(row.get('experiment_tag') or ''))}</td>",
+                    f"<td>{html.escape(str(row.get('metadata') or ''))}</td>",
                     f"<td>{html.escape(str(row.get('source_file', '')))}</td>",
                 ]
             )
             + "</tr>"
         )
 
-    table_body = "\n".join(body_rows) if body_rows else "<tr><td colspan=\"10\">No telemetry events found.</td></tr>"
+    table_body = "\n".join(body_rows) if body_rows else "<tr><td colspan=\"13\">No telemetry events found.</td></tr>"
 
     return (
         "<!DOCTYPE html>\n"

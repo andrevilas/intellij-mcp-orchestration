@@ -150,6 +150,8 @@ def telemetry_dataset(database):
             cost_estimated_usd=1.75,
             ts=base_ts,
             metadata={"consumer": "squad-a", "trace_id": "gem-001"},
+            experiment_cohort="canary",
+            experiment_tag="prompt-v2",
         ),
         SampleTelemetryEvent(
             provider_id="gemini",
@@ -162,6 +164,8 @@ def telemetry_dataset(database):
             cost_estimated_usd=None,
             ts=base_ts + timedelta(days=1),
             metadata={"project": "alpha"},
+            experiment_cohort="canary",
+            experiment_tag="prompt-v2",
         ),
         SampleTelemetryEvent(
             provider_id="glm46",
@@ -174,6 +178,8 @@ def telemetry_dataset(database):
             cost_estimated_usd=1.1,
             ts=base_ts - timedelta(days=1),
             metadata={"consumer": "squad-b"},
+            experiment_cohort="baseline",
+            experiment_tag="route-a",
         ),
         SampleTelemetryEvent(
             provider_id="glm46",
@@ -186,6 +192,8 @@ def telemetry_dataset(database):
             cost_estimated_usd=None,
             ts=base_ts,
             metadata={"project": "beta"},
+            experiment_cohort="baseline",
+            experiment_tag="route-a",
         ),
     ]
 

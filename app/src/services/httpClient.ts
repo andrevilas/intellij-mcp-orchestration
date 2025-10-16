@@ -50,11 +50,12 @@ function buildHeaders(init?: HeadersInit): Record<string, string> {
 
 function mergeRequestInit(init?: RequestInit): RequestInit {
   if (!init) {
-    return { headers: buildHeaders() };
+    return { method: 'GET', headers: buildHeaders() };
   }
   const headers = buildHeaders(init.headers ?? undefined);
   return {
     ...init,
+    method: init.method ?? 'GET',
     headers,
   };
 }
