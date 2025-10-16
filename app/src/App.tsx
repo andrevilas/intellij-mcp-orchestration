@@ -39,6 +39,7 @@ import Servers from './pages/Servers';
 import AdminChat from './pages/AdminChat';
 import Flows from './pages/Flows';
 import Marketplace from './pages/Marketplace';
+import Agents from './pages/Agents';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -118,6 +119,12 @@ const VIEW_DEFINITIONS = [
     label: 'Servidores',
     description: 'Controle de lifecycle e telemetria dos MCP servers',
     keywords: ['start', 'stop', 'restart', 'logs'],
+  },
+  {
+    id: 'agents',
+    label: 'Agents',
+    description: 'Catálogo de agents com owners, status e smoke tests',
+    keywords: ['catalogo', 'agents', 'smoke'],
   },
   {
     id: 'keys',
@@ -732,6 +739,11 @@ function App() {
         {activeView === 'servers' && (
           <section role="tabpanel" id="panel-servers" aria-labelledby="tab-servers">
             <Servers providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        )}
+        {activeView === 'agents' && (
+          <section role="tabpanel" id="panel-agents" aria-labelledby="tab-agents">
+            <Agents />
           </section>
         )}
         {activeView === 'keys' && (

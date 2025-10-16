@@ -24,6 +24,7 @@ import {
   fetchFinOpsPullRequestReports,
   fetchFinOpsSprintReports,
   fetchProviders,
+  fetchAgents,
   fetchServerCatalog,
   fetchServerProcesses,
   fetchServerProcessLogs,
@@ -42,6 +43,7 @@ import {
   stopServerProcess,
   testSecret,
   upsertSecret,
+  postAgentSmokeRun,
 } from './api';
 
 function mockFetchResponse<T>(payload: T): Promise<Response> {
@@ -109,6 +111,80 @@ describe('api client', () => {
         is_available: true,
       },
     ]);
+  });
+
+  it('fetches the agents catalog from the hub service', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        agents: [
+          {
+            name: 'catalog-search',
+            title: 'Catalog Search',
+            version: '1.2.0',
+            description: 'Busca estruturada.',
+            capabilities: ['search'],
+            model: { provider: 'openai', name: 'o3-mini', parameters: { temperature: 0 } },
+            status: 'healthy',
+            last_deployed_at: '2025-01-02T10:00:00Z',
+            owner: '@catalog',
+          },
+        ],
+      }),
+    );
+
+    const result = await fetchAgents();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/agents/agents',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual([
+      {
+        name: 'catalog-search',
+        title: 'Catalog Search',
+        version: '1.2.0',
+        description: 'Busca estruturada.',
+        capabilities: ['search'],
+        model: { provider: 'openai', name: 'o3-mini', parameters: { temperature: 0 } },
+        status: 'healthy',
+        lastDeployedAt: '2025-01-02T10:00:00Z',
+        owner: '@catalog',
+      },
+    ]);
+  });
+
+  it('executes a smoke run using the agents runner endpoint', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        run_id: 'smoke-1',
+        status: 'running',
+        summary: 'Execução iniciada.',
+        report_url: 'https://runner.example/report',
+        started_at: '2025-01-02T10:05:00Z',
+        finished_at: null,
+      }),
+    );
+
+    const result = await postAgentSmokeRun('catalog-search');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/agents/catalog-search/smoke',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual({
+      runId: 'smoke-1',
+      status: 'running',
+      summary: 'Execução iniciada.',
+      reportUrl: 'https://runner.example/report',
+      startedAt: '2025-01-02T10:05:00Z',
+      finishedAt: null,
+    });
   });
 
   it('fetches server processes and mutates lifecycle actions', async () => {

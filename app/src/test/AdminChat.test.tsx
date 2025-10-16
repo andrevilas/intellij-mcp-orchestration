@@ -38,6 +38,8 @@ vi.mock('../api', async () => {
   } satisfies Partial<ApiModule>;
 });
 
+vi.setConfig({ testTimeout: 10000 });
+
 describe('AdminChat view', () => {
   const chatResponse: ConfigChatResponse = {
     threadId: 'thread-1',

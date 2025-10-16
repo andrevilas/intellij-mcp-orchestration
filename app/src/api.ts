@@ -1,4 +1,4 @@
-import { fetchFromApi, getApiBaseUrl } from './services/httpClient';
+import { fetchFromApi, fetchFromAgents, getApiBaseUrl } from './services/httpClient';
 
 export type BudgetPeriod = 'daily' | 'weekly' | 'monthly';
 export type RoutingTierId = 'economy' | 'balanced' | 'turbo';
@@ -15,6 +15,37 @@ export interface ProviderSummary {
   capabilities: string[];
   transport: string;
   is_available?: boolean;
+}
+
+export type AgentStatus = 'healthy' | 'degraded' | 'pending' | 'inactive' | 'failed' | 'unknown';
+
+export interface AgentModelConfig {
+  provider: string | null;
+  name: string | null;
+  parameters: Record<string, unknown>;
+}
+
+export interface AgentSummary {
+  name: string;
+  title: string;
+  version: string;
+  description: string | null;
+  capabilities: string[];
+  model: AgentModelConfig | null;
+  status: AgentStatus;
+  lastDeployedAt: string | null;
+  owner: string | null;
+}
+
+export type AgentSmokeRunStatus = 'queued' | 'running' | 'passed' | 'failed';
+
+export interface AgentSmokeRun {
+  runId: string;
+  status: AgentSmokeRunStatus;
+  summary: string | null;
+  reportUrl: string | null;
+  startedAt: string;
+  finishedAt: string | null;
 }
 
 export interface Session {
@@ -1200,6 +1231,124 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     return undefined as T;
   }
+}
+
+async function requestAgents<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetchFromAgents(path, init);
+
+  if (!response) {
+    throw new Error('Empty response from fetch');
+  }
+
+  if (!response.ok) {
+    const body = await response.text();
+    const message = body || `Request failed with status ${response.status}`;
+    throw new ApiError(message, response.status, body);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return undefined as T;
+  }
+}
+
+interface AgentModelPayload {
+  provider?: string | null;
+  name?: string | null;
+  parameters?: Record<string, unknown> | null;
+}
+
+interface AgentMetadataPayload {
+  name: string;
+  title: string;
+  version: string;
+  description?: string | null;
+  capabilities?: string[] | null;
+  model?: AgentModelPayload | null;
+  status?: AgentStatus | string | null;
+  last_deployed_at?: string | null;
+  owner?: string | null;
+}
+
+interface AgentListResponsePayload {
+  agents: AgentMetadataPayload[];
+}
+
+interface AgentSmokeRunPayload {
+  run_id: string;
+  status: AgentSmokeRunStatus;
+  summary?: string | null;
+  report_url?: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+function mapAgentModel(payload?: AgentModelPayload | null): AgentModelConfig | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    provider: payload.provider ?? null,
+    name: payload.name ?? null,
+    parameters: payload.parameters ?? {},
+  };
+}
+
+function mapAgentSummary(payload: AgentMetadataPayload): AgentSummary {
+  const status = payload.status;
+  const normalizedStatus: AgentStatus =
+    status === 'healthy' ||
+    status === 'degraded' ||
+    status === 'pending' ||
+    status === 'inactive' ||
+    status === 'failed'
+      ? status
+      : 'unknown';
+
+  return {
+    name: payload.name,
+    title: payload.title,
+    version: payload.version,
+    description: payload.description ?? null,
+    capabilities: payload.capabilities ?? [],
+    model: mapAgentModel(payload.model ?? null),
+    status: normalizedStatus,
+    lastDeployedAt: payload.last_deployed_at ?? null,
+    owner: payload.owner ?? null,
+  };
+}
+
+function mapAgentSmokeRun(payload: AgentSmokeRunPayload): AgentSmokeRun {
+  return {
+    runId: payload.run_id,
+    status: payload.status,
+    summary: payload.summary ?? null,
+    reportUrl: payload.report_url ?? null,
+    startedAt: payload.started_at,
+    finishedAt: payload.finished_at,
+  };
+}
+
+export async function fetchAgents(signal?: AbortSignal): Promise<AgentSummary[]> {
+  const data = await requestAgents<AgentListResponsePayload>('/agents', { signal });
+  return data.agents.map(mapAgentSummary);
+}
+
+export async function postAgentSmokeRun(
+  agentName: string,
+  signal?: AbortSignal,
+): Promise<AgentSmokeRun> {
+  const encoded = encodeURIComponent(agentName);
+  const data = await requestAgents<AgentSmokeRunPayload>(`/${encoded}/smoke`, {
+    method: 'POST',
+    signal,
+  });
+  return mapAgentSmokeRun(data);
 }
 
 function mapMcpServer(payload: McpServerPayload): McpServer {
