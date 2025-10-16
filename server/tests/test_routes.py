@@ -1087,6 +1087,104 @@ def test_price_table_crud_flow(client: TestClient) -> None:
     assert list_after_delete.json()['entries'] == []
 
 
+def test_marketplace_catalog_flow(client: TestClient, database) -> None:
+    token = 'marketplace-token'
+    _seed_rag_user(database, token=token, roles=(Role.PLANNER,))
+
+    list_response = client.get('/api/v1/marketplace')
+    assert list_response.status_code == 200
+    assert list_response.json()['entries'] == []
+
+    signature = '210d5e9bacc7c50401c63821be3dc19b1723742e03f5306f8d2aaea0ec7b8b6d'
+    payload = {
+        'id': 'marketplace-help-desk',
+        'name': 'Help Desk Coach',
+        'slug': 'help-desk-coach',
+        'summary': 'Triagem assistida para filas de atendimento em português.',
+        'description': 'Equilibra SLAs e priorização automática, com fallback humano.',
+        'origin': 'community',
+        'rating': 4.7,
+        'cost': 0.02,
+        'tags': ['suporte', 'workflow'],
+        'capabilities': ['triage', 'workflow'],
+        'repository_url': 'https://github.com/example/help-desk',
+        'package_path': 'config/marketplace/help-desk',
+        'manifest_filename': 'agent.yaml',
+        'entrypoint_filename': 'agent.py',
+        'target_repository': 'agents-hub',
+        'signature': signature,
+    }
+
+    create_response = client.post('/api/v1/marketplace', json=payload)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created['slug'] == 'help-desk-coach'
+
+    read_response = client.get('/api/v1/marketplace/marketplace-help-desk')
+    assert read_response.status_code == 200
+    read_payload = read_response.json()
+    assert read_payload['rating'] == pytest.approx(4.7)
+
+    update_payload = {**payload, 'rating': 4.9, 'cost': 0.03}
+    update_response = client.put('/api/v1/marketplace/marketplace-help-desk', json=update_payload)
+    assert update_response.status_code == 200
+    assert update_response.json()['rating'] == pytest.approx(4.9)
+
+    import_response = client.post(
+        '/api/v1/marketplace/marketplace-help-desk/import',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert import_response.status_code == 200
+    import_payload = import_response.json()
+    assert import_payload['entry']['id'] == 'marketplace-help-desk'
+    assert import_payload['plan']['intent'] == 'add_agent'
+
+    repo_manifest = REPO_ROOT / 'config/marketplace/help-desk/agent.yaml'
+    repo_agent = REPO_ROOT / 'config/marketplace/help-desk/agent.py'
+    assert import_payload['manifest'] == repo_manifest.read_text(encoding='utf-8')
+    assert import_payload['agent_code'] == repo_agent.read_text(encoding='utf-8')
+
+    delete_response = client.delete('/api/v1/marketplace/marketplace-help-desk')
+    assert delete_response.status_code == 204
+
+    missing_response = client.get('/api/v1/marketplace/marketplace-help-desk')
+    assert missing_response.status_code == 404
+
+
+def test_marketplace_import_validates_signature(client: TestClient, database) -> None:
+    token = 'marketplace-invalid'
+    _seed_rag_user(database, token=token, roles=(Role.PLANNER,))
+
+    payload = {
+        'id': 'marketplace-bad-signature',
+        'name': 'Help Desk Clone',
+        'slug': 'help-desk-clone',
+        'summary': 'Variante para teste de assinatura.',
+        'description': None,
+        'origin': 'community',
+        'rating': 4.0,
+        'cost': 0.01,
+        'tags': [],
+        'capabilities': [],
+        'repository_url': None,
+        'package_path': 'config/marketplace/help-desk',
+        'manifest_filename': 'agent.yaml',
+        'entrypoint_filename': 'agent.py',
+        'target_repository': 'agents-hub',
+        'signature': 'deadbeef' * 8,
+    }
+
+    create_response = client.post('/api/v1/marketplace', json=payload)
+    assert create_response.status_code == 201
+
+    import_response = client.post(
+        '/api/v1/marketplace/marketplace-bad-signature/import',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    assert import_response.status_code == 400
+    assert 'Assinatura' in import_response.json()['detail']
+
+
 def test_cost_dry_run_estimates_cost_without_override(client: TestClient) -> None:
     price_payload = {
         'id': 'gemini-standard',

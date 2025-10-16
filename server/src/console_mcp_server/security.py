@@ -203,6 +203,9 @@ class SecurityContext:
         self.audit_logger = audit_logger
 
 
+DEFAULT_AUDIT_LOGGER = AuditLogger()
+
+
 class RBACMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware enforcing authentication on protected routes."""
 
@@ -216,7 +219,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
     ) -> None:
         super().__init__(app)
         self._session_factory = session_factory
-        self._audit_logger = audit_logger or AuditLogger(session_factory=session_factory)
+        self._audit_logger = audit_logger or DEFAULT_AUDIT_LOGGER
         self._protected_prefixes = tuple(protected_prefixes)
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
@@ -245,49 +248,92 @@ class RBACMiddleware(BaseHTTPMiddleware):
         if scheme.lower() != "bearer" or not token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication scheme")
 
-        token_hash = hash_token(token)
-        with self._session_factory() as session:
-            row = (
-                session.execute(
-                    text(
-                        """
-                        SELECT id, name, email
-                        FROM users
-                        WHERE api_token_hash = :token_hash
-                        LIMIT 1
-                        """
-                    ),
-                    {"token_hash": token_hash},
-                )
-                .mappings()
-                .first()
-            )
+        return authenticate_bearer_token(token, session_factory=self._session_factory)
 
-            if row is None:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-            roles = session.execute(
+def authenticate_bearer_token(
+    token: str,
+    *,
+    session_factory=session_scope,
+) -> AuthenticatedUser:
+    """Resolve an authenticated user from a bearer token."""
+
+    token_hash = hash_token(token)
+    with session_factory() as session:
+        row = (
+            session.execute(
                 text(
                     """
-                    SELECT r.name
-                    FROM roles AS r
-                    INNER JOIN user_roles AS ur ON ur.role_id = r.id
-                    WHERE ur.user_id = :user_id
+                    SELECT id, name, email
+                    FROM users
+                    WHERE api_token_hash = :token_hash
+                    LIMIT 1
                     """
                 ),
-                {"user_id": row["id"]},
-            ).scalars()
-            assigned = frozenset(Role(role_name) for role_name in roles)
-
-        if not assigned:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User lacks assigned roles")
-
-        return AuthenticatedUser(
-            id=str(row["id"]),
-            name=str(row["name"]),
-            email=str(row.get("email")) if row.get("email") else None,
-            roles=assigned,
+                {"token_hash": token_hash},
+            )
+            .mappings()
+            .first()
         )
+
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+        roles = session.execute(
+            text(
+                """
+                SELECT r.name
+                FROM roles AS r
+                INNER JOIN user_roles AS ur ON ur.role_id = r.id
+                WHERE ur.user_id = :user_id
+                """
+            ),
+            {"user_id": row["id"]},
+        ).scalars()
+        assigned = frozenset(Role(role_name) for role_name in roles)
+
+    if not assigned:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User lacks assigned roles")
+
+    return AuthenticatedUser(
+        id=str(row["id"]),
+        name=str(row["name"]),
+        email=str(row.get("email")) if row.get("email") else None,
+        roles=assigned,
+    )
+
+
+def ensure_security_context(
+    request: Request,
+    *,
+    audit_logger: AuditLogger | None = None,
+    session_factory=session_scope,
+) -> SecurityContext:
+    """Ensure the request has a populated security context.
+
+    FastAPI dependencies (e.g. middleware) attach ``request.state.security`` when
+    handling protected routes. Marketplace import endpoints bypass the middleware,
+    so we hydrate the context here on demand, ensuring audit logging remains
+    consistent.
+    """
+
+    context = getattr(request.state, "security", None)
+    if context is not None:
+        return context
+
+    header = request.headers.get("Authorization")
+    if not header:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Authorization header")
+
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication scheme")
+
+    user = authenticate_bearer_token(token, session_factory=session_factory)
+    resolved_logger = audit_logger or getattr(request.app.state, "audit_logger", None) or DEFAULT_AUDIT_LOGGER
+    context = SecurityContext(user=user, audit_logger=resolved_logger)
+    request.state.security = context
+    return context
 
 
 def get_security_context(request: Request) -> SecurityContext:
@@ -321,10 +367,13 @@ __all__ = [
     "AuthenticatedUser",
     "AuditEvent",
     "AuditLogger",
+    "DEFAULT_AUDIT_LOGGER",
     "RBACMiddleware",
     "Role",
     "audit_logger",
+    "authenticate_bearer_token",
     "current_user",
+    "ensure_security_context",
     "get_security_context",
     "hash_token",
     "require_roles",

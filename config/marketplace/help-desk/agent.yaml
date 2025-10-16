@@ -1,0 +1,9 @@
+name: help-desk-coach
+version: 1.0.0
+capabilities:
+  - triage
+  - workflow
+entrypoint: agent:HelpDeskCoach
+config:
+  language: pt-BR
+  escalation: human

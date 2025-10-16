@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 from .config import ProviderConfig
+from .schemas_plan import Plan
 
 
 class HealthStatus(BaseModel):
@@ -378,6 +379,59 @@ class PriceEntriesResponse(BaseModel):
     """Envelope returned when listing all price table entries."""
 
     entries: List[PriceEntryResponse]
+
+
+class MarketplaceEntryWriteRequest(BaseModel):
+    """Shared attributes for marketplace catalog mutations."""
+
+    name: str = Field(..., min_length=1, max_length=256)
+    slug: str = Field(..., min_length=1, max_length=256)
+    summary: str = Field(..., min_length=1, max_length=512)
+    description: Optional[str] = Field(default=None, max_length=2048)
+    origin: str = Field(..., min_length=1, max_length=64)
+    rating: float = Field(..., ge=0.0, le=5.0)
+    cost: float = Field(..., ge=0.0)
+    tags: List[str] = Field(default_factory=list)
+    capabilities: List[str] = Field(default_factory=list)
+    repository_url: Optional[str] = Field(default=None, max_length=1024)
+    package_path: str = Field(..., min_length=1, max_length=512)
+    manifest_filename: str = Field(default="agent.yaml", min_length=1, max_length=256)
+    entrypoint_filename: Optional[str] = Field(default=None, max_length=256)
+    target_repository: str = Field(default="agents-hub", min_length=1, max_length=256)
+    signature: str = Field(..., min_length=32, max_length=128)
+
+
+class MarketplaceEntryCreateRequest(MarketplaceEntryWriteRequest):
+    """Payload used when registering a new marketplace entry."""
+
+    id: str = Field(..., min_length=1, max_length=128)
+
+
+class MarketplaceEntryUpdateRequest(MarketplaceEntryWriteRequest):
+    """Payload used to update an existing marketplace entry."""
+
+
+class MarketplaceEntryResponse(MarketplaceEntryWriteRequest):
+    """Full representation of a persisted marketplace entry."""
+
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class MarketplaceEntriesResponse(BaseModel):
+    """Envelope returned when listing marketplace catalog entries."""
+
+    entries: List[MarketplaceEntryResponse]
+
+
+class MarketplaceImportResponse(BaseModel):
+    """Payload returned when preparing marketplace artifacts for installation."""
+
+    entry: MarketplaceEntryResponse
+    plan: Plan
+    manifest: str
+    agent_code: Optional[str] = None
 
 
 class MCPServerWriteRequest(BaseModel):

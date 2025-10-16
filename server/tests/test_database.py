@@ -26,6 +26,7 @@ def test_bootstrap_creates_expected_tables(database) -> None:
         "price_entries",
         "telemetry_events",
         "policy_overrides",
+        "marketplace_entries",
     } <= tables
 
 
