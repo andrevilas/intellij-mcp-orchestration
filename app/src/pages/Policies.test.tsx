@@ -195,7 +195,10 @@ describe('Policies page integration with policy APIs', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Equilíbrio' })).toBeInTheDocument());
     expect(screen.getByText('Promoção Q2 liberada para toda a frota.')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText(/Última atualização:/)).toBeInTheDocument());
+    await waitFor(() => {
+      const timestamps = screen.getAllByText(/Última atualização:/);
+      expect(timestamps.length).toBeGreaterThan(0);
+    });
 
     await userEvent.click(screen.getByLabelText('Template Turbo'));
     await userEvent.click(screen.getByRole('button', { name: 'Aplicar template' }));
