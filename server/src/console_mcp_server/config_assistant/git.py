@@ -95,6 +95,17 @@ class GitRepository:
             raise GitWorkflowError(f"Failed to create branch {branch_name}") from exc
         return CreatedBranch(name=branch_name, base=base_branch)
 
+    def suggest_branch_name(self, plan_id: str, *, prefix: str = "chore/config-assistant") -> CreatedBranch:
+        base_branch = self.active_branch()
+        slug = _slugify_branch_component(plan_id)
+        branch_name = f"{prefix}/{slug}"
+        counter = 0
+        existing = {head.name for head in self._repo.heads}
+        while branch_name in existing:
+            counter += 1
+            branch_name = f"{prefix}/{slug}-{counter}"
+        return CreatedBranch(name=branch_name, base=base_branch)
+
     def preview_patch(self, patch: str) -> str:
         patch_path = _write_patch_to_disk(patch)
         try:

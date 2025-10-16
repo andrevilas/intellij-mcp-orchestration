@@ -21,6 +21,7 @@ from .langgraph import FlowGraph, graph_to_agent
 from .git import create_diff
 from .intents import AssistantIntent, validate_intent_payload
 from .rag import rag_service
+from .validation import MCPClientError, MCPValidationOutcome, validate_server
 
 logger = structlog.get_logger("console.config.planner")
 
@@ -111,6 +112,15 @@ def _plan_add_agent(payload: Mapping[str, Any]) -> Plan:
     agent_slug = _slugify_agent(agent_name)
     capabilities: Sequence[str] = tuple(payload.get("capabilities", ()))
 
+    validation_details: MCPValidationOutcome | None = None
+    if payload.get("endpoint"):
+        try:
+            validation_details = validate_server(payload)
+        except MCPClientError as exc:
+            raise ValueError(f"Falha ao validar servidor MCP: {exc}") from exc
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
     manifest_path = f"{repository}/app/agents/{agent_slug}/agent.yaml"
     module_path = f"{repository}/app/agents/{agent_slug}/agent.py"
     package_init = f"{repository}/app/agents/{agent_slug}/__init__.py"
@@ -198,11 +208,75 @@ def _plan_add_agent(payload: Mapping[str, Any]) -> Plan:
         ),
     ]
 
+    if validation_details and validation_details.missing_tools:
+        missing = ", ".join(validation_details.missing_tools)
+        risks.append(
+            Risk(
+                title="Ferramentas ausentes",
+                impact="high",
+                mitigation=f"Investigar ferramentas não encontradas: {missing}.",
+            )
+        )
+
     return Plan(
         intent=AssistantIntent.ADD_AGENT.value,
         summary=f"Adicionar agente {agent_name} ao repositório {repository}",
         steps=steps,
         diffs=diffs,
+        risks=risks,
+        status=PlanExecutionStatus.PENDING,
+    )
+
+
+def _plan_validate_agent(payload: Mapping[str, Any]) -> Plan:
+    try:
+        outcome = validate_server(payload)
+    except MCPClientError as exc:
+        raise ValueError(f"Falha ao validar servidor MCP: {exc}") from exc
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
+
+    tool_names = [tool.name for tool in outcome.tools]
+    if tool_names:
+        tools_description = ", ".join(tool_names)
+    else:
+        tools_description = "nenhuma ferramenta foi retornada"
+
+    steps = [
+        PlanStep(
+            id="connect-mcp",
+            title="Conectar ao servidor MCP",
+            description=(
+                "Estabelecer sessão "
+                f"{outcome.transport} com {outcome.endpoint} e executar tools/list e schemas/list."
+            ),
+        ),
+        PlanStep(
+            id="review-tools",
+            title="Revisar ferramentas disponíveis",
+            description=f"Ferramentas detectadas: {tools_description}.",
+            depends_on=["connect-mcp"],
+        ),
+    ]
+
+    risks: list[Risk] = []
+    if outcome.missing_tools:
+        missing = ", ".join(outcome.missing_tools)
+        risks.append(
+            Risk(
+                title="Ferramentas esperadas não encontradas",
+                impact="high",
+                mitigation=f"Confirmar implementação das tools: {missing}.",
+            )
+        )
+
+    summary = f"Validar servidor MCP em {outcome.endpoint}"
+
+    return Plan(
+        intent=AssistantIntent.VALIDATE.value,
+        summary=summary,
+        steps=steps,
+        diffs=[],
         risks=risks,
         status=PlanExecutionStatus.PENDING,
     )
@@ -534,4 +608,5 @@ _BUILDERS: Mapping[AssistantIntent, PlanBuilder] = {
     AssistantIntent.EDIT_FINOPS: _plan_edit_finops,
     AssistantIntent.GENERATE_ARTIFACT: _plan_generate_artifact,
     AssistantIntent.CREATE_FLOW: _plan_create_flow,
+    AssistantIntent.VALIDATE: _plan_validate_agent,
 }

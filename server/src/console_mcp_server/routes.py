@@ -81,7 +81,9 @@ from .config_assistant.plan_executor import (
     PlanExecutionResult,
     PlanExecutor,
     PlanExecutorError,
+    PlanPreview,
 )
+from .config_assistant.validation import MCPClientError, MCPValidationOutcome, validate_server
 from .git_providers import (
     GitProviderClient,
     GitProviderSettings,
@@ -275,6 +277,51 @@ def _serialize_pull_request(snapshot: PullRequestSnapshot | None) -> PullRequest
     return PullRequestDetails.from_snapshot(snapshot)
 
 
+def _serialize_plan_preview(preview: PlanPreview | None) -> PlanPreviewModel | None:
+    if preview is None:
+        return None
+
+    pull_request: PullRequestPreviewModel | None = None
+    if preview.pull_request_title:
+        pull_request = PullRequestPreviewModel(
+            provider=preview.pull_request_provider,
+            title=preview.pull_request_title,
+            body=preview.pull_request_body,
+        )
+
+    return PlanPreviewModel(
+        branch=preview.branch,
+        base_branch=preview.base_branch,
+        commit_message=preview.commit_message,
+        pull_request=pull_request,
+    )
+
+
+def _serialize_validation_details(
+    outcome: MCPValidationOutcome | None,
+) -> MCPValidationModel | None:
+    if outcome is None:
+        return None
+
+    tools = [
+        MCPToolModel(
+            name=tool.name,
+            description=tool.description,
+            definition=dict(tool.schema) if tool.schema else None,
+        )
+        for tool in outcome.tools
+    ]
+
+    return MCPValidationModel(
+        endpoint=outcome.endpoint,
+        transport=outcome.transport,
+        tools=tools,
+        missing_tools=list(outcome.missing_tools),
+        server_info=dict(outcome.discovery.server_info),
+        capabilities=dict(outcome.discovery.capabilities),
+    )
+
+
 @router.get("/flows/{flow_id}/versions", response_model=FlowVersionsResponse)
 def list_flow_versions_route(flow_id: str) -> FlowVersionsResponse:
     records = list_flow_versions(flow_id)
@@ -358,8 +405,38 @@ class PlanRequest(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
+class PullRequestPreviewModel(BaseModel):
+    provider: str | None = None
+    title: str
+    body: str | None = None
+
+
+class PlanPreviewModel(BaseModel):
+    branch: str
+    base_branch: str
+    commit_message: str
+    pull_request: PullRequestPreviewModel | None = None
+
+
+class MCPToolModel(BaseModel):
+    name: str
+    description: str | None = None
+    definition: Dict[str, Any] | None = None
+
+
+class MCPValidationModel(BaseModel):
+    endpoint: str
+    transport: str
+    tools: list[MCPToolModel] = Field(default_factory=list)
+    missing_tools: list[str] = Field(default_factory=list)
+    server_info: Dict[str, Any] = Field(default_factory=dict)
+    capabilities: Dict[str, Any] = Field(default_factory=dict)
+
+
 class PlanResponse(BaseModel):
     plan: Plan
+    preview: PlanPreviewModel | None = None
+    validation: MCPValidationModel | None = None
 
 
 class PlanExecutionDiff(BaseModel):
@@ -437,6 +514,9 @@ class OnboardRequest(BaseModel):
     repository: str = Field(..., min_length=1)
     agent_name: str | None = Field(default=None)
     capabilities: list[str] = Field(default_factory=list)
+    endpoint: str | None = Field(default=None)
+    auth: Dict[str, str] = Field(default_factory=dict)
+    tools: list[str] = Field(default_factory=list)
 
 
 class RagDocument(BaseModel):
@@ -767,15 +847,54 @@ def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> PlanRes
     }
     if request.capabilities:
         payload["capabilities"] = request.capabilities
+    if request.endpoint:
+        payload["endpoint"] = request.endpoint
+    if request.auth:
+        payload["auth"] = request.auth
+    if request.tools:
+        payload["tools"] = request.tools
 
     plan = _build_plan(AssistantIntent.ADD_AGENT, payload)
+
+    preview: PlanPreview | None = None
+    try:
+        executor = get_plan_executor()
+        preview = executor.preview_execution(
+            f"add-agent-{agent_name}",
+            plan=plan,
+            commit_message=f"chore: onboard {agent_name}",
+        )
+    except Exception as exc:  # pragma: no cover - defensive logging
+        assistant_logger.warning(
+            "config.onboard.preview_failed",
+            agent=agent_name,
+            error=str(exc),
+        )
+        preview = None
+
+    validation_outcome: MCPValidationOutcome | None = None
+    if request.endpoint:
+        try:
+            validation_outcome = validate_server(payload)
+        except MCPClientError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Falha ao validar servidor MCP: {exc}",
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
     get_audit_logger(http_request).log(
         actor=user,
         action="config.onboard",
         resource="/config/mcp/onboard",
         metadata={"agent": agent_name},
     )
-    return PlanResponse(plan=plan)
+    return PlanResponse(
+        plan=plan,
+        preview=_serialize_plan_preview(preview),
+        validation=_serialize_validation_details(validation_outcome),
+    )
 
 
 @router.patch("/config/policies", response_model=PlanResponse)
