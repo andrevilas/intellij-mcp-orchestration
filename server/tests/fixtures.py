@@ -8,6 +8,7 @@ from typing import Iterable
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from console_mcp_server import marketplace as marketplace_module
 from console_mcp_server import prices as prices_module
 
 
@@ -32,6 +33,26 @@ class SampleTelemetryEvent:
     cost_estimated_usd: float | None
     ts: datetime
     metadata: dict[str, object]
+
+
+@dataclass(frozen=True)
+class SampleMarketplaceEntry:
+    entry_id: str
+    name: str
+    slug: str
+    summary: str
+    origin: str
+    rating: float
+    cost: float
+    package_path: str
+    signature: str
+    description: str | None = None
+    tags: tuple[str, ...] = ()
+    capabilities: tuple[str, ...] = ()
+    repository_url: str | None = None
+    manifest_filename: str = "agent.yaml"
+    entrypoint_filename: str | None = "agent.py"
+    target_repository: str = "agents-hub"
 
 
 def seed_price_entries(entries: Iterable[SamplePriceEntry]) -> None:
@@ -98,12 +119,36 @@ def seed_telemetry_events(engine: Engine, events: Iterable[SampleTelemetryEvent]
                     "line_number": index,
                     "ingested_at": (base_ts + timedelta(seconds=index)).isoformat(),
                 },
-            )
+        )
+
+
+def seed_marketplace_entries(entries: Iterable[SampleMarketplaceEntry]) -> None:
+    for entry in entries:
+        marketplace_module.create_marketplace_entry(
+            entry_id=entry.entry_id,
+            name=entry.name,
+            slug=entry.slug,
+            summary=entry.summary,
+            description=entry.description,
+            origin=entry.origin,
+            rating=entry.rating,
+            cost=entry.cost,
+            tags=entry.tags,
+            capabilities=entry.capabilities,
+            repository_url=entry.repository_url,
+            package_path=entry.package_path,
+            manifest_filename=entry.manifest_filename,
+            entrypoint_filename=entry.entrypoint_filename,
+            target_repository=entry.target_repository,
+            signature=entry.signature,
+        )
 
 
 __all__ = [
     "SamplePriceEntry",
     "SampleTelemetryEvent",
+    "SampleMarketplaceEntry",
     "seed_price_entries",
+    "seed_marketplace_entries",
     "seed_telemetry_events",
 ]

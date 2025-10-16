@@ -380,6 +380,42 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=10,
+        description="add marketplace entries catalog",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS marketplace_entries (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                description TEXT,
+                origin TEXT NOT NULL,
+                rating REAL NOT NULL DEFAULT 0,
+                cost REAL NOT NULL DEFAULT 0,
+                tags TEXT NOT NULL DEFAULT '[]',
+                capabilities TEXT NOT NULL DEFAULT '[]',
+                repository_url TEXT,
+                package_path TEXT NOT NULL,
+                manifest_filename TEXT NOT NULL DEFAULT 'agent.yaml',
+                entrypoint_filename TEXT,
+                target_repository TEXT NOT NULL DEFAULT 'agents-hub',
+                signature TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_marketplace_entries_slug
+                ON marketplace_entries (slug)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_marketplace_entries_origin
+                ON marketplace_entries (origin)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None

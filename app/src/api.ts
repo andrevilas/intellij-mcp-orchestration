@@ -2306,8 +2306,234 @@ export async function postConfigMcpOnboard(
   });
 }
 
+export type MarketplacePlanStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+export interface MarketplacePlanAction {
+  type: string;
+  path: string;
+  contents: string;
+  encoding: string;
+  overwrite: boolean;
+}
+
+export interface MarketplacePlanStep {
+  id: string;
+  title: string;
+  description: string;
+  dependsOn: string[];
+  actions: MarketplacePlanAction[];
+}
+
+export interface MarketplacePlanDiff {
+  path: string;
+  summary: string;
+  changeType: string;
+}
+
+export interface MarketplacePlanRisk {
+  title: string;
+  impact: string;
+  mitigation: string;
+}
+
+export interface MarketplacePlanContext {
+  path: string;
+  snippet: string;
+  score: number;
+  title: string | null;
+  chunk: number;
+}
+
+export interface MarketplacePlan {
+  intent: string;
+  summary: string;
+  steps: MarketplacePlanStep[];
+  diffs: MarketplacePlanDiff[];
+  risks: MarketplacePlanRisk[];
+  status: MarketplacePlanStatus;
+  context: MarketplacePlanContext[];
+  approvalRules: string[];
+}
+
+export interface MarketplaceEntry {
+  id: string;
+  name: string;
+  slug: string;
+  summary: string;
+  description: string | null;
+  origin: string;
+  rating: number;
+  cost: number;
+  tags: string[];
+  capabilities: string[];
+  repositoryUrl: string | null;
+  packagePath: string;
+  manifestFilename: string;
+  entrypointFilename: string | null;
+  targetRepository: string;
+  signature: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MarketplaceCatalogResponse {
+  entries: MarketplaceEntry[];
+}
+
+export interface MarketplaceImportResponse {
+  entry: MarketplaceEntry;
+  plan: MarketplacePlan;
+  manifest: string;
+  agentCode: string | null;
+}
+
+export async function fetchMarketplaceEntries(signal?: AbortSignal): Promise<MarketplaceEntry[]> {
+  const payload = await request<{ entries?: unknown[] }>('/marketplace', { signal });
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  return entries.map(mapMarketplaceEntryPayload);
+}
+
+export async function importMarketplaceEntry(
+  entryId: string,
+  signal?: AbortSignal,
+): Promise<MarketplaceImportResponse> {
+  const payload = await request<{ entry: unknown; plan: unknown; manifest: string; agent_code?: string | null }>(
+    `/marketplace/${encodeURIComponent(entryId)}/import`,
+    {
+      method: 'POST',
+      signal,
+    },
+  );
+
+  return {
+    entry: mapMarketplaceEntryPayload(payload.entry),
+    plan: mapMarketplacePlanPayload(payload.plan),
+    manifest: typeof payload.manifest === 'string' ? payload.manifest : '',
+    agentCode:
+      typeof payload.agent_code === 'string'
+        ? payload.agent_code
+        : payload.agent_code === null
+          ? null
+          : null,
+  };
+}
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function mapStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => String(item ?? ''));
+}
+
+function mapMarketplaceEntryPayload(payload: unknown): MarketplaceEntry {
+  const source = isPlainRecord(payload) ? payload : {};
+  return {
+    id: String(source.id ?? ''),
+    name: String(source.name ?? ''),
+    slug: String(source.slug ?? ''),
+    summary: String(source.summary ?? ''),
+    description: typeof source.description === 'string' ? source.description : null,
+    origin: String(source.origin ?? ''),
+    rating: toNumber(source.rating, 0),
+    cost: toNumber(source.cost, 0),
+    tags: mapStringArray(source.tags),
+    capabilities: mapStringArray(source.capabilities),
+    repositoryUrl:
+      typeof source.repository_url === 'string' && source.repository_url.length > 0
+        ? source.repository_url
+        : null,
+    packagePath: String(source.package_path ?? ''),
+    manifestFilename: String(source.manifest_filename ?? ''),
+    entrypointFilename:
+      typeof source.entrypoint_filename === 'string' && source.entrypoint_filename.length > 0
+        ? source.entrypoint_filename
+        : null,
+    targetRepository: String(source.target_repository ?? ''),
+    signature: String(source.signature ?? ''),
+    createdAt: String(source.created_at ?? ''),
+    updatedAt: String(source.updated_at ?? ''),
+  };
+}
+
+function mapMarketplacePlanActionPayload(payload: unknown): MarketplacePlanAction {
+  const source = isPlainRecord(payload) ? payload : {};
+  return {
+    type: String(source.type ?? ''),
+    path: String(source.path ?? ''),
+    contents: String(source.contents ?? ''),
+    encoding: typeof source.encoding === 'string' && source.encoding.length > 0 ? source.encoding : 'utf-8',
+    overwrite: source.overwrite !== false,
+  };
+}
+
+function mapMarketplacePlanPayload(payload: unknown): MarketplacePlan {
+  const source = isPlainRecord(payload) ? payload : {};
+  const stepsValue = Array.isArray(source.steps) ? source.steps : [];
+  const diffsValue = Array.isArray(source.diffs) ? source.diffs : [];
+  const risksValue = Array.isArray(source.risks) ? source.risks : [];
+  const contextValue = Array.isArray(source.context) ? source.context : [];
+  const approvalRulesValue = Array.isArray(source.approval_rules) ? source.approval_rules : [];
+
+  return {
+    intent: String(source.intent ?? ''),
+    summary: String(source.summary ?? ''),
+    steps: stepsValue.map((item) => {
+      const record = isPlainRecord(item) ? item : {};
+      const depends = Array.isArray(record.depends_on) ? record.depends_on.map((dep) => String(dep ?? '')) : [];
+      const actionsValue = Array.isArray(record.actions) ? record.actions : [];
+      return {
+        id: String(record.id ?? ''),
+        title: String(record.title ?? ''),
+        description: String(record.description ?? ''),
+        dependsOn: depends,
+        actions: actionsValue.map(mapMarketplacePlanActionPayload),
+      };
+    }),
+    diffs: diffsValue.map((item) => {
+      const record = isPlainRecord(item) ? item : {};
+      return {
+        path: String(record.path ?? ''),
+        summary: String(record.summary ?? ''),
+        changeType:
+          typeof record.change_type === 'string' && record.change_type.length > 0
+            ? record.change_type
+            : 'update',
+      };
+    }),
+    risks: risksValue.map((item) => {
+      const record = isPlainRecord(item) ? item : {};
+      return {
+        title: String(record.title ?? ''),
+        impact: String(record.impact ?? ''),
+        mitigation: String(record.mitigation ?? ''),
+      };
+    }),
+    status:
+      typeof source.status === 'string' && source.status.length > 0
+        ? (source.status as MarketplacePlanStatus)
+        : 'pending',
+    context: contextValue.map((item) => {
+      const record = isPlainRecord(item) ? item : {};
+      return {
+        path: String(record.path ?? ''),
+        snippet: String(record.snippet ?? ''),
+        score: toNumber(record.score, 0),
+        title:
+          typeof record.title === 'string' && record.title.length > 0 ? record.title : null,
+        chunk: Math.trunc(toNumber(record.chunk, 0)),
+      };
+    }),
+    approvalRules: approvalRulesValue.map((rule) => String(rule ?? '')),
+  };
 }
 
 function mapFlowNodePayload(payload: unknown): FlowNode {

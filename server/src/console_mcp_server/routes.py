@@ -7,6 +7,7 @@ from enum import Enum
 from pathlib import Path
 import time
 from typing import Any, Dict, Iterable, Mapping
+from tempfile import TemporaryDirectory
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
@@ -41,6 +42,18 @@ from .policy_deployments import (
 )
 from .policy_rollout import build_rollout_plans
 from .policy_templates import list_policy_templates
+from .marketplace import (
+    MarketplaceArtifactError,
+    MarketplaceEntryAlreadyExistsError,
+    MarketplaceEntryNotFoundError,
+    MarketplaceSignatureError,
+    create_marketplace_entry,
+    delete_marketplace_entry as delete_marketplace_entry_record,
+    get_marketplace_entry,
+    list_marketplace_entries,
+    prepare_marketplace_install,
+    update_marketplace_entry as update_marketplace_entry_record,
+)
 from .prices import (
     PriceEntryAlreadyExistsError,
     PriceEntryNotFoundError,
@@ -105,6 +118,11 @@ from .schemas import (
     NotificationsResponse,
     HealthStatus,
     PriceEntriesResponse,
+    MarketplaceEntriesResponse,
+    MarketplaceEntryCreateRequest,
+    MarketplaceEntryResponse,
+    MarketplaceEntryUpdateRequest,
+    MarketplaceImportResponse,
     PriceEntryCreateRequest,
     PriceEntryResponse,
     PriceEntryUpdateRequest,
@@ -175,7 +193,12 @@ from .telemetry import (
     render_telemetry_export,
 )
 from .schemas_plan import Plan, PlanExecutionMode, PlanExecutionStatus
-from .security import audit_logger as get_audit_logger, require_roles, Role
+from .security import (
+    audit_logger as get_audit_logger,
+    ensure_security_context,
+    require_roles,
+    Role,
+)
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessLogEntry,
@@ -1434,6 +1457,153 @@ def list_price_table() -> PriceEntriesResponse:
 
     records = [PriceEntryResponse(**record.to_dict()) for record in list_price_entries()]
     return PriceEntriesResponse(entries=records)
+
+
+@router.get("/marketplace", response_model=MarketplaceEntriesResponse)
+def list_marketplace_catalog() -> MarketplaceEntriesResponse:
+    """Return the curated marketplace catalog."""
+
+    records = [MarketplaceEntryResponse(**record.to_dict()) for record in list_marketplace_entries()]
+    return MarketplaceEntriesResponse(entries=records)
+
+
+@router.post("/marketplace", response_model=MarketplaceEntryResponse, status_code=status.HTTP_201_CREATED)
+def create_marketplace_catalog_entry(payload: MarketplaceEntryCreateRequest) -> MarketplaceEntryResponse:
+    """Register a new marketplace entry."""
+
+    try:
+        record = create_marketplace_entry(
+            entry_id=payload.id,
+            name=payload.name,
+            slug=payload.slug,
+            summary=payload.summary,
+            description=payload.description,
+            origin=payload.origin,
+            rating=payload.rating,
+            cost=payload.cost,
+            tags=payload.tags,
+            capabilities=payload.capabilities,
+            repository_url=payload.repository_url,
+            package_path=payload.package_path,
+            manifest_filename=payload.manifest_filename,
+            entrypoint_filename=payload.entrypoint_filename,
+            target_repository=payload.target_repository,
+            signature=payload.signature,
+        )
+    except MarketplaceEntryAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Marketplace entry '{payload.id}' already exists",
+        ) from exc
+    return MarketplaceEntryResponse(**record.to_dict())
+
+
+@router.get("/marketplace/{entry_id}", response_model=MarketplaceEntryResponse)
+def read_marketplace_catalog_entry(entry_id: str) -> MarketplaceEntryResponse:
+    """Return a single marketplace entry."""
+
+    try:
+        record = get_marketplace_entry(entry_id)
+    except MarketplaceEntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Marketplace entry '{entry_id}' not found",
+        ) from exc
+    return MarketplaceEntryResponse(**record.to_dict())
+
+
+@router.put("/marketplace/{entry_id}", response_model=MarketplaceEntryResponse)
+def update_marketplace_catalog_entry(entry_id: str, payload: MarketplaceEntryUpdateRequest) -> MarketplaceEntryResponse:
+    """Update a marketplace entry."""
+
+    try:
+        record = update_marketplace_entry_record(
+            entry_id,
+            name=payload.name,
+            slug=payload.slug,
+            summary=payload.summary,
+            description=payload.description,
+            origin=payload.origin,
+            rating=payload.rating,
+            cost=payload.cost,
+            tags=payload.tags,
+            capabilities=payload.capabilities,
+            repository_url=payload.repository_url,
+            package_path=payload.package_path,
+            manifest_filename=payload.manifest_filename,
+            entrypoint_filename=payload.entrypoint_filename,
+            target_repository=payload.target_repository,
+            signature=payload.signature,
+        )
+    except MarketplaceEntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Marketplace entry '{entry_id}' not found",
+        ) from exc
+    return MarketplaceEntryResponse(**record.to_dict())
+
+
+@router.delete("/marketplace/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_marketplace_catalog_entry(entry_id: str) -> Response:
+    """Remove a marketplace entry from the catalog."""
+
+    try:
+        delete_marketplace_entry_record(entry_id)
+    except MarketplaceEntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Marketplace entry '{entry_id}' not found",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/marketplace/{entry_id}/import", response_model=MarketplaceImportResponse)
+def import_marketplace_entry(entry_id: str, http_request: Request) -> MarketplaceImportResponse:
+    """Prepare marketplace artifacts and build an onboarding plan."""
+
+    ensure_security_context(http_request)
+    user = require_roles(http_request, Role.PLANNER)
+    try:
+        with TemporaryDirectory(prefix="mcp-marketplace-") as sandbox:
+            bundle = prepare_marketplace_install(entry_id, Path(sandbox))
+            manifest_text = bundle.manifest_path.read_text(encoding="utf-8")
+            agent_text = (
+                bundle.agent_path.read_text(encoding="utf-8")
+                if bundle.agent_path is not None
+                else None
+            )
+            plan = _build_plan(
+                AssistantIntent.ADD_AGENT,
+                {
+                    "agent_name": bundle.entry.name,
+                    "repository": bundle.entry.target_repository,
+                    "capabilities": bundle.entry.capabilities,
+                },
+            )
+    except MarketplaceEntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Marketplace entry '{entry_id}' not found",
+        ) from exc
+    except (MarketplaceArtifactError, MarketplaceSignatureError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    entry_response = MarketplaceEntryResponse(**bundle.entry.to_dict())
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="marketplace.import",
+        resource=f"/marketplace/{entry_id}/import",
+        metadata={"entry_id": entry_id, "slug": bundle.entry.slug},
+    )
+    return MarketplaceImportResponse(
+        entry=entry_response,
+        plan=plan,
+        manifest=manifest_text,
+        agent_code=agent_text,
+    )
 
 
 @router.post("/prices", response_model=PriceEntryResponse, status_code=status.HTTP_201_CREATED)

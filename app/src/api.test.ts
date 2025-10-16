@@ -31,6 +31,8 @@ import {
   fetchSessions,
   fetchTelemetryHeatmap,
   fetchTelemetryMetrics,
+  fetchMarketplaceEntries,
+  importMarketplaceEntry,
   readSecret,
   restartServerProcess,
   startServerProcess,
@@ -949,5 +951,116 @@ describe('api client', () => {
       }),
     );
     expect(response).toEqual(payload.items);
+  });
+
+  it('fetches marketplace entries with normalized fields', async () => {
+    const payload = {
+      entries: [
+        {
+          id: 'marketplace-help-desk',
+          name: 'Help Desk Coach',
+          slug: 'help-desk-coach',
+          summary: 'Triagem assistida',
+          description: 'Equilibra SLAs com fallback humano.',
+          origin: 'community',
+          rating: 4.8,
+          cost: 0.03,
+          tags: ['suporte'],
+          capabilities: ['triage'],
+          repository_url: 'https://github.com/example/help-desk',
+          package_path: 'config/marketplace/help-desk',
+          manifest_filename: 'agent.yaml',
+          entrypoint_filename: 'agent.py',
+          target_repository: 'agents-hub',
+          signature: 'sig',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-02T00:00:00Z',
+        },
+      ],
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const entries = await fetchMarketplaceEntries();
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/marketplace', expect.objectContaining({ method: 'GET' }));
+    expect(entries).toHaveLength(1);
+    const entry = entries[0];
+    expect(entry.repositoryUrl).toBe('https://github.com/example/help-desk');
+    expect(entry.packagePath).toBe('config/marketplace/help-desk');
+    expect(entry.entrypointFilename).toBe('agent.py');
+    expect(entry.createdAt).toBe('2025-01-01T00:00:00Z');
+    expect(entry.updatedAt).toBe('2025-01-02T00:00:00Z');
+  });
+
+  it('imports a marketplace entry verifying plan mapping', async () => {
+    const payload = {
+      entry: {
+        id: 'marketplace-help-desk',
+        name: 'Help Desk Coach',
+        slug: 'help-desk-coach',
+        summary: 'Triagem assistida',
+        description: null,
+        origin: 'community',
+        rating: 4.9,
+        cost: 0.02,
+        tags: [],
+        capabilities: ['triage'],
+        repository_url: null,
+        package_path: 'config/marketplace/help-desk',
+        manifest_filename: 'agent.yaml',
+        entrypoint_filename: 'agent.py',
+        target_repository: 'agents-hub',
+        signature: 'sig',
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-02T00:00:00Z',
+      },
+      plan: {
+        intent: 'add_agent',
+        summary: 'Adicionar agente',
+        steps: [
+          {
+            id: 'discover',
+            title: 'Descobrir servidor',
+            description: 'Executar handshake',
+            depends_on: ['bootstrap'],
+            actions: [
+              {
+                type: 'write_file',
+                path: 'agent.yaml',
+                contents: 'name: help-desk',
+                encoding: 'utf-8',
+                overwrite: true,
+              },
+            ],
+          },
+        ],
+        diffs: [
+          { path: 'agent.yaml', summary: 'Criar manifesto', change_type: 'create' },
+        ],
+        risks: [
+          { title: 'Dependências', impact: 'medium', mitigation: 'Revisar requisitos' },
+        ],
+        status: 'pending',
+        context: [
+          { path: 'docs/guide.md', snippet: 'Referência', score: 0.9, title: 'Guia', chunk: 1 },
+        ],
+        approval_rules: ['planner'],
+      },
+      manifest: 'name: help-desk',
+      agent_code: 'print("hello")',
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+
+    const response = await importMarketplaceEntry('marketplace-help-desk');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/marketplace/marketplace-help-desk/import',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(response.entry.slug).toBe('help-desk-coach');
+    expect(response.plan.steps[0].dependsOn).toEqual(['bootstrap']);
+    expect(response.plan.diffs[0].changeType).toBe('create');
+    expect(response.plan.context[0].title).toBe('Guia');
+    expect(response.agentCode).toBe('print("hello")');
   });
 });

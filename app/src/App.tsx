@@ -38,6 +38,7 @@ import Routing from './pages/Routing';
 import Servers from './pages/Servers';
 import AdminChat from './pages/AdminChat';
 import Flows from './pages/Flows';
+import Marketplace from './pages/Marketplace';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -147,6 +148,12 @@ const VIEW_DEFINITIONS = [
     label: 'FinOps',
     description: 'Análises de custo, séries temporais e pareto',
     keywords: ['custos', 'financeiro', 'pareto'],
+  },
+  {
+    id: 'marketplace',
+    label: 'Marketplace',
+    description: 'Catálogo filtrável com importação assistida e verificação de assinatura',
+    keywords: ['marketplace', 'agente', 'importação', 'assinatura'],
   },
   {
     id: 'admin-chat',
@@ -764,6 +771,11 @@ function App() {
         {activeView === 'admin-chat' && (
           <section role="tabpanel" id="panel-admin-chat" aria-labelledby="tab-admin-chat">
             <AdminChat />
+          </section>
+        )}
+        {activeView === 'marketplace' && (
+          <section role="tabpanel" id="panel-marketplace" aria-labelledby="tab-marketplace">
+            <Marketplace />
           </section>
         )}
       </main>
