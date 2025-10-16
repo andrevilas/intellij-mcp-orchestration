@@ -4,8 +4,8 @@ PNPM := pnpm
 PYTHON := python3
 
 .PHONY: doctor bootstrap reset clean install install-frontend install-backend \
-        dev dev-frontend dev-backend test test-frontend test-backend test-agents \
-        smoke check ci \
+        dev dev-frontend dev-backend test test-suite test-frontend test-backend \
+        test-agents smoke check ci \
         build package-electron
 
 doctor:
@@ -43,7 +43,10 @@ dev-frontend:
 dev-backend:
 	bash scripts/dev-backend.sh
 
-test: test-frontend test-backend test-agents
+test: test-suite
+
+test-suite:
+	$(PYTHON) scripts/test_suite.py
 
 check: doctor test
 
