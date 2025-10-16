@@ -10,6 +10,7 @@ import {
   fetchPolicies,
   fetchPolicyOverrides,
   fetchPolicyManifest,
+  patchConfigPoliciesPlan,
   updatePolicyManifest,
   createPolicyOverride,
   updatePolicyOverride,
@@ -37,6 +38,7 @@ import {
   fetchMarketplacePerformance,
   fetchMarketplaceEntries,
   importMarketplaceEntry,
+  simulateRouting,
   readSecret,
   restartServerProcess,
   startServerProcess,
@@ -44,6 +46,7 @@ import {
   testSecret,
   upsertSecret,
   postAgentSmokeRun,
+  postPolicyPlanApply,
 } from './api';
 
 function mockFetchResponse<T>(payload: T): Promise<Response> {
@@ -707,6 +710,26 @@ describe('api client', () => {
         default_tier: 'balanced',
         allowed_tiers: ['balanced', 'turbo'],
         fallback_tier: 'turbo',
+        intents: [
+          {
+            intent: 'support.assist',
+            description: 'Intent de suporte com requisições complexas',
+            tags: ['critical', 'canary'],
+            default_tier: 'turbo',
+            fallback_provider_id: 'provider-turbo-1',
+          },
+        ],
+        rules: [
+          {
+            id: 'boost-turbo',
+            description: 'Promove turbo quando a intent for crítica',
+            intent: 'support.assist',
+            matcher: "intent == 'support.assist'",
+            target_tier: 'turbo',
+            provider_id: 'provider-turbo-1',
+            weight: 60,
+          },
+        ],
       },
       finops: {
         cost_center: 'mlops',
@@ -739,13 +762,56 @@ describe('api client', () => {
       expect.objectContaining({ method: 'GET' }),
     );
     expect(snapshot.routing.defaultTier).toBe('balanced');
+    expect(snapshot.routing.intents).toEqual([
+      {
+        intent: 'support.assist',
+        description: 'Intent de suporte com requisições complexas',
+        tags: ['critical', 'canary'],
+        defaultTier: 'turbo',
+        fallbackProviderId: 'provider-turbo-1',
+      },
+    ]);
+    expect(snapshot.routing.rules).toEqual([
+      {
+        id: 'boost-turbo',
+        description: 'Promove turbo quando a intent for crítica',
+        intent: 'support.assist',
+        matcher: "intent == 'support.assist'",
+        targetTier: 'turbo',
+        providerId: 'provider-turbo-1',
+        weight: 60,
+      },
+    ]);
     expect(snapshot.runtime.tracing.sampleRate).toBe(0.3);
     expect(snapshot.hitl.checkpoints).toHaveLength(1);
 
     fetchSpy.mockResolvedValueOnce(mockFetchResponse(manifestPayload));
 
     await updatePolicyManifest({
-      routing: { defaultTier: 'turbo', allowedTiers: ['turbo', 'balanced'] },
+      routing: {
+        defaultTier: 'turbo',
+        allowedTiers: ['turbo', 'balanced'],
+        intents: [
+          {
+            intent: 'support.assist',
+            description: 'Intent de suporte com requisições complexas',
+            tags: ['critical', 'canary'],
+            defaultTier: 'turbo',
+            fallbackProviderId: 'provider-turbo-1',
+          },
+        ],
+        rules: [
+          {
+            id: 'boost-turbo',
+            description: 'Promove turbo quando a intent for crítica',
+            intent: 'support.assist',
+            matcher: "intent == 'support.assist'",
+            targetTier: 'turbo',
+            providerId: 'provider-turbo-1',
+            weight: 60,
+          },
+        ],
+      },
       runtime: { timeouts: { total: 90 } },
       hitl: { enabled: false },
     });
@@ -758,12 +824,314 @@ describe('api client', () => {
           routing: {
             default_tier: 'turbo',
             allowed_tiers: ['turbo', 'balanced'],
+            intents: [
+              {
+                intent: 'support.assist',
+                description: 'Intent de suporte com requisições complexas',
+                tags: ['critical', 'canary'],
+                default_tier: 'turbo',
+                fallback_provider_id: 'provider-turbo-1',
+              },
+            ],
+            rules: [
+              {
+                id: 'boost-turbo',
+                description: 'Promove turbo quando a intent for crítica',
+                intent: 'support.assist',
+                matcher: "intent == 'support.assist'",
+                target_tier: 'turbo',
+                provider_id: 'provider-turbo-1',
+                weight: 60,
+              },
+            ],
           },
           runtime: { timeouts: { total: 90 } },
           hitl: { enabled: false },
         }),
       }),
     );
+  });
+
+  it('gera plano de políticas com intents e regras de roteamento', async () => {
+    const planPayload = {
+      intent: 'edit_routing',
+      summary: 'Atualizar manifesto de roteamento',
+      steps: [
+        {
+          id: 'update-routing',
+          title: 'Atualizar manifesto',
+          description: 'Escrever novas intents e regras.',
+          depends_on: ['review'],
+          actions: [
+            {
+              type: 'write',
+              path: 'policies/manifest.json',
+              contents: '{"routing": {}}',
+              encoding: 'utf-8',
+              overwrite: true,
+            },
+          ],
+        },
+      ],
+      diffs: [
+        {
+          path: 'policies/manifest.json',
+          summary: 'Atualizar manifesto',
+          change_type: 'update',
+          diff: 'diff --git a/policies/manifest.json b/policies/manifest.json',
+        },
+      ],
+      risks: [
+        { title: 'Erro de sintaxe', impact: 'médio', mitigation: 'Reverter rapidamente' },
+      ],
+      status: 'pending' as const,
+      context: [
+        {
+          path: 'policies/manifest.json',
+          snippet: '"routing": {}',
+          score: 0.92,
+          title: 'Manifesto atual',
+          chunk: 1,
+        },
+      ],
+      approval_rules: ['routing-admins'],
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse({ plan: planPayload, preview: null }));
+
+    const response = await patchConfigPoliciesPlan({
+      policyId: 'manifest',
+      changes: {
+        routing: {
+          maxIters: 6,
+          intents: [
+            {
+              intent: 'support.assist',
+              description: 'Atendimento crítico',
+              tags: ['critical'],
+              defaultTier: 'turbo',
+              fallbackProviderId: 'provider-turbo-1',
+            },
+          ],
+          rules: [
+            {
+              id: 'force-turbo',
+              description: 'Prioriza tier turbo para suporte crítico',
+              intent: 'support.assist',
+              matcher: "intent == 'support.assist'",
+              targetTier: 'turbo',
+              providerId: 'provider-turbo-1',
+              weight: 80,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/config/policies',
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+    const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse((requestInit.body ?? '{}') as string);
+    expect(body.policy_id).toBe('manifest');
+    expect(body.changes.routing).toMatchObject({
+      max_iters: 6,
+      intents: [
+        {
+          intent: 'support.assist',
+          description: 'Atendimento crítico',
+          tags: ['critical'],
+          default_tier: 'turbo',
+          fallback_provider_id: 'provider-turbo-1',
+        },
+      ],
+      rules: [
+        {
+          id: 'force-turbo',
+          description: 'Prioriza tier turbo para suporte crítico',
+          intent: 'support.assist',
+          matcher: "intent == 'support.assist'",
+          target_tier: 'turbo',
+          provider_id: 'provider-turbo-1',
+          weight: 80,
+        },
+      ],
+    });
+    expect(response.plan.intent).toBe('edit_routing');
+    expect(response.plan.diffs[0]).toMatchObject({ path: 'policies/manifest.json', changeType: 'update' });
+    expect(response.plan.steps[0].actions[0]).toMatchObject({ path: 'policies/manifest.json', overwrite: true });
+    expect(response.plan.context[0]).toMatchObject({ title: 'Manifesto atual', chunk: 1 });
+    expect(response.plan.approvalRules).toEqual(['routing-admins']);
+  });
+
+  it('aplica planos de políticas enviando autor e commit', async () => {
+    const planPayload = {
+      intent: 'edit_routing',
+      summary: 'Atualizar manifesto de roteamento',
+      steps: [],
+      diffs: [],
+      risks: [],
+      status: 'pending' as const,
+      context: [],
+      approval_rules: [],
+    };
+
+    const applyResponse = {
+      status: 'completed' as const,
+      mode: 'branch_pr' as const,
+      plan_id: 'plan-routing-1',
+      record_id: 'rec-routing-1',
+      branch: 'feature/routing',
+      base_branch: 'main',
+      commit_sha: 'abc123',
+      diff: { stat: '1 file changed', patch: 'diff --git' },
+      hitl_required: true,
+      message: 'Plano aplicado com sucesso.',
+      approval_id: null,
+      pull_request: {
+        provider: 'github',
+        id: 'pr-202',
+        number: '202',
+        url: 'https://github.com/example/pr/202',
+        title: 'feat: atualizar roteamento',
+        state: 'open',
+        head_sha: 'abc123',
+        ci_status: 'success',
+        review_status: 'approved',
+        merged: false,
+        last_synced_at: '2025-01-10T12:00:00Z',
+      },
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(applyResponse));
+
+    const response = await postPolicyPlanApply({
+      planId: 'plan-routing-1',
+      plan: planPayload,
+      patch: 'diff --git',
+      mode: 'branch_pr',
+      actor: 'Joana Planner',
+      actorEmail: 'joana@example.com',
+      commitMessage: 'feat: atualizar intents e regras',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/config/apply',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse((requestInit.body ?? '{}') as string);
+    expect(body).toMatchObject({
+      plan_id: 'plan-routing-1',
+      plan: planPayload,
+      patch: 'diff --git',
+      mode: 'branch_pr',
+      actor: 'Joana Planner',
+      actor_email: 'joana@example.com',
+      commit_message: 'feat: atualizar intents e regras',
+    });
+    expect(response).toMatchObject({
+      status: 'completed',
+      mode: 'branch_pr',
+      planId: 'plan-routing-1',
+      recordId: 'rec-routing-1',
+      branch: 'feature/routing',
+      baseBranch: 'main',
+      commitSha: 'abc123',
+      hitlRequired: true,
+      message: 'Plano aplicado com sucesso.',
+    });
+    expect(response.pullRequest).toMatchObject({ number: '202', provider: 'github', merged: false });
+  });
+
+  it('envia intents e regras personalizadas na simulação de roteamento', async () => {
+    const simulationResponse = {
+      total_cost: 120,
+      cost_per_million: 10,
+      avg_latency: 820,
+      reliability_score: 96.5,
+      distribution: [
+        {
+          route: {
+            id: 'route-1',
+            provider: {
+              id: 'provider-turbo-1',
+              name: 'Provider Turbo',
+              command: 'run-turbo',
+              description: 'Turbo provider',
+              tags: ['turbo'],
+              capabilities: ['chat'],
+              transport: 'http',
+            },
+            lane: 'turbo',
+            cost_per_million: 10,
+            latency_p95: 700,
+            reliability: 0.98,
+            capacity_score: 0.9,
+          },
+          share: 0.6,
+          tokens_millions: 6,
+          cost: 60,
+        },
+      ],
+      excluded_route: null,
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(simulationResponse));
+
+    const result = await simulateRouting({
+      strategy: 'balanced',
+      providerIds: ['provider-turbo-1'],
+      failoverProviderId: null,
+      volumeMillions: 10,
+      intents: [
+        {
+          intent: 'support.assist',
+          description: null,
+          tags: ['critical'],
+          defaultTier: 'turbo',
+          fallbackProviderId: 'provider-turbo-1',
+        },
+      ],
+      rules: [
+        {
+          id: 'force-turbo',
+          description: null,
+          intent: 'support.assist',
+          matcher: "intent == 'support.assist'",
+          targetTier: 'turbo',
+          providerId: 'provider-turbo-1',
+          weight: 75,
+        },
+      ],
+    });
+
+    expect(result.distribution[0].route.provider.name).toBe('Provider Turbo');
+    const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse((requestInit.body ?? '{}') as string);
+    expect(body.strategy).toBe('balanced');
+    expect(body.provider_ids).toEqual(['provider-turbo-1']);
+    expect(body.intents).toEqual([
+      {
+        intent: 'support.assist',
+        description: undefined,
+        tags: ['critical'],
+        default_tier: 'turbo',
+        fallback_provider_id: 'provider-turbo-1',
+      },
+    ]);
+    expect(body.custom_rules).toEqual([
+      {
+        id: 'force-turbo',
+        description: undefined,
+        intent: 'support.assist',
+        matcher: "intent == 'support.assist'",
+        target_tier: 'turbo',
+        provider_id: 'provider-turbo-1',
+        weight: 75,
+      },
+    ]);
   });
 
   it('manages HITL queues and resolutions', async () => {

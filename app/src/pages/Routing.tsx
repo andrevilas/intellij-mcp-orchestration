@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { createTwoFilesPatch } from 'diff';
 
 import {
   fetchPolicyManifest,
   simulateRouting,
-  updatePolicyManifest,
+  patchConfigPoliciesPlan,
+  postPolicyPlanApply,
   type PolicyManifestSnapshot,
   type PolicyManifestUpdateInput,
   type RoutingTierId,
   type ProviderSummary,
   type RoutingSimulationResult,
   type RoutingStrategyId,
+  type RoutingIntentConfig,
+  type RoutingRuleConfig,
+  type PolicyPlanResponse,
+  type ConfigPlanDiffSummary,
 } from '../api';
+import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 
 export interface RoutingProps {
   providers: ProviderSummary[];
@@ -26,6 +33,24 @@ interface Strategy {
   focus: string;
 }
 
+interface RoutingIntentDraft {
+  intent: string;
+  description: string;
+  tags: string;
+  defaultTier: RoutingTierId;
+  fallbackProviderId: string;
+}
+
+interface RoutingRuleDraft {
+  id: string;
+  description: string;
+  intent: string;
+  matcher: string;
+  targetTier: RoutingTierId | '';
+  providerId: string;
+  weight: string;
+}
+
 interface RoutingFormState {
   maxIters: string;
   maxAttempts: string;
@@ -34,6 +59,8 @@ interface RoutingFormState {
   defaultTier: RoutingTierId;
   fallbackTier: RoutingTierId | '';
   allowedTiers: Set<RoutingTierId>;
+  intents: RoutingIntentDraft[];
+  rules: RoutingRuleDraft[];
 }
 
 interface RoutingFormErrors {
@@ -43,6 +70,8 @@ interface RoutingFormErrors {
   totalTimeout?: string;
   allowedTiers?: string;
   fallbackTier?: string;
+  intents?: string;
+  rules?: string;
 }
 
 const STRATEGIES: Strategy[] = [
@@ -79,6 +108,480 @@ const TIER_LABEL: Record<RoutingTierId, string> = {
   balanced: 'Balanced',
   turbo: 'Turbo',
 };
+
+const POLICY_MANIFEST_ID = 'manifest';
+const ROUTING_PLAN_ACTOR_STORAGE_KEY = 'mcp-routing-plan-actor';
+const ROUTING_PLAN_ACTOR_EMAIL_STORAGE_KEY = 'mcp-routing-plan-actor-email';
+const ROUTING_PLAN_COMMIT_MESSAGE_STORAGE_KEY = 'mcp-routing-plan-commit-message';
+
+type PendingRoutingPlan = {
+  id: string;
+  plan: PolicyPlanResponse['plan'];
+  planPayload: PolicyPlanResponse['planPayload'];
+  patch: string;
+  diffs: PlanDiffItem[];
+  nextSnapshot: PolicyManifestSnapshot;
+};
+
+function cloneManifest(snapshot: PolicyManifestSnapshot): PolicyManifestSnapshot {
+  return JSON.parse(JSON.stringify(snapshot)) as PolicyManifestSnapshot;
+}
+
+function loadPlanPreference(key: string, fallback: string): string {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return fallback;
+  }
+
+  try {
+    const value = window.localStorage.getItem(key);
+    if (!value) {
+      return fallback;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load plan preference from storage', error);
+    return fallback;
+  }
+}
+
+function persistPlanPreference(key: string, value: string): void {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+    window.localStorage.setItem(key, trimmed);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to persist plan preference to storage', error);
+  }
+}
+
+function generatePlanId(): string {
+  const cryptoApi = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
+  }
+  return `routing-plan-${Date.now()}`;
+}
+
+function applyRoutingUpdateToSnapshot(
+  current: PolicyManifestSnapshot,
+  update: PolicyManifestUpdateInput,
+): PolicyManifestSnapshot {
+  const next = cloneManifest(current);
+
+  if (update.routing) {
+    if (update.routing.maxIters !== undefined && update.routing.maxIters !== null) {
+      next.routing.maxIters = update.routing.maxIters;
+    }
+    if (update.routing.maxAttempts !== undefined && update.routing.maxAttempts !== null) {
+      next.routing.maxAttempts = update.routing.maxAttempts;
+    }
+    if (update.routing.requestTimeoutSeconds !== undefined && update.routing.requestTimeoutSeconds !== null) {
+      next.routing.requestTimeoutSeconds = update.routing.requestTimeoutSeconds;
+    }
+    if (update.routing.totalTimeoutSeconds !== undefined) {
+      next.routing.totalTimeoutSeconds = update.routing.totalTimeoutSeconds;
+    }
+    if (update.routing.defaultTier !== undefined) {
+      next.routing.defaultTier = update.routing.defaultTier;
+      if (!next.routing.allowedTiers.includes(update.routing.defaultTier)) {
+        next.routing.allowedTiers = Array.from(new Set([...next.routing.allowedTiers, update.routing.defaultTier]));
+      }
+    }
+    if (update.routing.allowedTiers !== undefined) {
+      next.routing.allowedTiers = Array.from(new Set(update.routing.allowedTiers));
+    }
+    if (update.routing.fallbackTier !== undefined) {
+      next.routing.fallbackTier = update.routing.fallbackTier;
+    }
+    if (update.routing.intents !== undefined) {
+      next.routing.intents = update.routing.intents.map((intent) => ({ ...intent }));
+    }
+    if (update.routing.rules !== undefined) {
+      next.routing.rules = update.routing.rules.map((rule) => ({ ...rule }));
+    }
+  }
+
+  next.updatedAt = new Date().toISOString();
+  return next;
+}
+
+function formatManifestSnapshot(snapshot: PolicyManifestSnapshot): string {
+  return `${JSON.stringify(snapshot, null, 2)}\n`;
+}
+
+function mapPlanDiffItems(diffs: ConfigPlanDiffSummary[], manifestPatch: string): PlanDiffItem[] {
+  const hasManifestPatch = manifestPatch.trim().length > 0;
+
+  if (!diffs || diffs.length === 0) {
+    if (!hasManifestPatch) {
+      throw new Error('Plano de roteamento não retornou diff para o manifesto.');
+    }
+    return [
+      {
+        id: 'routing-manifest',
+        title: 'policies/manifest.json',
+        summary: 'Atualizar manifesto com novas regras de roteamento',
+        diff: manifestPatch,
+      },
+    ];
+  }
+
+  return diffs.map((diff, index) => {
+    const isManifestFile = diff.path.endsWith('manifest.json');
+    if (isManifestFile && !hasManifestPatch) {
+      throw new Error('Plano de roteamento não forneceu diff detalhado do manifesto.');
+    }
+
+    const diffContent = isManifestFile ? manifestPatch : diff.diff ?? '';
+    if (!diffContent.trim()) {
+      throw new Error(`Plano de roteamento retornou diff vazio para ${diff.path}.`);
+    }
+
+    return {
+      id: `${diff.path}-${index}`,
+      title: diff.path,
+      summary: diff.summary,
+      diff: diffContent,
+    };
+  });
+}
+
+function intentToDraft(intent: RoutingIntentConfig): RoutingIntentDraft {
+  return {
+    intent: intent.intent,
+    description: intent.description ?? '',
+    tags: intent.tags.join(', '),
+    defaultTier: intent.defaultTier,
+    fallbackProviderId: intent.fallbackProviderId ?? '',
+  };
+}
+
+function draftToIntent(draft: RoutingIntentDraft): RoutingIntentConfig {
+  const tags = draft.tags
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+  return {
+    intent: draft.intent.trim(),
+    description: draft.description.trim() || null,
+    tags,
+    defaultTier: draft.defaultTier,
+    fallbackProviderId: draft.fallbackProviderId ? draft.fallbackProviderId : null,
+  };
+}
+
+function ruleToDraft(rule: RoutingRuleConfig): RoutingRuleDraft {
+  return {
+    id: rule.id,
+    description: rule.description ?? '',
+    intent: rule.intent ?? '',
+    matcher: rule.matcher,
+    targetTier: rule.targetTier ?? '',
+    providerId: rule.providerId ?? '',
+    weight: rule.weight != null && Number.isFinite(rule.weight) ? String(rule.weight) : '',
+  };
+}
+
+function draftToRule(draft: RoutingRuleDraft): RoutingRuleConfig {
+  const trimmedWeight = draft.weight.trim();
+  const weightValue = trimmedWeight.length > 0 ? Number(trimmedWeight) : null;
+  return {
+    id: draft.id.trim(),
+    description: draft.description.trim() || null,
+    intent: draft.intent.trim() ? draft.intent.trim() : null,
+    matcher: draft.matcher.trim(),
+    targetTier: draft.targetTier || null,
+    providerId: draft.providerId ? draft.providerId : null,
+    weight:
+      weightValue != null && !Number.isNaN(weightValue) && Number.isFinite(weightValue) ? weightValue : null,
+  };
+}
+
+interface IntentEditorListProps {
+  intents: RoutingIntentDraft[];
+  providers: ProviderSummary[];
+  allowedTiers: RoutingTierId[];
+  disabled: boolean;
+  onChange: (next: RoutingIntentDraft[]) => void;
+}
+
+function IntentEditorList({ intents, providers, allowedTiers, disabled, onChange }: IntentEditorListProps) {
+  const tierOptions = allowedTiers.length > 0 ? allowedTiers : (['economy', 'balanced', 'turbo'] as RoutingTierId[]);
+
+  const handleIntentFieldChange = useCallback(
+    (index: number, field: keyof RoutingIntentDraft, value: string | RoutingTierId) => {
+      onChange(
+        intents.map((intent, position) =>
+          position === index ? { ...intent, [field]: value } : intent,
+        ),
+      );
+    },
+    [intents, onChange],
+  );
+
+  const handleIntentRemove = useCallback(
+    (index: number) => {
+      onChange(intents.filter((_, position) => position !== index));
+    },
+    [intents, onChange],
+  );
+
+  const handleIntentAdd = useCallback(() => {
+    const fallbackTier = tierOptions.includes('balanced' as RoutingTierId)
+      ? ('balanced' as RoutingTierId)
+      : tierOptions[0] ?? ('balanced' as RoutingTierId);
+    onChange([
+      ...intents,
+      { intent: '', description: '', tags: '', defaultTier: fallbackTier, fallbackProviderId: '' },
+    ]);
+  }, [intents, tierOptions, onChange]);
+
+  return (
+    <div className="routing-manifest__collection" aria-live="polite">
+      {intents.map((intent, index) => (
+        <fieldset key={`intent-${index}`} className="routing-manifest__fieldset">
+          <legend>Intent #{index + 1}</legend>
+          <div className="routing-manifest__grid routing-manifest__grid--intent">
+            <label className="form-field">
+              <span>Identificador</span>
+              <input
+                type="text"
+                value={intent.intent}
+                onChange={(event) => handleIntentFieldChange(index, 'intent', event.target.value)}
+                placeholder="ex.: search.results"
+                disabled={disabled}
+              />
+            </label>
+            <label className="form-field">
+              <span>Descrição</span>
+              <input
+                type="text"
+                value={intent.description}
+                onChange={(event) => handleIntentFieldChange(index, 'description', event.target.value)}
+                placeholder="Resumo da finalidade"
+                disabled={disabled}
+              />
+            </label>
+            <label className="form-field">
+              <span>Tags (separadas por vírgula)</span>
+              <input
+                type="text"
+                value={intent.tags}
+                onChange={(event) => handleIntentFieldChange(index, 'tags', event.target.value)}
+                placeholder="ex.: canary, critical"
+                disabled={disabled}
+              />
+            </label>
+            <label className="form-field">
+              <span>Tier padrão</span>
+              <select
+                value={intent.defaultTier}
+                onChange={(event) => handleIntentFieldChange(index, 'defaultTier', event.target.value as RoutingTierId)}
+                disabled={disabled}
+              >
+                {tierOptions.map((tier) => (
+                  <option key={`intent-${index}-tier-${tier}`} value={tier}>
+                    {TIER_LABEL[tier]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Fallback dedicado</span>
+              <select
+                value={intent.fallbackProviderId}
+                onChange={(event) => handleIntentFieldChange(index, 'fallbackProviderId', event.target.value)}
+                disabled={disabled}
+              >
+                <option value="">Sem fallback dedicado</option>
+                {providers.map((provider) => (
+                  <option key={`intent-${index}-provider-${provider.id}`} value={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="routing-manifest__actions">
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => handleIntentRemove(index)}
+              disabled={disabled}
+            >
+              Remover intent
+            </button>
+          </div>
+        </fieldset>
+      ))}
+      <button type="button" className="button button--secondary" onClick={handleIntentAdd} disabled={disabled}>
+        Adicionar intent
+      </button>
+    </div>
+  );
+}
+
+interface RuleEditorListProps {
+  rules: RoutingRuleDraft[];
+  intents: RoutingIntentDraft[];
+  providers: ProviderSummary[];
+  allowedTiers: RoutingTierId[];
+  disabled: boolean;
+  onChange: (next: RoutingRuleDraft[]) => void;
+}
+
+function RuleEditorList({ rules, intents, providers, allowedTiers, disabled, onChange }: RuleEditorListProps) {
+  const tierOptions = allowedTiers.length > 0 ? allowedTiers : (['economy', 'balanced', 'turbo'] as RoutingTierId[]);
+
+  const handleRuleFieldChange = useCallback(
+    (index: number, field: keyof RoutingRuleDraft, value: string | RoutingTierId | '') => {
+      onChange(
+        rules.map((rule, position) =>
+          position === index ? { ...rule, [field]: value } : rule,
+        ),
+      );
+    },
+    [rules, onChange],
+  );
+
+  const handleRuleRemove = useCallback(
+    (index: number) => {
+      onChange(rules.filter((_, position) => position !== index));
+    },
+    [rules, onChange],
+  );
+
+  const handleRuleAdd = useCallback(() => {
+    onChange([
+      ...rules,
+      { id: '', description: '', intent: '', matcher: '', targetTier: '', providerId: '', weight: '' },
+    ]);
+  }, [rules, onChange]);
+
+  return (
+    <div className="routing-manifest__collection" aria-live="polite">
+      {rules.map((rule, index) => (
+        <fieldset key={`rule-${index}`} className="routing-manifest__fieldset">
+          <legend>Regra #{index + 1}</legend>
+          <div className="routing-manifest__grid routing-manifest__grid--rule">
+            <label className="form-field">
+              <span>Identificador</span>
+              <input
+                type="text"
+                value={rule.id}
+                onChange={(event) => handleRuleFieldChange(index, 'id', event.target.value)}
+                placeholder="ex.: boost-turbo"
+                disabled={disabled}
+              />
+            </label>
+            <label className="form-field">
+              <span>Descrição</span>
+              <input
+                type="text"
+                value={rule.description}
+                onChange={(event) => handleRuleFieldChange(index, 'description', event.target.value)}
+                placeholder="Objetivo da regra"
+                disabled={disabled}
+              />
+            </label>
+            <label className="form-field">
+              <span>Intent associada</span>
+              <select
+                value={rule.intent}
+                onChange={(event) => handleRuleFieldChange(index, 'intent', event.target.value)}
+                disabled={disabled}
+              >
+                <option value="">Qualquer intent</option>
+                {intents.map((intent) => (
+                  <option key={`rule-${index}-intent-${intent.intent || `i${index}`}`} value={intent.intent}>
+                    {intent.intent || '(sem identificador)'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Condição (matcher)</span>
+              <input
+                type="text"
+                value={rule.matcher}
+                onChange={(event) => handleRuleFieldChange(index, 'matcher', event.target.value)}
+                placeholder="ex.: latency_p95_ms > 800"
+                disabled={disabled}
+              />
+            </label>
+            <label className="form-field">
+              <span>Tier alvo</span>
+              <select
+                value={rule.targetTier}
+                onChange={(event) =>
+                  handleRuleFieldChange(index, 'targetTier', event.target.value ? (event.target.value as RoutingTierId) : '')
+                }
+                disabled={disabled}
+              >
+                <option value="">Manter cálculo do simulador</option>
+                {tierOptions.map((tier) => (
+                  <option key={`rule-${index}-tier-${tier}`} value={tier}>
+                    {TIER_LABEL[tier]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Provider forçado</span>
+              <select
+                value={rule.providerId}
+                onChange={(event) => handleRuleFieldChange(index, 'providerId', event.target.value)}
+                disabled={disabled}
+              >
+                <option value="">Herda distribuição</option>
+                {providers.map((provider) => (
+                  <option key={`rule-${index}-provider-${provider.id}`} value={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Peso (%)</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={rule.weight}
+                onChange={(event) => handleRuleFieldChange(index, 'weight', event.target.value)}
+                placeholder="Opcional"
+                disabled={disabled}
+              />
+            </label>
+          </div>
+          <div className="routing-manifest__actions">
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => handleRuleRemove(index)}
+              disabled={disabled}
+            >
+              Remover regra
+            </button>
+          </div>
+        </fieldset>
+      ))}
+      <button type="button" className="button button--secondary" onClick={handleRuleAdd} disabled={disabled}>
+        Adicionar regra
+      </button>
+    </div>
+  );
+}
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -125,10 +628,33 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
     defaultTier: 'balanced',
     fallbackTier: '',
     allowedTiers: new Set<RoutingTierId>(['balanced']),
+    intents: [],
+    rules: [],
   });
   const [routingErrors, setRoutingErrors] = useState<RoutingFormErrors>({});
   const [routingMessage, setRoutingMessage] = useState<string | null>(null);
   const [isRoutingSaving, setRoutingSaving] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<PendingRoutingPlan | null>(null);
+  const [isPlanModalOpen, setPlanModalOpen] = useState(false);
+  const [isPlanApplying, setPlanApplying] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planActor, setPlanActor] = useState(() => loadPlanPreference(ROUTING_PLAN_ACTOR_STORAGE_KEY, 'Console MCP'));
+  const [planActorEmail, setPlanActorEmail] = useState(() =>
+    loadPlanPreference(ROUTING_PLAN_ACTOR_EMAIL_STORAGE_KEY, 'console@example.com'),
+  );
+  const [planCommitMessage, setPlanCommitMessage] = useState(() =>
+    loadPlanPreference(ROUTING_PLAN_COMMIT_MESSAGE_STORAGE_KEY, 'chore: atualizar roteamento MCP'),
+  );
+  const simulationIntents = useMemo(() => {
+    return routingForm.intents
+      .map(draftToIntent)
+      .filter((intent) => intent.intent.length > 0 || intent.tags.length > 0 || intent.description !== null);
+  }, [routingForm.intents]);
+  const simulationRules = useMemo(() => {
+    return routingForm.rules
+      .map(draftToRule)
+      .filter((rule) => rule.id.length > 0 && rule.matcher.length > 0);
+  }, [routingForm.rules]);
 
   useEffect(() => {
     if (failoverId && !providers.some((provider) => provider.id === failoverId)) {
@@ -185,6 +711,8 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
       defaultTier: routing.defaultTier,
       fallbackTier: routing.fallbackTier ?? '',
       allowedTiers: new Set<RoutingTierId>(routing.allowedTiers),
+      intents: routing.intents.map(intentToDraft),
+      rules: routing.rules.map(ruleToDraft),
     });
     setRoutingErrors({});
   }, [manifest]);
@@ -212,8 +740,14 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
     setPlan(null);
 
     Promise.all([
-      simulateRouting({ strategy: 'balanced', ...commonPayload }, controller.signal),
-      simulateRouting({ strategy: strategyId, ...commonPayload }, controller.signal),
+      simulateRouting(
+        { strategy: 'balanced', ...commonPayload, intents: simulationIntents, rules: simulationRules },
+        controller.signal,
+      ),
+      simulateRouting(
+        { strategy: strategyId, ...commonPayload, intents: simulationIntents, rules: simulationRules },
+        controller.signal,
+      ),
     ])
       .then(([baselineResult, planResult]) => {
         if (controller.signal.aborted) {
@@ -240,7 +774,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
     return () => {
       controller.abort();
     };
-  }, [providers, strategyId, volumeMillions, failoverId]);
+  }, [providers, strategyId, volumeMillions, failoverId, simulationIntents, simulationRules]);
 
   const selectedStrategy = STRATEGY_MAP.get(strategyId) ?? STRATEGIES[0];
   const planReady = baselinePlan !== null && plan !== null;
@@ -322,8 +856,80 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
     setRoutingMessage(null);
   }, []);
 
+  const handleIntentsChange = useCallback((nextIntents: RoutingIntentDraft[]) => {
+    setRoutingForm((current) => ({ ...current, intents: nextIntents }));
+    setRoutingErrors((current) => ({ ...current, intents: undefined }));
+    setRoutingMessage(null);
+  }, []);
+
+  const handleRulesChange = useCallback((nextRules: RoutingRuleDraft[]) => {
+    setRoutingForm((current) => ({ ...current, rules: nextRules }));
+    setRoutingErrors((current) => ({ ...current, rules: undefined }));
+    setRoutingMessage(null);
+  }, []);
+
+  const handlePlanActorChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setPlanActor(value);
+    persistPlanPreference(ROUTING_PLAN_ACTOR_STORAGE_KEY, value);
+  }, []);
+
+  const handlePlanActorEmailChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setPlanActorEmail(value);
+    persistPlanPreference(ROUTING_PLAN_ACTOR_EMAIL_STORAGE_KEY, value);
+  }, []);
+
+  const handlePlanCommitMessageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setPlanCommitMessage(value);
+    persistPlanPreference(ROUTING_PLAN_COMMIT_MESSAGE_STORAGE_KEY, value);
+  }, []);
+
+  const handlePlanCancel = useCallback(() => {
+    setPlanModalOpen(false);
+    setPendingPlan(null);
+    setPlanError(null);
+  }, []);
+
+  const handlePlanApply = useCallback(async () => {
+    if (!pendingPlan) {
+      return;
+    }
+
+    const planId = pendingPlan.plan.id ?? pendingPlan.id;
+    setPlanApplying(true);
+    setPlanError(null);
+    try {
+      const response = await postPolicyPlanApply({
+        planId,
+        plan: pendingPlan.planPayload,
+        patch: pendingPlan.patch,
+        actor: planActor.trim() || 'Console MCP',
+        actorEmail: planActorEmail.trim() || 'console@example.com',
+        commitMessage: planCommitMessage.trim() || 'chore: atualizar roteamento MCP',
+      });
+      const message = response.message || 'Plano aplicado com sucesso.';
+      setRoutingMessage(message);
+      setManifest(pendingPlan.nextSnapshot);
+      setPendingPlan(null);
+      setPlanModalOpen(false);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to apply routing plan', error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Falha ao aplicar plano. Tente novamente.';
+      setPlanError(message);
+    } finally {
+      setPlanApplying(false);
+      setRoutingSaving(false);
+    }
+  }, [pendingPlan, planActor, planActorEmail, planCommitMessage]);
+
   const handleRoutingSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
       const errors: RoutingFormErrors = {};
@@ -366,11 +972,71 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         errors.fallbackTier = 'Escolha um fallback que esteja entre os tiers permitidos.';
       }
 
+      if (routingForm.intents.length > 0) {
+        const seenIntentIds = new Set<string>();
+        const intentIssues: string[] = [];
+        routingForm.intents.forEach((intent) => {
+          const trimmedId = intent.intent.trim();
+          if (!trimmedId) {
+            intentIssues.push('Todas as intents devem ter um identificador.');
+          } else if (seenIntentIds.has(trimmedId)) {
+            intentIssues.push(`Intent duplicada: ${trimmedId}.`);
+          } else {
+            seenIntentIds.add(trimmedId);
+          }
+        });
+        if (intentIssues.length > 0) {
+          errors.intents = Array.from(new Set(intentIssues)).join(' ');
+        }
+      }
+
+      if (routingForm.rules.length > 0) {
+        const seenRuleIds = new Set<string>();
+        const knownIntentIds = new Set(
+          routingForm.intents.map((intent) => intent.intent.trim()).filter((value) => value.length > 0),
+        );
+        const ruleIssues: string[] = [];
+        routingForm.rules.forEach((rule) => {
+          const trimmedId = rule.id.trim();
+          const trimmedMatcher = rule.matcher.trim();
+          if (!trimmedId || !trimmedMatcher) {
+            ruleIssues.push('Preencha identificador e condição para todas as regras.');
+          }
+          if (trimmedId && seenRuleIds.has(trimmedId)) {
+            ruleIssues.push(`Regra duplicada: ${trimmedId}.`);
+          }
+          if (trimmedId) {
+            seenRuleIds.add(trimmedId);
+          }
+          const weightRaw = rule.weight.trim();
+          if (weightRaw) {
+            const parsedWeight = Number(weightRaw);
+            if (Number.isNaN(parsedWeight) || parsedWeight < 0 || parsedWeight > 100) {
+              ruleIssues.push('Peso das regras deve estar entre 0% e 100%.');
+            }
+          }
+          if (rule.intent.trim() && !knownIntentIds.has(rule.intent.trim())) {
+            ruleIssues.push(`Intent desconhecida referenciada pela regra ${trimmedId || '(sem id)'}.`);
+          }
+        });
+        if (ruleIssues.length > 0) {
+          errors.rules = Array.from(new Set(ruleIssues)).join(' ');
+        }
+      }
+
       if (Object.keys(errors).length > 0) {
         setRoutingErrors(errors);
         setRoutingMessage(null);
         return;
       }
+
+      if (!manifest) {
+        setRoutingMessage('Carregue a configuração atual antes de gerar um plano.');
+        return;
+      }
+
+      const intentsPayload = routingForm.intents.map(draftToIntent);
+      const rulesPayload = routingForm.rules.map(draftToRule);
 
       const payload: PolicyManifestUpdateInput = {
         routing: {
@@ -381,38 +1047,63 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           defaultTier: routingForm.defaultTier,
           allowedTiers: Array.from(new Set<RoutingTierId>(allowed)),
           fallbackTier: routingForm.fallbackTier || null,
+          intents: intentsPayload,
+          rules: rulesPayload,
         },
       };
 
       setRoutingSaving(true);
-      setRoutingMessage(null);
+      setRoutingMessage('Gerando plano de atualização…');
       setRoutingErrors({});
+      setPlanError(null);
 
-      updatePolicyManifest(payload)
-        .then(() => {
-          setRoutingMessage('Configuração de roteamento atualizada com sucesso.');
-          setManifest((current) => {
-            if (!current || !payload.routing) {
-              return current;
-            }
-            return {
-              ...current,
-              routing: {
-                ...current.routing,
-                ...payload.routing,
-              },
-              updatedAt: new Date().toISOString(),
-            };
-          });
-        })
-        .catch(() => {
-          setRoutingMessage('Falha ao atualizar o roteamento. Tente novamente.');
-        })
-        .finally(() => {
-          setRoutingSaving(false);
+      try {
+        const planResponse = await patchConfigPoliciesPlan({
+          policyId: POLICY_MANIFEST_ID,
+          changes: payload,
         });
+
+        const nextSnapshot = applyRoutingUpdateToSnapshot(manifest, payload);
+        const currentManifestString = formatManifestSnapshot(manifest);
+        const nextManifestString = formatManifestSnapshot(nextSnapshot);
+        const patch = createTwoFilesPatch(
+          'policies/manifest.json',
+          'policies/manifest.json',
+          currentManifestString,
+          nextManifestString,
+          undefined,
+          undefined,
+          { context: 3 },
+        );
+
+        const diffs = mapPlanDiffItems(planResponse.plan.diffs, patch);
+
+        setPendingPlan({
+          id: generatePlanId(),
+          plan: planResponse.plan,
+          planPayload: planResponse.planPayload,
+          patch,
+          diffs,
+          nextSnapshot,
+        });
+        setPlanModalOpen(true);
+        setRoutingErrors({});
+        setRoutingMessage('Plano gerado. Revise as alterações antes de aplicar.');
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to generate routing plan', error);
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Falha ao gerar plano de atualização. Tente novamente.';
+        setRoutingMessage(message);
+        setPendingPlan(null);
+        setPlanModalOpen(false);
+      } finally {
+        setRoutingSaving(false);
+      }
     },
-    [routingForm],
+    [routingForm, manifest],
   );
 
   if (isLoading) {
@@ -442,7 +1133,85 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   }
 
   return (
-    <section className="routing-lab">
+    <>
+      {isPlanModalOpen && pendingPlan ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="routing-plan-modal-title">
+          <div className="modal">
+            <header className="modal__header">
+              <h2 id="routing-plan-modal-title" className="modal__title">
+                Confirmar alterações de roteamento
+              </h2>
+              <p className="modal__subtitle">{pendingPlan.plan.summary}</p>
+            </header>
+            <div className="modal__body">
+              <PlanDiffViewer diffs={pendingPlan.diffs} />
+              <div className="modal__form" role="group" aria-labelledby="routing-plan-modal-title">
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="routing-plan-actor">
+                    Autor da alteração
+                  </label>
+                  <input
+                    id="routing-plan-actor"
+                    type="text"
+                    className="modal__input"
+                    value={planActor}
+                    onChange={handlePlanActorChange}
+                    placeholder="Nome completo do autor"
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="routing-plan-actor-email">
+                    E-mail do autor
+                  </label>
+                  <input
+                    id="routing-plan-actor-email"
+                    type="email"
+                    className="modal__input"
+                    value={planActorEmail}
+                    onChange={handlePlanActorEmailChange}
+                    placeholder="autor@example.com"
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="routing-plan-commit-message">
+                    Mensagem do commit
+                  </label>
+                  <input
+                    id="routing-plan-commit-message"
+                    type="text"
+                    className="modal__input"
+                    value={planCommitMessage}
+                    onChange={handlePlanCommitMessageChange}
+                    placeholder="Descreva o objetivo das alterações"
+                  />
+                </div>
+              </div>
+              {planError && <p className="modal__error">{planError}</p>}
+            </div>
+            <footer className="modal__footer">
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={handlePlanCancel}
+                disabled={isPlanApplying}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={handlePlanApply}
+                disabled={isPlanApplying}
+              >
+                {isPlanApplying ? 'Aplicando…' : 'Aplicar plano'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+      <section className="routing-lab">
       <header className="routing-lab__intro">
         <div>
           <p className="routing-lab__eyebrow">Routing Lab</p>
@@ -605,13 +1374,44 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
             </div>
           </div>
 
+          <section className="routing-manifest__section" aria-labelledby="routing-intents-heading">
+            <header className="routing-manifest__section-header">
+              <h4 id="routing-intents-heading">Intents direcionadas</h4>
+              <p>Mapeie intents com tiers padrão e fallback dedicados.</p>
+            </header>
+            <IntentEditorList
+              intents={routingForm.intents}
+              providers={providers}
+              allowedTiers={allowedTiers}
+              disabled={isManifestLoading || isRoutingSaving}
+              onChange={handleIntentsChange}
+            />
+            {routingErrors.intents && <p className="form-field__error">{routingErrors.intents}</p>}
+          </section>
+
+          <section className="routing-manifest__section" aria-labelledby="routing-rules-heading">
+            <header className="routing-manifest__section-header">
+              <h4 id="routing-rules-heading">Regras customizadas</h4>
+              <p>Force tiers, provedores ou pesos quando condições específicas forem atendidas.</p>
+            </header>
+            <RuleEditorList
+              rules={routingForm.rules}
+              intents={routingForm.intents}
+              providers={providers}
+              allowedTiers={allowedTiers}
+              disabled={isManifestLoading || isRoutingSaving}
+              onChange={handleRulesChange}
+            />
+            {routingErrors.rules && <p className="form-field__error">{routingErrors.rules}</p>}
+          </section>
+
           <div className="routing-manifest__actions">
             <button
               type="submit"
               className="button button--primary"
               disabled={isManifestLoading || isRoutingSaving}
             >
-              {isRoutingSaving ? 'Salvando…' : 'Salvar configuração'}
+              {isRoutingSaving ? 'Gerando plano…' : 'Gerar plano'}
             </button>
           </div>
         </form>
@@ -830,5 +1630,6 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         )}
       </section>
     </section>
+    </>
   );
 }
