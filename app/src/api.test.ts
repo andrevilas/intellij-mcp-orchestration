@@ -9,12 +9,17 @@ import {
   deletePolicy,
   fetchPolicies,
   fetchPolicyOverrides,
+  fetchPolicyManifest,
+  updatePolicyManifest,
   createPolicyOverride,
   updatePolicyOverride,
   deletePolicyOverride,
+  fetchHitlQueue,
+  resolveHitlRequest,
   fetchPolicyDeployments,
   createPolicyDeployment,
   deletePolicyDeployment,
+  fetchPolicyCompliance,
   deleteSecret,
   fetchFinOpsPullRequestReports,
   fetchFinOpsSprintReports,
@@ -253,13 +258,31 @@ describe('api client', () => {
 
     fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
 
-    const result = await createSession(providerId, { reason: 'Test', client: 'vitest' });
+    const result = await createSession(providerId, {
+      reason: 'Test',
+      client: 'vitest',
+      overrides: {
+        runtime: { maxIters: 4, timeouts: { total: 120 }, retry: { maxAttempts: 3 } },
+        finops: { costCenter: 'lab' },
+      },
+    });
 
     expect(fetchSpy).toHaveBeenCalledWith(
       `/api/v1/providers/${providerId}/sessions`,
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ reason: 'Test', client: 'vitest' }),
+        body: JSON.stringify({
+          reason: 'Test',
+          client: 'vitest',
+          overrides: {
+            runtime: {
+              max_iters: 4,
+              timeouts: { total: 120 },
+              retry: { max_attempts: 3 },
+            },
+            finops: { cost_center: 'lab' },
+          },
+        }),
       }),
     );
     expect(result).toEqual(payload);
@@ -483,13 +506,35 @@ describe('api client', () => {
           notes: 'Pilot',
           created_at: '2025-04-01T00:00:00Z',
           updated_at: '2025-04-01T00:00:00Z',
+          overrides: {
+            routing: { max_iters: 2, request_timeout_seconds: 45 },
+            runtime: {
+              timeouts: { total: 90 },
+              retry: { max_attempts: 3 },
+            },
+            hitl: {
+              checkpoints: [
+                { name: 'ops-approval', description: 'Ops review', required: true, escalation_channel: 'slack' },
+              ],
+            },
+            tracing: { enabled: true, sample_rate: 0.2, exporter: 'otlp' },
+          },
         },
       ],
     };
     fetchSpy.mockResolvedValueOnce(mockFetchResponse(overridesPayload));
 
     const overrides = await fetchPolicyOverrides();
-    expect(overrides[0]).toMatchObject({ templateId: 'balanced', requireManualApproval: true });
+    expect(overrides[0]).toMatchObject({
+      templateId: 'balanced',
+      requireManualApproval: true,
+      overrides: expect.objectContaining({
+        routing: expect.objectContaining({ maxIters: 2, requestTimeoutSeconds: 45 }),
+        runtime: expect.objectContaining({ timeouts: { total: 90, perIteration: null } }),
+        hitl: expect.objectContaining({ checkpoints: expect.arrayContaining([expect.objectContaining({ name: 'ops-approval' })]) }),
+        tracing: expect.objectContaining({ enabled: true, sampleRate: 0.2 }),
+      }),
+    });
 
     const createdPayload = overridesPayload.overrides[0];
     fetchSpy.mockResolvedValueOnce(mockFetchResponse(createdPayload));
@@ -503,6 +548,10 @@ describe('api client', () => {
       maxCostUsd: 0.8,
       requireManualApproval: true,
       notes: 'Pilot',
+      overrides: {
+        routing: { maxIters: 2 },
+        runtime: { timeouts: { total: 90 } },
+      },
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -518,6 +567,10 @@ describe('api client', () => {
           max_cost_usd: 0.8,
           require_manual_approval: true,
           notes: 'Pilot',
+          overrides: {
+            routing: { max_iters: 2 },
+            runtime: { timeouts: { total: 90 } },
+          },
         }),
       }),
     );
@@ -532,6 +585,9 @@ describe('api client', () => {
       maxCostUsd: 0.8,
       requireManualApproval: true,
       notes: 'Pilot',
+      overrides: {
+        runtime: { timeouts: { total: 75 } },
+      },
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -546,6 +602,7 @@ describe('api client', () => {
           max_cost_usd: 0.8,
           require_manual_approval: true,
           notes: 'Pilot',
+          overrides: { runtime: { timeouts: { total: 75 } } },
         }),
       }),
     );
@@ -556,6 +613,144 @@ describe('api client', () => {
       '/api/v1/policies/overrides/route-ops',
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  it('fetches and updates policy manifest snapshots', async () => {
+    const manifestPayload = {
+      policies: { confidence: { approval: 0.9, rejection: 0.4 } },
+      routing: {
+        max_iters: 5,
+        max_attempts: 4,
+        request_timeout_seconds: 45,
+        total_timeout_seconds: 180,
+        default_tier: 'balanced',
+        allowed_tiers: ['balanced', 'turbo'],
+        fallback_tier: 'turbo',
+      },
+      finops: {
+        cost_center: 'mlops',
+        budgets: [{ tier: 'balanced', amount: 1200, currency: 'USD', period: 'monthly' }],
+        alerts: [{ threshold: 0.7, channel: 'slack' }],
+      },
+      hitl: {
+        enabled: true,
+        pending_approvals: 2,
+        updated_at: '2025-04-02T00:00:00Z',
+        checkpoints: [
+          { name: 'ops', description: 'Ops review', required: true, escalation_channel: 'pagerduty' },
+        ],
+      },
+      runtime: {
+        max_iters: 6,
+        timeouts: { per_iteration: 40, total: 200 },
+        retry: { max_attempts: 3, initial_delay: 1, backoff_factor: 2, max_delay: 6 },
+        tracing: { enabled: true, sample_rate: 0.3, exporter: 'otlp' },
+      },
+      overrides: { runtime: { max_iters: 7 } },
+      updated_at: '2025-04-02T00:00:00Z',
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(manifestPayload));
+
+    const snapshot = await fetchPolicyManifest();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/manifest',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(snapshot.routing.defaultTier).toBe('balanced');
+    expect(snapshot.runtime.tracing.sampleRate).toBe(0.3);
+    expect(snapshot.hitl.checkpoints).toHaveLength(1);
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(manifestPayload));
+
+    await updatePolicyManifest({
+      routing: { defaultTier: 'turbo', allowedTiers: ['turbo', 'balanced'] },
+      runtime: { timeouts: { total: 90 } },
+      hitl: { enabled: false },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/manifest',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          routing: {
+            default_tier: 'turbo',
+            allowed_tiers: ['turbo', 'balanced'],
+          },
+          runtime: { timeouts: { total: 90 } },
+          hitl: { enabled: false },
+        }),
+      }),
+    );
+  });
+
+  it('manages HITL queues and resolutions', async () => {
+    const queuePayload = {
+      pending: [
+        {
+          id: 'req-1',
+          agent: 'planner',
+          route: 'ops',
+          checkpoint: 'ops-review',
+          submitted_at: '2025-04-02T10:00:00Z',
+          status: 'pending' as const,
+          confidence: 0.55,
+          metadata: { reason: 'Low confidence' },
+        },
+      ],
+      resolved: [],
+      updated_at: '2025-04-02T10:05:00Z',
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(queuePayload));
+
+    const queue = await fetchHitlQueue();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/hitl/queue',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(queue.pending[0].confidence).toBeCloseTo(0.55);
+
+    const resolutionPayload = {
+      id: 'req-1',
+      agent: 'planner',
+      route: 'ops',
+      checkpoint: 'ops-review',
+      submitted_at: '2025-04-02T10:00:00Z',
+      status: 'approved' as const,
+    };
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(resolutionPayload));
+
+    await resolveHitlRequest('req-1', { resolution: 'approved', note: 'Proceed' });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/hitl/queue/req-1',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ resolution: 'approved', note: 'Proceed' }),
+      }),
+    );
+  });
+
+  it('fetches policy compliance summaries', async () => {
+    const compliancePayload = {
+      status: 'warning' as const,
+      updated_at: '2025-04-02T00:00:00Z',
+      items: [
+        { id: 'finops-budget', label: 'Budget mensal', required: true, configured: true, active: false },
+        { id: 'hitl-checkpoint', label: 'Checkpoint crítico', required: true, configured: false, active: false },
+      ],
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(compliancePayload));
+
+    const summary = await fetchPolicyCompliance();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/policies/compliance',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(summary.status).toBe('warning');
+    expect(summary.items[1].configured).toBe(false);
   });
 
   it('fetches and mutates policy deployments', async () => {

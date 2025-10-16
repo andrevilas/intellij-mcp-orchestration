@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import {
   Area,
   AreaChart,
@@ -14,6 +15,10 @@ import type {
   TelemetryRouteBreakdownEntry,
   TelemetryRunEntry,
   TelemetryTimeseriesPoint,
+  PolicyManifestSnapshot,
+  FinOpsBudget,
+  FinOpsAlertThreshold,
+  PolicyManifestUpdateInput,
 } from '../api';
 import {
   fetchFinOpsPullRequestReports,
@@ -21,6 +26,11 @@ import {
   fetchTelemetryPareto,
   fetchTelemetryRuns,
   fetchTelemetryTimeseries,
+  fetchPolicyManifest,
+  updatePolicyManifest,
+  type BudgetPeriod,
+  type HitlEscalationChannel,
+  type RoutingTierId,
   type FinOpsPullRequestReportPayload,
   type FinOpsSprintReportPayload,
   type ReportStatus,
@@ -137,6 +147,41 @@ const HOTSPOT_KIND_LABEL: Record<HotspotKind, string> = {
   reliability: 'Confiabilidade',
   efficiency: 'Eficiência',
 };
+
+const TIER_LABEL: Record<RoutingTierId, string> = {
+  economy: 'Economy',
+  balanced: 'Balanced',
+  turbo: 'Turbo',
+};
+
+const PERIOD_OPTIONS: Array<{ value: BudgetPeriod; label: string }> = [
+  { value: 'daily', label: 'Diário' },
+  { value: 'weekly', label: 'Semanal' },
+  { value: 'monthly', label: 'Mensal' },
+];
+
+const ESCALATION_OPTIONS: Array<{ value: HitlEscalationChannel; label: string }> = [
+  { value: 'slack', label: 'Slack' },
+  { value: 'email', label: 'E-mail' },
+  { value: 'pagerduty', label: 'PagerDuty' },
+];
+
+interface BudgetRow extends Omit<FinOpsBudget, 'amount'> {
+  amount: string;
+}
+
+interface BudgetRowErrors {
+  amount?: string;
+  currency?: string;
+}
+
+interface AlertRow extends FinOpsAlertThreshold {
+  threshold: string;
+}
+
+interface AlertRowErrors {
+  threshold?: string;
+}
 
 const HOTSPOT_SEVERITY_LABEL: Record<HotspotSeverity, string> = {
   critical: 'Crítico',
@@ -477,6 +522,313 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [sprintReportsError, setSprintReportsError] = useState<string | null>(null);
   const [pullRequestReportsError, setPullRequestReportsError] = useState<string | null>(null);
   const [drilldownError, setDrilldownError] = useState<string | null>(null);
+  const [manifest, setManifest] = useState<PolicyManifestSnapshot | null>(null);
+  const [isManifestLoading, setManifestLoading] = useState(false);
+  const [manifestError, setManifestError] = useState<string | null>(null);
+  const [costCenter, setCostCenter] = useState('');
+  const [budgetRows, setBudgetRows] = useState<BudgetRow[]>([]);
+  const [budgetErrors, setBudgetErrors] = useState<BudgetRowErrors[]>([]);
+  const [alertRows, setAlertRows] = useState<AlertRow[]>([]);
+  const [alertErrors, setAlertErrors] = useState<AlertRowErrors[]>([]);
+  const [finOpsMessage, setFinOpsMessage] = useState<string | null>(null);
+  const [isFinOpsSaving, setFinOpsSaving] = useState(false);
+  const [costCenterError, setCostCenterError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    setManifestLoading(true);
+    setManifestError(null);
+
+    fetchPolicyManifest(controller.signal)
+      .then((snapshot) => {
+        if (!active) {
+          return;
+        }
+        setManifest(snapshot);
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        if ((error as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        setManifestError('Não foi possível carregar o manifesto FinOps.');
+      })
+      .finally(() => {
+        if (active) {
+          setManifestLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!manifest) {
+      return;
+    }
+
+    const finops = manifest.finops;
+    setCostCenter(finops.costCenter ?? '');
+    setCostCenterError(null);
+
+    const budgets = (finops.budgets ?? []).map<BudgetRow>((budget) => ({
+      tier: budget.tier,
+      amount: budget.amount.toString(),
+      currency: budget.currency,
+      period: budget.period,
+    }));
+
+    const budgetTemplate =
+      budgets.length > 0
+        ? budgets
+        : (['economy', 'balanced', 'turbo'] as RoutingTierId[]).map((tier) => ({
+            tier,
+            amount: '',
+            currency: 'USD',
+            period: 'monthly',
+          }));
+
+    setBudgetRows(budgetTemplate);
+    setBudgetErrors(budgetTemplate.map(() => ({}) as BudgetRowErrors));
+
+    const alerts = (finops.alerts ?? []).map<AlertRow>((alert) => ({
+      threshold: (alert.threshold * 100).toString(),
+      channel: alert.channel,
+    }));
+
+    const alertTemplate = alerts.length > 0 ? alerts : [{ threshold: '75', channel: 'slack' }];
+    setAlertRows(alertTemplate);
+    setAlertErrors(alertTemplate.map(() => ({}) as AlertRowErrors));
+  }, [manifest]);
+
+  const handleCostCenterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setCostCenter(event.target.value);
+    setCostCenterError(null);
+    setFinOpsMessage(null);
+  }, []);
+
+  const handleBudgetChange = useCallback(
+    (index: number, field: keyof BudgetRow, value: string) => {
+      setBudgetRows((current) => {
+        const next = current.slice();
+        const existing = next[index];
+        if (!existing) {
+          return current;
+        }
+        next[index] = { ...existing, [field]: value } as BudgetRow;
+        return next;
+      });
+      setBudgetErrors((current) => {
+        const next = current.slice();
+        next[index] = { ...(next[index] ?? {}), amount: undefined, currency: undefined };
+        return next;
+      });
+      setFinOpsMessage(null);
+    },
+    [],
+  );
+
+  const handleAddBudget = useCallback(() => {
+    setBudgetRows((current) => [
+      ...current,
+      { tier: 'economy', amount: '', currency: 'USD', period: 'monthly' },
+    ]);
+    setBudgetErrors((current) => [...current, {}]);
+  }, []);
+
+  const handleRemoveBudget = useCallback(
+    (index: number) => {
+      setBudgetRows((current) => {
+        if (current.length <= 1) {
+          return current;
+        }
+        const next = current.slice();
+        next.splice(index, 1);
+        return next;
+      });
+      setBudgetErrors((current) => {
+        if (current.length <= 1) {
+          return current;
+        }
+        const next = current.slice();
+        next.splice(index, 1);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleAlertChange = useCallback(
+    (index: number, field: keyof AlertRow, value: string) => {
+      setAlertRows((current) => {
+        const next = current.slice();
+        const existing = next[index];
+        if (!existing) {
+          return current;
+        }
+        next[index] = { ...existing, [field]: value } as AlertRow;
+        return next;
+      });
+      setAlertErrors((current) => {
+        const next = current.slice();
+        next[index] = { ...(next[index] ?? {}), threshold: undefined };
+        return next;
+      });
+      setFinOpsMessage(null);
+    },
+    [],
+  );
+
+  const handleAddAlert = useCallback(() => {
+    setAlertRows((current) => [...current, { threshold: '80', channel: 'email' }]);
+    setAlertErrors((current) => [...current, {}]);
+  }, []);
+
+  const handleRemoveAlert = useCallback(
+    (index: number) => {
+      setAlertRows((current) => {
+        if (current.length <= 1) {
+          return current;
+        }
+        const next = current.slice();
+        next.splice(index, 1);
+        return next;
+      });
+      setAlertErrors((current) => {
+        if (current.length <= 1) {
+          return current;
+        }
+        const next = current.slice();
+        next.splice(index, 1);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleFinOpsSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      let hasErrors = false;
+      const trimmedCostCenter = costCenter.trim();
+      if (!trimmedCostCenter) {
+        setCostCenterError('Informe o cost center responsável.');
+        hasErrors = true;
+      } else {
+        setCostCenterError(null);
+      }
+
+      const nextBudgetErrors = budgetRows.map(() => ({} as BudgetRowErrors));
+      const normalizedBudgets: FinOpsBudget[] = [];
+
+      budgetRows.forEach((row, index) => {
+        const rowErrors: BudgetRowErrors = {};
+        const amountValue = Number(row.amount.trim());
+        if (!row.amount.trim() || Number.isNaN(amountValue) || amountValue <= 0) {
+          rowErrors.amount = 'Defina um valor mensal válido em USD.';
+          hasErrors = true;
+        }
+
+        const currencyValue = row.currency.trim().toUpperCase();
+        if (!currencyValue) {
+          rowErrors.currency = 'Informe a moeda (ex.: USD).';
+          hasErrors = true;
+        }
+
+        nextBudgetErrors[index] = rowErrors;
+
+        if (!rowErrors.amount && !rowErrors.currency) {
+          normalizedBudgets.push({
+            tier: row.tier,
+            amount: Number(amountValue.toFixed(2)),
+            currency: currencyValue,
+            period: row.period,
+          });
+        }
+      });
+
+      setBudgetErrors(nextBudgetErrors);
+
+      const nextAlertErrors = alertRows.map(() => ({} as AlertRowErrors));
+      const normalizedAlerts: FinOpsAlertThreshold[] = [];
+
+      alertRows.forEach((row, index) => {
+        const rowErrors: AlertRowErrors = {};
+        const thresholdValue = Number(row.threshold.trim());
+        if (
+          !row.threshold.trim() ||
+          Number.isNaN(thresholdValue) ||
+          thresholdValue < 0 ||
+          thresholdValue > 100
+        ) {
+          rowErrors.threshold = 'Defina um percentual entre 0 e 100.';
+          hasErrors = true;
+        }
+
+        nextAlertErrors[index] = rowErrors;
+
+        if (!rowErrors.threshold) {
+          normalizedAlerts.push({
+            threshold: Number((thresholdValue / 100).toFixed(4)),
+            channel: row.channel,
+          });
+        }
+      });
+
+      setAlertErrors(nextAlertErrors);
+
+      if (hasErrors) {
+        setFinOpsMessage(null);
+        return;
+      }
+
+      const payload: PolicyManifestUpdateInput = {
+        finops: {
+          costCenter: trimmedCostCenter,
+          budgets: normalizedBudgets,
+          alerts: normalizedAlerts,
+        },
+      };
+
+      setIsFinOpsSaving(true);
+      setFinOpsMessage(null);
+
+      updatePolicyManifest(payload)
+        .then(() => {
+          setFinOpsMessage('Política financeira atualizada com sucesso.');
+          setManifest((current) => {
+            if (!current || !payload.finops) {
+              return current;
+            }
+            return {
+              ...current,
+              finops: {
+                ...current.finops,
+                costCenter: payload.finops.costCenter ?? current.finops.costCenter,
+                budgets: payload.finops.budgets ?? current.finops.budgets,
+                alerts: payload.finops.alerts ?? current.finops.alerts,
+              },
+              updatedAt: new Date().toISOString(),
+            };
+          });
+        })
+        .catch(() => {
+          setFinOpsMessage('Falha ao salvar budgets e alertas. Tente novamente.');
+        })
+        .finally(() => {
+          setIsFinOpsSaving(false);
+        });
+    },
+    [alertRows, budgetRows, costCenter],
+  );
 
   useEffect(() => {
     if (!hasProviders) {
@@ -1074,6 +1426,219 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           </button>
         </div>
       </header>
+
+      <section className="finops__policy" aria-labelledby="finops-policy-heading">
+        <header className="finops-policy__header">
+          <div>
+            <h3 id="finops-policy-heading">Budgets e alertas determinísticos</h3>
+            <p>Defina limites por tier e canais de aviso antes de atingir o runtime.</p>
+          </div>
+          <span className="finops-policy__timestamp">
+            Última atualização: {manifest?.updatedAt ? new Date(manifest.updatedAt).toLocaleString('pt-BR') : '—'}
+          </span>
+        </header>
+        {manifestError && <p className="error">{manifestError}</p>}
+        {finOpsMessage && <p className="status status--inline">{finOpsMessage}</p>}
+        <form className="finops-policy__form" onSubmit={handleFinOpsSubmit}>
+          <div className="finops-policy__grid">
+            <label className="form-field">
+              <span>Cost center responsável</span>
+              <input
+                type="text"
+                value={costCenter}
+                onChange={handleCostCenterChange}
+                placeholder="ex.: AI-Guardrails"
+                disabled={isManifestLoading || isFinOpsSaving}
+                aria-invalid={costCenterError ? 'true' : 'false'}
+                aria-describedby={costCenterError ? 'finops-costcenter-error' : undefined}
+              />
+              {costCenterError && (
+                <span id="finops-costcenter-error" className="form-field__error">
+                  {costCenterError}
+                </span>
+              )}
+            </label>
+          </div>
+
+          <div className="finops-policy__budgets">
+            <div className="finops-policy__section-header">
+              <h4>Budgets por tier</h4>
+              <p>Controle limites para cada tier roteado. Valores vazios não serão aplicados.</p>
+            </div>
+            <div className="finops-policy__table" role="group" aria-label="Budgets configurados">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Tier</th>
+                    <th scope="col">Valor (USD)</th>
+                    <th scope="col">Moeda</th>
+                    <th scope="col">Período</th>
+                    <th scope="col" aria-label="Ações" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {budgetRows.map((row, index) => (
+                    <tr key={`budget-${index}`}>
+                      <td>
+                        <select
+                          value={row.tier}
+                          onChange={(event) => handleBudgetChange(index, 'tier', event.target.value)}
+                          disabled={isFinOpsSaving}
+                        >
+                          {(Object.keys(TIER_LABEL) as RoutingTierId[]).map((tier) => (
+                            <option key={tier} value={tier}>
+                              {TIER_LABEL[tier]}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <div className="finops-policy__field">
+                          <input
+                            type="number"
+                            min={1}
+                            step="0.01"
+                            value={row.amount}
+                            onChange={(event) => handleBudgetChange(index, 'amount', event.target.value)}
+                            disabled={isFinOpsSaving}
+                            aria-invalid={budgetErrors[index]?.amount ? 'true' : 'false'}
+                            aria-describedby={budgetErrors[index]?.amount ? `budget-amount-${index}` : undefined}
+                          />
+                          {budgetErrors[index]?.amount && (
+                            <span id={`budget-amount-${index}`} className="form-field__error">
+                              {budgetErrors[index]?.amount}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="finops-policy__field">
+                          <input
+                            type="text"
+                            value={row.currency}
+                            onChange={(event) => handleBudgetChange(index, 'currency', event.target.value.toUpperCase())}
+                            disabled={isFinOpsSaving}
+                            maxLength={6}
+                            aria-invalid={budgetErrors[index]?.currency ? 'true' : 'false'}
+                            aria-describedby={budgetErrors[index]?.currency ? `budget-currency-${index}` : undefined}
+                          />
+                          {budgetErrors[index]?.currency && (
+                            <span id={`budget-currency-${index}`} className="form-field__error">
+                              {budgetErrors[index]?.currency}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <select
+                          value={row.period}
+                          onChange={(event) => handleBudgetChange(index, 'period', event.target.value)}
+                          disabled={isFinOpsSaving}
+                        >
+                          {PERIOD_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="button button--ghost finops-policy__remove"
+                          onClick={() => handleRemoveBudget(index)}
+                          disabled={isFinOpsSaving || budgetRows.length <= 1}
+                        >
+                          Remover
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              className="button button--ghost finops-policy__add"
+              onClick={handleAddBudget}
+              disabled={isFinOpsSaving}
+            >
+              Adicionar budget
+            </button>
+          </div>
+
+          <div className="finops-policy__alerts">
+            <div className="finops-policy__section-header">
+              <h4>Alertas automáticos</h4>
+              <p>Dispare avisos quando o consumo atingir um percentual do budget.</p>
+            </div>
+            <div className="finops-policy__alerts-list">
+              {alertRows.map((row, index) => (
+                <div key={`alert-${index}`} className="finops-policy__alert">
+                  <label className="form-field">
+                    <span>Limiar (% do budget)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={row.threshold}
+                      onChange={(event) => handleAlertChange(index, 'threshold', event.target.value)}
+                      disabled={isFinOpsSaving}
+                      aria-invalid={alertErrors[index]?.threshold ? 'true' : 'false'}
+                      aria-describedby={alertErrors[index]?.threshold ? `alert-threshold-${index}` : undefined}
+                    />
+                    {alertErrors[index]?.threshold && (
+                      <span id={`alert-threshold-${index}`} className="form-field__error">
+                        {alertErrors[index]?.threshold}
+                      </span>
+                    )}
+                  </label>
+                  <label className="form-field">
+                    <span>Canal</span>
+                    <select
+                      value={row.channel}
+                      onChange={(event) => handleAlertChange(index, 'channel', event.target.value)}
+                      disabled={isFinOpsSaving}
+                    >
+                      {ESCALATION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="button button--ghost finops-policy__remove"
+                    onClick={() => handleRemoveAlert(index)}
+                    disabled={isFinOpsSaving || alertRows.length <= 1}
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="button button--ghost finops-policy__add"
+              onClick={handleAddAlert}
+              disabled={isFinOpsSaving}
+            >
+              Adicionar alerta
+            </button>
+          </div>
+
+          <div className="finops-policy__actions">
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={isManifestLoading || isFinOpsSaving}
+            >
+              {isFinOpsSaving ? 'Salvando…' : 'Salvar política FinOps'}
+            </button>
+          </div>
+        </form>
+      </section>
 
       {timeseriesError && (
         <p className="finops__state" role="status">{timeseriesError}</p>

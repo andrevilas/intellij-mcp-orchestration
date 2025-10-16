@@ -11,6 +11,7 @@ import type {
   Session,
   TelemetryHeatmapBucket,
   TelemetryMetrics,
+  PolicyComplianceSummary,
 } from './api';
 import {
   createSession,
@@ -21,12 +22,14 @@ import {
   fetchSessions,
   fetchTelemetryHeatmap,
   fetchTelemetryMetrics,
+  fetchPolicyCompliance,
   readSecret,
   testSecret,
   upsertSecret,
 } from './api';
 import CommandPalette from './components/CommandPalette';
 import NotificationCenter, { type NotificationItem } from './components/NotificationCenter';
+import ProvisioningDialog, { type ProvisioningSubmission } from './components/ProvisioningDialog';
 import Dashboard from './pages/Dashboard';
 import FinOps from './pages/FinOps';
 import Keys from './pages/Keys';
@@ -158,6 +161,10 @@ function App() {
   );
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isNotificationOpen, setNotificationOpen] = useState(false);
+  const [complianceSummary, setComplianceSummary] = useState<PolicyComplianceSummary | null>(null);
+  const [pendingProvider, setPendingProvider] = useState<ProviderSummary | null>(null);
+  const [isProvisionDialogOpen, setProvisionDialogOpen] = useState(false);
+  const [isProvisionSubmitting, setProvisionSubmitting] = useState(false);
   const mainRef = useRef<HTMLElement | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -210,6 +217,7 @@ function App() {
           notificationResult,
           metricsResult,
           heatmapResult,
+          complianceResult,
         ] = await Promise.allSettled([
           fetchProviders(controller.signal),
           fetchSessions(controller.signal),
@@ -217,6 +225,7 @@ function App() {
           fetchNotifications(controller.signal),
           fetchTelemetryMetrics({ start: metricsStart }, controller.signal),
           fetchTelemetryHeatmap({ start: heatmapStart, end: now }, controller.signal),
+          fetchPolicyCompliance(controller.signal),
         ]);
 
         if (
@@ -262,6 +271,15 @@ function App() {
           }
         }
 
+        if (complianceResult.status === 'fulfilled') {
+          setComplianceSummary(complianceResult.value);
+        } else {
+          setComplianceSummary(null);
+          if (complianceResult.status === 'rejected' && !controller.signal.aborted) {
+            console.error('Falha ao carregar checklist de conformidade', complianceResult.reason);
+          }
+        }
+
         let notificationsPayload: NotificationSummary[] = [];
         if (notificationResult.status === 'fulfilled') {
           notificationsPayload = notificationResult.value;
@@ -294,33 +312,58 @@ function App() {
     return () => controller.abort();
   }, [applyNotifications]);
 
-  async function handleProvision(provider: ProviderSummary) {
-    const controller = new AbortController();
-    setProvisioningId(provider.id);
+  const handleProvisionRequest = useCallback((provider: ProviderSummary) => {
+    setPendingProvider(provider);
+    setProvisionDialogOpen(true);
+    setPaletteOpen(false);
+    setNotificationOpen(false);
     setFeedback(null);
+  }, []);
 
-    try {
-      const response = await createSession(
-        provider.id,
-        {
-          reason: 'Provisionamento disparado pela Console MCP',
-          client: DEFAULT_CLIENT,
-        },
-        controller.signal,
-      );
+  const handleProvisionDialogCancel = useCallback(() => {
+    setProvisionDialogOpen(false);
+    setPendingProvider(null);
+  }, []);
 
-      setSessions((current) => [response.session, ...current]);
-      setFeedback({
-        kind: 'success',
-        text: `Sessão ${response.session.id} criada para ${provider.name}.`,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao criar sessão';
-      setFeedback({ kind: 'error', text: message });
-    } finally {
-      setProvisioningId(null);
-    }
-  }
+  const handleProvisionDialogConfirm = useCallback(
+    async ({ reason, overrides }: ProvisioningSubmission) => {
+      if (!pendingProvider) {
+        return;
+      }
+
+      const controller = new AbortController();
+      setProvisionDialogOpen(false);
+      setProvisionSubmitting(true);
+      setProvisioningId(pendingProvider.id);
+      setFeedback(null);
+
+      try {
+        const response = await createSession(
+          pendingProvider.id,
+          {
+            reason: reason.trim() ? reason.trim() : 'Provisionamento manual pela Console MCP',
+            client: DEFAULT_CLIENT,
+            overrides,
+          },
+          controller.signal,
+        );
+
+        setSessions((current) => [response.session, ...current]);
+        setFeedback({
+          kind: 'success',
+          text: `Sessão ${response.session.id} criada para ${pendingProvider.name}.`,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Falha ao criar sessão';
+        setFeedback({ kind: 'error', text: message });
+      } finally {
+        setProvisionSubmitting(false);
+        setProvisioningId(null);
+        setPendingProvider(null);
+      }
+    },
+    [pendingProvider],
+  );
 
   const handleSecretSave = useCallback(
     async (providerId: string, value: string): Promise<SecretValue> => {
@@ -441,17 +484,25 @@ function App() {
     [handleNavigate],
   );
 
-  const commandOptions = useMemo(
-    () =>
-      VIEW_DEFINITIONS.map((view) => ({
-        id: view.id,
-        title: view.label,
-        subtitle: view.description,
-        keywords: view.keywords,
-        onSelect: () => handleNavigate(view.id),
-      })),
-    [handleNavigate],
-  );
+  const commandOptions = useMemo(() => {
+    const viewCommands = VIEW_DEFINITIONS.map((view) => ({
+      id: view.id,
+      title: view.label,
+      subtitle: view.description,
+      keywords: view.keywords,
+      onSelect: () => handleNavigate(view.id),
+    }));
+
+    const providerCommands = providers.map((provider) => ({
+      id: `provision-${provider.id}`,
+      title: `Provisionar ${provider.name}`,
+      subtitle: 'Criar sessão com overrides táticos',
+      keywords: ['provisionar', 'override', provider.id],
+      onSelect: () => handleProvisionRequest(provider),
+    }));
+
+    return [...viewCommands, ...providerCommands];
+  }, [handleNavigate, handleProvisionRequest, providers]);
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
@@ -652,7 +703,8 @@ function App() {
               initialError={initialError}
               feedback={feedback}
               provisioningId={provisioningId}
-              onProvision={handleProvision}
+              compliance={complianceSummary}
+              onProvision={handleProvisionRequest}
             />
           </section>
         )}
@@ -694,6 +746,13 @@ function App() {
       <footer className="app-shell__footer">
         © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
       </footer>
+      <ProvisioningDialog
+        isOpen={isProvisionDialogOpen && pendingProvider !== null}
+        provider={pendingProvider}
+        isSubmitting={isProvisionSubmitting}
+        onCancel={handleProvisionDialogCancel}
+        onConfirm={handleProvisionDialogConfirm}
+      />
       <NotificationCenter
         isOpen={isNotificationOpen}
         notifications={notifications}

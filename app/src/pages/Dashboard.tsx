@@ -1,7 +1,13 @@
 import { useMemo } from 'react';
 import { ResponsiveContainer, ScatterChart, CartesianGrid, XAxis, YAxis, Tooltip, ZAxis, Scatter } from 'recharts';
 
-import type { ProviderSummary, Session, TelemetryHeatmapBucket, TelemetryMetrics } from '../api';
+import type {
+  PolicyComplianceSummary,
+  ProviderSummary,
+  Session,
+  TelemetryHeatmapBucket,
+  TelemetryMetrics,
+} from '../api';
 import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
 
@@ -14,6 +20,7 @@ export interface DashboardProps {
   initialError: string | null;
   feedback: Feedback | null;
   provisioningId: string | null;
+  compliance?: PolicyComplianceSummary | null;
   onProvision(provider: ProviderSummary): void;
 }
 
@@ -222,12 +229,34 @@ export function Dashboard({
   initialError,
   feedback,
   provisioningId,
+  compliance,
   onProvision,
 }: DashboardProps) {
   const derived = useMemo(
     () => deriveDashboardData(providers, metrics, heatmapBuckets),
     [providers, metrics, heatmapBuckets],
   );
+
+  const complianceState = useMemo(() => {
+    if (!compliance) {
+      return null;
+    }
+    const requiredItems = compliance.items.filter((item) => item.required);
+    const missingRequired = requiredItems.filter((item) => !item.configured || !item.active).length;
+    let label = 'Em conformidade';
+    if (compliance.status === 'warning') {
+      label = 'Atenção';
+    } else if (compliance.status === 'fail') {
+      label = 'Ajustes obrigatórios';
+    }
+    return {
+      status: compliance.status,
+      label,
+      missingRequired,
+      totalRequired: requiredItems.length,
+      items: compliance.items,
+    };
+  }, [compliance]);
 
   const kpis = useMemo(() => {
     const items: Array<{
@@ -290,6 +319,57 @@ export function Dashboard({
           Monitoramento unificado de custo, tokens e latência para servidores MCP roteados pela console. Dados são agregados dos
           provisionamentos recentes.
         </p>
+      </section>
+
+      <section className="dashboard__compliance" aria-label="Checklist de conformidade">
+        <header>
+          <h2>Checklist de conformidade</h2>
+          <span
+            className={`compliance-status compliance-status--${complianceState ? complianceState.status : 'unknown'}`}
+          >
+            {complianceState ? complianceState.label : 'Sem dados'}
+          </span>
+        </header>
+        {complianceState ? (
+          <>
+            <p className="dashboard__compliance-summary">
+              {complianceState.missingRequired === 0
+                ? 'Todas as políticas obrigatórias estão ativas.'
+                : `${complianceState.missingRequired} de ${complianceState.totalRequired} políticas obrigatórias precisam de atenção.`}
+            </p>
+            <ul className="compliance-list">
+              {complianceState.items.map((item) => {
+                const status = item.active
+                  ? 'active'
+                  : item.configured
+                    ? 'configured'
+                    : item.required
+                      ? 'missing'
+                      : 'optional';
+                const description =
+                  item.description ??
+                  (item.active
+                    ? 'Ativo e monitorado.'
+                    : item.configured
+                      ? 'Configurado, aguardando ativação.'
+                      : item.required
+                        ? 'Obrigatório — configure antes do próximo rollout.'
+                        : 'Opcional, configure quando necessário.');
+                return (
+                  <li key={item.id} className={`compliance-item compliance-item--${status}`}>
+                    <span className="compliance-item__indicator" aria-hidden="true" />
+                    <div>
+                      <strong>{item.label}</strong>
+                      <p>{description}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : (
+          <p className="info">Checklist indisponível no momento.</p>
+        )}
       </section>
 
       <section className="dashboard__kpis" aria-label="Indicadores chave de performance">
