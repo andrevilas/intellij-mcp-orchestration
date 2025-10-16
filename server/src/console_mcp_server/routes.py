@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import AnyHttpUrl, BaseModel, Field
 
 from .policies import (
@@ -53,7 +54,11 @@ from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
 from .config_assistant.intents import AssistantIntent
 from .config_assistant.planner import plan_intent
 from .config_assistant.renderers import render_chat_reply
-from .config_assistant.plan_executor import PlanExecutionResult, PlanExecutor, PlanExecutorError
+from .config_assistant.plan_executor import (
+    PlanExecutionResult,
+    PlanExecutor,
+    PlanExecutorError,
+)
 from .schemas import (
     CostPoliciesResponse,
     CostPolicyCreateRequest,
@@ -148,6 +153,7 @@ from .telemetry import (
     render_telemetry_export,
 )
 from .schemas_plan import Plan, PlanExecutionMode, PlanExecutionStatus
+from .security import audit_logger as get_audit_logger, require_roles, Role
 from .supervisor import (
     ProcessAlreadyRunningError,
     ProcessLogEntry,
@@ -206,15 +212,23 @@ class PlanExecutionDiff(BaseModel):
     patch: str
 
 
+class ApprovalDecision(str, Enum):
+    APPROVE = "approve"
+    REJECT = "reject"
+
+
 class ApplyPlanRequest(BaseModel):
     plan_id: str = Field(..., min_length=1)
-    plan: Plan
-    patch: str = Field(..., min_length=1)
+    plan: Plan | None = None
+    patch: str | None = Field(default=None)
     mode: PlanExecutionMode = Field(default=PlanExecutionMode.DRY_RUN)
-    actor: str = Field(..., min_length=1)
+    actor: str | None = Field(default=None, min_length=1)
     actor_email: str | None = Field(default=None)
     commit_message: str = Field(default="chore: aplicar plano de configuração")
     hitl_callback_url: AnyHttpUrl | None = Field(default=None)
+    approval_id: str | None = Field(default=None)
+    approval_decision: ApprovalDecision | None = Field(default=None)
+    approval_reason: str | None = Field(default=None)
 
 
 class ApplyPlanResponse(BaseModel):
@@ -228,6 +242,7 @@ class ApplyPlanResponse(BaseModel):
     diff: PlanExecutionDiff
     hitl_required: bool = False
     message: str
+    approval_id: str | None = None
 
 
 class OnboardRequest(BaseModel):
@@ -268,81 +283,171 @@ def _build_plan(intent: AssistantIntent, payload: Mapping[str, Any]) -> Plan:
 
 
 @router.post("/config/chat", response_model=ChatResponse)
-def chat_with_config_assistant(request: ChatRequest) -> ChatResponse:
+def chat_with_config_assistant(payload: ChatRequest, http_request: Request) -> ChatResponse:
     """Entry point for conversational interactions with the configuration assistant."""
 
+    user = require_roles(http_request, Role.VIEWER)
     plan: Plan | None = None
-    if request.intent is not None:
+    if payload.intent is not None:
         try:
-            plan = plan_intent(request.intent, request.payload)
+            plan = plan_intent(payload.intent, payload.payload)
         except ValueError as exc:
-            _handle_planner_error(request.intent, exc)
+            _handle_planner_error(payload.intent, exc)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    reply = render_chat_reply(request.message, plan)
+    reply = render_chat_reply(payload.message, plan)
     assistant_logger.info(
         "config.chat",
-        intent=request.intent.value if isinstance(request.intent, AssistantIntent) else request.intent,
+        intent=payload.intent.value if isinstance(payload.intent, AssistantIntent) else payload.intent,
         has_plan=plan is not None,
     )
-    return ChatResponse(reply=reply, intent=request.intent, plan=plan)
+
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.chat",
+        resource="/config/chat",
+        metadata={"has_plan": plan is not None},
+    )
+    return ChatResponse(reply=reply, intent=payload.intent, plan=plan)
 
 
 @router.post("/config/plan", response_model=PlanResponse)
-def create_plan(request: PlanRequest) -> PlanResponse:
+def create_plan(request: PlanRequest, http_request: Request) -> PlanResponse:
     """Generate a configuration plan for the requested intent."""
 
+    user = require_roles(http_request, Role.PLANNER)
     plan = _build_plan(request.intent, request.payload)
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.plan",
+        resource="/config/plan",
+        metadata={"intent": request.intent.value},
+    )
     return PlanResponse(plan=plan)
 
 
 @router.post("/config/apply", response_model=ApplyPlanResponse)
-def apply_plan_endpoint(request: ApplyPlanRequest) -> ApplyPlanResponse:
+def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> ApplyPlanResponse:
     """Apply a configuration plan leveraging Git workflows."""
 
     executor = get_plan_executor()
 
     try:
-        if request.mode is PlanExecutionMode.DRY_RUN:
+        if payload.mode is PlanExecutionMode.DRY_RUN and payload.approval_decision is None:
+            user = require_roles(http_request, Role.PLANNER)
+            if payload.plan is None or payload.patch is None or payload.actor is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="plan, patch e actor são obrigatórios para dry-run.",
+                )
             result = executor.dry_run(
-                plan=request.plan,
-                plan_id=request.plan_id,
-                patch=request.patch,
-                actor=request.actor,
+                plan=payload.plan,
+                plan_id=payload.plan_id,
+                patch=payload.patch,
+                actor=payload.actor,
+            )
+            get_audit_logger(http_request).log(
+                actor=user,
+                action="config.apply.dry_run",
+                resource="/config/apply",
+                plan_id=payload.plan_id,
+                metadata={"mode": payload.mode.value},
             )
         else:
-            if request.actor_email is None:
+            if payload.approval_decision is None:
+                user = require_roles(http_request, Role.PLANNER)
+                if payload.plan is None or payload.patch is None or payload.actor is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="plan, patch e actor são obrigatórios para submissão.",
+                    )
+                if payload.actor_email is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="actor_email é obrigatório para aplicar o plano.",
+                    )
+                if "@" not in payload.actor_email:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="actor_email precisa ser um endereço válido.",
+                    )
+                submission = executor.submit_for_approval(
+                    plan=payload.plan,
+                    plan_id=payload.plan_id,
+                    patch=payload.patch,
+                    actor=payload.actor,
+                    actor_email=payload.actor_email,
+                    commit_message=payload.commit_message,
+                    mode=payload.mode,
+                )
+                get_audit_logger(http_request).log(
+                    actor=user,
+                    action="config.apply.submit",
+                    resource="/config/apply",
+                    plan_id=payload.plan_id,
+                    metadata={"mode": payload.mode.value, "approval_id": submission.approval_id},
+                )
+                result = submission
+            elif payload.approval_decision is ApprovalDecision.APPROVE:
+                user = require_roles(http_request, Role.APPROVER)
+                if not payload.approval_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="approval_id é obrigatório para aprovar.",
+                    )
+                executor.approve_request(
+                    payload.approval_id,
+                    approver_id=user.id,
+                    reason=payload.approval_reason,
+                )
+                hitl_callback = (
+                    (lambda outcome: _notify_hitl(payload.hitl_callback_url, outcome))
+                    if payload.hitl_callback_url
+                    else None
+                )
+                result = executor.finalize_approval(
+                    payload.approval_id,
+                    hitl_callback=hitl_callback,
+                )
+                get_audit_logger(http_request).log(
+                    actor=user,
+                    action="config.apply.approve",
+                    resource="/config/apply",
+                    plan_id=payload.plan_id,
+                    metadata={"approval_id": payload.approval_id},
+                )
+            elif payload.approval_decision is ApprovalDecision.REJECT:
+                user = require_roles(http_request, Role.APPROVER)
+                if not payload.approval_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="approval_id é obrigatório para rejeitar.",
+                    )
+                result = executor.reject_request(
+                    payload.approval_id,
+                    approver_id=user.id,
+                    reason=payload.approval_reason,
+                )
+                get_audit_logger(http_request).log(
+                    actor=user,
+                    action="config.apply.reject",
+                    resource="/config/apply",
+                    plan_id=payload.plan_id,
+                    metadata={"approval_id": payload.approval_id},
+                    status="rejected",
+                )
+            else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="actor_email é obrigatório para aplicar o plano.",
+                    detail="Decisão de aprovação desconhecida.",
                 )
-            if "@" not in request.actor_email:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="actor_email precisa ser um endereço válido.",
-                )
-            hitl_callback = (
-                (lambda outcome: _notify_hitl(request.hitl_callback_url, outcome))
-                if request.hitl_callback_url
-                else None
-            )
-            result = executor.apply(
-                plan=request.plan,
-                plan_id=request.plan_id,
-                patch=request.patch,
-                actor=request.actor,
-                actor_email=request.actor_email,
-                commit_message=request.commit_message,
-                mode=request.mode,
-                hitl_callback=hitl_callback,
-            )
     except PlanExecutorError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     diff = PlanExecutionDiff(stat=result.diff_stat, patch=result.diff_patch)
     assistant_logger.info(
         "config.apply.result",
-        plan_id=request.plan_id,
+        plan_id=payload.plan_id,
         status=result.status.value,
         mode=result.mode.value,
         branch=result.branch,
@@ -359,13 +464,15 @@ def apply_plan_endpoint(request: ApplyPlanRequest) -> ApplyPlanResponse:
         diff=diff,
         hitl_required=result.hitl_required,
         message=result.message,
+        approval_id=result.approval_id,
     )
 
 
 @router.post("/config/mcp/onboard", response_model=PlanResponse)
-def onboard_mcp_agent(request: OnboardRequest) -> PlanResponse:
+def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> PlanResponse:
     """Produce a plan focused on onboarding a new MCP agent."""
 
+    user = require_roles(http_request, Role.PLANNER)
     agent_name = request.agent_name or request.repository.rstrip("/").split("/")[-1]
     payload: Dict[str, Any] = {
         "agent_name": agent_name,
@@ -375,22 +482,36 @@ def onboard_mcp_agent(request: OnboardRequest) -> PlanResponse:
         payload["capabilities"] = request.capabilities
 
     plan = _build_plan(AssistantIntent.ADD_AGENT, payload)
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.onboard",
+        resource="/config/mcp/onboard",
+        metadata={"agent": agent_name},
+    )
     return PlanResponse(plan=plan)
 
 
 @router.patch("/config/policies", response_model=PlanResponse)
-def plan_policy_patch(request: PolicyPatchRequest) -> PlanResponse:
+def plan_policy_patch(request: PolicyPatchRequest, http_request: Request) -> PlanResponse:
     """Return a plan for applying policy updates before executing them."""
 
+    user = require_roles(http_request, Role.PLANNER)
     payload = {"policy_id": request.policy_id, "changes": request.changes}
     plan = _build_plan(AssistantIntent.EDIT_POLICIES, payload)
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.policies.plan",
+        resource="/config/policies",
+        metadata={"policy_id": request.policy_id},
+    )
     return PlanResponse(plan=plan)
 
 
 @router.post("/config/reload", response_model=ReloadResponse)
-def reload_artifacts(request: ReloadRequest) -> ReloadResponse:
+def reload_artifacts(request: ReloadRequest, http_request: Request) -> ReloadResponse:
     """Create a plan for regenerating configuration artifacts."""
 
+    user = require_roles(http_request, Role.APPROVER)
     payload: Dict[str, Any] = {"artifact_path": request.artifact_path}
     if request.owner:
         payload["owner"] = request.owner
@@ -398,6 +519,12 @@ def reload_artifacts(request: ReloadRequest) -> ReloadResponse:
     plan = _build_plan(AssistantIntent.GENERATE_ARTIFACT, payload)
     message = (
         "Plano gerado para regerar artefatos." if request.owner is None else "Plano gerado para regerar artefato sob nova responsabilidade."
+    )
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.reload",
+        resource="/config/reload",
+        metadata={"artifact_path": request.artifact_path},
     )
     return ReloadResponse(message=message, plan=plan)
 @router.get("/healthz", response_model=HealthStatus)

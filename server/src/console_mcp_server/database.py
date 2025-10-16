@@ -245,6 +245,112 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=8,
+        description="add rbac and audit tables",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT,
+                api_token_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS roles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS user_roles (
+                user_id TEXT NOT NULL,
+                role_id TEXT NOT NULL,
+                assigned_at TEXT NOT NULL,
+                assigned_by TEXT,
+                PRIMARY KEY (user_id, role_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id TEXT PRIMARY KEY,
+                actor_id TEXT,
+                actor_name TEXT,
+                actor_roles TEXT NOT NULL,
+                action TEXT NOT NULL,
+                resource TEXT NOT NULL,
+                status TEXT NOT NULL,
+                plan_id TEXT,
+                metadata TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_audit_events_plan_id
+                ON audit_events (plan_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_audit_events_created_at
+                ON audit_events (created_at)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS approvals (
+                id TEXT PRIMARY KEY,
+                plan_id TEXT NOT NULL,
+                change_record_id TEXT NOT NULL,
+                requester_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                approver_id TEXT,
+                decided_at TEXT,
+                reason TEXT,
+                payload TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_approvals_plan_id
+                ON approvals (plan_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_approvals_created_at
+                ON approvals (created_at)
+            """,
+            """
+            INSERT OR IGNORE INTO roles (id, name, description, created_at, updated_at)
+            VALUES
+                (
+                    'role-viewer',
+                    'viewer',
+                    'Acesso somente leitura aos planos de configuração',
+                    strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                    strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                ),
+                (
+                    'role-planner',
+                    'planner',
+                    'Pode gerar planos e solicitar execuções',
+                    strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                    strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                ),
+                (
+                    'role-approver',
+                    'approver',
+                    'Aprova execuções HITL de planos',
+                    strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                    strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                )
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None

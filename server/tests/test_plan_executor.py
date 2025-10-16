@@ -53,6 +53,7 @@ def test_dry_run_records_plan_execution(tmp_path: Path, database) -> None:
     assert result.status is PlanExecutionStatus.PENDING
     assert "file changed" in result.diff_stat
     assert result.branch is None
+    assert result.approval_id is None
 
     repo_state = Repo(repo_dir)
     assert repo_state.git.status("--short") == ""
@@ -74,7 +75,7 @@ def test_apply_creates_branch_and_signed_commit(tmp_path: Path, database) -> Non
     executor = PlanExecutor(repo_dir, change_plan_store=store)
     plan = _sample_plan()
 
-    result = executor.apply(
+    submission = executor.submit_for_approval(
         plan=plan,
         plan_id="PLAN APPLY",
         patch=patch,
@@ -83,6 +84,12 @@ def test_apply_creates_branch_and_signed_commit(tmp_path: Path, database) -> Non
         commit_message="chore: update readme",
         mode=PlanExecutionMode.BRANCH_PR,
     )
+
+    assert submission.status is PlanExecutionStatus.PENDING
+    assert submission.approval_id is not None
+
+    executor.approve_request(submission.approval_id, approver_id="approver-1")
+    result = executor.finalize_approval(submission.approval_id)
 
     assert result.status is PlanExecutionStatus.COMPLETED
     assert result.branch is not None
@@ -107,7 +114,7 @@ def test_rollback_removes_branch_and_logs_history(tmp_path: Path, database) -> N
     executor = PlanExecutor(repo_dir, change_plan_store=store)
     plan = _sample_plan()
 
-    applied = executor.apply(
+    submission = executor.submit_for_approval(
         plan=plan,
         plan_id="PLAN-ROLLBACK",
         patch=patch,
@@ -116,6 +123,9 @@ def test_rollback_removes_branch_and_logs_history(tmp_path: Path, database) -> N
         commit_message="chore: update readme",
         mode=PlanExecutionMode.BRANCH_PR,
     )
+
+    executor.approve_request(submission.approval_id or "", approver_id="approver-2")
+    applied = executor.finalize_approval(submission.approval_id or "")
 
     rollback = executor.rollback(
         plan_id="PLAN-ROLLBACK",

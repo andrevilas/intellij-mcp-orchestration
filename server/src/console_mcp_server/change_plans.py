@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -174,6 +174,72 @@ class ChangePlanStore:
     def get(self, record_id: str) -> ChangePlanRecord | None:
         with self._session_factory() as session:
             return _fetch_one(session, record_id)
+
+    def update(
+        self,
+        record_id: str,
+        *,
+        status: PlanExecutionStatus | None = None,
+        branch: str | None = None,
+        commit_sha: str | None = None,
+        diff_stat: str | None = None,
+        diff_patch: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> ChangePlanRecord:
+        record = self.get(record_id)
+        if record is None:
+            raise ValueError(f"Change plan record {record_id} not found")
+
+        merged_metadata = dict(record.metadata)
+        if metadata:
+            merged_metadata.update(metadata)
+
+        updated_at = _now()
+        payload = {
+            "id": record_id,
+            "status": (status or record.status).value,
+            "branch": branch if branch is not None else record.branch,
+            "commit_sha": commit_sha if commit_sha is not None else record.commit_sha,
+            "diff_stat": diff_stat if diff_stat is not None else record.diff_stat,
+            "diff_patch": diff_patch if diff_patch is not None else record.diff_patch,
+            "metadata": _serialize_metadata(merged_metadata),
+            "updated_at": updated_at.isoformat(),
+        }
+
+        with self._session_factory() as session:
+            session.execute(
+                text(
+                    """
+                    UPDATE change_plans
+                    SET
+                        status = :status,
+                        branch = :branch,
+                        commit_sha = :commit_sha,
+                        diff_stat = :diff_stat,
+                        diff_patch = :diff_patch,
+                        metadata = :metadata,
+                        updated_at = :updated_at
+                    WHERE id = :id
+                    """
+                ),
+                payload,
+            )
+
+        return ChangePlanRecord(
+            id=record_id,
+            plan_id=record.plan_id,
+            actor=record.actor,
+            mode=record.mode,
+            status=PlanExecutionStatus(payload["status"]),
+            branch=payload["branch"],
+            commit_sha=payload["commit_sha"],
+            diff_stat=payload["diff_stat"],
+            diff_patch=payload["diff_patch"],
+            risks=record.risks,
+            metadata=merged_metadata,
+            created_at=record.created_at,
+            updated_at=updated_at,
+        )
 
     def list_for_plan(self, plan_id: str) -> list[ChangePlanRecord]:
         with self._session_factory() as session:
