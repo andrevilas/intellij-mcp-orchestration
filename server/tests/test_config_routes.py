@@ -9,7 +9,10 @@ import console_mcp_server.routes as routes
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from console_mcp_server.config_assistant.plan_executor import PlanExecutionResult
+from console_mcp_server.config_assistant import planner as planner_module
+from console_mcp_server.config_assistant.mcp_client import MCPDiscoveryResult, MCPTool
+from console_mcp_server.config_assistant.plan_executor import PlanExecutionResult, PlanPreview
+from console_mcp_server.config_assistant.validation import MCPClientError, MCPValidationOutcome
 from console_mcp_server.schemas_plan import PlanExecutionMode, PlanExecutionStatus
 from console_mcp_server.security import hash_token, Role
 
@@ -325,8 +328,25 @@ def test_apply_endpoint_executes_plan_steps(
 
 
 def test_onboard_endpoint_uses_repository_name_when_missing(
-    client: TestClient, auth_header: dict[str, str]
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    preview = PlanPreview(
+        branch="chore/config-assistant/new-agent",
+        base_branch="main",
+        commit_message="chore: onboard new-agent",
+        pull_request_title="chore: onboard new-agent",
+        pull_request_body="Adicionar agente new-agent ao repositório agents/new-agent",
+        pull_request_provider="github",
+    )
+
+    class DummyExecutor:
+        def preview_execution(self, plan_id: str, *, plan, commit_message: str) -> PlanPreview:
+            assert "new-agent" in plan_id
+            assert "new-agent" in commit_message
+            return preview
+
+    monkeypatch.setattr(routes, "get_plan_executor", lambda: DummyExecutor())
+
     response = client.post(
         "/api/v1/config/mcp/onboard",
         json={
@@ -337,9 +357,111 @@ def test_onboard_endpoint_uses_repository_name_when_missing(
     )
 
     assert response.status_code == 200
-    plan = response.json()["plan"]
+    body = response.json()
+    plan = body["plan"]
     assert plan["intent"] == "add_agent"
     assert any("new-agent" in diff["path"] for diff in plan["diffs"])
+    assert body["preview"]["branch"] == preview.branch
+    assert body["preview"]["pull_request"]["title"] == preview.pull_request_title
+    assert body["validation"] is None
+
+
+def test_onboard_endpoint_returns_preview_and_validation(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    preview = PlanPreview(
+        branch="chore/config-assistant/demo-agent",
+        base_branch="main",
+        commit_message="chore: onboard demo-agent",
+        pull_request_title="chore: onboard demo-agent",
+        pull_request_body="Adicionar agente demo-agent",
+        pull_request_provider="github",
+    )
+
+    class DummyExecutor:
+        def preview_execution(self, plan_id: str, *, plan, commit_message: str) -> PlanPreview:
+            return preview
+
+    monkeypatch.setattr(routes, "get_plan_executor", lambda: DummyExecutor())
+
+    discovery = MCPDiscoveryResult(
+        server_info={"name": "demo"},
+        capabilities={"tools": True},
+        tools=(MCPTool(name="ping", description="Ping", schema=None),),
+        schemas=(),
+        transport="websocket",
+    )
+    outcome = MCPValidationOutcome(
+        endpoint="wss://demo.example/ws",
+        transport="websocket",
+        discovery=discovery,
+        expected_tools=("ping", "metrics"),
+        missing_tools=("metrics",),
+    )
+
+    monkeypatch.setattr(routes, "validate_server", lambda payload: outcome)
+    monkeypatch.setattr(planner_module, "validate_server", lambda payload: outcome)
+
+    response = client.post(
+        "/api/v1/config/mcp/onboard",
+        json={
+            "repository": "agents/demo-agent",
+            "capabilities": ["chat"],
+            "endpoint": "wss://demo.example/ws",
+            "auth": {"Authorization": "Bearer token"},
+            "tools": ["ping", "metrics"],
+        },
+        headers=auth_header,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["preview"]["branch"] == preview.branch
+    assert body["preview"]["pull_request"]["title"] == preview.pull_request_title
+    validation = body["validation"]
+    assert validation["endpoint"] == outcome.endpoint
+    assert [tool["name"] for tool in validation["tools"]] == ["ping"]
+    assert validation["missing_tools"] == ["metrics"]
+
+
+def test_onboard_endpoint_returns_error_when_validation_fails(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    preview = PlanPreview(
+        branch="chore/config-assistant/error-agent",
+        base_branch="main",
+        commit_message="chore: onboard error-agent",
+        pull_request_title="chore: onboard error-agent",
+        pull_request_body=None,
+        pull_request_provider=None,
+    )
+
+    class DummyExecutor:
+        def preview_execution(self, *_args, **_kwargs) -> PlanPreview:
+            return preview
+
+    monkeypatch.setattr(routes, "get_plan_executor", lambda: DummyExecutor())
+
+    def _raise(_payload):
+        raise MCPClientError("falha de conexão")
+
+    monkeypatch.setattr(routes, "validate_server", _raise)
+    monkeypatch.setattr(planner_module, "validate_server", _raise)
+
+    response = client.post(
+        "/api/v1/config/mcp/onboard",
+        json={
+            "repository": "agents/error-agent",
+            "capabilities": [],
+            "endpoint": "ws://broken.example/ws",
+            "auth": {"Authorization": "Bearer token"},
+            "tools": ["ping"],
+        },
+        headers=auth_header,
+    )
+
+    assert response.status_code == 400
+    assert "Falha ao validar" in response.json()["detail"]
 
 
 def test_policy_patch_endpoint_returns_plan(

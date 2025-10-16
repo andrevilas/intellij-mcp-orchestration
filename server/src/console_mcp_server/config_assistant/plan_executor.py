@@ -47,6 +47,18 @@ class PlanExecutionResult:
 
 
 @dataclass(frozen=True)
+class PlanPreview:
+    """Lightweight description of the execution artefacts for a plan."""
+
+    branch: str
+    base_branch: str
+    commit_message: str
+    pull_request_title: str | None
+    pull_request_body: str | None
+    pull_request_provider: str | None
+
+
+@dataclass(frozen=True)
 class HitlEvent:
     """Notification emitted when approvals change state."""
 
@@ -99,6 +111,36 @@ class PlanExecutor:
         self._events = event_broker or HitlEventBroker()
         self._allow_direct_commits = allow_direct_commits
         self._git_provider = git_provider
+
+    def preview_execution(
+        self,
+        plan_id: str,
+        *,
+        plan: Plan | None = None,
+        commit_message: str | None = None,
+    ) -> PlanPreview:
+        repo = self._repository()
+        branch = repo.suggest_branch_name(plan_id)
+        commit = commit_message or "chore: aplicar plano de configuração"
+
+        provider_name = getattr(self._git_provider, "name", None) if self._git_provider else None
+
+        body: str | None = None
+        if plan is not None:
+            lines = [plan.summary]
+            approval_rules = list(plan.approval_rules)
+            if approval_rules:
+                lines.extend(["", "Regras de aprovação exigidas: " + ", ".join(approval_rules)])
+            body = "\n".join(filter(None, lines)).strip() or None
+
+        return PlanPreview(
+            branch=branch.name,
+            base_branch=branch.base,
+            commit_message=commit,
+            pull_request_title=commit,
+            pull_request_body=body,
+            pull_request_provider=provider_name,
+        )
 
     def dry_run(
         self,
@@ -625,5 +667,6 @@ __all__ = [
     "PlanExecutor",
     "PlanExecutorError",
     "PlanExecutionResult",
+    "PlanPreview",
 ]
 

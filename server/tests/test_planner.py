@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from console_mcp_server.config_assistant import planner as planner_module
 from console_mcp_server.config_assistant.intents import AssistantIntent
+from console_mcp_server.config_assistant.mcp_client import MCPDiscoveryResult, MCPTool
 from console_mcp_server.config_assistant.planner import plan_intent
+from console_mcp_server.config_assistant.validation import MCPClientError, MCPValidationOutcome
 
 
 def test_plan_intent_add_agent_generates_expected_structure() -> None:
@@ -133,3 +136,43 @@ def test_plan_intent_create_flow_generates_actions_for_langgraph() -> None:
     assert plan.diffs and plan.diffs[0].path.endswith("flow-x/agent.py")
     assert any("checkpoint" in risk.title.lower() for risk in plan.risks)
     assert plan.context, "create_flow deve sugerir referências de RAG"
+
+
+def test_plan_intent_validate_lists_tools(monkeypatch) -> None:
+    discovery = MCPDiscoveryResult(
+        server_info={"name": "demo"},
+        capabilities={"tools": True},
+        tools=(
+            MCPTool(name="ping", description="Ping tool", schema={"type": "object"}),
+            MCPTool(name="status", description=None, schema=None),
+        ),
+        schemas=(),
+        transport="websocket",
+    )
+    outcome = MCPValidationOutcome(
+        endpoint="wss://demo.example/ws",
+        transport="websocket",
+        discovery=discovery,
+        expected_tools=("ping", "status"),
+        missing_tools=(),
+    )
+
+    monkeypatch.setattr(planner_module, "validate_server", lambda payload: outcome)
+
+    plan = plan_intent(AssistantIntent.VALIDATE, {"endpoint": "wss://demo.example/ws"})
+
+    assert plan.intent == AssistantIntent.VALIDATE.value
+    assert any("ping" in step.description for step in plan.steps)
+    assert not plan.risks
+
+
+def test_plan_intent_validate_raises_on_failure(monkeypatch) -> None:
+    def _raise(_payload):
+        raise MCPClientError("boom")
+
+    monkeypatch.setattr(planner_module, "validate_server", _raise)
+
+    with pytest.raises(ValueError) as excinfo:
+        plan_intent(AssistantIntent.VALIDATE, {"endpoint": "ws://broken"})
+
+    assert "Falha ao validar" in str(excinfo.value)

@@ -15,6 +15,7 @@ class AssistantIntent(str, Enum):
     EDIT_FINOPS = "edit_finops"
     GENERATE_ARTIFACT = "generate_artifact"
     CREATE_FLOW = "create_flow"
+    VALIDATE = "validate"
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,11 @@ INTENT_METADATA: Mapping[AssistantIntent, IntentMetadata] = {
         description="Criar ou versionar fluxos LangGraph com checkpoints HITL.",
         required_fields=("flow_id", "graph", "target_path"),
         optional_fields=("agent_class", "comment", "author"),
+    ),
+    AssistantIntent.VALIDATE: IntentMetadata(
+        description="Conectar ao servidor MCP e validar ferramentas disponíveis.",
+        required_fields=("endpoint",),
+        optional_fields=("auth", "tools", "transport"),
     ),
 }
 

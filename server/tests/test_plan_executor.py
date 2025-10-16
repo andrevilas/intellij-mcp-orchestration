@@ -107,6 +107,28 @@ def test_dry_run_records_plan_execution(tmp_path: Path, database) -> None:
     assert record.diff_stat == result.diff_stat
 
 
+def test_preview_execution_returns_branch_without_side_effects(tmp_path: Path, database) -> None:
+    database.bootstrap_database()
+    repo_dir = tmp_path / "workspace"
+    repo_dir.mkdir()
+    repo, _ = _bootstrap_repository(repo_dir)
+
+    store = ChangePlanStore()
+    executor = PlanExecutor(repo_dir, change_plan_store=store)
+    plan = _sample_plan()
+
+    preview = executor.preview_execution(
+        "PLAN-PREVIEW",
+        plan=plan,
+        commit_message="chore: preview changes",
+    )
+
+    assert preview.branch.startswith("chore/config-assistant/plan-preview")
+    assert preview.base_branch == repo.active_branch.name
+    assert preview.commit_message == "chore: preview changes"
+    assert repo.git.status("--short") == ""
+
+
 def test_apply_creates_branch_and_signed_commit(tmp_path: Path, database) -> None:
     database.bootstrap_database()
     repo_dir = tmp_path / "workspace"
