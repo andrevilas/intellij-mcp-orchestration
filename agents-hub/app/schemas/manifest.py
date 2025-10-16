@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable
 
 import yaml
 from jsonschema import validate as jsonschema_validate
+from jsonschema.exceptions import ValidationError as JSONSchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
@@ -22,14 +24,39 @@ class ToolSchema(BaseModel):
     required: list[str] = Field(default_factory=list)
 
 
+class ToolSLO(BaseModel):
+    """Service level objectives associated with a tool."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    latency_p95_ms: int = Field(
+        ..., ge=1, description="Maximum p95 latency expected when invoking the tool, in milliseconds"
+    )
+    success_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Expected success rate expressed as a decimal between 0 and 1"
+    )
+    max_error_rate: float = Field(
+        0.01,
+        ge=0.0,
+        le=1.0,
+        description="Maximum tolerated error rate (1 - success rate) expressed as a decimal",
+    )
+
+
 class ToolConfig(BaseModel):
     """Configuration for a tool exposed by an agent."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     name: str
     description: str | None = None
-    schema: ToolSchema | None = Field(default=None, description="JSON schema describing the tool input")
+    schema_: ToolSchema | None = Field(
+        default=None,
+        alias="schema",
+        serialization_alias="schema",
+        description="JSON schema describing the tool input",
+    )
+    slo: ToolSLO | None = Field(default=None, description="Service level objectives for the tool")
 
     @model_validator(mode="before")
     @classmethod
@@ -37,12 +64,18 @@ class ToolConfig(BaseModel):
         """Accept alternative field names used in manifests."""
 
         if isinstance(values, dict):
-            if "schema" not in values:
+            if "schema" not in values and "schema_" not in values:
                 for candidate in ("input_schema", "inputSchema", "parameters", "arguments_schema"):
                     if candidate in values:
                         values["schema"] = values.pop(candidate)
                         break
         return values
+
+    @property
+    def schema(self) -> ToolSchema | None:
+        """Return the JSON schema associated with the tool."""
+
+        return self.schema_
 
 
 class ModelConfig(BaseModel):
@@ -55,20 +88,316 @@ class ModelConfig(BaseModel):
     parameters: dict[str, Any] = Field(default_factory=dict, description="Additional model parameters")
 
 
+class RateLimitConfig(BaseModel):
+    """Rate limit policies applied to the agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requests_per_minute: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum number of invocations allowed per minute",
+    )
+    burst: int | None = Field(
+        default=None,
+        ge=1,
+        description="Allowed burst size above the sustained rate limit",
+    )
+    concurrent_requests: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum number of concurrent invocations allowed",
+    )
+
+
+class SafetyMode(str, Enum):
+    """Supported safety policy modes."""
+
+    STRICT = "strict"
+    BALANCED = "balanced"
+    PERMISSIVE = "permissive"
+
+
+class SafetyConfig(BaseModel):
+    """Safety policy configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: SafetyMode = Field(default=SafetyMode.BALANCED, description="Safety enforcement mode")
+    blocked_categories: list[str] = Field(
+        default_factory=list,
+        description="List of categories that must always be blocked",
+    )
+    allow_list: list[str] = Field(
+        default_factory=list,
+        description="List of identifiers explicitly allowed by policy",
+    )
+
+
+class BudgetPeriod(str, Enum):
+    """Valid periods for financial budget calculations."""
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+
+class BudgetConfig(BaseModel):
+    """Budget policy configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    currency: str = Field(default="USD", description="Currency code used for the budget")
+    limit: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Maximum spend allowed within the specified period",
+    )
+    period: BudgetPeriod = Field(
+        default=BudgetPeriod.MONTHLY,
+        description="Period over which the budget limit applies",
+    )
+
+
 class PoliciesConfig(BaseModel):
     """Policy configuration applied to an agent."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
-    rate_limits: dict[str, Any] | None = Field(default=None, description="Optional rate limit policies")
-    safety: dict[str, Any] | None = Field(default=None, description="Optional safety policies")
-    budget: dict[str, Any] | None = Field(default=None, description="Optional budget policies")
+    rate_limits: RateLimitConfig | None = Field(
+        default=None, description="Optional rate limit policies applied to the agent"
+    )
+    safety: SafetyConfig | None = Field(default=None, description="Optional safety policies")
+    budget: BudgetConfig | None = Field(default=None, description="Optional budget policies")
+
+
+class RoutingTier(str, Enum):
+    """Available routing tiers."""
+
+    ECONOMY = "economy"
+    BALANCED = "balanced"
+    TURBO = "turbo"
+
+
+class RoutingConfig(BaseModel):
+    """Routing behaviour tuning for the agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    default_tier: RoutingTier = Field(
+        default=RoutingTier.BALANCED, description="Tier used when the caller does not specify overrides"
+    )
+    allowed_tiers: list[RoutingTier] = Field(
+        default_factory=lambda: [RoutingTier.BALANCED],
+        min_length=1,
+        description="Tiers that can be targeted when invoking the agent",
+    )
+    fallback_tier: RoutingTier | None = Field(
+        default=None,
+        description="Tier to fall back to when the preferred tier is unavailable",
+    )
+    max_attempts: int = Field(
+        default=1,
+        ge=1,
+        description="Maximum number of retries allowed when routing fails",
+    )
+    max_iters: int = Field(
+        default=6,
+        ge=1,
+        description="Maximum number of tool iteration loops allowed during execution",
+    )
+    max_parallel_requests: int = Field(
+        default=1,
+        ge=1,
+        description="Maximum number of concurrent tool calls per invocation",
+    )
+    request_timeout_seconds: int = Field(
+        default=30,
+        ge=1,
+        description="Timeout applied to each routed tool invocation in seconds",
+    )
+
+    @model_validator(mode="after")
+    def _validate_tiers(self) -> "RoutingConfig":
+        if self.fallback_tier and self.fallback_tier not in self.allowed_tiers:
+            raise ValueError("fallback_tier must be present in allowed_tiers when provided")
+        if self.default_tier not in self.allowed_tiers:
+            raise ValueError("default_tier must be present in allowed_tiers")
+        return self
+
+
+class FinOpsAlertChannel(str, Enum):
+    """Supported alerting channels for FinOps notifications."""
+
+    EMAIL = "email"
+    SLACK = "slack"
+    PAGERDUTY = "pagerduty"
+
+
+class FinOpsAlert(BaseModel):
+    """Alert threshold used by FinOps monitoring."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    threshold: float = Field(
+        ..., ge=0.0, le=1.0, description="Utilisation threshold expressed as a decimal between 0 and 1"
+    )
+    channel: FinOpsAlertChannel = Field(
+        default=FinOpsAlertChannel.SLACK,
+        description="Channel used when the threshold is breached",
+    )
+
+
+class FinOpsBudget(BaseModel):
+    """Budget allocation for a routing tier."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    amount: float = Field(..., ge=0.0, description="Amount allocated to the tier")
+    currency: str = Field(default="USD", description="Currency associated with the allocation")
+    period: BudgetPeriod = Field(
+        default=BudgetPeriod.MONTHLY,
+        description="Period over which the allocation applies",
+    )
+
+
+class FinOpsConfig(BaseModel):
+    """Financial operations configuration for the agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cost_center: str = Field(default="default", description="Identifier of the cost centre funding the agent")
+    budgets: dict[RoutingTier, FinOpsBudget] = Field(
+        default_factory=dict,
+        description="Budget allocations per routing tier",
+    )
+    alerts: list[FinOpsAlert] = Field(
+        default_factory=list,
+        description="Thresholds that trigger FinOps notifications",
+    )
+
+
+class HitlCheckpoint(BaseModel):
+    """Human-in-the-loop checkpoint definition."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., description="Identifier of the checkpoint")
+    description: str | None = Field(default=None, description="Detailed description of the checkpoint")
+    required: bool = Field(default=False, description="Whether the checkpoint must be approved to continue")
+    escalation_channel: FinOpsAlertChannel | None = Field(
+        default=None,
+        description="Preferred channel to escalate when the checkpoint blocks execution",
+    )
+
+
+class HitlConfig(BaseModel):
+    """Human-in-the-loop configuration for the agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    checkpoints: list[HitlCheckpoint] = Field(
+        default_factory=list,
+        description="Ordered checkpoints that require human review",
+    )
+
+
+class LoggingDestination(str, Enum):
+    """Supported logging destinations."""
+
+    STDOUT = "stdout"
+    STDERR = "stderr"
+    FILE = "file"
+    OTLP = "otlp"
+
+
+class LoggingLevel(str, Enum):
+    """Supported logging levels."""
+
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class LoggingConfig(BaseModel):
+    """Logging configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: LoggingLevel = Field(default=LoggingLevel.INFO, description="Minimum logging level")
+    destination: LoggingDestination = Field(
+        default=LoggingDestination.STDOUT,
+        description="Output destination for structured logs",
+    )
+
+
+class MetricsExporter(str, Enum):
+    """Supported metrics exporters."""
+
+    PROMETHEUS = "prometheus"
+    OTLP = "otlp"
+
+
+class MetricsConfig(BaseModel):
+    """Metrics emission configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(default=True, description="Whether metrics emission is enabled")
+    exporters: list[MetricsExporter] = Field(
+        default_factory=lambda: [MetricsExporter.PROMETHEUS],
+        min_length=1,
+        description="Metrics backends that should receive telemetry",
+    )
+    interval_seconds: int = Field(
+        default=60,
+        ge=10,
+        description="Scrape or push interval in seconds",
+    )
+
+
+class TracingExporter(str, Enum):
+    """Supported tracing exporters."""
+
+    OTLP = "otlp"
+    ZIPKIN = "zipkin"
+    JAEGER = "jaeger"
+
+
+class TracingConfig(BaseModel):
+    """Tracing configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = Field(default=False, description="Whether tracing is active")
+    exporter: TracingExporter | None = Field(
+        default=None, description="Tracing backend that should receive spans"
+    )
+    sample_rate: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Sampling rate applied to captured spans",
+    )
+
+
+class ObservabilityConfig(BaseModel):
+    """Observability configuration covering logging, metrics and tracing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    logging: LoggingConfig | None = Field(
+        default=None, description="Structured logging configuration"
+    )
+    metrics: MetricsConfig | None = Field(default=None, description="Metrics emission configuration")
+    tracing: TracingConfig | None = Field(default=None, description="Tracing configuration")
 
 
 class AgentManifest(BaseModel):
     """Top level manifest definition for an agent."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     title: str
@@ -78,6 +407,10 @@ class AgentManifest(BaseModel):
     tools: list[ToolConfig] = Field(default_factory=list)
     model: ModelConfig | None = None
     policies: PoliciesConfig | None = None
+    routing: RoutingConfig | None = None
+    finops: FinOpsConfig | None = None
+    hitl: HitlConfig | None = None
+    observability: ObservabilityConfig | None = None
 
     def _iter_tools(self) -> Iterable[ToolConfig]:
         for tool in self.tools:
@@ -116,6 +449,9 @@ class AgentManifest(BaseModel):
 
         schema_dict = tool.schema.model_dump(mode="json", by_alias=True, exclude_none=True)
         jsonschema_validate(payload, schema_dict)
+
+
+MANIFEST_JSON_SCHEMA = AgentManifest.model_json_schema(mode="validation")
 
 
 def load_manifest(path: Path) -> AgentManifest:
@@ -160,5 +496,25 @@ def load_manifest(path: Path) -> AgentManifest:
                 }
             ],
         )
+
+    try:
+        jsonschema_validate(data, MANIFEST_JSON_SCHEMA)
+    except JSONSchemaValidationError as exc:
+        location = tuple(exc.absolute_path) if exc.absolute_path else ()
+        schema_path = " / ".join(str(part) for part in exc.absolute_schema_path)
+        message = exc.message
+        if schema_path:
+            message = f"{message} (schema path: {schema_path})"
+        raise ValidationError.from_exception_data(
+            AgentManifest.__name__,
+            [
+                {
+                    "type": "manifest_schema",
+                    "loc": location,
+                    "msg": message,
+                    "input": exc.instance,
+                }
+            ],
+        ) from exc
 
     return AgentManifest.model_validate(data)

@@ -6,7 +6,16 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .manifest import AgentManifest, ModelConfig, PoliciesConfig, ToolConfig
+from .manifest import (
+    AgentManifest,
+    FinOpsConfig,
+    HitlConfig,
+    ModelConfig,
+    ObservabilityConfig,
+    PoliciesConfig,
+    RoutingConfig,
+    ToolConfig,
+)
 
 
 class AgentMetadata(BaseModel):
@@ -20,6 +29,14 @@ class AgentMetadata(BaseModel):
     tools: list[ToolConfig] = Field(default_factory=list, description="Tools exposed by the agent")
     model: ModelConfig | None = Field(default=None, description="Model configuration applied to the agent")
     policies: PoliciesConfig | None = Field(default=None, description="Policy configuration applied to the agent")
+    routing: RoutingConfig | None = Field(
+        default=None, description="Routing configuration applied to the agent"
+    )
+    finops: FinOpsConfig | None = Field(default=None, description="FinOps configuration")
+    hitl: HitlConfig | None = Field(default=None, description="Human-in-the-loop configuration")
+    observability: ObservabilityConfig | None = Field(
+        default=None, description="Observability configuration"
+    )
 
     @classmethod
     def from_manifest(cls, manifest: AgentManifest) -> "AgentMetadata":
@@ -34,6 +51,10 @@ class AgentMetadata(BaseModel):
             tools=list(manifest.tools),
             model=manifest.model,
             policies=manifest.policies,
+            routing=manifest.routing,
+            finops=manifest.finops,
+            hitl=manifest.hitl,
+            observability=manifest.observability,
         )
 
 
