@@ -747,24 +747,37 @@ describe('App provider orchestration flow', () => {
     const provisionButton = screen.getByRole('button', { name: 'Criar sessão de provisionamento' });
     await user.click(provisionButton);
 
+    const provisioningDialog = await screen.findByRole('dialog', {
+      name: /Overrides táticos para/i,
+    });
+    const confirmProvision = within(provisioningDialog).getByRole('button', {
+      name: 'Provisionar com overrides',
+    });
+    const reasonInput = within(provisioningDialog).getByLabelText('Motivo');
+    await user.clear(reasonInput);
+    await user.type(reasonInput, 'Provisionamento disparado pela Console MCP');
+    const sampleInput = within(provisioningDialog).getByLabelText('Sample rate de tracing (%)');
+    await user.clear(sampleInput);
+    await user.click(confirmProvision);
+
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        7,
-        `/api/v1/providers/${provider.id}/sessions`,
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({
-            reason: 'Provisionamento disparado pela Console MCP',
-            client: 'console-web',
-          }),
-        }),
-      );
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, options]) =>
+            url === `/api/v1/providers/${provider.id}/sessions` &&
+            (options as RequestInit | undefined)?.method === 'POST',
+        ),
+      ).toBe(true);
     });
 
     expect(await screen.findByText(`Sessão ${newSession.id} criada para ${provider.name}.`)).toBeInTheDocument();
     expect(screen.getByText(newSession.id)).toBeInTheDocument();
 
-    const requestBody = JSON.parse(fetchMock.mock.calls[6][1]?.body as string);
+    const provisioningCall = fetchMock.mock.calls.find(
+      ([url]) => url === `/api/v1/providers/${provider.id}/sessions`,
+    );
+    expect(provisioningCall).toBeDefined();
+    const requestBody = JSON.parse((provisioningCall?.[1] as RequestInit | undefined)?.body as string);
     expect(requestBody).toEqual({
       reason: 'Provisionamento disparado pela Console MCP',
       client: 'console-web',
