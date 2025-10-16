@@ -5,11 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Mapping, MutableMapping, TYPE_CHECKING
 
-from .prices import list_price_entries
-from .schemas import ProviderSummary
+from .bandit import BanditStrategy, compute_lane_bandit_weights
+
+from ..prices import list_price_entries
+from ..schemas import ProviderSummary
 
 if TYPE_CHECKING:  # pragma: no cover - type checking helper
-    from .prices import PriceEntryRecord
+    from ..prices import PriceEntryRecord
 
 
 LANE_BASELINES: Mapping[str, dict[str, float]] = {
@@ -25,6 +27,11 @@ STRATEGY_WEIGHTS: Mapping[str, Mapping[str, float]] = {
     "finops": {"economy": 0.55, "balanced": 0.35, "turbo": 0.1},
     "latency": {"economy": 0.1, "balanced": 0.35, "turbo": 0.55},
     "resilience": {"economy": 0.25, "balanced": 0.45, "turbo": 0.3},
+}
+
+BANDIT_STRATEGIES: Mapping[str, BanditStrategy] = {
+    "bandit_thompson": BanditStrategy.THOMPSON,
+    "bandit_ucb": BanditStrategy.UCB,
 }
 
 
@@ -158,6 +165,7 @@ def compute_plan(
     failover_id: str | None,
     volume_millions: float,
 ) -> PlanResult:
+    bandit_strategy = BANDIT_STRATEGIES.get(strategy_id)
     strategy = STRATEGY_WEIGHTS.get(strategy_id, STRATEGY_WEIGHTS[DEFAULT_STRATEGY])
 
     routes_seq = tuple(routes)
@@ -215,13 +223,27 @@ def compute_plan(
             continue
         lane_weight = group["weight"]  # type: ignore[assignment]
         lane_share = lane_weight / total_weight
-        capacity_total = group["capacity_total"]  # type: ignore[assignment]
-        if capacity_total <= 0:
-            capacity_total = len(routes_in_lane)
+
+        if bandit_strategy is not None:
+            route_weights = compute_lane_bandit_weights(
+                routes_in_lane,
+                lane=lane,
+                strategy=bandit_strategy,
+            )
+        else:
+            route_weights = {route.id: route.capacity_score for route in routes_in_lane}
+
+        weight_total = sum(route_weights.values())
+        if weight_total <= 0:
+            weight_total = sum(route.capacity_score for route in routes_in_lane)
+        if weight_total <= 0:
+            weight_total = len(routes_in_lane)
 
         for route in routes_in_lane:
-            capacity_share = route.capacity_score / capacity_total
-            share = lane_share * capacity_share
+            route_weight = route_weights.get(route.id)
+            if route_weight is None or route_weight < 0:
+                route_weight = route.capacity_score if route.capacity_score > 0 else 1.0
+            share = lane_share * (route_weight / weight_total)
             tokens = volume_millions * share
             cost = tokens * route.cost_per_million
             distribution.append(
