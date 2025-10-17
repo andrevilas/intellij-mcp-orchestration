@@ -159,6 +159,7 @@ test('completes MCP onboarding wizard end-to-end', async ({ page }) => {
   await page.getByLabel('Identificador do agente').fill('openai-gpt4o');
   await page.getByLabel('Nome exibido').fill('OpenAI GPT-4o');
   await page.getByLabel('Repositório Git').fill('agents/openai-gpt4o');
+  await page.getByLabel('Endpoint MCP (ws/wss)').fill('wss://openai.example.com/ws');
   await page.getByLabel('Owner responsável').fill('@squad-mcp');
   await page.getByLabel('Tags (separadas por vírgula)').fill('openai,prod');
   await page.getByLabel('Capacidades (separadas por vírgula)').fill('chat');
@@ -174,6 +175,8 @@ test('completes MCP onboarding wizard end-to-end', async ({ page }) => {
   await page.getByLabel('Nome da tool 1').fill('catalog.search');
   await page.getByLabel('Descrição da tool 1').fill('Busca recursos homologados.');
   await page.getByLabel('Entry point da tool 1').fill('catalog/search.py');
+  await page.getByRole('button', { name: 'Testar conexão' }).click();
+  await expect.poll(() => onboardPayloads.length).toBe(1);
   await page.getByRole('button', { name: 'Ir para validação' }).click();
 
   const wizardPanel = page.locator('.mcp-wizard__panel');
@@ -200,8 +203,14 @@ test('completes MCP onboarding wizard end-to-end', async ({ page }) => {
   await page.getByRole('button', { name: 'Executar smoke tests' }).click();
   await expect(page.getByText(/Smoke em execução/)).toBeVisible();
 
-  expect(onboardPayloads).toHaveLength(1);
+  expect(onboardPayloads).toHaveLength(2);
   expect(onboardPayloads[0]).toMatchObject({
+    intent: 'validate',
+    endpoint: 'wss://openai.example.com/ws',
+  });
+  expect(onboardPayloads[1]).toMatchObject({
+    intent: 'plan',
+    endpoint: 'wss://openai.example.com/ws',
     agent: {
       id: 'openai-gpt4o',
       name: 'OpenAI GPT-4o',

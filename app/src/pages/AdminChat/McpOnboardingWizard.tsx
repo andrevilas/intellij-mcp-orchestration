@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, Fragment, useMemo, useState } from 'react';
 
 import type {
   AdminPlanDiff,
@@ -87,6 +87,7 @@ export default function McpOnboardingWizard() {
   const [agentId, setAgentId] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [repository, setRepository] = useState('');
+  const [endpoint, setEndpoint] = useState('');
   const [description, setDescription] = useState('');
   const [owner, setOwner] = useState('');
   const [tags, setTags] = useState('');
@@ -110,6 +111,9 @@ export default function McpOnboardingWizard() {
   const [isApplying, setApplying] = useState(false);
   const [isRunningSmoke, setRunningSmoke] = useState(false);
   const [isTrackingStatus, setTrackingStatus] = useState(false);
+  const [isValidatingConnection, setValidatingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null);
 
   const [plan, setPlan] = useState<AdminPlanSummary | null>(null);
   const [diffs, setDiffs] = useState<AdminPlanDiff[]>([]);
@@ -146,6 +150,19 @@ export default function McpOnboardingWizard() {
     }
   };
 
+  const invalidateConnection = () => {
+    setConnectionStatus('idle');
+    setConnectionFeedback(null);
+  };
+
+  const handleTextChange = <Element extends HTMLInputElement | HTMLTextAreaElement>(
+    setter: (value: string) => void,
+  ) =>
+    (event: ChangeEvent<Element>) => {
+      setter(event.target.value);
+      invalidateConnection();
+    };
+
   const handleNextStep = (event: FormEvent<HTMLFormElement>, next: WizardStep) => {
     event.preventDefault();
     setActiveStep(next);
@@ -157,10 +174,12 @@ export default function McpOnboardingWizard() {
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+    invalidateConnection();
   };
 
   const handleAddTool = () => {
     setTools((current) => [...current, { name: '', description: '', entryPoint: '' }]);
+    invalidateConnection();
   };
 
   const handleRemoveTool = (index: number) => {
@@ -170,6 +189,7 @@ export default function McpOnboardingWizard() {
       }
       return current.filter((_, itemIndex) => itemIndex !== index);
     });
+    invalidateConnection();
   };
 
   const buildPayload = (): ConfigOnboardRequest => {
@@ -182,6 +202,7 @@ export default function McpOnboardingWizard() {
       .filter((tool) => tool.name.length > 0);
 
     return {
+      endpoint: endpoint.trim(),
       agent: {
         id: agentId.trim(),
         name: (displayName || agentId).trim(),
@@ -216,7 +237,16 @@ export default function McpOnboardingWizard() {
       if (!payload.agent.id || !payload.agent.repository) {
         throw new Error('Informe o identificador e o repositório do agente.');
       }
-      const response: ConfigOnboardResponse = await postConfigMcpOnboard(payload);
+      if (!payload.endpoint) {
+        throw new Error('Informe o endpoint do servidor MCP.');
+      }
+      if (!/^wss?:\/\//.test(payload.endpoint)) {
+        throw new Error('O endpoint deve iniciar com ws:// ou wss://.');
+      }
+      const response: ConfigOnboardResponse = await postConfigMcpOnboard({
+        ...payload,
+        intent: 'plan',
+      });
       setPlan(response.plan);
       setDiffs(response.diffs);
       setRisks(response.risks);
@@ -318,7 +348,7 @@ export default function McpOnboardingWizard() {
                 <input
                   id="mcp-basic-id"
                   value={agentId}
-                  onChange={(event) => setAgentId(event.target.value)}
+                  onChange={handleTextChange(setAgentId)}
                   placeholder="Ex.: openai-gpt4o"
                   required
                 />
@@ -328,7 +358,7 @@ export default function McpOnboardingWizard() {
                 <input
                   id="mcp-basic-name"
                   value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
+                  onChange={handleTextChange(setDisplayName)}
                   placeholder="Ex.: OpenAI GPT-4o"
                 />
               </div>
@@ -338,9 +368,21 @@ export default function McpOnboardingWizard() {
               <input
                 id="mcp-basic-repo"
                 value={repository}
-                onChange={(event) => setRepository(event.target.value)}
+                onChange={handleTextChange(setRepository)}
                 placeholder="agents/openai-gpt4o"
                 required
+              />
+            </div>
+            <div className="mcp-wizard__field">
+              <label htmlFor="mcp-basic-endpoint">Endpoint MCP (ws/wss)</label>
+              <input
+                id="mcp-basic-endpoint"
+                value={endpoint}
+                onChange={handleTextChange(setEndpoint)}
+                placeholder="wss://mcp.example.com/ws"
+                required
+                pattern="wss?:\\/\\/.*"
+                title="Informe um endpoint iniciado com ws:// ou wss://"
               />
             </div>
             <div className="mcp-wizard__grid">
@@ -349,7 +391,7 @@ export default function McpOnboardingWizard() {
                 <input
                   id="mcp-basic-owner"
                   value={owner}
-                  onChange={(event) => setOwner(event.target.value)}
+                  onChange={handleTextChange(setOwner)}
                   placeholder="@squad-mcp"
                 />
               </div>
@@ -358,7 +400,7 @@ export default function McpOnboardingWizard() {
                 <input
                   id="mcp-basic-tags"
                   value={tags}
-                  onChange={(event) => setTags(event.target.value)}
+                  onChange={handleTextChange(setTags)}
                   placeholder="openai,prod,priority"
                 />
               </div>
@@ -368,7 +410,7 @@ export default function McpOnboardingWizard() {
               <input
                 id="mcp-basic-capabilities"
                 value={capabilities}
-                onChange={(event) => setCapabilities(event.target.value)}
+                onChange={handleTextChange(setCapabilities)}
                 placeholder="chat,planning"
               />
             </div>
@@ -377,7 +419,7 @@ export default function McpOnboardingWizard() {
               <textarea
                 id="mcp-basic-description"
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
+                onChange={handleTextChange(setDescription)}
                 rows={3}
                 placeholder="Contextualize o escopo funcional e restrições do MCP"
               />
@@ -400,7 +442,10 @@ export default function McpOnboardingWizard() {
                   name="mcp-auth-mode"
                   value="api_key"
                   checked={authMode === 'api_key'}
-                  onChange={() => setAuthMode('api_key')}
+                  onChange={() => {
+                    setAuthMode('api_key');
+                    invalidateConnection();
+                  }}
                 />
                 API Key
               </label>
@@ -410,7 +455,10 @@ export default function McpOnboardingWizard() {
                   name="mcp-auth-mode"
                   value="oauth_client"
                   checked={authMode === 'oauth_client'}
-                  onChange={() => setAuthMode('oauth_client')}
+                  onChange={() => {
+                    setAuthMode('oauth_client');
+                    invalidateConnection();
+                  }}
                 />
                 OAuth Client
               </label>
@@ -420,7 +468,10 @@ export default function McpOnboardingWizard() {
                   name="mcp-auth-mode"
                   value="none"
                   checked={authMode === 'none'}
-                  onChange={() => setAuthMode('none')}
+                  onChange={() => {
+                    setAuthMode('none');
+                    invalidateConnection();
+                  }}
                 />
                 Sem autenticação
               </label>
@@ -430,7 +481,7 @@ export default function McpOnboardingWizard() {
               <input
                 id="mcp-auth-secret"
                 value={secretName}
-                onChange={(event) => setSecretName(event.target.value)}
+                onChange={handleTextChange(setSecretName)}
                 placeholder="OPENAI_API_KEY"
                 disabled={authMode === 'none'}
               />
@@ -440,7 +491,7 @@ export default function McpOnboardingWizard() {
               <input
                 id="mcp-auth-env"
                 value={authEnvironment}
-                onChange={(event) => setAuthEnvironment(event.target.value)}
+                onChange={handleTextChange(setAuthEnvironment)}
                 placeholder="production"
               />
             </div>
@@ -449,7 +500,7 @@ export default function McpOnboardingWizard() {
               <textarea
                 id="mcp-auth-instructions"
                 value={authInstructions}
-                onChange={(event) => setAuthInstructions(event.target.value)}
+                onChange={handleTextChange(setAuthInstructions)}
                 rows={3}
                 placeholder="Ex.: gerar chave no vault e anexar ao secret manager"
               />
@@ -466,7 +517,19 @@ export default function McpOnboardingWizard() {
         );
       case 'tools':
         return (
-          <form className="mcp-wizard__form" onSubmit={(event) => handleNextStep(event, 'validation')}>
+          <form
+            className="mcp-wizard__form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (connectionStatus === 'error') {
+                setConnectionFeedback((current) =>
+                  current ?? 'Resolva o erro de conexão antes de avançar para validação.',
+                );
+                return;
+              }
+              setActiveStep('validation');
+            }}
+          >
             <div className="mcp-wizard__tools">
               {tools.map((tool, index) => (
                 <Fragment key={`tool-${index}`}>
@@ -514,10 +577,56 @@ export default function McpOnboardingWizard() {
               <button type="button" className="mcp-wizard__button" onClick={() => setActiveStep('auth')}>
                 Voltar
               </button>
-              <button type="submit" className="mcp-wizard__button mcp-wizard__button--primary">
+              <button
+                type="button"
+                className="mcp-wizard__button"
+                onClick={async () => {
+                  setValidatingConnection(true);
+                  setConnectionStatus('idle');
+                  setConnectionFeedback(null);
+                  try {
+                    const payload = buildPayload();
+                    if (!payload.endpoint) {
+                      throw new Error('Informe o endpoint do servidor MCP.');
+                    }
+                    if (!/^wss?:\/\//.test(payload.endpoint)) {
+                      throw new Error('O endpoint deve iniciar com ws:// ou wss://.');
+                    }
+                    const response = await postConfigMcpOnboard({
+                      ...payload,
+                      intent: 'validate',
+                    });
+                    setConnectionStatus('success');
+                    setConnectionFeedback(response.message || 'Conexão validada com sucesso.');
+                  } catch (cause) {
+                    setConnectionStatus('error');
+                    setConnectionFeedback(extractErrorMessage(cause));
+                  } finally {
+                    setValidatingConnection(false);
+                  }
+                }}
+                disabled={isValidatingConnection}
+              >
+                {isValidatingConnection ? 'Testando conexão…' : 'Testar conexão'}
+              </button>
+              <button
+                type="submit"
+                className="mcp-wizard__button mcp-wizard__button--primary"
+                disabled={isValidatingConnection || connectionStatus === 'error'}
+              >
                 Ir para validação
               </button>
             </div>
+            {connectionStatus === 'success' && connectionFeedback ? (
+              <p className="mcp-wizard__helper" role="status">
+                {connectionFeedback}
+              </p>
+            ) : null}
+            {connectionStatus === 'error' && connectionFeedback ? (
+              <p className="mcp-wizard__helper mcp-wizard__helper--error" role="alert">
+                {connectionFeedback}
+              </p>
+            ) : null}
           </form>
         );
       case 'validation':

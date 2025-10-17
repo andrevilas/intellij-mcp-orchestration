@@ -321,7 +321,15 @@ describe('AdminChat view', () => {
     postReloadMock.mockResolvedValue(reloadResponse);
     postPolicyPlanApplyMock.mockResolvedValue(reloadApplyResponse);
     fetchNotificationsMock.mockResolvedValue([]);
-    postOnboardMock.mockResolvedValue(onboardResponse);
+    postOnboardMock.mockImplementation((payload: ConfigOnboardRequest) => {
+      if (payload.intent === 'validate') {
+        return Promise.resolve({
+          ...onboardResponse,
+          message: 'Conexão validada com sucesso.',
+        });
+      }
+      return Promise.resolve(onboardResponse);
+    });
     postSmokeMock.mockResolvedValue(smokeResponse);
     fetchStatusMock.mockResolvedValue(trackerStatus);
   });
@@ -387,11 +395,13 @@ describe('AdminChat view', () => {
     await userEvent.type(screen.getByLabelText('Identificador do agente'), 'openai-gpt4o');
     await userEvent.type(screen.getByLabelText('Nome exibido'), 'OpenAI GPT-4o');
     await userEvent.type(screen.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
+    await userEvent.type(screen.getByLabelText('Endpoint MCP (ws/wss)'), 'wss://openai.example.com/ws');
     await userEvent.type(screen.getByLabelText('Owner responsável'), '@squad-mcp');
     await userEvent.type(screen.getByLabelText('Tags (separadas por vírgula)'), 'openai,prod');
     await userEvent.type(screen.getByLabelText('Capacidades (separadas por vírgula)'), 'chat');
     await userEvent.type(screen.getByLabelText('Descrição'), 'Agente com fallback para GPT-4o.');
     await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
+    fireEvent.submit(screen.getByLabelText('Identificador do agente').closest('form') as HTMLFormElement);
 
     await userEvent.click(screen.getByLabelText('API Key'));
     await userEvent.type(screen.getByLabelText('Nome da credencial'), 'OPENAI_API_KEY');
@@ -402,6 +412,15 @@ describe('AdminChat view', () => {
     await userEvent.type(screen.getByLabelText('Nome da tool 1'), 'catalog.search');
     await userEvent.type(screen.getByLabelText('Descrição da tool 1'), 'Busca recursos homologados.');
     await userEvent.type(screen.getByLabelText('Entry point da tool 1'), 'catalog/search.py');
+    const validateButton = await screen.findByRole('button', { name: 'Testar conexão' });
+    await userEvent.click(validateButton);
+    await waitFor(() =>
+      expect(postOnboardMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ intent: 'validate', endpoint: 'wss://openai.example.com/ws' }),
+      ),
+    );
+    await screen.findByText('Conexão validada com sucesso.');
     await userEvent.click(screen.getByRole('button', { name: 'Ir para validação' }));
 
     const notesField = screen.getByLabelText('Checklist/observações adicionais');
@@ -413,6 +432,7 @@ describe('AdminChat view', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Gerar plano de onboarding' }));
 
     const expectedPayload: ConfigOnboardRequest = {
+      endpoint: 'wss://openai.example.com/ws',
       agent: {
         id: 'openai-gpt4o',
         name: 'OpenAI GPT-4o',
@@ -438,7 +458,7 @@ describe('AdminChat view', () => {
       },
     };
 
-    await waitFor(() => expect(postOnboardMock).toHaveBeenCalledWith(expectedPayload));
+    await waitFor(() => expect(postOnboardMock).toHaveBeenNthCalledWith(2, { ...expectedPayload, intent: 'plan' }));
     await waitFor(() => expect(screen.getByText(onboardResponse.message)).toBeInTheDocument());
     expect(screen.getByText('Criar manifesto')).toBeInTheDocument();
     expect(screen.getByText('Adiciona manifesto inicial para o agente.')).toBeInTheDocument();
@@ -478,6 +498,40 @@ describe('AdminChat view', () => {
       }),
     );
     expect(screen.getByText(/Smoke em execução/)).toBeInTheDocument();
+  });
+
+  it('bloqueia avanço para validação quando a verificação do endpoint falha', async () => {
+    postOnboardMock.mockImplementationOnce(() => Promise.reject(new Error('Falha ao conectar ao endpoint.')));
+
+    render(<AdminChat />);
+
+    await userEvent.type(screen.getByLabelText('Identificador do agente'), 'openai-gpt4o');
+    await userEvent.type(screen.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
+    await userEvent.type(screen.getByLabelText('Endpoint MCP (ws/wss)'), 'wss://openai.example.com/ws');
+    await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
+    fireEvent.submit(screen.getByLabelText('Identificador do agente').closest('form') as HTMLFormElement);
+
+    const nextToolsButton = await screen.findByRole('button', { name: 'Avançar para tools' });
+    await userEvent.click(nextToolsButton);
+
+    const testConnectionButton = await screen.findByRole('button', { name: 'Testar conexão' });
+    await userEvent.click(testConnectionButton);
+
+    await waitFor(() =>
+      expect(postOnboardMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ intent: 'validate', endpoint: 'wss://openai.example.com/ws' }),
+      ),
+    );
+
+    await screen.findByText('Falha ao conectar ao endpoint.');
+
+    const nextButton = screen.getByRole('button', { name: 'Ir para validação' });
+    expect(nextButton).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText('Nome da tool 1'), 'catalog.search');
+
+    expect(screen.getByRole('button', { name: 'Ir para validação' })).not.toBeDisabled();
   });
 
   it('exibe metadados do branch, do PR e dos revisores no resumo do plano', async () => {
