@@ -330,6 +330,88 @@ button {
   width: 100%;
 }
 
+.admin-chat__quickstart {
+  background: #fff;
+  border-radius: 1.1rem;
+  padding: 1.25rem;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-chat__quickstart h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.admin-chat__quickstart-lead {
+  margin: 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.admin-chat__quickstart-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 720px) {
+  .admin-chat__quickstart-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+.admin-chat__quickstart-card {
+  background: rgba(15, 23, 42, 0.03);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 100%;
+}
+
+.admin-chat__quickstart-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-chat__quickstart-card p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.admin-chat__quickstart-badge {
+  align-self: flex-start;
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.admin-chat__quickstart-link {
+  align-self: flex-start;
+  font-weight: 600;
+  color: #0f766e;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-chat__quickstart-link:focus,
+.admin-chat__quickstart-link:hover {
+  text-decoration: underline;
+}
+
 .plan-summary {
   background: #fff;
   border-radius: 1.1rem;
@@ -356,6 +438,155 @@ button {
   margin: 0;
   color: #475569;
   font-size: 0.9rem;
+}
+
+.plan-summary__details {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 720px) {
+  .plan-summary__details {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+.plan-summary__detail {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.plan-summary__detail dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin: 0;
+}
+
+.plan-summary__detail dd {
+  margin: 0;
+  color: #0f172a;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.plan-summary__muted {
+  color: #94a3b8;
+}
+
+.plan-summary__branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.plan-summary__branch-arrow {
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.plan-summary__sr-only {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.plan-summary__pr {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.plan-summary__link {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.plan-summary__link:focus,
+.plan-summary__link:hover {
+  text-decoration: underline;
+}
+
+.plan-summary__chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.plan-summary__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  text-transform: capitalize;
+}
+
+.plan-summary__chip--open,
+.plan-summary__chip--approved,
+.plan-summary__chip--satisfied {
+  background: rgba(16, 185, 129, 0.18);
+  color: #047857;
+}
+
+.plan-summary__chip--merged {
+  background: rgba(124, 58, 237, 0.18);
+  color: #6d28d9;
+}
+
+.plan-summary__chip--closed,
+.plan-summary__chip--dismissed {
+  background: rgba(15, 23, 42, 0.1);
+  color: #334155;
+}
+
+.plan-summary__chip--pending,
+.plan-summary__chip--review-required,
+.plan-summary__chip--reviewrequired,
+.plan-summary__chip--draft {
+  background: rgba(251, 191, 36, 0.18);
+  color: #b45309;
+}
+
+.plan-summary__chip--changes-requested,
+.plan-summary__chip--changes_requested {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+}
+
+.plan-summary__reviewers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.plan-summary__reviewer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.plan-summary__reviewer-name {
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .plan-summary__badge {

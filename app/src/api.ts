@@ -3018,6 +3018,22 @@ export interface AdminPlanStep {
 
 export type AdminPlanStatus = 'draft' | 'ready' | 'applied';
 
+export interface AdminPlanReviewer {
+  id: string;
+  name: string;
+  status?: string | null;
+}
+
+export interface AdminPlanPullRequestSummary {
+  id: string;
+  number: string;
+  title: string;
+  url: string;
+  state: string;
+  reviewStatus?: string | null;
+  reviewers?: AdminPlanReviewer[];
+}
+
 export interface AdminPlanSummary {
   id: string;
   threadId: string;
@@ -3026,6 +3042,10 @@ export interface AdminPlanSummary {
   author: string;
   scope: string;
   steps: AdminPlanStep[];
+  branch?: string | null;
+  baseBranch?: string | null;
+  reviewers?: AdminPlanReviewer[];
+  pullRequest?: AdminPlanPullRequestSummary | null;
 }
 
 export interface AdminPlanDiff {
