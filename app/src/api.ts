@@ -3426,22 +3426,46 @@ export interface ConfigOnboardRequest {
   };
 }
 
+export interface ConfigOnboardValidationTool {
+  name: string;
+  description: string | null;
+  definition: Record<string, unknown> | null;
+}
+
+export interface ConfigOnboardValidation {
+  endpoint: string;
+  transport: string;
+  tools: ConfigOnboardValidationTool[];
+  missingTools: string[];
+  serverInfo: Record<string, unknown>;
+  capabilities: Record<string, unknown>;
+}
+
 export interface ConfigOnboardResponse {
   plan: AdminPlanSummary;
   diffs: AdminPlanDiff[];
   risks: AdminRiskItem[];
   message: string;
+  validation: ConfigOnboardValidation | null;
 }
 
 export async function postConfigMcpOnboard(
   payload: ConfigOnboardRequest,
   signal?: AbortSignal,
 ): Promise<ConfigOnboardResponse> {
-  return request<ConfigOnboardResponse>('/config/mcp/onboard', {
+  const response = await request<ConfigOnboardResponsePayload>('/config/mcp/onboard', {
     method: 'POST',
     body: JSON.stringify(payload),
     signal,
   });
+
+  return {
+    plan: response.plan,
+    diffs: response.diffs,
+    risks: response.risks,
+    message: response.message,
+    validation: mapConfigOnboardValidation(response.validation ?? null),
+  };
 }
 
 export interface McpSmokeRunRequest {
@@ -3687,6 +3711,29 @@ interface ConfigPlanResponsePayload {
   validation?: unknown;
 }
 
+interface ConfigOnboardValidationToolPayload {
+  name?: string;
+  description?: string | null;
+  definition?: unknown;
+}
+
+interface ConfigOnboardValidationPayload {
+  endpoint?: string;
+  transport?: string;
+  tools?: ConfigOnboardValidationToolPayload[] | null;
+  missing_tools?: unknown;
+  server_info?: unknown;
+  capabilities?: unknown;
+}
+
+interface ConfigOnboardResponsePayload {
+  plan: AdminPlanSummary;
+  diffs: AdminPlanDiff[];
+  risks: AdminRiskItem[];
+  message: string;
+  validation?: ConfigOnboardValidationPayload | null;
+}
+
 interface PlanExecutionDiffPayload {
   stat: string;
   patch: string;
@@ -3833,6 +3880,63 @@ function mapConfigPlanPreview(payload: ConfigPlanPreviewPayload | null): ConfigP
     baseBranch: payload.base_branch,
     commitMessage: payload.commit_message,
     pullRequest,
+  };
+}
+
+function mapConfigOnboardValidationTool(payload: unknown): ConfigOnboardValidationTool | null {
+  if (!isPlainRecord(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const rawName = record['name'];
+  const name = typeof rawName === 'string' ? rawName.trim() : '';
+  if (!name) {
+    return null;
+  }
+  const description =
+    typeof record['description'] === 'string' && record['description'].length > 0
+      ? (record['description'] as string)
+      : null;
+  const definition = isPlainRecord(record['definition'])
+    ? (record['definition'] as Record<string, unknown>)
+    : null;
+  return {
+    name,
+    description,
+    definition,
+  };
+}
+
+function mapConfigOnboardValidation(payload: unknown): ConfigOnboardValidation | null {
+  if (!isPlainRecord(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const toolsSource = Array.isArray(record['tools']) ? (record['tools'] as unknown[]) : [];
+  const tools = toolsSource
+    .map((item) => mapConfigOnboardValidationTool(item))
+    .filter((item): item is ConfigOnboardValidationTool => item !== null);
+  const endpoint = typeof record['endpoint'] === 'string' ? (record['endpoint'] as string) : '';
+  const transport = typeof record['transport'] === 'string' ? (record['transport'] as string) : '';
+  const missingTools = mapStringArray(record['missing_tools']);
+  const serverInfo = isPlainRecord(record['server_info'])
+    ? (record['server_info'] as Record<string, unknown>)
+    : {};
+  const capabilities = isPlainRecord(record['capabilities'])
+    ? (record['capabilities'] as Record<string, unknown>)
+    : {};
+
+  if (!endpoint && !transport && tools.length === 0 && missingTools.length === 0) {
+    return null;
+  }
+
+  return {
+    endpoint,
+    transport,
+    tools,
+    missingTools,
+    serverInfo,
+    capabilities,
   };
 }
 

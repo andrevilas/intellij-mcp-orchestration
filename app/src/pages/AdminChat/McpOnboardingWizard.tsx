@@ -6,6 +6,7 @@ import type {
   AdminRiskItem,
   ConfigOnboardRequest,
   ConfigOnboardResponse,
+  ConfigOnboardValidation,
   ConfigApplyHitlResponse,
   ConfigApplySuccessResponse,
   McpOnboardingStatus,
@@ -120,6 +121,7 @@ export default function McpOnboardingWizard() {
   const [risks, setRisks] = useState<AdminRiskItem[]>([]);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [validationDetails, setValidationDetails] = useState<ConfigOnboardValidation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [smokeError, setSmokeError] = useState<string | null>(null);
@@ -153,6 +155,7 @@ export default function McpOnboardingWizard() {
   const invalidateConnection = () => {
     setConnectionStatus('idle');
     setConnectionFeedback(null);
+    setValidationDetails(null);
   };
 
   const handleTextChange = <Element extends HTMLInputElement | HTMLTextAreaElement>(
@@ -232,6 +235,7 @@ export default function McpOnboardingWizard() {
     setPlanning(true);
     setError(null);
     setPlanMessage(null);
+    setValidationDetails(null);
     try {
       const payload = buildPayload();
       if (!payload.agent.id || !payload.agent.repository) {
@@ -251,6 +255,7 @@ export default function McpOnboardingWizard() {
       setDiffs(response.diffs);
       setRisks(response.risks);
       setPlanMessage(response.message);
+      setValidationDetails(response.validation ?? null);
       setActiveStep('validation');
     } catch (cause) {
       setError(extractErrorMessage(cause));
@@ -584,6 +589,7 @@ export default function McpOnboardingWizard() {
                   setValidatingConnection(true);
                   setConnectionStatus('idle');
                   setConnectionFeedback(null);
+                  setValidationDetails(null);
                   try {
                     const payload = buildPayload();
                     if (!payload.endpoint) {
@@ -598,6 +604,7 @@ export default function McpOnboardingWizard() {
                     });
                     setConnectionStatus('success');
                     setConnectionFeedback(response.message || 'Conexão validada com sucesso.');
+                    setValidationDetails(response.validation ?? null);
                   } catch (cause) {
                     setConnectionStatus('error');
                     setConnectionFeedback(extractErrorMessage(cause));
@@ -650,6 +657,48 @@ export default function McpOnboardingWizard() {
               <p className="mcp-wizard__helper" role="status">
                 {planMessage}
               </p>
+            ) : null}
+            {validationDetails ? (
+              <section className="mcp-wizard__summary">
+                <h3>Resultado da validação</h3>
+                <dl>
+                  <div>
+                    <dt>Endpoint</dt>
+                    <dd>{validationDetails.endpoint}</dd>
+                  </div>
+                  <div>
+                    <dt>Transporte</dt>
+                    <dd>{validationDetails.transport}</dd>
+                  </div>
+                </dl>
+                <div className="mcp-wizard__validation-tools">
+                  <h4>Ferramentas detectadas</h4>
+                  {validationDetails.tools.length > 0 ? (
+                    <ul>
+                      {validationDetails.tools.map((tool) => (
+                        <li key={tool.name}>
+                          <strong>{tool.name}</strong>
+                          {tool.description ? <span> — {tool.description}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mcp-wizard__helper">Nenhuma tool detectada.</p>
+                  )}
+                </div>
+                <div className="mcp-wizard__validation-tools">
+                  <h4>Ferramentas pendentes</h4>
+                  {validationDetails.missingTools.length > 0 ? (
+                    <ul>
+                      {validationDetails.missingTools.map((tool) => (
+                        <li key={tool}>{tool}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mcp-wizard__helper">Nenhuma tool pendente.</p>
+                  )}
+                </div>
+              </section>
             ) : null}
             <PlanSummary plan={plan} isLoading={isPlanning} />
             <PlanDiffViewer diffs={diffItems} />
