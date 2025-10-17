@@ -1,5 +1,12 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useMemo, useState } from 'react';
 
+import {
+  fetchNotifications,
+  postConfigReload,
+  postPolicyPlanApply,
+  type ConfigReloadResponse,
+  type NotificationSummary,
+} from '../../api';
 import useAdminChat from '../../hooks/useAdminChat';
 import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
 import PlanSummary from './PlanSummary';
@@ -12,7 +19,16 @@ const ROLE_LABELS = {
   system: 'Sistema',
 } as const;
 
-const SUPPORTED_ARTIFACTS = [
+interface SupportedArtifact {
+  id: string;
+  title: string;
+  description: string;
+  risk: string;
+  placeholderPath: string;
+  placeholderParameters?: string;
+}
+
+const SUPPORTED_ARTIFACTS: SupportedArtifact[] = [
   {
     id: 'agent.manifest',
     title: 'Manifesto MCP',
@@ -20,6 +36,8 @@ const SUPPORTED_ARTIFACTS = [
       'Estrutura base com defaults determinísticos e validação automática antes do merge.',
     risk:
       'Risco: manifesto incompatível. Mitigação: validar contra o schema AgentManifest antes de aplicar.',
+    placeholderPath: 'agents-hub/app/agents/<slug>/agent.yaml',
+    placeholderParameters: '{"owner":"platform-team","capabilities":["structured-output"]}',
   },
   {
     id: 'agent.readme',
@@ -28,6 +46,8 @@ const SUPPORTED_ARTIFACTS = [
       'Documentação operacional cobrindo deploy, rollback e responsáveis pelo suporte.',
     risk:
       'Risco: documentação desatualizada. Mitigação: revisar checklist com o time responsável.',
+    placeholderPath: 'agents-hub/app/agents/<slug>/README.md',
+    placeholderParameters: '{"owner":"platform-team"}',
   },
   {
     id: 'agent.langgraph',
@@ -36,6 +56,8 @@ const SUPPORTED_ARTIFACTS = [
       'Módulo Python conectando manifesto a um tool determinístico com validações básicas.',
     risk:
       'Risco: tool inconsistente. Mitigação: executar testes de fumaça e validar o retorno determinístico.',
+    placeholderPath: 'agents-hub/app/agents/<slug>/agent.py',
+    placeholderParameters: '{"tool_name":"demo_tool"}',
   },
   {
     id: 'finops.checklist',
@@ -44,10 +66,40 @@ const SUPPORTED_ARTIFACTS = [
       'Checklist padronizado para revisões de custo e risco antes de promover alterações.',
     risk:
       'Risco: checklist incompleto. Mitigação: sincronizar revisão com o time de FinOps.',
+    placeholderPath: 'generated/finops/checklist.md',
+    placeholderParameters: '{"owner":"finops-team","checklist_title":"Revisão mensal"}',
   },
-] as const;
+];
 
-export default function AdminChat() {
+const RELOAD_ACTOR_STORAGE_KEY = 'admin-chat.reload.actor';
+const RELOAD_ACTOR_EMAIL_STORAGE_KEY = 'admin-chat.reload.actor_email';
+const RELOAD_COMMIT_STORAGE_KEY = 'admin-chat.reload.commit_message';
+
+function loadReloadPreference(key: string, fallback = ''): string {
+  try {
+    return window.localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function persistReloadPreference(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // ignore persistence errors (private browsing, etc)
+  }
+}
+
+function generatePlanId(): string {
+  return `reload-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export interface AdminChatProps {
+  onNotificationsUpdate?: (items: NotificationSummary[]) => void;
+}
+
+export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
   const {
     messages,
     plan,
@@ -73,6 +125,23 @@ export default function AdminChat() {
   const [scope, setScope] = useState('');
   const [note, setNote] = useState('');
   const [scopeError, setScopeError] = useState<string | null>(null);
+  const [isReloadModalOpen, setReloadModalOpen] = useState(false);
+  const [selectedArtifact, setSelectedArtifact] = useState<SupportedArtifact | null>(null);
+  const [reloadTargetPath, setReloadTargetPath] = useState('');
+  const [reloadParameters, setReloadParameters] = useState('');
+  const [reloadParametersError, setReloadParametersError] = useState<string | null>(null);
+  const [reloadError, setReloadError] = useState<string | null>(null);
+  const [reloadApplyError, setReloadApplyError] = useState<string | null>(null);
+  const [reloadPlanResponse, setReloadPlanResponse] = useState<ConfigReloadResponse | null>(null);
+  const [reloadPlanId, setReloadPlanId] = useState<string | null>(null);
+  const [isReloadGenerating, setReloadGenerating] = useState(false);
+  const [isReloadApplying, setReloadApplying] = useState(false);
+  const [reloadSuccessMessage, setReloadSuccessMessage] = useState<string | null>(null);
+  const [reloadActor, setReloadActor] = useState(() => loadReloadPreference(RELOAD_ACTOR_STORAGE_KEY));
+  const [reloadActorEmail, setReloadActorEmail] = useState(() => loadReloadPreference(RELOAD_ACTOR_EMAIL_STORAGE_KEY));
+  const [reloadCommitMessage, setReloadCommitMessage] = useState(() =>
+    loadReloadPreference(RELOAD_COMMIT_STORAGE_KEY, 'chore: regenerar artefato de configuração'),
+  );
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -127,6 +196,195 @@ export default function AdminChat() {
     }
   };
 
+  const handleReloadSuccessDismiss = useCallback(() => {
+    setReloadSuccessMessage(null);
+  }, []);
+
+  const handleOpenReloadModal = useCallback(
+    (artifact: SupportedArtifact) => {
+      setSelectedArtifact(artifact);
+      setReloadModalOpen(true);
+      setReloadPlanResponse(null);
+      setReloadPlanId(null);
+      setReloadError(null);
+      setReloadApplyError(null);
+      setReloadParametersError(null);
+      setReloadTargetPath(artifact.placeholderPath);
+      setReloadParameters(artifact.placeholderParameters ?? '');
+      if (!reloadCommitMessage.trim()) {
+        const defaultCommit = `chore: regenerar ${artifact.title.toLowerCase()}`;
+        setReloadCommitMessage(defaultCommit);
+        persistReloadPreference(RELOAD_COMMIT_STORAGE_KEY, defaultCommit);
+      }
+    },
+    [reloadCommitMessage],
+  );
+
+  const handleReloadCancel = useCallback(() => {
+    setReloadModalOpen(false);
+    setSelectedArtifact(null);
+    setReloadPlanResponse(null);
+    setReloadPlanId(null);
+    setReloadError(null);
+    setReloadApplyError(null);
+    setReloadParametersError(null);
+    setReloadTargetPath('');
+    setReloadParameters('');
+    setReloadGenerating(false);
+    setReloadApplying(false);
+  }, []);
+
+  const handleReloadTargetPathChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setReloadTargetPath(event.target.value);
+    setReloadError(null);
+  }, []);
+
+  const handleReloadParametersChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+    setReloadParameters(event.target.value);
+    setReloadParametersError(null);
+    setReloadError(null);
+  }, []);
+
+  const handleReloadGenerate = useCallback(
+    async (event?: FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      if (!selectedArtifact) {
+        return;
+      }
+      const trimmedPath = reloadTargetPath.trim();
+      if (!trimmedPath) {
+        setReloadError('Informe o caminho de destino para o artefato.');
+        return;
+      }
+
+      let parsedParameters: Record<string, unknown> | undefined;
+      if (reloadParameters.trim()) {
+        try {
+          parsedParameters = JSON.parse(reloadParameters);
+          setReloadParametersError(null);
+        } catch (cause) {
+          console.error('Invalid reload parameters', cause);
+          setReloadParametersError('Parâmetros devem ser um JSON válido.');
+          return;
+        }
+      } else {
+        setReloadParametersError(null);
+      }
+
+      setReloadGenerating(true);
+      setReloadError(null);
+      setReloadApplyError(null);
+      try {
+        const response = await postConfigReload({
+          artifactType: selectedArtifact.id,
+          targetPath: trimmedPath,
+          parameters: parsedParameters,
+        });
+        setReloadPlanResponse(response);
+        setReloadPlanId(generatePlanId());
+      } catch (cause) {
+        const message =
+          cause instanceof Error && cause.message
+            ? cause.message
+            : 'Falha ao gerar plano de reload. Tente novamente.';
+        setReloadError(message);
+        setReloadPlanResponse(null);
+        setReloadPlanId(null);
+      } finally {
+        setReloadGenerating(false);
+      }
+    },
+    [reloadParameters, reloadTargetPath, selectedArtifact],
+  );
+
+  const handleReloadApply = useCallback(async () => {
+    if (!reloadPlanResponse || !reloadPlanId) {
+      return;
+    }
+
+    const actor = reloadActor.trim();
+    const actorEmail = reloadActorEmail.trim();
+    if (!actor) {
+      setReloadApplyError('Informe o autor da alteração.');
+      return;
+    }
+    if (!actorEmail) {
+      setReloadApplyError('Informe o e-mail do autor.');
+      return;
+    }
+
+    setReloadApplying(true);
+    setReloadApplyError(null);
+    try {
+      const response = await postPolicyPlanApply({
+        planId: reloadPlanId,
+        plan: reloadPlanResponse.planPayload,
+        patch: reloadPlanResponse.patch,
+        actor,
+        actorEmail,
+        commitMessage: reloadCommitMessage.trim() || undefined,
+      });
+      const details: string[] = [response.message];
+      if (response.branch) {
+        details.push(`Branch: ${response.branch}`);
+      }
+      if (response.pullRequest?.url) {
+        details.push(`PR: ${response.pullRequest.url}`);
+      }
+      setReloadSuccessMessage(details.join(' '));
+      setReloadModalOpen(false);
+      setSelectedArtifact(null);
+      setReloadPlanResponse(null);
+      setReloadPlanId(null);
+      setReloadTargetPath('');
+      setReloadParameters('');
+      setReloadError(null);
+      if (onNotificationsUpdate) {
+        try {
+          const items = await fetchNotifications();
+          onNotificationsUpdate(items);
+        } catch (notificationError) {
+          console.error('Falha ao atualizar notificações após reload', notificationError);
+        }
+      }
+    } catch (cause) {
+      const message =
+        cause instanceof Error && cause.message
+          ? cause.message
+          : 'Falha ao aplicar plano de reload. Tente novamente.';
+      setReloadApplyError(message);
+    } finally {
+      setReloadApplying(false);
+    }
+  }, [
+    onNotificationsUpdate,
+    reloadActor,
+    reloadActorEmail,
+    reloadCommitMessage,
+    reloadPlanId,
+    reloadPlanResponse,
+  ]);
+
+  const handleReloadActorChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setReloadActor(value);
+    persistReloadPreference(RELOAD_ACTOR_STORAGE_KEY, value);
+    setReloadApplyError(null);
+  }, []);
+
+  const handleReloadActorEmailChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setReloadActorEmail(value);
+    persistReloadPreference(RELOAD_ACTOR_EMAIL_STORAGE_KEY, value);
+    setReloadApplyError(null);
+  }, []);
+
+  const handleReloadCommitMessageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setReloadCommitMessage(value);
+    persistReloadPreference(RELOAD_COMMIT_STORAGE_KEY, value);
+  }, []);
+
   const hasRisks = risks.length > 0;
   const roleLabels = useMemo(() => ROLE_LABELS, []);
 
@@ -140,6 +398,19 @@ export default function AdminChat() {
       })),
     [diffs],
   );
+
+  const reloadDiffItems = useMemo<PlanDiffItem[]>(() => {
+    if (!reloadPlanResponse) {
+      return [];
+    }
+    const normalizedPatch = reloadPlanResponse.patch.trim() ? reloadPlanResponse.patch : null;
+    return reloadPlanResponse.plan.diffs.map((diff, index) => ({
+      id: `${diff.path}-${index}`,
+      title: diff.path,
+      summary: diff.summary,
+      diff: diff.diff ?? normalizedPatch,
+    }));
+  }, [reloadPlanResponse]);
 
   const planActions = (
     <div className="admin-chat__plan-actions">
@@ -253,6 +524,20 @@ export default function AdminChat() {
             </div>
           ) : null}
 
+          {reloadSuccessMessage ? (
+            <div className="admin-chat__alert admin-chat__alert--success" role="status">
+              <p>{reloadSuccessMessage}</p>
+              <button
+                type="button"
+                onClick={handleReloadSuccessDismiss}
+                className="admin-chat__alert-dismiss"
+                aria-label="Fechar alerta de reload"
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+
           {error ? (
             <div className="admin-chat__alert admin-chat__alert--error" role="alert">
               <p>{error}</p>
@@ -331,12 +616,157 @@ export default function AdminChat() {
                   <h3>{artifact.title}</h3>
                   <p>{artifact.description}</p>
                   <p className="admin-chat__assistant-risk">{artifact.risk}</p>
+                  <div className="admin-chat__assistant-actions">
+                    <button
+                      type="button"
+                      className="admin-chat__button"
+                      onClick={() => handleOpenReloadModal(artifact)}
+                      disabled={isReloadGenerating || isReloadApplying}
+                    >
+                      Regenerar artefato
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           </section>
         </aside>
       </div>
+      {isReloadModalOpen && selectedArtifact ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="admin-reload-modal-title">
+          <div className="modal">
+            <header className="modal__header">
+              <h2 id="admin-reload-modal-title" className="modal__title">
+                Regenerar {selectedArtifact.title}
+              </h2>
+              <p className="modal__subtitle">
+                {reloadPlanResponse ? reloadPlanResponse.plan.summary : 'Informe o destino e os parâmetros opcionais antes de gerar o plano.'}
+              </p>
+            </header>
+            <div className="modal__body">
+              {reloadPlanResponse ? (
+                <div>
+                  <p>{reloadPlanResponse.message}</p>
+                  {reloadApplyError ? <p className="modal__error">{reloadApplyError}</p> : null}
+                  {reloadError && !reloadApplyError ? <p className="modal__error">{reloadError}</p> : null}
+                  <PlanDiffViewer
+                    diffs={reloadDiffItems}
+                    title="Alterações propostas"
+                    emptyMessage="Nenhuma alteração detectada para o artefato informado."
+                  />
+                  <div className="modal__form" role="group" aria-labelledby="admin-reload-modal-title">
+                    <div className="modal__field">
+                      <label className="modal__label" htmlFor="admin-reload-target">Caminho de destino</label>
+                      <input
+                        id="admin-reload-target"
+                        type="text"
+                        className="modal__input"
+                        value={reloadTargetPath}
+                        onChange={handleReloadTargetPathChange}
+                        readOnly
+                        disabled
+                      />
+                    </div>
+                    <div className="modal__field">
+                      <label className="modal__label" htmlFor="admin-reload-actor">Autor da alteração</label>
+                      <input
+                        id="admin-reload-actor"
+                        type="text"
+                        className="modal__input"
+                        value={reloadActor}
+                        onChange={handleReloadActorChange}
+                        placeholder="Nome completo"
+                        disabled={isReloadApplying}
+                      />
+                    </div>
+                    <div className="modal__field">
+                      <label className="modal__label" htmlFor="admin-reload-email">E-mail do autor</label>
+                      <input
+                        id="admin-reload-email"
+                        type="email"
+                        className="modal__input"
+                        value={reloadActorEmail}
+                        onChange={handleReloadActorEmailChange}
+                        placeholder="autor@example.com"
+                        disabled={isReloadApplying}
+                      />
+                    </div>
+                    <div className="modal__field">
+                      <label className="modal__label" htmlFor="admin-reload-commit">Mensagem do commit</label>
+                      <input
+                        id="admin-reload-commit"
+                        type="text"
+                        className="modal__input"
+                        value={reloadCommitMessage}
+                        onChange={handleReloadCommitMessageChange}
+                        disabled={isReloadApplying}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <form className="modal__form" onSubmit={handleReloadGenerate}>
+                  {reloadError ? <p className="modal__error">{reloadError}</p> : null}
+                  <div className="modal__field">
+                    <label className="modal__label" htmlFor="admin-reload-target">Caminho de destino</label>
+                    <input
+                      id="admin-reload-target"
+                      type="text"
+                      className="modal__input"
+                      value={reloadTargetPath}
+                      onChange={handleReloadTargetPathChange}
+                      placeholder={selectedArtifact.placeholderPath}
+                      disabled={isReloadGenerating}
+                    />
+                  </div>
+                  <div className="modal__field">
+                    <label className="modal__label" htmlFor="admin-reload-parameters">Parâmetros (JSON)</label>
+                    <textarea
+                      id="admin-reload-parameters"
+                      className="modal__input"
+                      rows={4}
+                      value={reloadParameters}
+                      onChange={handleReloadParametersChange}
+                      placeholder={selectedArtifact.placeholderParameters ?? '{ }'}
+                      disabled={isReloadGenerating}
+                    />
+                    {reloadParametersError ? <p className="modal__error">{reloadParametersError}</p> : null}
+                  </div>
+                </form>
+              )}
+            </div>
+            <footer className="modal__footer">
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={handleReloadCancel}
+                disabled={isReloadGenerating || isReloadApplying}
+              >
+                Cancelar
+              </button>
+              {reloadPlanResponse ? (
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={handleReloadApply}
+                  disabled={isReloadApplying}
+                >
+                  {isReloadApplying ? 'Aplicando…' : 'Aplicar plano'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={() => void handleReloadGenerate()}
+                  disabled={isReloadGenerating}
+                >
+                  {isReloadGenerating ? 'Gerando…' : 'Gerar plano'}
+                </button>
+              )}
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

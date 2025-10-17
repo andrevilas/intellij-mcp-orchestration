@@ -51,6 +51,7 @@ class DiffSummary(BaseModel):
     path: str = Field(..., min_length=1)
     summary: str = Field(..., min_length=1)
     change_type: str = Field(default="update")
+    diff: str | None = None
 
 
 class Risk(BaseModel):

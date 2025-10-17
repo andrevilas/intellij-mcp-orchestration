@@ -322,6 +322,14 @@ button {
   font-weight: 600;
 }
 
+.admin-chat__assistant-actions {
+  margin-top: 0.75rem;
+}
+
+.admin-chat__assistant-actions .admin-chat__button {
+  width: 100%;
+}
+
 .plan-summary {
   background: #fff;
   border-radius: 1.1rem;

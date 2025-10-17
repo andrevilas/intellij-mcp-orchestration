@@ -499,6 +499,10 @@ def test_reload_endpoint_returns_plan_with_message(
     assert payload["plan"]["intent"] == "generate_artifact"
     assert any(step["actions"] for step in payload["plan"]["steps"])
     assert "Plano gerado" in payload["message"]
+    assert isinstance(payload["patch"], str)
+    assert payload["patch"] == "" or payload["patch"].startswith("--- a/")
+    assert payload["plan"]["diffs"][0]["change_type"] in {"create", "update"}
+    assert payload["plan"]["diffs"][0]["diff"] == payload["patch"] or payload["patch"] == ""
 
 
 def test_sync_plan_status_endpoint(client: TestClient, monkeypatch, auth_header: dict[str, str]) -> None:

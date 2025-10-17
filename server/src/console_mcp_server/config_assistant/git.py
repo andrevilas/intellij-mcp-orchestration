@@ -24,11 +24,17 @@ def normalize_repo_path(path: str | Path) -> str:
     return str(Path(path).as_posix())
 
 
-def create_diff(path: str | Path, summary: str, change_type: str = "update") -> DiffSummary:
+def create_diff(
+    path: str | Path,
+    summary: str,
+    change_type: str = "update",
+    *,
+    diff: str | None = None,
+) -> DiffSummary:
     """Convenience helper to create :class:`DiffSummary` instances."""
 
     normalized = normalize_repo_path(path)
-    return DiffSummary(path=normalized, summary=summary, change_type=change_type)
+    return DiffSummary(path=normalized, summary=summary, change_type=change_type, diff=diff)
 
 
 def _write_patch_to_disk(patch: str) -> str:

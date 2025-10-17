@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import difflib
+import time
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import time
-from typing import Any, Dict, Iterable, Mapping
 from tempfile import TemporaryDirectory
+from typing import Any, Dict, Iterable, Mapping
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
@@ -66,6 +67,7 @@ from .prices import (
 from .registry import provider_registry, session_registry
 from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
 from .config_assistant.intents import AssistantIntent
+from .config_assistant.artifacts import generate_artifact
 from .config_assistant.planner import plan_intent
 from .config_assistant.rag import rag_service
 from .config_assistant.langgraph import (
@@ -203,7 +205,7 @@ from .telemetry import (
     query_timeseries,
     render_telemetry_export,
 )
-from .schemas_plan import Plan, PlanExecutionMode, PlanExecutionStatus
+from .schemas_plan import DiffSummary, Plan, PlanExecutionMode, PlanExecutionStatus
 from .security import (
     audit_logger as get_audit_logger,
     ensure_security_context,
@@ -554,6 +556,7 @@ class ReloadRequest(BaseModel):
 class ReloadResponse(BaseModel):
     message: str
     plan: Plan
+    patch: str
 
 
 def _handle_planner_error(intent: AssistantIntent | None, error: Exception) -> None:
@@ -925,7 +928,60 @@ def reload_artifacts(request: ReloadRequest, http_request: Request) -> ReloadRes
     if request.parameters:
         payload["parameters"] = request.parameters
 
+    try:
+        artifact = generate_artifact(
+            request.artifact_type,
+            request.target_path,
+            parameters=request.parameters or {},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    repo_root = Path(__file__).resolve().parents[3]
+    target_file = repo_root / artifact.target_path
+    try:
+        previous_content = target_file.read_text(encoding="utf-8")
+        change_type = "update"
+    except FileNotFoundError:
+        previous_content = ""
+        change_type = "create"
+
+    previous_lines = previous_content.splitlines(keepends=True)
+    next_lines = artifact.content.splitlines(keepends=True)
+    diff_lines = list(
+        difflib.unified_diff(
+            previous_lines,
+            next_lines,
+            fromfile=f"a/{artifact.target_path}",
+            tofile=f"b/{artifact.target_path}",
+        )
+    )
+    patch = "".join(diff_lines)
+    if patch and not patch.endswith("\n"):
+        patch += "\n"
+
     plan = _build_plan(AssistantIntent.GENERATE_ARTIFACT, payload)
+    if patch:
+        plan.diffs = [
+            DiffSummary(
+                path=diff.path,
+                summary=diff.summary,
+                change_type=change_type,
+                diff=patch,
+            )
+            for diff in plan.diffs
+        ]
+    else:
+        plan.diffs = [
+            DiffSummary(
+                path=diff.path,
+                summary=diff.summary,
+                change_type=change_type,
+                diff=None,
+            )
+            for diff in plan.diffs
+        ]
+
     message = f"Plano gerado para regerar '{request.artifact_type}'."
     get_audit_logger(http_request).log(
         actor=user,
@@ -933,7 +989,7 @@ def reload_artifacts(request: ReloadRequest, http_request: Request) -> ReloadRes
         resource="/config/reload",
         metadata={"artifact_type": request.artifact_type, "target_path": request.target_path},
     )
-    return ReloadResponse(message=message, plan=plan)
+    return ReloadResponse(message=message, plan=plan, patch=patch)
 @router.get("/healthz", response_model=HealthStatus)
 def read_health() -> HealthStatus:
     """Return an instantaneous health snapshot."""
