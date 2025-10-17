@@ -1094,7 +1094,7 @@ describe('api client', () => {
             path: 'generated/cache.md',
             summary: 'Atualizar checklist',
             change_type: 'update',
-            diff: '--- a/generated/cache.md\n+++ b/generated/cache.md',
+            diff: '--- a/generated/cache.md\n+++ b/generated/cache.md\n+Conteúdo',
           },
         ],
         risks: [],

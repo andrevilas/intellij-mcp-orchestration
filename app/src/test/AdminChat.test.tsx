@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import AdminChat from '../pages/AdminChat';
@@ -480,17 +480,18 @@ describe('AdminChat view', () => {
 
     const parametersTextarea = screen.getByLabelText('Parâmetros (JSON)');
     await user.clear(parametersTextarea);
-    await user.type(parametersTextarea, '{"owner":"finops"}');
+    fireEvent.change(parametersTextarea, { target: { value: '{"owner":"finops"}' } });
+    expect(parametersTextarea).toHaveValue('{"owner":"finops"}');
 
-    await user.click(screen.getByRole('button', { name: 'Gerar plano' }));
+    const reloadDialog = screen.getByRole('dialog', { name: /Regenerar/ });
+    await user.click(within(reloadDialog).getByRole('button', { name: 'Gerar plano' }));
 
-    await waitFor(() =>
-      expect(postReloadMock).toHaveBeenCalledWith({
-        artifactType: 'finops.checklist',
-        targetPath: 'generated/cache.md',
-        parameters: { owner: 'finops' },
-      }),
-    );
+    await waitFor(() => expect(postReloadMock).toHaveBeenCalled());
+    expect(postReloadMock).toHaveBeenCalledWith({
+      artifactType: 'finops.checklist',
+      targetPath: 'generated/cache.md',
+      parameters: { owner: 'finops' },
+    });
 
     await screen.findByText('Gerar checklist finops');
     expect(screen.getByText('Alterações propostas')).toBeInTheDocument();
@@ -508,7 +509,7 @@ describe('AdminChat view', () => {
     await user.clear(commitInput);
     await user.type(commitInput, 'chore: atualizar checklist finops');
 
-    await user.click(screen.getByRole('button', { name: 'Aplicar plano' }));
+    await user.click(within(reloadDialog).getByRole('button', { name: 'Aplicar plano' }));
 
     await waitFor(() => expect(postPolicyPlanApplyMock).toHaveBeenCalledTimes(1));
     const applyPayload = postPolicyPlanApplyMock.mock.calls[0][0];
@@ -521,6 +522,6 @@ describe('AdminChat view', () => {
     expect(updateNotifications).toHaveBeenCalledWith([]);
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByText(reloadApplyResponse.message)).toBeInTheDocument();
+    expect(screen.getByText(/Artefato regenerado com sucesso/)).toBeInTheDocument();
   });
 });

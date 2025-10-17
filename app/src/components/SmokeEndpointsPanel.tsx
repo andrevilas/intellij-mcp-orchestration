@@ -183,6 +183,9 @@ function SmokeEndpointsPanel(): JSX.Element {
         setEndpoints(mergeMetadata(response, metadataRef.current));
       })
       .catch((cause) => {
+        if (cause instanceof DOMException && cause.name === 'AbortError') {
+          return;
+        }
         if (cause instanceof ApiError) {
           setError(cause.message);
         } else {

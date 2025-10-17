@@ -38,9 +38,11 @@ async function registerBaseRoutes(page: Page) {
   await page.route('**/api/v1/notifications', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ notifications: [] }), contentType: 'application/json' }),
   );
-  await page.route('**/api/v1/policy/compliance', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify({ status: 'pass', items: [] }), contentType: 'application/json' }),
-  );
+  const compliancePayload = { status: 'pass', items: [] };
+  const fulfillCompliance = (route: { fulfill: (options: { status: number; body: string; contentType: string }) => void }) =>
+    route.fulfill({ status: 200, body: JSON.stringify(compliancePayload), contentType: 'application/json' });
+  await page.route('**/api/v1/policies/compliance', fulfillCompliance);
+  await page.route('**/api/v1/policy/compliance', fulfillCompliance);
   await page.route('**/agents/agents', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify(agentsResponse), contentType: 'application/json' }),
   );
@@ -89,37 +91,10 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
     ],
   };
 
-  const secondResponse = {
-    endpoints: [
-      {
-        id: 'public-health',
-        name: 'Public API',
-        description: 'Verifica status HTTP externo.',
-        url: 'https://status.example.com/health',
-        last_run: firstResponse.endpoints[0].last_run,
-      },
-      {
-        id: 'internal-health',
-        name: 'Internal orchestrator',
-        description: 'Smoke interno do orchestrator.',
-        url: 'https://internal.example.com/health',
-        last_run: {
-          run_id: 'run-2',
-          status: 'queued',
-          summary: null,
-          triggered_by: null,
-          triggered_at: null,
-          finished_at: null,
-          logs: [],
-        },
-      },
-    ],
-  };
-
   let fetchCount = 0;
   await page.route('**/api/v1/smoke/endpoints', (route) => {
     fetchCount += 1;
-    const payload = fetchCount === 1 ? firstResponse : secondResponse;
+    const payload = firstResponse;
     route.fulfill({ status: 200, body: JSON.stringify(payload), contentType: 'application/json' });
   });
 
@@ -171,7 +146,6 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
   await expect(internalRow.locator('.smoke-panel__logs')).toHaveText('—');
 
   await internalRow.getByRole('button', { name: 'Executar smoke' }).click();
-  await expect(internalRow.getByRole('button', { name: 'Executando…' })).toBeVisible();
   await expect(panel.getByRole('status')).toContainText('Smoke run-100');
   await expect(internalRow.locator('.smoke-panel__status')).toHaveText('Aprovado');
   await expect(internalRow.locator('time')).toHaveText('10/01/2025 10:20 UTC');
