@@ -8,12 +8,17 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 
+import json
+import os
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from console_mcp_server import notifications as notifications_module
 from console_mcp_server import routes as routes_module
+from console_mcp_server import diagnostics as diagnostics_module
 from console_mcp_server import secret_validation as secret_validation_module
 from console_mcp_server import telemetry as telemetry_module
 from console_mcp_server.security import hash_token, Role
@@ -1857,6 +1862,125 @@ def _seed_rag_user(database, *, token: str, roles: tuple[Role, ...] = (Role.PLAN
             )
 
 
+def _read_audit_events() -> list[dict[str, object]]:
+    path = Path(os.environ["CONSOLE_MCP_AUDIT_LOG_PATH"])
+    if not path.exists():
+        return []
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [json.loads(line) for line in lines]
+
+
+def test_run_diagnostics_aggregates_checks(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    database,
+) -> None:
+    token = "diag-success-token"
+    _seed_rag_user(database, token=token, roles=(Role.VIEWER,))
+
+    recorded_requests: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode() or "{}")
+        recorded_requests.append(payload)
+        return httpx.Response(200, json={"result": {"status": "ok"}})
+
+    service = diagnostics_module.DiagnosticsService(
+        request_timeout=0.1,
+        agents_transport=httpx.MockTransport(handler),
+    )
+    monkeypatch.setattr(routes_module, "diagnostics_service", service)
+
+    response = client.post(
+        "/api/v1/diagnostics/run",
+        json={
+            "invoke": {
+                "agent": "catalog-search",
+                "config": {"metadata": {"requestId": "req-42"}},
+            },
+            "agents_base_url": "https://agents.example",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["failures"] == 0
+    assert body["invoke"]["ok"] is True
+    assert recorded_requests and recorded_requests[0]["config"]["metadata"]["requestId"] == "req-42"
+
+    events = _read_audit_events()
+    assert events, "expected diagnostics run to be audited"
+    audit_event = events[-1]
+    assert audit_event["action"] == "diagnostics.run"
+    assert audit_event["status"] == "success"
+    assert audit_event["actor_id"] == "user-rag"
+    assert audit_event["metadata"]["summary"]["failures"] == 0
+    assert audit_event["metadata"]["providers"]["count"] >= 0
+
+
+def test_run_diagnostics_surfaces_invoke_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    database,
+) -> None:
+    token = "diag-error-token"
+    _seed_rag_user(database, token=token, roles=(Role.VIEWER,))
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(502, json={"error": "invoke failed"})
+
+    service = diagnostics_module.DiagnosticsService(
+        request_timeout=0.1,
+        agents_transport=httpx.MockTransport(handler),
+    )
+    monkeypatch.setattr(routes_module, "diagnostics_service", service)
+
+    response = client.post(
+        "/api/v1/diagnostics/run",
+        json={"invoke": {"agent": "catalog-search"}, "agents_base_url": "https://agents.example"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["failures"] == 1
+    assert body["invoke"]["ok"] is False
+    assert "invoke failed" in (body["invoke"].get("error") or "")
+
+    events = _read_audit_events()
+    assert events, "expected diagnostics run to be audited"
+    audit_event = events[-1]
+    assert audit_event["action"] == "diagnostics.run"
+    assert audit_event["status"] == "error"
+    assert audit_event["metadata"]["summary"]["failures"] == 1
+
+
+def test_run_diagnostics_defaults_agents_base(monkeypatch: pytest.MonkeyPatch, client: TestClient, database) -> None:
+    token = "diag-default-base"
+    _seed_rag_user(database, token=token, roles=(Role.VIEWER,))
+
+    captured_urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_urls.append(str(request.url))
+        return httpx.Response(200, json={"result": {"status": "ok"}})
+
+    service = diagnostics_module.DiagnosticsService(
+        request_timeout=0.1,
+        agents_transport=httpx.MockTransport(handler),
+    )
+    monkeypatch.setattr(routes_module, "diagnostics_service", service)
+
+    response = client.post(
+        "/api/v1/diagnostics/run",
+        json={"invoke": {"agent": "catalog-search"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert captured_urls, "expected invoke request to be issued"
+    assert captured_urls[0].endswith("/agents/catalog-search/invoke")
 def test_config_rag_query_endpoint(client: TestClient, database) -> None:
     token = "rag-token"
     _seed_rag_user(database, token=token)

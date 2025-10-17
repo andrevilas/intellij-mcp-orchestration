@@ -90,6 +90,36 @@ export interface ProvidersResponse {
   providers: ProviderSummary[];
 }
 
+export interface DiagnosticsComponent {
+  ok: boolean;
+  statusCode: number | null;
+  durationMs: number | null;
+  data: unknown;
+  error: string | null;
+}
+
+export interface DiagnosticsSummary {
+  total: number;
+  successes: number;
+  failures: number;
+  errors: Record<string, string>;
+}
+
+export interface DiagnosticsResponse {
+  timestamp: string;
+  summary: DiagnosticsSummary;
+  health: DiagnosticsComponent;
+  providers: DiagnosticsComponent;
+  invoke: DiagnosticsComponent;
+}
+
+export interface RunDiagnosticsInput {
+  agent: string;
+  input?: Record<string, unknown>;
+  config?: Record<string, unknown>;
+  agentsBaseUrl?: string;
+}
+
 export type PolicyTemplateId = string;
 
 export interface PolicyTemplate {
@@ -1218,6 +1248,38 @@ interface ServerProcessLogsResponsePayload {
   cursor?: string | null;
 }
 
+interface DiagnosticsComponentPayload {
+  ok: boolean;
+  status_code?: number | null;
+  duration_ms?: number | null;
+  data?: unknown;
+  error?: string | null;
+}
+
+interface DiagnosticsSummaryPayload {
+  total: number;
+  successes: number;
+  failures: number;
+  errors?: Record<string, string>;
+}
+
+interface DiagnosticsResponsePayload {
+  timestamp: string;
+  summary: DiagnosticsSummaryPayload;
+  health: DiagnosticsComponentPayload;
+  providers: DiagnosticsComponentPayload;
+  invoke: DiagnosticsComponentPayload;
+}
+
+interface DiagnosticsRequestPayload {
+  invoke: {
+    agent: string;
+    input?: Record<string, unknown>;
+    config?: Record<string, unknown>;
+  };
+  agents_base_url?: string;
+}
+
 interface ServerHealthCheckPayload {
   status: ServerHealthStatus;
   checked_at: string;
@@ -1530,6 +1592,16 @@ function mapServerProcessLog(payload: ServerProcessLogPayload): ServerProcessLog
   };
 }
 
+function mapDiagnosticsComponent(payload: DiagnosticsComponentPayload): DiagnosticsComponent {
+  return {
+    ok: payload.ok,
+    statusCode: payload.status_code ?? null,
+    durationMs: payload.duration_ms ?? null,
+    data: payload.data ?? null,
+    error: payload.error ?? null,
+  };
+}
+
 function mapServerProcessState(payload: ServerProcessStatePayload): ServerProcessStateSnapshot {
   return {
     serverId: payload.server_id,
@@ -1631,6 +1703,35 @@ export async function pingServerHealth(serverId: string, signal?: AbortSignal): 
     signal,
   });
   return mapServerHealthCheck(payload.check);
+}
+
+export async function runDiagnostics(options: RunDiagnosticsInput): Promise<DiagnosticsResponse> {
+  const payload: DiagnosticsRequestPayload = {
+    invoke: {
+      agent: options.agent,
+      ...(options.input ? { input: options.input } : {}),
+      ...(options.config ? { config: options.config } : {}),
+    },
+    ...(options.agentsBaseUrl ? { agents_base_url: options.agentsBaseUrl } : {}),
+  };
+
+  const data = await request<DiagnosticsResponsePayload>('/diagnostics/run', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+  return {
+    timestamp: data.timestamp,
+    summary: {
+      total: data.summary.total,
+      successes: data.summary.successes,
+      failures: data.summary.failures,
+      errors: data.summary.errors ?? {},
+    },
+    health: mapDiagnosticsComponent(data.health),
+    providers: mapDiagnosticsComponent(data.providers),
+    invoke: mapDiagnosticsComponent(data.invoke),
+  };
 }
 
 export async function updateServerDefinition(

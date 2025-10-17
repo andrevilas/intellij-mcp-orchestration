@@ -6,7 +6,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import AnyHttpUrl, BaseModel, Field, ConfigDict
 
 from .config import ProviderConfig
 from .schemas_plan import Plan
@@ -53,6 +53,50 @@ class SessionResponse(BaseModel):
 
 class ProvidersResponse(BaseModel):
     providers: List[ProviderSummary]
+
+
+class DiagnosticsInvokeRequest(BaseModel):
+    """Payload describing the invoke step executed during diagnostics."""
+
+    agent: str = Field(..., min_length=1, max_length=256)
+    input: Optional[Dict[str, Any]] = None
+    config: Optional[Dict[str, Any]] = None
+
+
+class DiagnosticsComponent(BaseModel):
+    """Normalized result for each diagnostics step."""
+
+    ok: bool
+    status_code: Optional[int] = None
+    duration_ms: Optional[float] = None
+    data: Any = None
+    error: Optional[str] = None
+
+
+class DiagnosticsSummary(BaseModel):
+    """Aggregated counters derived from the diagnostics run."""
+
+    total: int = Field(..., ge=0)
+    successes: int = Field(..., ge=0)
+    failures: int = Field(..., ge=0)
+    errors: Dict[str, str] = Field(default_factory=dict)
+
+
+class DiagnosticsRequest(BaseModel):
+    """Input payload accepted by the diagnostics endpoint."""
+
+    invoke: DiagnosticsInvokeRequest
+    agents_base_url: Optional[AnyHttpUrl] = Field(default=None, alias="agents_base_url")
+
+
+class DiagnosticsResponse(BaseModel):
+    """Response envelope returned after running diagnostics."""
+
+    timestamp: datetime
+    summary: DiagnosticsSummary
+    health: DiagnosticsComponent
+    providers: DiagnosticsComponent
+    invoke: DiagnosticsComponent
 
 
 class SessionsResponse(BaseModel):

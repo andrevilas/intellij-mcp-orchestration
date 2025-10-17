@@ -43,6 +43,7 @@ from .policy_deployments import (
 )
 from .policy_rollout import build_rollout_plans
 from .policy_templates import list_policy_templates
+from .diagnostics import diagnostics_service
 from .marketplace import (
     MarketplaceArtifactError,
     MarketplaceEntryAlreadyExistsError,
@@ -135,6 +136,8 @@ from .schemas import (
     MCPServerUpdateRequest,
     MCPServersResponse,
     ProvidersResponse,
+    DiagnosticsRequest,
+    DiagnosticsResponse,
     RoutingDistributionEntry,
     RoutingRouteProfile,
     RoutingSimulationRequest,
@@ -207,6 +210,7 @@ from .telemetry import (
 )
 from .schemas_plan import DiffSummary, Plan, PlanExecutionMode, PlanExecutionStatus
 from .security import (
+    DEFAULT_AUDIT_LOGGER,
     audit_logger as get_audit_logger,
     ensure_security_context,
     require_roles,
@@ -241,6 +245,14 @@ def _serialize_flow_version(record: FlowVersionRecord) -> FlowVersionResponse:
         hitl_checkpoints=list(record.hitl_checkpoints),
         diff=record.diff,
     )
+
+
+def _count_provider_entries(data: Any) -> int | None:
+    if isinstance(data, Mapping):
+        providers = data.get("providers")
+        if isinstance(providers, list):
+            return len(providers)
+    return None
 
 
 def _build_flow_graph(request: FlowVersionCreateRequest) -> FlowGraph:
@@ -1002,6 +1014,61 @@ def list_providers() -> ProvidersResponse:
     """List the configured MCP providers available to the console."""
 
     return ProvidersResponse(providers=provider_registry.providers)
+
+
+@router.post("/diagnostics/run", response_model=DiagnosticsResponse)
+async def run_diagnostics(
+    payload: DiagnosticsRequest,
+    http_request: Request,
+) -> DiagnosticsResponse:
+    """Aggregate health, inventory and invoke checks for diagnostics."""
+
+    audit_logger = getattr(http_request.app.state, "audit_logger", None)
+    actor = None
+
+    try:
+        context = ensure_security_context(http_request)
+    except HTTPException as exc:
+        if exc.status_code not in (
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        ):
+            raise
+    else:
+        actor = context.user
+        audit_logger = context.audit_logger
+
+    resolved_logger = audit_logger or DEFAULT_AUDIT_LOGGER
+    result = await diagnostics_service.run(http_request, payload)
+
+    provider_count = _count_provider_entries(result.providers.data)
+    metadata = {
+        "agent": payload.invoke.agent,
+        "summary": result.summary.model_dump(),
+        "health": {
+            "ok": result.health.ok,
+            "status_code": result.health.status_code,
+        },
+        "providers": {
+            "ok": result.providers.ok,
+            "status_code": result.providers.status_code,
+            "count": provider_count,
+        },
+        "invoke": {
+            "ok": result.invoke.ok,
+            "status_code": result.invoke.status_code,
+        },
+    }
+
+    status_label = "success" if result.summary.failures == 0 else "error"
+    resolved_logger.log(
+        actor=actor,
+        action="diagnostics.run",
+        resource="/diagnostics/run",
+        status=status_label,
+        metadata=metadata,
+    )
+    return result
 
 
 @router.get("/telemetry/metrics", response_model=TelemetryMetricsResponse)
