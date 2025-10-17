@@ -589,6 +589,37 @@ button {
   color: #0f172a;
 }
 
+.plan-summary__ci-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.plan-summary__ci-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.plan-summary__ci-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.plan-summary__ci-link {
+  font-size: 0.85rem;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.plan-summary__ci-link:hover,
+.plan-summary__ci-link:focus {
+  text-decoration: underline;
+}
+
 .plan-summary__badge {
   display: inline-flex;
   align-items: center;

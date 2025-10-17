@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 
-import type { AdminPlanReviewer, AdminPlanStatus, AdminPlanSummary } from '../../api';
+import type {
+  AdminPlanReviewer,
+  AdminPlanStatus,
+  AdminPlanSummary,
+  PlanExecutionCiResult,
+  PlanExecutionReviewer,
+} from '../../api';
 
 interface PlanSummaryProps {
   plan: AdminPlanSummary | null;
@@ -49,6 +55,16 @@ const REVIEWER_STATUS_LABELS: Record<string, string> = {
   dismissed: 'Dispensado',
 };
 
+const CI_STATUS_LABELS: Record<string, string> = {
+  success: 'Sucesso',
+  passed: 'Sucesso',
+  failure: 'Falha',
+  failed: 'Falha',
+  pending: 'Pendente',
+  running: 'Em execução',
+  in_progress: 'Em execução',
+};
+
 function formatStatus(value: string | null | undefined, labels: Record<string, string>): string | null {
   if (!value) {
     return null;
@@ -74,6 +90,20 @@ function buildChipClass(value: string | null | undefined): string {
   return modifier ? `plan-summary__chip plan-summary__chip--${modifier}` : 'plan-summary__chip';
 }
 
+function normalizeReviewer(
+  reviewer: AdminPlanReviewer | PlanExecutionReviewer | null | undefined,
+): AdminPlanReviewer | null {
+  if (!reviewer) {
+    return null;
+  }
+  const name = reviewer.name?.trim();
+  if (!name) {
+    return null;
+  }
+  const id = reviewer.id?.toString().trim() || name;
+  return { id, name, status: reviewer.status ?? null };
+}
+
 function collectReviewers(plan: AdminPlanSummary | null): AdminPlanReviewer[] {
   if (!plan) {
     return [];
@@ -82,15 +112,16 @@ function collectReviewers(plan: AdminPlanSummary | null): AdminPlanReviewer[] {
   const seen = new Set<string>();
   const unique: AdminPlanReviewer[] = [];
   for (const reviewer of combined) {
-    if (!reviewer) {
+    const normalized = normalizeReviewer(reviewer);
+    if (!normalized) {
       continue;
     }
-    const key = reviewer.id || reviewer.name;
+    const key = normalized.id || normalized.name;
     if (!key || seen.has(key)) {
       continue;
     }
     seen.add(key);
-    unique.push(reviewer);
+    unique.push(normalized);
   }
   return unique;
 }
@@ -103,8 +134,10 @@ export default function PlanSummary({ plan, isLoading, actions }: PlanSummaryPro
   const prReviewLabel = plan?.pullRequest
     ? formatStatus(plan.pullRequest.reviewStatus ?? null, REVIEW_STATUS_LABELS)
     : null;
+  const branchName = plan?.branch ?? plan?.pullRequest?.branch ?? null;
+  const ciResults: PlanExecutionCiResult[] = plan?.pullRequest?.ciResults ?? [];
   const hasMetadata = Boolean(
-    plan && (plan.branch || plan.baseBranch || plan.pullRequest || reviewers.length > 0),
+    plan && (branchName || plan?.baseBranch || plan.pullRequest || reviewers.length > 0 || ciResults.length > 0),
   );
   return (
     <section className="plan-summary" aria-busy={isLoading} aria-live="polite">
@@ -129,11 +162,11 @@ export default function PlanSummary({ plan, isLoading, actions }: PlanSummaryPro
       </header>
       {plan && hasMetadata ? (
         <dl className="plan-summary__details">
-          {plan.branch || plan.baseBranch ? (
+          {branchName || plan?.baseBranch ? (
             <div className="plan-summary__detail">
               <dt>Branch</dt>
               <dd>
-                {plan.branch ? <code>{plan.branch}</code> : <span className="plan-summary__muted">Não informado</span>}
+                {branchName ? <code>{branchName}</code> : <span className="plan-summary__muted">Não informado</span>}
                 {plan.baseBranch ? (
                   <span className="plan-summary__branch">
                     <span className="plan-summary__sr-only"> para </span>
@@ -187,6 +220,34 @@ export default function PlanSummary({ plan, isLoading, actions }: PlanSummaryPro
                         <span className="plan-summary__reviewer-name">{reviewer.name}</span>
                         {statusLabel ? (
                           <span className={buildChipClass(reviewer.status ?? null)}>{statusLabel}</span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </dd>
+            </div>
+          ) : null}
+          {ciResults.length > 0 ? (
+            <div className="plan-summary__detail">
+              <dt>Resultados CI</dt>
+              <dd>
+                <ul className="plan-summary__ci-results">
+                  {ciResults.map((result) => {
+                    const statusLabel = formatStatus(result.status, CI_STATUS_LABELS) ?? result.status;
+                    return (
+                      <li key={`${result.name}-${result.status}`} className="plan-summary__ci-result">
+                        <span className="plan-summary__ci-name">{result.name}</span>
+                        <span className={buildChipClass(result.status)}>{statusLabel}</span>
+                        {result.detailsUrl ? (
+                          <a
+                            href={result.detailsUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="plan-summary__ci-link"
+                          >
+                            Ver detalhes
+                          </a>
                         ) : null}
                       </li>
                     );

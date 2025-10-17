@@ -3031,7 +3031,9 @@ export interface AdminPlanPullRequestSummary {
   url: string;
   state: string;
   reviewStatus?: string | null;
-  reviewers?: AdminPlanReviewer[];
+  reviewers?: PlanExecutionReviewer[];
+  branch?: string | null;
+  ciResults?: PlanExecutionCiResult[];
 }
 
 export interface AdminPlanSummary {
@@ -3079,9 +3081,12 @@ export interface ConfigApplyPullRequest {
   title: string;
   state: string;
   headSha: string;
+  branch?: string | null;
   ciStatus?: string | null;
   reviewStatus?: string | null;
   merged: boolean;
+  reviewers?: PlanExecutionReviewer[];
+  ciResults?: PlanExecutionCiResult[];
 }
 
 export type ConfigChatIntent =
@@ -3208,6 +3213,18 @@ export interface PlanExecutionDiff {
   patch: string;
 }
 
+export interface PlanExecutionReviewer {
+  id: string;
+  name: string;
+  status?: string | null;
+}
+
+export interface PlanExecutionCiResult {
+  name: string;
+  status: string;
+  detailsUrl?: string | null;
+}
+
 export interface PlanExecutionPullRequest {
   provider: string;
   id: string;
@@ -3216,10 +3233,13 @@ export interface PlanExecutionPullRequest {
   title: string;
   state: string;
   headSha: string;
+  branch?: string | null;
   ciStatus?: string | null;
   reviewStatus?: string | null;
   merged: boolean;
   lastSyncedAt?: string | null;
+  reviewers?: PlanExecutionReviewer[];
+  ciResults?: PlanExecutionCiResult[];
 }
 
 export interface PolicyPlanRequest {
@@ -3668,6 +3688,18 @@ interface PlanExecutionDiffPayload {
   patch: string;
 }
 
+interface PlanExecutionReviewerPayload {
+  id?: string | null;
+  name?: string | null;
+  status?: string | null;
+}
+
+interface PlanExecutionCiResultPayload {
+  name?: string | null;
+  status?: string | null;
+  details_url?: string | null;
+}
+
 interface PlanExecutionPullRequestPayload {
   provider: string;
   id: string;
@@ -3676,10 +3708,13 @@ interface PlanExecutionPullRequestPayload {
   title: string;
   state: string;
   head_sha: string;
+  branch?: string | null;
   ci_status?: string | null;
   review_status?: string | null;
   merged: boolean;
   last_synced_at?: string | null;
+  reviewers?: PlanExecutionReviewerPayload[] | null;
+  ci_results?: PlanExecutionCiResultPayload[] | null;
 }
 
 interface ApplyPlanRequestPayload {
@@ -3807,6 +3842,41 @@ function mapPlanExecutionPullRequest(
   if (!payload) {
     return null;
   }
+  const reviewersSource = Array.isArray(payload.reviewers) ? payload.reviewers : [];
+  const reviewers: PlanExecutionReviewer[] = reviewersSource
+    .map((reviewer) => {
+      const name = typeof reviewer?.name === 'string' ? reviewer?.name.trim() : '';
+      if (!name) {
+        return null;
+      }
+      const idSource = reviewer?.id ?? name;
+      return {
+        id: String(idSource ?? name),
+        name,
+        status: typeof reviewer?.status === 'string' ? reviewer.status : null,
+      };
+    })
+    .filter((item): item is PlanExecutionReviewer => item !== null);
+
+  const ciSource = Array.isArray(payload.ci_results) ? payload.ci_results : [];
+  const ciResults: PlanExecutionCiResult[] = ciSource
+    .map((result) => {
+      const name = typeof result?.name === 'string' ? result.name.trim() : '';
+      const status = typeof result?.status === 'string' ? result.status.trim() : '';
+      if (!name || !status) {
+        return null;
+      }
+      return {
+        name,
+        status,
+        detailsUrl:
+          typeof result?.details_url === 'string' && result.details_url.length > 0
+            ? result.details_url
+            : null,
+      };
+    })
+    .filter((item): item is PlanExecutionCiResult => item !== null);
+
   return {
     provider: payload.provider,
     id: payload.id,
@@ -3815,10 +3885,13 @@ function mapPlanExecutionPullRequest(
     title: payload.title,
     state: payload.state,
     headSha: payload.head_sha,
+    branch: payload.branch ?? null,
     ciStatus: payload.ci_status ?? null,
     reviewStatus: payload.review_status ?? null,
     merged: payload.merged,
     lastSyncedAt: payload.last_synced_at ?? null,
+    reviewers,
+    ciResults,
   };
 }
 

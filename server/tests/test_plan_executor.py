@@ -8,7 +8,12 @@ from git import Repo
 
 from console_mcp_server.change_plans import ChangePlanStore
 from console_mcp_server.config_assistant.plan_executor import PlanExecutor
-from console_mcp_server.git_providers import PullRequestSnapshot, PullRequestStatus
+from console_mcp_server.git_providers import (
+    PullRequestCheck,
+    PullRequestReviewer,
+    PullRequestSnapshot,
+    PullRequestStatus,
+)
 from console_mcp_server.schemas_plan import (
     Plan,
     PlanExecutionMode,
@@ -73,6 +78,7 @@ class DummyGitProvider:
             title=title,
             state="open",
             head_sha=head_sha,
+            branch=source_branch,
         )
 
     def fetch_pull_request_status(self, pr: PullRequestSnapshot) -> PullRequestStatus:
@@ -237,6 +243,8 @@ def test_finalize_opens_pull_request_with_provider(tmp_path: Path, database) -> 
     assert result.pull_request is not None
     assert result.pull_request.number == "101"
     assert result.status is PlanExecutionStatus.IN_PROGRESS
+    assert result.pull_request is not None
+    assert result.pull_request.branch == result.branch
 
     record = store.get(result.record_id)
     assert record is not None
@@ -266,7 +274,19 @@ def test_sync_plan_status_updates_metadata(tmp_path: Path, database) -> None:
     executor.approve_request(submission.approval_id or "", approver_id="approver")
     applied = executor.finalize_approval(submission.approval_id or "")
 
-    provider.status = PullRequestStatus(state="open", ci_status="success", review_status="approved")
+    provider.status = PullRequestStatus(
+        state="open",
+        ci_status="success",
+        review_status="approved",
+        reviewers=(PullRequestReviewer(id="rev-1", name="Reviewer Ana", status="approved"),),
+        ci_results=(
+            PullRequestCheck(
+                name="ci/tests",
+                status="success",
+                details_url="https://ci.example.test/run/123",
+            ),
+        ),
+    )
     synced = executor.sync_external_status(applied.record_id)
 
     assert provider.status_calls, "provider should be queried during sync"
@@ -274,3 +294,14 @@ def test_sync_plan_status_updates_metadata(tmp_path: Path, database) -> None:
     assert synced.pull_request is not None
     assert synced.pull_request.ci_status == "success"
     assert synced.pull_request.review_status == "approved"
+    assert synced.pull_request.branch == applied.branch
+    assert synced.pull_request.reviewers == (
+        PullRequestReviewer(id="rev-1", name="Reviewer Ana", status="approved"),
+    )
+    assert synced.pull_request.ci_results == (
+        PullRequestCheck(
+            name="ci/tests",
+            status="success",
+            details_url="https://ci.example.test/run/123",
+        ),
+    )

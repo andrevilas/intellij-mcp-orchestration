@@ -99,6 +99,43 @@ class DiagnosticsResponse(BaseModel):
     invoke: DiagnosticsComponent
 
 
+class PlanPullRequestReviewer(BaseModel):
+    """Representation of a reviewer associated with a pull request."""
+
+    id: Optional[str] = None
+    name: str
+    status: Optional[str] = None
+
+
+class PlanPullRequestCheck(BaseModel):
+    """Individual CI check result attached to a pull request."""
+
+    name: str
+    status: str
+    details_url: Optional[str] = Field(default=None, alias="details_url")
+
+
+class PlanPullRequestDetails(BaseModel):
+    """Detailed view of a pull request opened during plan execution."""
+
+    provider: str
+    id: str
+    number: str
+    url: str
+    title: str
+    state: str
+    head_sha: str
+    branch: Optional[str] = None
+    ci_status: Optional[str] = None
+    review_status: Optional[str] = None
+    merged: bool = False
+    last_synced_at: Optional[str] = None
+    reviewers: List[PlanPullRequestReviewer] = Field(default_factory=list)
+    ci_results: List[PlanPullRequestCheck] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class SessionsResponse(BaseModel):
     sessions: List[Session]
 
