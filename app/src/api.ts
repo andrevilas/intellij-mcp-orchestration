@@ -736,14 +736,20 @@ interface FinOpsGracefulDegradationPayload {
   message?: string | null;
 }
 
+type FinOpsRateLimitInput = FinOpsRateLimitPayload | number | null;
+type FinOpsGracefulDegradationInput = FinOpsGracefulDegradationPayload | string | null;
+
 interface FinOpsConfigPayload {
   cost_center?: string;
   budgets?: FinOpsBudgetPayload[];
   alerts?: FinOpsAlertPayload[];
   ab_history?: FinOpsAbExperimentPayload[];
-  cache?: FinOpsCachePayload | null;
-  rate_limit?: FinOpsRateLimitPayload | null;
-  graceful_degradation?: FinOpsGracefulDegradationPayload | null;
+  cache?: FinOpsCachePayload | number | null;
+  cache_ttl?: number | null;
+  rate_limit?: FinOpsRateLimitInput;
+  rateLimit?: FinOpsRateLimitInput;
+  graceful_degradation?: FinOpsGracefulDegradationInput;
+  gracefulDegradation?: FinOpsGracefulDegradationInput;
 }
 
 interface RoutingIntentPayload {
@@ -2020,32 +2026,75 @@ function mapFinOpsBudgetPayload(payload: FinOpsBudgetPayload): FinOpsBudget {
 }
 
 function mapFinOpsConfigPayload(payload?: FinOpsConfigPayload): FinOpsPolicyConfig {
-  const ttlSeconds = normalizePositive(payload?.cache?.ttl_seconds ?? null, null);
+  const payloadRecord = payload as Record<string, unknown> | undefined;
+
+  const cacheSpecified = Boolean(payloadRecord && ('cache' in payloadRecord || 'cache_ttl' in payloadRecord));
+  const cacheSource =
+    payloadRecord && 'cache' in payloadRecord ? payloadRecord['cache'] : payload?.cache;
+  const cacheTtlOverride =
+    payloadRecord && 'cache_ttl' in payloadRecord
+      ? (payloadRecord['cache_ttl'] as number | null | undefined)
+      : undefined;
+
+  let cacheTtlCandidate: number | null | undefined;
+  if (typeof cacheSource === 'number') {
+    cacheTtlCandidate = cacheSource;
+  } else if (cacheSource && typeof cacheSource === 'object') {
+    cacheTtlCandidate = (cacheSource as FinOpsCachePayload).ttl_seconds ?? null;
+  } else if (cacheSource === null) {
+    cacheTtlCandidate = null;
+  }
+
+  const ttlSeconds = normalizePositive(cacheTtlCandidate ?? cacheTtlOverride ?? null, null);
   const cache: FinOpsCachePolicyConfig | null =
-    payload && (payload.cache !== undefined || ttlSeconds !== null)
-      ? { ttlSeconds }
-      : ttlSeconds !== null
-        ? { ttlSeconds }
-        : null;
+    cacheSpecified || ttlSeconds !== null ? { ttlSeconds } : null;
 
-  const requestsPerMinute = normalizePositive(payload?.rate_limit?.requests_per_minute ?? null, null);
+  const rateLimitSpecified = Boolean(
+    payloadRecord && ('rate_limit' in payloadRecord || 'rateLimit' in payloadRecord),
+  );
+  const rateLimitSource = rateLimitSpecified
+    ? (payloadRecord?.['rate_limit'] ?? payloadRecord?.['rateLimit'])
+    : payload?.rate_limit;
+
+  let rpmCandidate: number | null | undefined;
+  if (typeof rateLimitSource === 'number') {
+    rpmCandidate = rateLimitSource;
+  } else if (rateLimitSource && typeof rateLimitSource === 'object') {
+    rpmCandidate = (rateLimitSource as FinOpsRateLimitPayload).requests_per_minute ?? null;
+  } else if (rateLimitSource === null) {
+    rpmCandidate = null;
+  }
+
+  const requestsPerMinute = normalizePositive(rpmCandidate ?? null, null);
   const rateLimit: FinOpsRateLimitPolicyConfig | null =
-    payload && (payload.rate_limit !== undefined || requestsPerMinute !== null)
-      ? { requestsPerMinute }
-      : requestsPerMinute !== null
-        ? { requestsPerMinute }
-        : null;
+    rateLimitSpecified || requestsPerMinute !== null ? { requestsPerMinute } : null;
 
-  const strategyRaw = payload?.graceful_degradation?.strategy ?? null;
-  const messageRaw = payload?.graceful_degradation?.message ?? null;
+  const degradeSpecified = Boolean(
+    payloadRecord &&
+      ('graceful_degradation' in payloadRecord || 'gracefulDegradation' in payloadRecord),
+  );
+  const degradationSource = degradeSpecified
+    ? payloadRecord?.['graceful_degradation'] ?? payloadRecord?.['gracefulDegradation']
+    : payload?.graceful_degradation;
+
+  let strategyRaw: string | null = null;
+  let messageRaw: string | null = null;
+  if (typeof degradationSource === 'string') {
+    strategyRaw = degradationSource;
+  } else if (degradationSource && typeof degradationSource === 'object') {
+    strategyRaw = (degradationSource as FinOpsGracefulDegradationPayload).strategy ?? null;
+    messageRaw = (degradationSource as FinOpsGracefulDegradationPayload).message ?? null;
+  } else if (degradationSource === null) {
+    strategyRaw = null;
+    messageRaw = null;
+  }
+
   const strategy = typeof strategyRaw === 'string' ? strategyRaw.trim() : '';
   const message = typeof messageRaw === 'string' ? messageRaw.trim() : '';
   const gracefulDegradation: FinOpsGracefulDegradationConfig | null =
-    strategy || message
+    strategy || message || degradeSpecified
       ? { strategy: strategy || null, message: message || null }
-      : payload?.graceful_degradation !== undefined
-        ? { strategy: null, message: null }
-        : null;
+      : null;
 
   return {
     costCenter: payload?.cost_center ?? 'default',

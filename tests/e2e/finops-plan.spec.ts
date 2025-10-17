@@ -67,7 +67,12 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
         },
       ],
       diffs: [
-        { path: 'policies/manifest.json', summary: 'Atualizar manifesto FinOps', change_type: 'update', diff: '---' },
+        {
+          path: 'policies/manifest.json',
+          summary: 'Atualizar manifesto FinOps (cache TTL, rate limit, graceful degradation)',
+          change_type: 'update',
+          diff: '---',
+        },
       ],
       risks: [],
       status: 'pending',
@@ -183,10 +188,19 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
 
   await expect(page.getByText('Atualizar políticas FinOps')).toBeVisible();
   await expect(page.getByText('policies/manifest.json')).toBeVisible();
+  await expect(
+    page.getByText('Atualizar manifesto FinOps (cache TTL, rate limit, graceful degradation)'),
+  ).toBeVisible();
 
-  const planPayload = planRequests[0] as { changes?: { finops?: { cache?: { ttl_seconds: number } } } };
+  const planPayload = planRequests[0] as {
+    changes?: { finops?: { cache?: { ttl_seconds: number }; rate_limit?: { requests_per_minute: number }; graceful_degradation?: { strategy: string | null; message: string | null } } };
+  };
   expect(planPayload.changes?.finops?.cache?.ttl_seconds).toBe(600);
   expect(planPayload.changes?.finops?.rate_limit?.requests_per_minute).toBe(180);
+  expect(planPayload.changes?.finops?.graceful_degradation?.strategy).toBe('fallback');
+  expect(planPayload.changes?.finops?.graceful_degradation?.message).toBe(
+    'Servindo rotas alternativas',
+  );
 
   await page.getByRole('button', { name: 'Aplicar plano' }).click();
 
