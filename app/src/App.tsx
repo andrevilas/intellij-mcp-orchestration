@@ -40,6 +40,7 @@ import AdminChat from './pages/AdminChat';
 import Flows from './pages/Flows';
 import Marketplace from './pages/Marketplace';
 import Agents from './pages/Agents';
+import Observability from './pages/Observability';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -113,6 +114,12 @@ const VIEW_DEFINITIONS = [
     label: 'Dashboard',
     description: 'Visão executiva com KPIs e alertas operacionais',
     keywords: ['home', 'overview', 'resumo'],
+  },
+  {
+    id: 'observability',
+    label: 'Observabilidade',
+    description: 'Tracing, métricas e evals em um único painel',
+    keywords: ['telemetria', 'tracing', 'metrics', 'evals'],
   },
   {
     id: 'servers',
@@ -733,6 +740,20 @@ function App() {
               provisioningId={provisioningId}
               compliance={complianceSummary}
               onProvision={handleProvisionRequest}
+            />
+          </section>
+        )}
+        {activeView === 'observability' && (
+          <section
+            role="tabpanel"
+            id="panel-observability"
+            aria-labelledby="tab-observability"
+          >
+            <Observability
+              providers={providers}
+              metrics={telemetryMetrics}
+              isLoading={isLoading}
+              initialError={initialError}
             />
           </section>
         )}
