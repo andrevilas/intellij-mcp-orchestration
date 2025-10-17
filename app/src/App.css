@@ -12,6 +12,18 @@ body {
   margin: 0;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .skip-link {
   position: absolute;
   left: 1rem;
@@ -39,7 +51,7 @@ body {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(14, 116, 144, 0.04));
   display: flex;
   flex-direction: column;
-  padding-bottom: 4.5rem;
+  gap: 2rem;
 }
 
 .app-shell__header {
@@ -51,6 +63,7 @@ body {
   width: 100%;
   margin: 0 auto;
   gap: 2rem;
+  flex-wrap: wrap;
 }
 
 .app-shell__header h1 {
@@ -81,6 +94,7 @@ body {
   background: rgba(15, 23, 42, 0.06);
   border-radius: 9999px;
   padding: 0.25rem;
+  flex-wrap: wrap;
 }
 
 .nav-button {
@@ -542,21 +556,65 @@ body {
 .app-shell__content {
   flex: 1;
   width: 100%;
+  padding-bottom: 4rem;
 }
 
 .app-shell__footer {
-  position: fixed;
+  position: sticky;
   bottom: 0;
   left: 0;
   width: 100%;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.92);
   color: #f8fafc;
   text-align: center;
   padding: 0.85rem 1rem;
   font-size: 0.9rem;
   letter-spacing: 0.02em;
-  box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.18);
   z-index: 900;
+  margin-top: auto;
+}
+
+@media (max-width: 1200px) {
+  .app-shell__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+
+  .app-shell__actions {
+    justify-content: flex-start;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .app-shell__nav {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell__actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .app-shell__nav {
+    width: 100%;
+    padding: 0.5rem;
+  }
+
+  .nav-button {
+    flex: 1 1 160px;
+    text-align: left;
+  }
+
+  .notification-button,
+  .command-button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .keys {
@@ -1986,6 +2044,97 @@ main.dashboard {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.5rem;
+}
+
+.dashboard__insights {
+  display: grid;
+  gap: 2rem;
+}
+
+.dashboard__insight-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+.insight-card {
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.12), rgba(14, 116, 144, 0.04));
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 160px;
+}
+
+.insight-card header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.insight-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.insight-card__value {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.insight-card__caption {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.dashboard__insight-visuals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.insight-chart {
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.9);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.insight-chart__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.insight-chart__header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.insight-chart__header p {
+  margin: 0;
+  color: #475569;
+}
+
+.insight-chart__canvas {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.insight-chart .info {
+  margin: 0;
+  text-align: center;
 }
 
 .kpi-card {

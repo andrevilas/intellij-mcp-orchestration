@@ -1,5 +1,20 @@
-import { useMemo } from 'react';
-import { ResponsiveContainer, ScatterChart, CartesianGrid, XAxis, YAxis, Tooltip, ZAxis, Scatter } from 'recharts';
+import { useId, useMemo } from 'react';
+import {
+  ResponsiveContainer,
+  ScatterChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ZAxis,
+  Scatter,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  Legend,
+} from 'recharts';
 
 import type {
   PolicyComplianceSummary,
@@ -43,6 +58,15 @@ interface DerivedDashboardData {
   heatmap: HeatmapPoint[];
   maxHeatmapValue: number;
   heatmapProviderCount: number;
+  cacheHitRatePercent: number | null;
+  cachedTokens: number | null;
+  latencyP95: number | null;
+  latencyP99: number | null;
+  errorRatePercent: number | null;
+  costBreakdown: Array<{ label: string; cost: number; percent: number }>;
+  totalCostBreakdown: number;
+  errorBreakdown: Array<{ category: string; count: number; percent: number }>;
+  totalErrorCount: number;
 }
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -53,11 +77,18 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const numberFormatter = new Intl.NumberFormat('pt-BR');
 
+const percentFormatter = new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 0,
+});
+
 const LATENCY_FORMATTER = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 0,
 });
 
 const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+const INSIGHT_COLORS = ['#2563eb', '#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#06b6d4', '#f43f5e'];
 
 function normalizeDateToLocalDay(date: Date): string {
   return DAY_NAMES[date.getDay()];
@@ -170,6 +201,60 @@ function deriveDashboardData(
     }
   }
 
+  const extended = metrics?.extended ?? null;
+  const cacheHitRatePercent =
+    typeof extended?.cache_hit_rate === 'number'
+      ? Math.round(extended.cache_hit_rate * 1000) / 10
+      : null;
+  const cachedTokens =
+    typeof extended?.cached_tokens === 'number' ? Math.max(extended.cached_tokens, 0) : null;
+  const latencyP95 =
+    typeof extended?.latency_p95_ms === 'number' ? Math.max(extended.latency_p95_ms, 0) : null;
+  const latencyP99 =
+    typeof extended?.latency_p99_ms === 'number' ? Math.max(extended.latency_p99_ms, 0) : null;
+  const errorRatePercent =
+    typeof extended?.error_rate === 'number'
+      ? Math.max(0, Math.round(extended.error_rate * 1000) / 10)
+      : null;
+
+  const rawCostBreakdown = Array.isArray(extended?.cost_breakdown)
+    ? extended?.cost_breakdown ?? []
+    : [];
+  const costBreakdownBase = rawCostBreakdown
+    .map((entry) => ({
+      label: entry.label ?? entry.lane ?? entry.provider_id ?? 'Outros',
+      cost:
+        typeof entry.cost_usd === 'number' && Number.isFinite(entry.cost_usd)
+          ? Math.max(entry.cost_usd, 0)
+          : 0,
+    }))
+    .filter((entry) => entry.cost > 0)
+    .sort((a, b) => b.cost - a.cost);
+  const totalCostBreakdown = costBreakdownBase.reduce((sum, entry) => sum + entry.cost, 0);
+  const costBreakdown = costBreakdownBase.map((entry) => ({
+    ...entry,
+    percent: totalCostBreakdown > 0 ? Math.round((entry.cost / totalCostBreakdown) * 1000) / 10 : 0,
+  }));
+
+  const rawErrorBreakdown = Array.isArray(extended?.error_breakdown)
+    ? extended?.error_breakdown ?? []
+    : [];
+  const errorBreakdownBase = rawErrorBreakdown
+    .map((entry) => ({
+      category: entry.category ?? 'Desconhecido',
+      count:
+        typeof entry.count === 'number' && Number.isFinite(entry.count)
+          ? Math.max(Math.floor(entry.count), 0)
+          : 0,
+    }))
+    .filter((entry) => entry.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const totalErrorCount = errorBreakdownBase.reduce((sum, entry) => sum + entry.count, 0);
+  const errorBreakdown = errorBreakdownBase.map((entry) => ({
+    ...entry,
+    percent: totalErrorCount > 0 ? Math.round((entry.count / totalErrorCount) * 1000) / 10 : 0,
+  }));
+
   return {
     cost24h: cost24h,
     tokensTotal,
@@ -180,6 +265,15 @@ function deriveDashboardData(
     heatmap,
     maxHeatmapValue,
     heatmapProviderCount: heatmapProviders.length,
+    cacheHitRatePercent,
+    cachedTokens,
+    latencyP95,
+    latencyP99,
+    errorRatePercent,
+    costBreakdown,
+    totalCostBreakdown,
+    errorBreakdown,
+    totalErrorCount,
   };
 }
 
@@ -205,6 +299,16 @@ function getHeatmapColor(value: number, max: number): string {
   const g = Math.round(start.g + (end.g - start.g) * intensity);
   const b = Math.round(start.b + (end.b - start.b) * intensity);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function formatCostTooltip(value: number, name: string | number): [string, string] {
+  const label = typeof name === 'string' ? name : String(name);
+  return [currencyFormatter.format(value), label];
+}
+
+function formatErrorTooltip(value: number, name: string | number): [string, string] {
+  const label = typeof name === 'string' ? name : String(name);
+  return [`${numberFormatter.format(value)} falha(s)`, label];
 }
 
 function createHeatSquareRenderer(max: number) {
@@ -311,6 +415,77 @@ export function Dashboard({
     return items;
   }, [derived]);
 
+  const insightCards = useMemo(() => {
+    const cards: Array<{ id: string; title: string; value: string; caption: string }> = [];
+
+    const cacheHitLabel =
+      derived.cacheHitRatePercent !== null
+        ? `${percentFormatter.format(derived.cacheHitRatePercent)}%`
+        : 'Sem dados';
+    const cachedTokensLabel =
+      derived.cachedTokens !== null
+        ? `${numberFormatter.format(derived.cachedTokens)} tok`
+        : 'Sem dados';
+
+    const cacheShare =
+      derived.cachedTokens !== null && derived.tokensTotal > 0
+        ? `${percentFormatter.format((derived.cachedTokens / derived.tokensTotal) * 100)}%`
+        : null;
+
+    cards.push({
+      id: 'cache-hit',
+      title: 'Taxa de acertos em cache',
+      value: cacheHitLabel,
+      caption:
+        derived.cachedTokens !== null
+          ? `${numberFormatter.format(derived.cachedTokens)} tokens servidos via cache nas últimas 24h.`
+          : 'Ainda não houve medições de uso de cache nesta janela.',
+    });
+
+    cards.push({
+      id: 'cache-volume',
+      title: 'Tokens via cache',
+      value: cachedTokensLabel,
+      caption:
+        cacheShare !== null
+          ? `Equivale a ${cacheShare} do volume total processado.`
+          : 'Aguardando novas execuções para estimar a participação do cache.',
+    });
+
+    cards.push({
+      id: 'latency-p95',
+      title: 'Latência P95',
+      value:
+        derived.latencyP95 !== null
+          ? `${LATENCY_FORMATTER.format(derived.latencyP95)} ms`
+          : 'Sem dados',
+      caption:
+        derived.latencyP99 !== null
+          ? `P99 registrado em ${LATENCY_FORMATTER.format(derived.latencyP99)} ms.`
+          : 'Nenhuma medição P99 disponível nesta janela.',
+    });
+
+    cards.push({
+      id: 'error-rate',
+      title: 'Taxa de erro',
+      value:
+        derived.errorRatePercent !== null
+          ? `${percentFormatter.format(derived.errorRatePercent)}%`
+          : 'Sem dados',
+      caption:
+        derived.totalErrorCount > 0
+          ? `${numberFormatter.format(derived.totalErrorCount)} falhas categorizadas nas últimas execuções.`
+          : 'Nenhum erro categorizado na janela analisada.',
+    });
+
+    return cards;
+  }, [derived]);
+
+  const costChartTitleId = useId();
+  const costChartDescriptionId = useId();
+  const errorChartTitleId = useId();
+  const errorChartDescriptionId = useId();
+
   return (
     <main className="dashboard">
       <section className="dashboard__hero">
@@ -381,8 +556,99 @@ export function Dashboard({
             caption={kpi.caption}
             trend={kpi.trend}
             trendLabel={kpi.trendLabel}
-          />
-        ))}
+      />
+    ))}
+  </section>
+
+      <section className="dashboard__insights" aria-label="Indicadores complementares de telemetria">
+        <div className="dashboard__insight-cards">
+          {insightCards.map((card) => (
+            <article key={card.id} className="insight-card">
+              <header>
+                <h3>{card.title}</h3>
+              </header>
+              <p className="insight-card__value">{card.value}</p>
+              <p className="insight-card__caption">{card.caption}</p>
+            </article>
+          ))}
+        </div>
+        <div className="dashboard__insight-visuals">
+          <figure className="insight-chart" aria-labelledby={costChartTitleId} aria-describedby={costChartDescriptionId}>
+            <div className="insight-chart__header">
+              <h3 id={costChartTitleId}>Distribuição de custo por rota</h3>
+              <p>Participação relativa por lane/rota nas últimas 24h.</p>
+            </div>
+            <div
+              className="insight-chart__canvas"
+              role="img"
+              aria-labelledby={`${costChartTitleId} ${costChartDescriptionId}`}
+            >
+              {derived.costBreakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Tooltip formatter={(value, name) => formatCostTooltip(value as number, name)} />
+                    <Pie
+                      data={derived.costBreakdown}
+                      dataKey="cost"
+                      nameKey="label"
+                      innerRadius={60}
+                      outerRadius={110}
+                      paddingAngle={4}
+                    >
+                      {derived.costBreakdown.map((entry, index) => (
+                        <Cell key={entry.label} fill={INSIGHT_COLORS[index % INSIGHT_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Legend
+                      formatter={(value: string) => {
+                        const entry = derived.costBreakdown.find((item) => item.label === value);
+                        const percent = entry ? percentFormatter.format(entry.percent) : undefined;
+                        return percent ? `${value} — ${percent}%` : value;
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="info">Sem custos computados na janela selecionada.</p>
+              )}
+            </div>
+            <figcaption id={costChartDescriptionId} className="visually-hidden">
+              {derived.costBreakdown.length > 0
+                ? `Distribuição percentual de custo entre ${derived.costBreakdown.length} rota(s).`
+                : 'Sem dados de custo disponíveis para calcular a distribuição.'}
+            </figcaption>
+          </figure>
+          <figure className="insight-chart" aria-labelledby={errorChartTitleId} aria-describedby={errorChartDescriptionId}>
+            <div className="insight-chart__header">
+              <h3 id={errorChartTitleId}>Ocorrências de erro por categoria</h3>
+              <p>Principais motivos de falha registrados.</p>
+            </div>
+            <div
+              className="insight-chart__canvas"
+              role="img"
+              aria-labelledby={`${errorChartTitleId} ${errorChartDescriptionId}`}
+            >
+              {derived.errorBreakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={derived.errorBreakdown} margin={{ top: 8, right: 16, left: 0, bottom: 16 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="category" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip formatter={(value, name) => formatErrorTooltip(value as number, name)} />
+                    <Bar dataKey="count" name="Falhas" radius={[8, 8, 0, 0]} fill="#f97316" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="info">Nenhum erro categorizado na janela analisada.</p>
+              )}
+            </div>
+            <figcaption id={errorChartDescriptionId} className="visually-hidden">
+              {derived.errorBreakdown.length > 0
+                ? `Total de ${numberFormatter.format(derived.totalErrorCount)} falhas distribuídas em ${derived.errorBreakdown.length} categoria(s).`
+                : 'Sem dados categorizados de falhas disponíveis.'}
+            </figcaption>
+          </figure>
+        </div>
       </section>
 
       <section className="dashboard__alerts" aria-label="Alertas operacionais">

@@ -930,6 +930,30 @@ export interface TelemetryProviderMetrics {
   success_rate: number;
 }
 
+export interface TelemetryMetricsCostBreakdownEntry {
+  id?: string | null;
+  label?: string | null;
+  lane?: string | null;
+  provider_id?: string | null;
+  cost_usd: number;
+  run_count?: number | null;
+}
+
+export interface TelemetryMetricsErrorBreakdownEntry {
+  category: string;
+  count: number;
+}
+
+export interface TelemetryMetricsExtended {
+  cache_hit_rate?: number | null;
+  cached_tokens?: number | null;
+  latency_p95_ms?: number | null;
+  latency_p99_ms?: number | null;
+  error_rate?: number | null;
+  cost_breakdown?: TelemetryMetricsCostBreakdownEntry[] | null;
+  error_breakdown?: TelemetryMetricsErrorBreakdownEntry[] | null;
+}
+
 export interface TelemetryMetrics {
   start?: string | null;
   end?: string | null;
@@ -940,6 +964,7 @@ export interface TelemetryMetrics {
   avg_latency_ms: number;
   success_rate: number;
   providers: TelemetryProviderMetrics[];
+  extended?: TelemetryMetricsExtended | null;
 }
 
 export interface TelemetryHeatmapBucket {
