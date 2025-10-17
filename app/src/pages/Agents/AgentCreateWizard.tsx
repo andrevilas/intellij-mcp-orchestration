@@ -23,7 +23,7 @@ import type {
   ConfigPlanPreview,
   PlanExecutionPullRequest,
 } from '../../api';
-import { ApiError, postAgentPlan, postAgentSmokeRun, postPolicyPlanApply } from '../../api';
+import { ApiError, postAgentPlan, postAgentPlanApply, postAgentSmokeRun } from '../../api';
 import PlanSummary from '../AdminChat/PlanSummary';
 import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
 
@@ -847,7 +847,7 @@ export default function AgentCreateWizard({ isOpen, onClose, onAgentCreated }: A
     setApplyStatusMessage(null);
 
     try {
-      const response = await postPolicyPlanApply({
+      const response = await postAgentPlanApply({
         planId: pendingPlan.id,
         plan: pendingPlan.planPayload,
         patch,

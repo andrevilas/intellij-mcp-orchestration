@@ -15,7 +15,8 @@ from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
+import yaml
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -90,7 +91,7 @@ from .config_assistant.langgraph import (
     list_flow_versions,
     rollback_flow_version,
 )
-from .config_assistant.renderers import render_chat_reply
+from .config_assistant.renderers import render_agent_module, render_chat_reply
 from .config_assistant.plan_executor import (
     PlanExecutionResult,
     PlanExecutor,
@@ -1230,6 +1231,92 @@ def _serialize_validation_details(
     )
 
 
+def _ensure_trailing_newline(content: str) -> str:
+    return content if content.endswith("\n") else f"{content}\n"
+
+
+def _normalize_manifest_payload(
+    manifest: Mapping[str, Any] | str,
+) -> tuple[Mapping[str, Any], str]:
+    if isinstance(manifest, str):
+        text = manifest.strip()
+        if not text:
+            raise ValueError("Manifesto do agent não pode estar vazio.")
+        try:
+            parsed = yaml.safe_load(text)
+        except yaml.YAMLError as exc:  # pragma: no cover - defensive guard
+            raise ValueError(f"Manifesto do agent inválido: {exc}") from exc
+        if not isinstance(parsed, Mapping):
+            raise ValueError("Manifesto do agent precisa ser um objeto YAML.")
+        manifest_data: Mapping[str, Any] = dict(parsed)
+        manifest_text = _ensure_trailing_newline(text)
+    else:
+        manifest_data = dict(manifest)
+        try:
+            manifest_text = yaml.safe_dump(
+                manifest_data,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+        except (yaml.YAMLError, TypeError) as exc:
+            raise ValueError(f"Não foi possível serializar o manifesto do agent: {exc}") from exc
+        manifest_text = _ensure_trailing_newline(manifest_text)
+    return manifest_data, manifest_text
+
+
+def _extract_capabilities(manifest: Mapping[str, Any]) -> list[str]:
+    value = manifest.get("capabilities")
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        capabilities: list[str] = []
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                capabilities.append(item.strip())
+        return capabilities
+    return []
+
+
+def _extract_primary_tool_name(manifest: Mapping[str, Any]) -> str | None:
+    tools = manifest.get("tools")
+    if isinstance(tools, Sequence) and not isinstance(tools, (str, bytes)):
+        for item in tools:
+            if isinstance(item, Mapping):
+                name = item.get("name")
+                if isinstance(name, str) and name.strip():
+                    return name.strip()
+    return None
+
+
+def _render_agent_module_content(agent_slug: str, manifest: Mapping[str, Any], module_override: str | None) -> str:
+    if module_override:
+        return _ensure_trailing_newline(module_override)
+    tool_name = _extract_primary_tool_name(manifest)
+    return render_agent_module(agent_slug, tool_name=tool_name)
+
+
+def _render_agent_package_init() -> str:
+    return "from .agent import build_agent, get_tools\n\n__all__ = [\"build_agent\", \"get_tools\"]\n"
+
+
+def _create_patch_for_new_file(path: str, content: str) -> str:
+    normalized_path = Path(path).as_posix()
+    body_lines = list(
+        difflib.unified_diff(
+            [],
+            _ensure_trailing_newline(content).splitlines(keepends=True),
+            fromfile="/dev/null",
+            tofile=f"b/{normalized_path}",
+            lineterm="",
+        )
+    )
+    patch_lines = [f"diff --git a/{normalized_path} b/{normalized_path}", "new file mode 100644"] + body_lines
+    patch = "\n".join(patch_lines)
+    if not patch.endswith("\n"):
+        patch += "\n"
+    return patch
+
+
 @router.get("/flows/{flow_id}/versions", response_model=FlowVersionsResponse)
 def list_flow_versions_route(flow_id: str) -> FlowVersionsResponse:
     records = list_flow_versions(flow_id)
@@ -1311,6 +1398,33 @@ class ChatResponse(BaseModel):
 class PlanRequest(BaseModel):
     intent: AssistantIntent
     payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentPlanAgentPayload(BaseModel):
+    slug: str = Field(..., min_length=1)
+    repository: str = Field(default="agents-hub", min_length=1)
+    manifest: Mapping[str, Any] | str
+    module: str | None = None
+
+    @field_validator("slug")
+    @classmethod
+    def _validate_slug(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Informe um identificador para o agent.")
+        return normalized
+
+    @field_validator("repository")
+    @classmethod
+    def _validate_repository(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Informe o repositório de destino.")
+        return normalized
+
+
+class AgentPlanRequest(BaseModel):
+    agent: AgentPlanAgentPayload
 
 
 class PullRequestPreviewModel(BaseModel):
@@ -1571,6 +1685,87 @@ def create_plan(request: PlanRequest, http_request: Request) -> PlanResponse:
     return PlanResponse(plan=plan)
 
 
+@router.post("/config/agents/plan", response_model=PlanResponse)
+def plan_agent_onboarding(request: AgentPlanRequest, http_request: Request) -> PlanResponse:
+    """Generate a scaffold plan for onboarding a new agent with diff previews."""
+
+    user = require_roles(http_request, Role.PLANNER)
+    agent = request.agent
+
+    try:
+        manifest_data, manifest_text = _normalize_manifest_payload(agent.manifest)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    repository = agent.repository
+    slug = agent.slug
+    planner_payload = {
+        "agent_name": slug,
+        "repository": repository,
+        "capabilities": _extract_capabilities(manifest_data),
+    }
+
+    plan = _build_plan(AssistantIntent.ADD_AGENT, planner_payload)
+
+    module_text = _render_agent_module_content(slug, manifest_data, agent.module)
+    package_init_text = _render_agent_package_init()
+
+    manifest_path = Path(repository) / "app" / "agents" / slug / "agent.yaml"
+    module_path = Path(repository) / "app" / "agents" / slug / "agent.py"
+    package_init_path = Path(repository) / "app" / "agents" / slug / "__init__.py"
+
+    diff_lookup = {diff.path: diff for diff in plan.diffs}
+    generated_diffs = []
+    for target_path, contents in (
+        (manifest_path.as_posix(), manifest_text),
+        (module_path.as_posix(), module_text),
+        (package_init_path.as_posix(), package_init_text),
+    ):
+        base = diff_lookup.get(target_path)
+        summary = base.summary if base else f"Atualizar {target_path}"
+        change_type = base.change_type if base else "create"
+        generated_diffs.append(
+            DiffSummary(
+                path=target_path,
+                summary=summary,
+                change_type=change_type,
+                diff=_create_patch_for_new_file(target_path, contents),
+            )
+        )
+
+    plan = plan.model_copy(update={"diffs": generated_diffs})
+
+    display_name = str(manifest_data.get("title") or slug).strip() or slug
+    plan_identifier = f"add-agent-{slug}"
+    commit_message = f"feat: adicionar agent {display_name}"
+
+    preview: PlanPreview | None = None
+    try:
+        preview = get_plan_executor().preview_execution(
+            plan_identifier,
+            plan=plan,
+            commit_message=commit_message,
+        )
+    except Exception as exc:  # pragma: no cover - defensive logging
+        assistant_logger.warning(
+            "config.agents.plan.preview_failed",
+            agent=slug,
+            error=str(exc),
+        )
+
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.agents.plan",
+        resource="/config/agents/plan",
+        metadata={"agent": slug, "repository": repository},
+    )
+
+    return PlanResponse(
+        plan=plan,
+        preview=_serialize_plan_preview(preview),
+    )
+
+
 @router.post("/config/rag/query", response_model=RagQueryResponse)
 def query_rag_endpoint(payload: RagQueryRequest) -> RagQueryResponse:
     """Execute a lightweight RAG search over the local documentation corpus."""
@@ -1600,10 +1795,14 @@ def query_rag_endpoint(payload: RagQueryRequest) -> RagQueryResponse:
     )
 
 
-@router.post("/config/apply", response_model=ApplyPlanResponse)
-def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> ApplyPlanResponse:
-    """Apply a configuration plan leveraging Git workflows."""
-
+def _execute_plan_application(
+    payload: ApplyPlanRequest,
+    http_request: Request,
+    *,
+    resource: str,
+    action_prefix: str,
+    log_prefix: str,
+) -> ApplyPlanResponse:
     executor = get_plan_executor()
 
     try:
@@ -1622,8 +1821,8 @@ def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> App
             )
             get_audit_logger(http_request).log(
                 actor=user,
-                action="config.apply.dry_run",
-                resource="/config/apply",
+                action=f"{action_prefix}.dry_run",
+                resource=resource,
                 plan_id=payload.plan_id,
                 metadata={"mode": payload.mode.value},
             )
@@ -1656,8 +1855,8 @@ def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> App
                 )
                 get_audit_logger(http_request).log(
                     actor=user,
-                    action="config.apply.submit",
-                    resource="/config/apply",
+                    action=f"{action_prefix}.submit",
+                    resource=resource,
                     plan_id=payload.plan_id,
                     metadata={"mode": payload.mode.value, "approval_id": submission.approval_id},
                 )
@@ -1685,8 +1884,8 @@ def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> App
                 )
                 get_audit_logger(http_request).log(
                     actor=user,
-                    action="config.apply.approve",
-                    resource="/config/apply",
+                    action=f"{action_prefix}.approve",
+                    resource=resource,
                     plan_id=payload.plan_id,
                     metadata={"approval_id": payload.approval_id},
                 )
@@ -1704,8 +1903,8 @@ def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> App
                 )
                 get_audit_logger(http_request).log(
                     actor=user,
-                    action="config.apply.reject",
-                    resource="/config/apply",
+                    action=f"{action_prefix}.reject",
+                    resource=resource,
                     plan_id=payload.plan_id,
                     metadata={"approval_id": payload.approval_id},
                     status="rejected",
@@ -1720,7 +1919,7 @@ def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> App
 
     diff = PlanExecutionDiff(stat=result.diff_stat, patch=result.diff_patch)
     assistant_logger.info(
-        "config.apply.result",
+        f"{log_prefix}.result",
         plan_id=payload.plan_id,
         status=result.status.value,
         mode=result.mode.value,
@@ -1740,6 +1939,32 @@ def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> App
         message=result.message,
         approval_id=result.approval_id,
         pull_request=_serialize_pull_request(result.pull_request),
+    )
+
+
+@router.post("/config/apply", response_model=ApplyPlanResponse)
+def apply_plan_endpoint(payload: ApplyPlanRequest, http_request: Request) -> ApplyPlanResponse:
+    """Apply a configuration plan leveraging Git workflows."""
+
+    return _execute_plan_application(
+        payload,
+        http_request,
+        resource="/config/apply",
+        action_prefix="config.apply",
+        log_prefix="config.apply",
+    )
+
+
+@router.post("/config/agents/apply", response_model=ApplyPlanResponse)
+def apply_agent_plan(payload: ApplyPlanRequest, http_request: Request) -> ApplyPlanResponse:
+    """Apply an agent onboarding plan using Git workflows."""
+
+    return _execute_plan_application(
+        payload,
+        http_request,
+        resource="/config/agents/apply",
+        action_prefix="config.agents.apply",
+        log_prefix="config.agents.apply",
     )
 
 

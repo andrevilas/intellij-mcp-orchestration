@@ -51,6 +51,7 @@ import {
   postAgentSmokeRun,
   fetchSmokeEndpoints,
   triggerSmokeEndpoint,
+  postAgentPlanApply,
   postPolicyPlanApply,
   fetchSecurityUsers,
   createSecurityUser,
@@ -1308,6 +1309,76 @@ describe('api client', () => {
     expect(response.pullRequest?.ciResults).toEqual([
       { name: 'ci/tests', status: 'success', detailsUrl: 'https://ci.example.com/run/101' },
     ]);
+  });
+
+  it('aplica plano de agente utilizando rota dedicada', async () => {
+    const planPayload = {
+      intent: 'add_agent',
+      summary: 'Adicionar agente sentinel-watcher',
+      steps: [],
+      diffs: [],
+      risks: [],
+      status: 'pending' as const,
+      context: [],
+      approval_rules: [],
+    };
+
+    const applyResponse = {
+      status: 'pending' as const,
+      mode: 'branch_pr' as const,
+      plan_id: 'plan-agent-1',
+      record_id: 'rec-agent-1',
+      branch: 'feature/add-sentinel',
+      base_branch: 'main',
+      commit_sha: null,
+      diff: { stat: '1 file changed', patch: 'diff --git a/file b/file' },
+      hitl_required: false,
+      message: 'Plano enviado para aprovação.',
+      approval_id: 'approval-1',
+      pull_request: null,
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(applyResponse));
+
+    const response = await postAgentPlanApply({
+      planId: 'plan-agent-1',
+      plan: planPayload,
+      patch: 'diff --git a/file b/file',
+      mode: 'branch_pr',
+      actor: 'Console MCP',
+      actorEmail: 'agents@console.mcp',
+      commitMessage: 'feat: adicionar agent sentinel-watcher',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/config/agents/apply',
+      expect.objectContaining({ method: 'POST' }),
+    );
+
+    const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse((requestInit.body ?? '{}') as string);
+    expect(body).toMatchObject({
+      plan_id: 'plan-agent-1',
+      plan: planPayload,
+      patch: 'diff --git a/file b/file',
+      mode: 'branch_pr',
+      actor: 'Console MCP',
+      actor_email: 'agents@console.mcp',
+      commit_message: 'feat: adicionar agent sentinel-watcher',
+    });
+
+    expect(response).toMatchObject({
+      status: 'pending',
+      mode: 'branch_pr',
+      planId: 'plan-agent-1',
+      recordId: 'rec-agent-1',
+      branch: 'feature/add-sentinel',
+      baseBranch: 'main',
+      commitSha: null,
+      hitlRequired: false,
+      approvalId: 'approval-1',
+      message: 'Plano enviado para aprovação.',
+    });
   });
 
   it('gera plano para criação de novo agent com manifesto base', async () => {
