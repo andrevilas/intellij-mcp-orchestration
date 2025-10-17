@@ -156,9 +156,11 @@ test('gera e aplica plano de políticas com HITL', async ({ page }) => {
   await page.route('**/api/v1/notifications', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ notifications: [] }), contentType: 'application/json' }),
   );
-  await page.route('**/api/v1/policy/compliance', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify({ status: 'pass', items: [] }), contentType: 'application/json' }),
-  );
+  const compliancePayload = { status: 'pass', items: [] };
+  const fulfillCompliance = (route: { fulfill: (options: { status: number; body: string; contentType: string }) => void }) =>
+    route.fulfill({ status: 200, body: JSON.stringify(compliancePayload), contentType: 'application/json' });
+  await page.route('**/api/v1/policies/compliance', fulfillCompliance);
+  await page.route('**/api/v1/policy/compliance', fulfillCompliance);
 
   await page.route('**/api/v1/policies/templates', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify(templatesResponse), contentType: 'application/json' }),
