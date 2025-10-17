@@ -3394,7 +3394,11 @@ export async function postConfigApply(
   });
 }
 
+export type ConfigOnboardIntent = 'plan' | 'validate';
+
 export interface ConfigOnboardRequest {
+  intent?: ConfigOnboardIntent;
+  endpoint: string;
   agent: {
     id: string;
     name: string;
