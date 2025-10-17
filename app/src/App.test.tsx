@@ -996,14 +996,14 @@ describe('App provider orchestration flow', () => {
 
     await user.keyboard('{ArrowRight}');
     expect(navButtons[1]).toHaveFocus();
-    await screen.findByRole('heading', { name: /Servidores MCP/i });
+    await screen.findByRole('heading', { name: /Observabilidade unificada/i });
 
     await user.keyboard('{ArrowLeft}');
     expect(navButtons[0]).toHaveFocus();
     await waitFor(() => {
       expect(navButtons[0]).toHaveAttribute('aria-current', 'page');
       expect(navButtons[1]).not.toHaveAttribute('aria-current', 'page');
-      expect(screen.queryByRole('heading', { name: /Servidores MCP/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /Observabilidade unificada/i })).not.toBeInTheDocument();
     });
   });
 
