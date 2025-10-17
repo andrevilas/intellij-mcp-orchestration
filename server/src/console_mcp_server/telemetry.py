@@ -7,10 +7,12 @@ import html
 import io
 import json
 import os
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
+import math
 from pathlib import Path
-from typing import Iterable, Iterator, Mapping, MutableMapping, cast
+from typing import Iterable, Iterator, Mapping, MutableMapping, Sequence, cast
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
@@ -235,6 +237,9 @@ __all__ = [
     "aggregate_metrics",
     "TelemetryAggregates",
     "TelemetryProviderAggregate",
+    "TelemetryMetricsExtended",
+    "TelemetryMetricsCostBreakdownEntry",
+    "TelemetryMetricsErrorBreakdownEntry",
     "TelemetryTimeseriesPoint",
     "TelemetryRouteBreakdown",
     "TelemetryRunRecord",
@@ -288,6 +293,7 @@ class TelemetryAggregates:
     avg_latency_ms: float
     success_rate: float
     providers: tuple[TelemetryProviderAggregate, ...]
+    extended: "TelemetryMetricsExtended | None" = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -300,6 +306,7 @@ class TelemetryAggregates:
             "avg_latency_ms": self.avg_latency_ms,
             "success_rate": self.success_rate,
             "providers": [provider.to_dict() for provider in self.providers],
+            "extended": self.extended.to_dict() if self.extended else None,
         }
 
 
@@ -335,6 +342,67 @@ class TelemetryTimeseriesPoint:
             "cost_usd": self.cost_usd,
             "avg_latency_ms": self.avg_latency_ms,
             "success_count": self.success_count,
+        }
+
+
+@dataclass(frozen=True)
+class TelemetryMetricsCostBreakdownEntry:
+    """Cost distribution grouped by route or provider."""
+
+    entry_id: str | None
+    label: str | None
+    lane: str | None
+    provider_id: str | None
+    cost_usd: float
+    run_count: int | None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.entry_id,
+            "label": self.label,
+            "lane": self.lane,
+            "provider_id": self.provider_id,
+            "cost_usd": self.cost_usd,
+            "run_count": self.run_count,
+        }
+
+
+@dataclass(frozen=True)
+class TelemetryMetricsErrorBreakdownEntry:
+    """Count of failures grouped by category."""
+
+    category: str
+    count: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {"category": self.category, "count": self.count}
+
+
+@dataclass(frozen=True)
+class TelemetryMetricsExtended:
+    """Extended telemetry metrics derived from raw executions."""
+
+    cache_hit_rate: float | None = None
+    cached_tokens: int | None = None
+    latency_p95_ms: float | None = None
+    latency_p99_ms: float | None = None
+    error_rate: float | None = None
+    cost_breakdown: tuple[TelemetryMetricsCostBreakdownEntry, ...] = tuple()
+    error_breakdown: tuple[TelemetryMetricsErrorBreakdownEntry, ...] = tuple()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "cache_hit_rate": self.cache_hit_rate,
+            "cached_tokens": self.cached_tokens,
+            "latency_p95_ms": self.latency_p95_ms,
+            "latency_p99_ms": self.latency_p99_ms,
+            "error_rate": self.error_rate,
+            "cost_breakdown": [entry.to_dict() for entry in self.cost_breakdown]
+            if self.cost_breakdown
+            else [],
+            "error_breakdown": [entry.to_dict() for entry in self.error_breakdown]
+            if self.error_breakdown
+            else [],
         }
 
 
@@ -652,6 +720,315 @@ def _coerce_date(value: object) -> date | None:
     return None
 
 
+def _percentile(values: Sequence[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    if len(values) == 1:
+        return float(values[0])
+
+    bounded = max(0.0, min(1.0, percentile))
+    sorted_values = sorted(values)
+    position = (len(sorted_values) - 1) * bounded
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return float(sorted_values[int(position)])
+    lower_weight = upper - position
+    upper_weight = position - lower
+    return float(sorted_values[lower] * lower_weight + sorted_values[upper] * upper_weight)
+
+
+def _format_label(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    normalized = text.replace("_", " ").strip()
+    if not normalized:
+        return None
+    parts = [part for part in normalized.split(" ") if part]
+    if not parts:
+        return None
+    return " ".join(word.capitalize() for word in parts)
+
+
+def _parse_metadata_blob(value: object) -> Mapping[str, object]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+    return {}
+
+
+def _normalize_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        if value in (0, 1):
+            return bool(value)
+        return None
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"hit", "true", "yes", "y", "1"}:
+            return True
+        if lowered in {"miss", "false", "no", "n", "0"}:
+            return False
+    return None
+
+
+def _extract_numeric(value: object) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str) and value.strip():
+            return int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _extract_cache_insights(metadata: Mapping[str, object]) -> tuple[bool | None, int | None]:
+    if not metadata:
+        return (None, None)
+
+    nested = metadata.get("cache")
+    if isinstance(nested, Mapping):
+        hit: bool | None = None
+        for key in ("hit", "cache_hit", "status", "result"):
+            candidate = nested.get(key)
+            if candidate is not None:
+                normalized = _normalize_bool(candidate)
+                if normalized is not None:
+                    hit = normalized
+                    break
+        tokens = (
+            _extract_numeric(nested.get("tokens"))
+            or _extract_numeric(nested.get("token_count"))
+            or _extract_numeric(nested.get("cached_tokens"))
+        )
+        if hit is not None or tokens is not None:
+            return (hit, tokens)
+
+    for key in ("cache_hit", "cacheHit", "cache_status", "cacheStatus"):
+        if key in metadata:
+            hit = _normalize_bool(metadata.get(key))
+            if hit is not None:
+                tokens = (
+                    _extract_numeric(metadata.get("cached_tokens"))
+                    or _extract_numeric(metadata.get("cache_tokens"))
+                    or _extract_numeric(metadata.get("cacheHitTokens"))
+                )
+                return (hit, tokens)
+
+    tokens = (
+        _extract_numeric(metadata.get("cached_tokens"))
+        or _extract_numeric(metadata.get("cache_tokens"))
+        or _extract_numeric(metadata.get("cacheHitTokens"))
+    )
+    return (None, tokens)
+
+
+def _extract_error_category(status: str, metadata: Mapping[str, object]) -> str | None:
+    candidates: list[str | None] = []
+    if metadata:
+        error_obj = metadata.get("error")
+        if isinstance(error_obj, Mapping):
+            for key in ("category", "type", "code", "name", "kind"):
+                if key in error_obj:
+                    candidates.append(str(error_obj.get(key)))
+        elif isinstance(error_obj, str):
+            candidates.append(error_obj)
+
+        for key in (
+            "error_category",
+            "errorCategory",
+            "error_type",
+            "errorType",
+            "error_code",
+            "errorCode",
+            "failure_reason",
+            "failureReason",
+        ):
+            if key in metadata:
+                candidates.append(str(metadata.get(key)))
+
+    for candidate in candidates:
+        label = _format_label(candidate) if candidate is not None else None
+        if label:
+            return label
+
+    normalized_status = _format_label(status)
+    if normalized_status and normalized_status.lower() != "success":
+        return normalized_status
+    if status.strip().lower() != "success":
+        return "Unknown"
+    return None
+
+
+def _compute_cost_breakdown(
+    connection: Connection, where_clause: str, params: Mapping[str, object]
+) -> tuple[TelemetryMetricsCostBreakdownEntry, ...]:
+    statement = text(
+        f"""
+        SELECT
+            provider_id,
+            route,
+            COUNT(*) AS run_count,
+            SUM(COALESCE(cost_estimated_usd, 0)) AS base_cost,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_in ELSE 0 END) AS missing_tokens_in,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_out ELSE 0 END) AS missing_tokens_out
+        FROM telemetry_events
+        {where_clause}
+        GROUP BY provider_id, route
+        """
+    )
+    rows = connection.execute(statement, dict(params)).mappings().all()
+    if not rows:
+        return tuple()
+
+    provider_lanes = _provider_lane_index()
+    breakdown: dict[str, dict[str, object]] = {}
+    for row in rows:
+        provider = row.get("provider_id")
+        if provider is None:
+            continue
+        provider_id = str(provider)
+        route = row.get("route")
+        run_count = int(row.get("run_count") or 0)
+        base_cost = float(row.get("base_cost") or 0.0)
+        missing_in = int(row.get("missing_tokens_in") or 0)
+        missing_out = int(row.get("missing_tokens_out") or 0)
+        cost = _augment_cost(provider_id, base_cost, missing_in, missing_out)
+        if cost <= 0:
+            continue
+
+        lane = provider_lanes.get(provider_id)
+        label_source = route if isinstance(route, str) and route.strip() else lane or provider_id
+        label = _format_label(str(label_source)) if label_source else None
+        key = label or provider_id
+        bucket = breakdown.setdefault(
+            key,
+            {
+                "cost": 0.0,
+                "run_count": 0,
+                "providers": set(),
+                "entry_id": f"{provider_id}:{route if route else 'default'}" if route is not None else provider_id,
+                "lanes": set(),
+            },
+        )
+        bucket["cost"] = float(bucket["cost"]) + cost
+        bucket["run_count"] = int(bucket["run_count"]) + run_count
+        providers_set = cast(set[str], bucket["providers"])
+        providers_set.add(provider_id)
+        lanes_set = cast(set[str | None], bucket["lanes"])
+        lanes_set.add(lane)
+
+    results: list[TelemetryMetricsCostBreakdownEntry] = []
+    for key, data in breakdown.items():
+        providers_set = cast(set[str], data.get("providers", set()))
+        provider_id = next(iter(providers_set)) if len(providers_set) == 1 else None
+        entry_id = data.get("entry_id") if len(providers_set) == 1 else None
+        lanes_set = cast(set[str | None], data.get("lanes", set()))
+        lane = next(iter(lanes_set)) if len(lanes_set) == 1 else None
+        label = key if key not in providers_set else _format_label(key)
+        if label is None:
+            label = _format_label(provider_id) if provider_id else None
+        results.append(
+            TelemetryMetricsCostBreakdownEntry(
+                entry_id=str(entry_id) if entry_id is not None else None,
+                label=label,
+                lane=lane,
+                provider_id=provider_id,
+                cost_usd=round(float(data.get("cost", 0.0)), 6),
+                run_count=int(data.get("run_count", 0)) or None,
+            )
+        )
+
+    return tuple(sorted(results, key=lambda entry: entry.cost_usd, reverse=True))
+
+
+def _compute_extended_metrics(
+    connection: Connection, where_clause: str, params: Mapping[str, object], total_runs: int
+) -> TelemetryMetricsExtended | None:
+    samples = connection.execute(
+        text(
+            f"""
+            SELECT
+                duration_ms,
+                status,
+                metadata,
+                tokens_in,
+                tokens_out
+            FROM telemetry_events
+            {where_clause}
+            """
+        ),
+        dict(params),
+    ).mappings().all()
+
+    if not samples:
+        return None
+
+    durations: list[float] = []
+    error_categories: Counter[str] = Counter()
+    cache_hits = 0
+    cache_samples = 0
+    cached_tokens = 0
+
+    for row in samples:
+        duration = row.get("duration_ms")
+        if isinstance(duration, (int, float)):
+            durations.append(float(duration))
+        metadata = _parse_metadata_blob(row.get("metadata"))
+        status = str(row.get("status") or "").strip().lower()
+        category = _extract_error_category(status, metadata)
+        if category and status != "success":
+            error_categories[category] += 1
+
+        cache_hit, cache_tokens = _extract_cache_insights(metadata)
+        if cache_hit is not None:
+            cache_samples += 1
+            if cache_hit:
+                cache_hits += 1
+                if cache_tokens is not None:
+                    cached_tokens += max(0, int(cache_tokens))
+                else:
+                    cached_tokens += int(row.get("tokens_out") or 0)
+        elif cache_tokens is not None and cache_tokens > 0:
+            cached_tokens += int(cache_tokens)
+
+    p95 = _percentile(durations, 0.95)
+    p99 = _percentile(durations, 0.99)
+    cache_hit_rate = (cache_hits / cache_samples) if cache_samples else None
+    error_total = sum(error_categories.values())
+    error_rate = (error_total / total_runs) if total_runs else None
+
+    cost_breakdown = _compute_cost_breakdown(connection, where_clause, params)
+    error_breakdown = tuple(
+        TelemetryMetricsErrorBreakdownEntry(category=category, count=count)
+        for category, count in error_categories.most_common()
+        if count > 0
+    )
+
+    return TelemetryMetricsExtended(
+        cache_hit_rate=round(cache_hit_rate, 6) if cache_hit_rate is not None else None,
+        cached_tokens=cached_tokens if cached_tokens > 0 else None,
+        latency_p95_ms=p95,
+        latency_p99_ms=p99,
+        error_rate=round(error_rate, 6) if error_rate is not None else None,
+        cost_breakdown=cost_breakdown,
+        error_breakdown=error_breakdown,
+    )
+
+
 def aggregate_metrics(
     *,
     start: datetime | None = None,
@@ -669,6 +1046,18 @@ def aggregate_metrics(
     with engine.begin() as connection:
         summary = _fetch_summary(connection, where_clause, params)
         providers = _fetch_provider_breakdown(connection, where_clause, params)
+        extended = (
+            _compute_extended_metrics(
+                connection,
+                where_clause,
+                params,
+                int(summary["run_count"])
+                if summary and summary.get("run_count")
+                else 0,
+            )
+            if summary and summary.get("run_count")
+            else None
+        )
 
     if summary is None or summary["run_count"] is None or summary["run_count"] == 0:
         return TelemetryAggregates(
@@ -681,12 +1070,12 @@ def aggregate_metrics(
             avg_latency_ms=0.0,
             success_rate=0.0,
             providers=tuple(),
+            extended=None,
         )
 
     total_runs = int(summary["run_count"])
     total_tokens_in = int(summary["tokens_in"] or 0)
     total_tokens_out = int(summary["tokens_out"] or 0)
-    total_cost = float(summary["cost_usd"] or 0.0)
     avg_latency = float(summary["avg_latency_ms"] or 0.0)
     success_count = int(summary["success_count"] or 0)
     success_rate = success_count / total_runs if total_runs else 0.0
@@ -702,23 +1091,40 @@ def aggregate_metrics(
         else normalized_end
     )
 
+    total_cost = 0.0
     provider_breakdown = []
     for row in providers:
         run_count = int(row["run_count"] or 0)
         success_count = int(row["success_count"] or 0)
+        provider_raw = row.get("provider_id")
+        if provider_raw is None:
+            continue
+        provider_id = str(provider_raw)
+        base_cost = float(row.get("base_cost_usd") or 0.0)
+        missing_tokens_in = int(row.get("missing_tokens_in") or 0)
+        missing_tokens_out = int(row.get("missing_tokens_out") or 0)
+        provider_cost = _augment_cost(
+            provider_id,
+            base_cost,
+            missing_tokens_in,
+            missing_tokens_out,
+        )
+        total_cost += provider_cost
         provider_breakdown.append(
             TelemetryProviderAggregate(
-                provider_id=row["provider_id"],
+                provider_id=provider_id,
                 run_count=run_count,
                 tokens_in=int(row["tokens_in"] or 0),
                 tokens_out=int(row["tokens_out"] or 0),
-                cost_usd=float(row["cost_usd"] or 0.0),
+                cost_usd=round(provider_cost, 6),
                 avg_latency_ms=float(row["avg_latency_ms"] or 0.0),
                 success_rate=(success_count / run_count) if run_count else 0.0,
             )
         )
 
     provider_breakdown_tuple = tuple(provider_breakdown)
+    if not provider_breakdown_tuple:
+        total_cost = float(summary.get("cost_usd") or 0.0)
 
     return TelemetryAggregates(
         start=observed_start or normalized_start,
@@ -726,10 +1132,11 @@ def aggregate_metrics(
         total_runs=total_runs,
         total_tokens_in=total_tokens_in,
         total_tokens_out=total_tokens_out,
-        total_cost_usd=total_cost,
+        total_cost_usd=round(total_cost, 6),
         avg_latency_ms=avg_latency,
         success_rate=success_rate,
         providers=provider_breakdown_tuple,
+        extended=extended,
     )
 
 
@@ -1799,9 +2206,11 @@ def _fetch_provider_breakdown(
             COUNT(*) AS run_count,
             SUM(tokens_in) AS tokens_in,
             SUM(tokens_out) AS tokens_out,
-            SUM(COALESCE(cost_estimated_usd, 0)) AS cost_usd,
+            SUM(COALESCE(cost_estimated_usd, 0)) AS base_cost_usd,
             AVG(duration_ms) AS avg_latency_ms,
-            SUM(CASE WHEN LOWER(status) = 'success' THEN 1 ELSE 0 END) AS success_count
+            SUM(CASE WHEN LOWER(status) = 'success' THEN 1 ELSE 0 END) AS success_count,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_in ELSE 0 END) AS missing_tokens_in,
+            SUM(CASE WHEN cost_estimated_usd IS NULL THEN tokens_out ELSE 0 END) AS missing_tokens_out
         FROM telemetry_events
         {where_clause}
         GROUP BY provider_id

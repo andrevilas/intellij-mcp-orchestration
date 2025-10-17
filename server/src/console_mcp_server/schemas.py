@@ -628,6 +628,36 @@ class TelemetryProviderMetrics(BaseModel):
     success_rate: float
 
 
+class TelemetryMetricsCostBreakdownEntry(BaseModel):
+    """Cost distribution entry grouped by route or provider."""
+
+    id: Optional[str] = None
+    label: Optional[str] = None
+    lane: Optional[str] = None
+    provider_id: Optional[str] = None
+    cost_usd: float
+    run_count: Optional[int] = None
+
+
+class TelemetryMetricsErrorBreakdownEntry(BaseModel):
+    """Error categorization entry used for dashboard insights."""
+
+    category: str
+    count: int
+
+
+class TelemetryMetricsExtended(BaseModel):
+    """Extended telemetry metrics exposed for executive dashboards."""
+
+    cache_hit_rate: Optional[float] = None
+    cached_tokens: Optional[int] = None
+    latency_p95_ms: Optional[float] = None
+    latency_p99_ms: Optional[float] = None
+    error_rate: Optional[float] = None
+    cost_breakdown: Optional[List[TelemetryMetricsCostBreakdownEntry]] = None
+    error_breakdown: Optional[List[TelemetryMetricsErrorBreakdownEntry]] = None
+
+
 class TelemetryMetricsResponse(BaseModel):
     """Envelope returned when requesting aggregated telemetry metrics."""
 
@@ -640,6 +670,7 @@ class TelemetryMetricsResponse(BaseModel):
     avg_latency_ms: float
     success_rate: float
     providers: List[TelemetryProviderMetrics]
+    extended: Optional[TelemetryMetricsExtended] = None
 
 
 class TelemetryHeatmapBucket(BaseModel):

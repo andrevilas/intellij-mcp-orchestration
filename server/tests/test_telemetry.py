@@ -232,13 +232,19 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
         {
             "provider_id": "glm46",
             "tool": "glm46.chat",
-            "route": "default",
+            "route": "balanced",
             "tokens_in": 100,
             "tokens_out": 50,
             "duration_ms": 1000,
             "status": "success",
             "cost_estimated_usd": 0.5,
-            "metadata": "{}",
+            "metadata": json.dumps(
+                {
+                    "cache": {"hit": True, "tokens": 150},
+                    "trace_id": "glm-001",
+                },
+                ensure_ascii=False,
+            ),
             "ts": base_ts.isoformat(),
             "source_file": "glm46/2025-01-15.jsonl",
             "ingested_at": base_ts.isoformat(),
@@ -254,7 +260,13 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
             "duration_ms": 2000,
             "status": "error",
             "cost_estimated_usd": None,
-            "metadata": "{}",
+            "metadata": json.dumps(
+                {
+                    "error_category": "timeout",
+                    "cache": {"hit": False},
+                },
+                ensure_ascii=False,
+            ),
             "ts": (base_ts + timedelta(minutes=15)).isoformat(),
             "source_file": "glm46/2025-01-15.jsonl",
             "ingested_at": (base_ts + timedelta(minutes=1)).isoformat(),
@@ -270,7 +282,14 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
             "duration_ms": 1500,
             "status": "success",
             "cost_estimated_usd": 0.25,
-            "metadata": "{}",
+            "metadata": json.dumps(
+                {
+                    "cache_hit": True,
+                    "cached_tokens": 500,
+                    "trace_id": "gem-001",
+                },
+                ensure_ascii=False,
+            ),
             "ts": (base_ts + timedelta(minutes=30)).isoformat(),
             "source_file": "gemini/2025-01-15.jsonl",
             "ingested_at": (base_ts + timedelta(minutes=2)).isoformat(),
@@ -347,6 +366,21 @@ def test_aggregate_metrics_returns_summary(database, telemetry_module) -> None:
     assert gemini_metrics.run_count == 1
     assert gemini_metrics.cost_usd == pytest.approx(0.25)
     assert gemini_metrics.success_rate == pytest.approx(1.0)
+
+    extended = aggregates.extended
+    assert extended is not None
+    assert extended.cache_hit_rate == pytest.approx(2 / 3, rel=1e-6)
+    assert extended.cached_tokens == 650
+    assert extended.error_rate == pytest.approx(1 / 3, rel=1e-6)
+    assert extended.latency_p95_ms == pytest.approx(1950)
+    assert extended.latency_p99_ms == pytest.approx(1990)
+
+    cost_breakdown = {entry.label: entry for entry in extended.cost_breakdown}
+    assert "Balanced" in cost_breakdown
+    assert cost_breakdown["Balanced"].cost_usd == pytest.approx(0.75)
+
+    error_breakdown = {entry.category: entry.count for entry in extended.error_breakdown}
+    assert error_breakdown == {"Timeout": 1}
 
     filtered = telemetry_module.aggregate_metrics(provider_id="gemini")
     assert filtered.total_runs == 1
