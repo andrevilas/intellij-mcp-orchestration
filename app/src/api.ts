@@ -3851,6 +3851,40 @@ export interface ConfigPlanPreview {
   pullRequest?: ConfigPlanPreviewPullRequest | null;
 }
 
+export type AgentConfigLayer = 'policies' | 'routing' | 'finops' | 'observability';
+
+export interface AgentConfigPlanRequest {
+  changes: Record<string, unknown>;
+  note?: string | null;
+}
+
+export interface AgentConfigPlanResponse {
+  planId: string;
+  plan: AdminPlanSummary | null;
+  planPayload: ConfigPlanPayload;
+  patch: string;
+  message: string | null;
+  diffs: AdminPlanDiff[];
+}
+
+export interface AgentConfigHistoryItem {
+  id: string;
+  layer: AgentConfigLayer;
+  status: string;
+  statusLabel: string;
+  requestedBy: string;
+  createdAt: string;
+  summary: string | null;
+  planId: string;
+  planPayload: ConfigPlanPayload | null;
+  patch: string | null;
+  pullRequest?: ConfigApplyPullRequest | null;
+}
+
+export interface ApplyAgentLayerPlanRequest extends ApplyPolicyPlanRequest {
+  layer: AgentConfigLayer;
+}
+
 export interface PlanExecutionDiff {
   stat: string;
   patch: string;
@@ -3924,6 +3958,32 @@ interface ReloadResponsePayload {
   patch: string;
 }
 
+interface AgentConfigPlanResponsePayload {
+  plan_id: string;
+  plan?: AdminPlanSummary | null;
+  plan_payload?: ConfigPlanPayload | null;
+  patch?: string | null;
+  message?: string | null;
+  diffs?: AdminPlanDiff[] | null;
+}
+
+interface AgentConfigHistoryItemPayload {
+  id: string;
+  layer: AgentConfigLayer;
+  status: string;
+  requested_by: string;
+  created_at: string;
+  summary?: string | null;
+  plan_id: string;
+  plan_payload?: ConfigPlanPayload | null;
+  patch?: string | null;
+  pull_request?: ConfigApplyPullRequest | null;
+}
+
+interface AgentConfigHistoryResponsePayload {
+  items?: AgentConfigHistoryItemPayload[] | null;
+}
+
 export async function postConfigReload(
   requestPayload: ConfigReloadRequest,
   signal?: AbortSignal,
@@ -3988,6 +4048,28 @@ export async function postAgentPlan(
     preview: mapConfigPlanPreview(response.preview ?? null),
     previewPayload: response.preview ?? null,
   };
+}
+
+export async function postAgentLayerPlan(
+  agentId: string,
+  layer: AgentConfigLayer,
+  payload: AgentConfigPlanRequest,
+  signal?: AbortSignal,
+): Promise<AgentConfigPlanResponse> {
+  const response = await request<AgentConfigPlanResponsePayload>(
+    `/config/agents/${encodeURIComponent(agentId)}/plan`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        layer,
+        changes: payload.changes,
+        note: payload.note ?? null,
+      }),
+      signal,
+    },
+  );
+
+  return mapAgentConfigPlanResponsePayload(response);
 }
 
 export interface ApplyPolicyPlanRequest {
@@ -4057,6 +4139,49 @@ export async function postAgentPlanApply(
     signal,
   });
   return mapApplyPlanResponse(response);
+}
+
+export async function postAgentLayerPlanApply(
+  agentId: string,
+  payload: ApplyAgentLayerPlanRequest,
+  signal?: AbortSignal,
+): Promise<ApplyPolicyPlanResponse> {
+  const requestBody: ApplyPlanRequestPayload = {
+    plan_id: payload.planId,
+    plan: payload.plan,
+    patch: payload.patch,
+    mode: payload.mode ?? 'branch_pr',
+    actor: payload.actor,
+    actor_email: payload.actorEmail,
+    commit_message: payload.commitMessage ?? 'chore: aplicar plano de configuração',
+    layer: payload.layer,
+  };
+
+  const response = await request<ApplyPlanResponsePayload>(
+    `/config/agents/${encodeURIComponent(agentId)}/apply`,
+    {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+      signal,
+    },
+  );
+
+  return mapApplyPlanResponse(response);
+}
+
+export async function fetchAgentConfigHistory(
+  agentId: string,
+  layer?: AgentConfigLayer,
+  signal?: AbortSignal,
+): Promise<AgentConfigHistoryItem[]> {
+  const query = layer ? `?layer=${encodeURIComponent(layer)}` : '';
+  const response = await request<AgentConfigHistoryResponsePayload>(
+    `/config/agents/${encodeURIComponent(agentId)}/history${query}`,
+    { signal },
+  );
+
+  const items = Array.isArray(response.items) ? response.items : [];
+  return items.map(mapAgentConfigHistoryItemPayload);
 }
 
 export type ConfigApplyIntent =
@@ -4393,7 +4518,7 @@ interface ConfigPlanPreviewPayload {
   pull_request?: ConfigPlanPreviewPullRequestPayload | null;
 }
 
-interface ConfigPlanPayload {
+export interface ConfigPlanPayload {
   intent: string;
   summary: string;
   steps?: unknown;
@@ -4475,6 +4600,7 @@ interface ApplyPlanRequestPayload {
   actor: string;
   actor_email: string;
   commit_message: string;
+  layer?: AgentConfigLayer;
   approval_id?: string | null;
   approval_decision?: string | null;
   approval_reason?: string | null;
@@ -4542,6 +4668,57 @@ function mapConfigPlanContextPayload(payload: ConfigPlanContextPayload): ConfigP
     score: payload.score,
     title: payload.title ?? null,
     chunk: payload.chunk,
+  };
+}
+
+const HISTORY_STATUS_LABELS: Record<string, string> = {
+  applied: 'Aplicado',
+  ready: 'Pronto',
+  pending: 'Pendente',
+  failed: 'Falhou',
+  running: 'Em execução',
+};
+
+function normalizeConfigPlanPayloadResponse(
+  payload: ConfigPlanPayload | null | undefined,
+): ConfigPlanPayload {
+  if (payload && typeof payload === 'object') {
+    return payload;
+  }
+  return {
+    intent: 'unknown',
+    summary: '',
+    status: 'pending',
+  } as ConfigPlanPayload;
+}
+
+function mapAgentConfigPlanResponsePayload(payload: AgentConfigPlanResponsePayload): AgentConfigPlanResponse {
+  const diffsSource = Array.isArray(payload.diffs) ? payload.diffs : [];
+  return {
+    planId: payload.plan_id,
+    plan: payload.plan ?? null,
+    planPayload: normalizeConfigPlanPayloadResponse(payload.plan_payload ?? null),
+    patch: payload.patch ?? '',
+    message: typeof payload.message === 'string' ? payload.message : null,
+    diffs: diffsSource.filter((diff): diff is AdminPlanDiff => Boolean(diff?.id && diff?.file)),
+  };
+}
+
+function mapAgentConfigHistoryItemPayload(payload: AgentConfigHistoryItemPayload): AgentConfigHistoryItem {
+  const rawStatus = payload.status?.toLowerCase() ?? 'pending';
+  const label = HISTORY_STATUS_LABELS[rawStatus] ?? payload.status ?? 'Desconhecido';
+  return {
+    id: payload.id,
+    layer: payload.layer,
+    status: rawStatus,
+    statusLabel: label,
+    requestedBy: payload.requested_by,
+    createdAt: payload.created_at,
+    summary: payload.summary ?? null,
+    planId: payload.plan_id,
+    planPayload: payload.plan_payload ?? null,
+    patch: payload.patch ?? null,
+    pullRequest: payload.pull_request ?? null,
   };
 }
 

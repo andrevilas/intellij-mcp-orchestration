@@ -8,6 +8,7 @@ import type { AgentInvokeConfig, AgentInvokeRequest } from '../types/agent';
 import { createAgentRequestId, mergeAgentConfigs } from '../utils/agentRequest';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
 import JsonEditor from './JsonEditor';
+import AgentConfigLayerEditor from './AgentConfigLayerEditor';
 
 interface AgentDetailPanelProps {
   agent: AgentSummary;
@@ -63,7 +64,9 @@ function parseEditorValue<T extends Record<string, unknown>>(
 }
 
 export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelProps): JSX.Element {
-  const [activeTab, setActiveTab] = useState<'playground' | 'config'>('playground');
+  const [activeTab, setActiveTab] = useState<
+    'playground' | 'config' | 'policies' | 'routing' | 'finops' | 'observability'
+  >('playground');
   const [payloadText, setPayloadText] = useState<string>(JSON.stringify({ query: '' }, null, 2));
   const [overridesText, setOverridesText] = useState<string>(JSON.stringify({ parameters: {} }, null, 2));
   const [payloadError, setPayloadError] = useState<string | null>(null);
@@ -210,6 +213,60 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
         >
           Config
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="agent-detail-tab-policies"
+          className={
+            activeTab === 'policies' ? 'agent-detail__tab agent-detail__tab--active' : 'agent-detail__tab'
+          }
+          aria-selected={activeTab === 'policies'}
+          aria-controls="agent-detail-panel-policies"
+          onClick={() => setActiveTab('policies')}
+        >
+          Policies
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="agent-detail-tab-routing"
+          className={
+            activeTab === 'routing' ? 'agent-detail__tab agent-detail__tab--active' : 'agent-detail__tab'
+          }
+          aria-selected={activeTab === 'routing'}
+          aria-controls="agent-detail-panel-routing"
+          onClick={() => setActiveTab('routing')}
+        >
+          Routing
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="agent-detail-tab-finops"
+          className={
+            activeTab === 'finops' ? 'agent-detail__tab agent-detail__tab--active' : 'agent-detail__tab'
+          }
+          aria-selected={activeTab === 'finops'}
+          aria-controls="agent-detail-panel-finops"
+          onClick={() => setActiveTab('finops')}
+        >
+          FinOps
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="agent-detail-tab-observability"
+          className={
+            activeTab === 'observability'
+              ? 'agent-detail__tab agent-detail__tab--active'
+              : 'agent-detail__tab'
+          }
+          aria-selected={activeTab === 'observability'}
+          aria-controls="agent-detail-panel-observability"
+          onClick={() => setActiveTab('observability')}
+        >
+          Observability
+        </button>
       </div>
 
       <section
@@ -342,6 +399,46 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
             )}
           </div>
         </div>
+      </section>
+
+      <section
+        id="agent-detail-panel-policies"
+        role="tabpanel"
+        aria-labelledby="agent-detail-tab-policies"
+        hidden={activeTab !== 'policies'}
+        className="agent-detail__panel"
+      >
+        <AgentConfigLayerEditor agent={agent} layer="policies" />
+      </section>
+
+      <section
+        id="agent-detail-panel-routing"
+        role="tabpanel"
+        aria-labelledby="agent-detail-tab-routing"
+        hidden={activeTab !== 'routing'}
+        className="agent-detail__panel"
+      >
+        <AgentConfigLayerEditor agent={agent} layer="routing" />
+      </section>
+
+      <section
+        id="agent-detail-panel-finops"
+        role="tabpanel"
+        aria-labelledby="agent-detail-tab-finops"
+        hidden={activeTab !== 'finops'}
+        className="agent-detail__panel"
+      >
+        <AgentConfigLayerEditor agent={agent} layer="finops" />
+      </section>
+
+      <section
+        id="agent-detail-panel-observability"
+        role="tabpanel"
+        aria-labelledby="agent-detail-tab-observability"
+        hidden={activeTab !== 'observability'}
+        className="agent-detail__panel"
+      >
+        <AgentConfigLayerEditor agent={agent} layer="observability" />
       </section>
     </aside>
   );
