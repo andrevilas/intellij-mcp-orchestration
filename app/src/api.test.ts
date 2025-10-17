@@ -1224,10 +1224,19 @@ describe('api client', () => {
         title: 'feat: atualizar roteamento',
         state: 'open',
         head_sha: 'abc123',
+        branch: 'feature/routing-pr',
         ci_status: 'success',
         review_status: 'approved',
         merged: false,
         last_synced_at: '2025-01-10T12:00:00Z',
+        reviewers: [{ id: 'rev-ana', name: 'Ana Moreira', status: 'approved' }],
+        ci_results: [
+          {
+            name: 'ci/tests',
+            status: 'success',
+            details_url: 'https://ci.example.com/run/101',
+          },
+        ],
       },
     };
 
@@ -1270,6 +1279,13 @@ describe('api client', () => {
       message: 'Plano aplicado com sucesso.',
     });
     expect(response.pullRequest).toMatchObject({ number: '202', provider: 'github', merged: false });
+    expect(response.pullRequest?.branch).toBe('feature/routing-pr');
+    expect(response.pullRequest?.reviewers).toEqual([
+      { id: 'rev-ana', name: 'Ana Moreira', status: 'approved' },
+    ]);
+    expect(response.pullRequest?.ciResults).toEqual([
+      { name: 'ci/tests', status: 'success', detailsUrl: 'https://ci.example.com/run/101' },
+    ]);
   });
 
   it('envia intents e regras personalizadas na simulação de roteamento', async () => {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, replace
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.parse import quote_plus
 
 import httpx
@@ -19,6 +19,24 @@ class GitProviderError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class PullRequestReviewer:
+    """Reviewer assigned to a pull request."""
+
+    id: str | None
+    name: str
+    status: str | None = None
+
+
+@dataclass(frozen=True)
+class PullRequestCheck:
+    """Result for an individual CI pipeline associated with the pull request."""
+
+    name: str
+    status: str
+    details_url: str | None = None
+
+
+@dataclass(frozen=True)
 class PullRequestStatus:
     """Aggregated status information returned by the Git provider."""
 
@@ -26,6 +44,8 @@ class PullRequestStatus:
     ci_status: str | None = None
     review_status: str | None = None
     merged: bool = False
+    reviewers: Sequence[PullRequestReviewer] = ()
+    ci_results: Sequence[PullRequestCheck] = ()
 
 
 @dataclass(frozen=True)
@@ -43,6 +63,9 @@ class PullRequestSnapshot:
     review_status: str | None = None
     merged: bool = False
     last_synced_at: str | None = None
+    branch: str | None = None
+    reviewers: Sequence[PullRequestReviewer] = ()
+    ci_results: Sequence[PullRequestCheck] = ()
 
     def to_metadata(self) -> dict[str, Any]:
         return {
@@ -57,6 +80,19 @@ class PullRequestSnapshot:
             "review_status": self.review_status,
             "merged": self.merged,
             "last_synced_at": self.last_synced_at,
+            "branch": self.branch,
+            "reviewers": [
+                {"id": reviewer.id, "name": reviewer.name, "status": reviewer.status}
+                for reviewer in self.reviewers
+            ],
+            "ci_results": [
+                {
+                    "name": result.name,
+                    "status": result.status,
+                    "details_url": result.details_url,
+                }
+                for result in self.ci_results
+            ],
         }
 
     @classmethod
@@ -75,6 +111,25 @@ class PullRequestSnapshot:
             ),
             merged=bool(payload.get("merged", False)),
             last_synced_at=str(payload.get("last_synced_at")) if payload.get("last_synced_at") else None,
+            branch=str(payload.get("branch")) if payload.get("branch") else None,
+            reviewers=tuple(
+                PullRequestReviewer(
+                    id=str(item.get("id")) if item.get("id") is not None else None,
+                    name=str(item.get("name", "")),
+                    status=str(item.get("status")) if item.get("status") is not None else None,
+                )
+                for item in payload.get("reviewers", [])
+                if isinstance(item, Mapping)
+            ),
+            ci_results=tuple(
+                PullRequestCheck(
+                    name=str(item.get("name", "")),
+                    status=str(item.get("status", "unknown")),
+                    details_url=str(item.get("details_url")) if item.get("details_url") else None,
+                )
+                for item in payload.get("ci_results", [])
+                if isinstance(item, Mapping)
+            ),
         )
 
     def with_status(self, status: PullRequestStatus, *, synced_at: str | None = None) -> "PullRequestSnapshot":
@@ -85,6 +140,8 @@ class PullRequestSnapshot:
             review_status=status.review_status,
             merged=status.merged,
             last_synced_at=synced_at or self.last_synced_at,
+            reviewers=tuple(status.reviewers) if status.reviewers else self.reviewers,
+            ci_results=tuple(status.ci_results) if status.ci_results else self.ci_results,
         )
 
 
@@ -402,6 +459,8 @@ __all__ = [
     "GitProviderSettings",
     "GitHubProviderClient",
     "GitLabProviderClient",
+    "PullRequestCheck",
+    "PullRequestReviewer",
     "PullRequestSnapshot",
     "PullRequestStatus",
     "create_git_provider",

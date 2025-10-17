@@ -138,6 +138,7 @@ from .schemas import (
     ProvidersResponse,
     DiagnosticsRequest,
     DiagnosticsResponse,
+    PlanPullRequestDetails,
     RoutingDistributionEntry,
     RoutingRouteProfile,
     RoutingSimulationRequest,
@@ -461,19 +462,7 @@ class PlanExecutionDiff(BaseModel):
     patch: str
 
 
-class PullRequestDetails(BaseModel):
-    provider: str
-    id: str
-    number: str
-    url: str
-    title: str
-    state: str
-    head_sha: str
-    ci_status: str | None = None
-    review_status: str | None = None
-    merged: bool = False
-    last_synced_at: str | None = None
-
+class PullRequestDetails(PlanPullRequestDetails):
     @classmethod
     def from_snapshot(cls, snapshot: PullRequestSnapshot) -> "PullRequestDetails":
         payload = snapshot.to_metadata()
@@ -484,6 +473,25 @@ class PullRequestDetails(BaseModel):
         payload.setdefault("title", snapshot.title)
         payload.setdefault("state", snapshot.state)
         payload.setdefault("head_sha", snapshot.head_sha)
+        payload.setdefault("branch", snapshot.branch)
+        if "reviewers" not in payload:
+            payload["reviewers"] = [
+                {
+                    "id": reviewer.id,
+                    "name": reviewer.name,
+                    "status": reviewer.status,
+                }
+                for reviewer in snapshot.reviewers
+            ]
+        if "ci_results" not in payload:
+            payload["ci_results"] = [
+                {
+                    "name": result.name,
+                    "status": result.status,
+                    "details_url": result.details_url,
+                }
+                for result in snapshot.ci_results
+            ]
         return cls(**payload)  # type: ignore[arg-type]
 
 

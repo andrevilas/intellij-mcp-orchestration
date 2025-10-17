@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -14,6 +14,8 @@ from ..change_plans import ChangePlanRecord, ChangePlanStore
 from ..git_providers import (
     GitProviderClient,
     GitProviderError,
+    PullRequestCheck,
+    PullRequestReviewer,
     PullRequestSnapshot,
     PullRequestStatus,
 )
@@ -480,7 +482,28 @@ class PlanExecutor:
 
         snapshot = PullRequestSnapshot.from_metadata(pr_metadata)
 
+        branch_override: str | None = None
         if provider_payload is not None:
+            reviewers = tuple(
+                PullRequestReviewer(
+                    id=str(item.get("id")) if item.get("id") is not None else None,
+                    name=str(item.get("name", "")),
+                    status=str(item.get("status")) if item.get("status") is not None else None,
+                )
+                for item in provider_payload.get("reviewers", [])
+                if isinstance(item, Mapping)
+            )
+            ci_results = tuple(
+                PullRequestCheck(
+                    name=str(item.get("name", "")),
+                    status=str(item.get("status", "unknown")),
+                    details_url=str(item.get("details_url")) if item.get("details_url") else None,
+                )
+                for item in provider_payload.get("ci_results", [])
+                if isinstance(item, Mapping)
+            )
+            branch_raw = provider_payload.get("branch")
+            branch_override = str(branch_raw) if branch_raw else None
             status = PullRequestStatus(
                 state=str(provider_payload.get("state", snapshot.state)),
                 ci_status=str(provider_payload.get("ci_status"))
@@ -490,6 +513,8 @@ class PlanExecutor:
                 if provider_payload.get("review_status") is not None
                 else snapshot.review_status,
                 merged=bool(provider_payload.get("merged", snapshot.merged)),
+                reviewers=reviewers,
+                ci_results=ci_results,
             )
         else:
             if self._git_provider is None:
@@ -501,6 +526,9 @@ class PlanExecutor:
 
         synced_at = datetime.now(tz=timezone.utc).isoformat()
         snapshot = snapshot.with_status(status, synced_at=synced_at)
+        if branch_override:
+            snapshot = replace(snapshot, branch=branch_override)
+
         metadata_update = {"pull_request": snapshot.to_metadata()}
 
         updated_record = self._store.update(
@@ -632,7 +660,7 @@ class PlanExecutor:
             )
             return None
 
-        return snapshot
+        return replace(snapshot, branch=branch_name)
 
     @staticmethod
     def _derive_status_from_pull_request(status: PullRequestStatus) -> PlanExecutionStatus:
