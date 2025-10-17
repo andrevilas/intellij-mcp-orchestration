@@ -12,6 +12,18 @@ body {
   margin: 0;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .skip-link {
   position: absolute;
   left: 1rem;
@@ -1986,6 +1998,97 @@ main.dashboard {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.5rem;
+}
+
+.dashboard__insights {
+  display: grid;
+  gap: 2rem;
+}
+
+.dashboard__insight-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+.insight-card {
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.12), rgba(14, 116, 144, 0.04));
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 160px;
+}
+
+.insight-card header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.insight-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.insight-card__value {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.insight-card__caption {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.dashboard__insight-visuals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.insight-chart {
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.9);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.insight-chart__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.insight-chart__header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.insight-chart__header p {
+  margin: 0;
+  color: #475569;
+}
+
+.insight-chart__canvas {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.insight-chart .info {
+  margin: 0;
+  text-align: center;
 }
 
 .kpi-card {
