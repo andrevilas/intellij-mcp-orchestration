@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 from pydantic import AnyHttpUrl, BaseModel, Field, ConfigDict, model_validator
 
 from .config import ProviderConfig
-from .schemas_plan import Plan
+from .schemas_plan import Plan, PlanExecutionStatus
 
 
 class HealthStatus(BaseModel):
@@ -134,6 +134,45 @@ class PlanPullRequestDetails(BaseModel):
     ci_results: List[PlanPullRequestCheck] = Field(default_factory=list)
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle guard
+    from .git_providers import PullRequestSnapshot
+
+
+class PullRequestDetails(PlanPullRequestDetails):
+    """Extended pull request payload enriched with provider metadata."""
+
+    @classmethod
+    def from_snapshot(cls, snapshot: "PullRequestSnapshot") -> "PullRequestDetails":
+        payload = snapshot.to_metadata()
+        payload.setdefault("id", snapshot.identifier)
+        payload.setdefault("number", snapshot.number)
+        payload.setdefault("provider", snapshot.provider)
+        payload.setdefault("url", snapshot.url)
+        payload.setdefault("title", snapshot.title)
+        payload.setdefault("state", snapshot.state)
+        payload.setdefault("head_sha", snapshot.head_sha)
+        payload.setdefault("branch", snapshot.branch)
+        if "reviewers" not in payload:
+            payload["reviewers"] = [
+                {
+                    "id": reviewer.id,
+                    "name": reviewer.name,
+                    "status": reviewer.status,
+                }
+                for reviewer in snapshot.reviewers
+            ]
+        if "ci_results" not in payload:
+            payload["ci_results"] = [
+                {
+                    "name": result.name,
+                    "status": result.status,
+                    "details_url": result.details_url,
+                }
+                for result in snapshot.ci_results
+            ]
+        return cls(**payload)  # type: ignore[arg-type]
 
 
 class SessionsResponse(BaseModel):
@@ -1208,3 +1247,166 @@ class ApiKeyRotateRequest(BaseModel):
 class ApiKeyRotateResponse(BaseModel):
     key: ApiKey
     secret: str
+
+
+class AgentConfigLayer(str, Enum):
+    """Configuration layers that support targeted overrides for agents."""
+
+    POLICIES = "policies"
+    ROUTING = "routing"
+    FINOPS = "finops"
+    OBSERVABILITY = "observability"
+
+
+class AgentOverrideUpdateRequest(BaseModel):
+    """Base payload describing configuration overrides for an agent layer."""
+
+    changes: Dict[str, Any] = Field(default_factory=dict)
+    note: Optional[str] = Field(default=None, max_length=1024)
+
+
+class AgentPolicyUpdateRequest(AgentOverrideUpdateRequest):
+    """Overrides targeting the policies layer for a specific agent."""
+
+
+class AgentRoutingUpdateRequest(AgentOverrideUpdateRequest):
+    """Overrides targeting the routing layer for a specific agent."""
+
+
+class AgentFinOpsUpdateRequest(AgentOverrideUpdateRequest):
+    """Overrides targeting the FinOps layer for a specific agent."""
+
+
+class AgentObservabilityUpdateRequest(AgentOverrideUpdateRequest):
+    """Overrides targeting the observability layer for a specific agent."""
+
+
+class AgentOverridesPlanRequest(BaseModel):
+    """Payload accepted when generating a plan for agent overrides."""
+
+    layer: AgentConfigLayer
+    changes: Dict[str, Any] = Field(default_factory=dict)
+    note: Optional[str] = Field(default=None, max_length=1024)
+
+    def to_layer_request(self) -> AgentOverrideUpdateRequest:
+        mapping: Dict[AgentConfigLayer, type[AgentOverrideUpdateRequest]] = {
+            AgentConfigLayer.POLICIES: AgentPolicyUpdateRequest,
+            AgentConfigLayer.ROUTING: AgentRoutingUpdateRequest,
+            AgentConfigLayer.FINOPS: AgentFinOpsUpdateRequest,
+            AgentConfigLayer.OBSERVABILITY: AgentObservabilityUpdateRequest,
+        }
+        model = mapping[self.layer]
+        return model(changes=self.changes, note=self.note)
+
+
+class AdminPlanStepStatus(str, Enum):
+    """Execution readiness state for a summarized plan step."""
+
+    PENDING = "pending"
+    READY = "ready"
+    BLOCKED = "blocked"
+
+
+class AdminPlanStatus(str, Enum):
+    """High level status surfaced for configuration plans in the UI."""
+
+    DRAFT = "draft"
+    READY = "ready"
+    APPLIED = "applied"
+
+
+class AdminPlanReviewer(BaseModel):
+    """Reviewer metadata surfaced alongside plan summaries."""
+
+    id: str
+    name: str
+    status: Optional[str] = None
+
+
+class AdminPlanStep(BaseModel):
+    """Single summarized step shown for configuration plans."""
+
+    id: str
+    title: str
+    description: str
+    status: AdminPlanStepStatus = AdminPlanStepStatus.PENDING
+    impact: Optional[str] = None
+
+
+class AdminPlanPullRequestSummary(BaseModel):
+    """Lightweight pull request payload associated with a plan."""
+
+    id: str
+    number: str
+    title: str
+    url: str
+    state: str
+    review_status: Optional[str] = Field(default=None, alias="reviewStatus")
+    reviewers: List[PlanPullRequestReviewer] = Field(default_factory=list)
+    branch: Optional[str] = None
+    ci_results: List[PlanPullRequestCheck] = Field(default_factory=list, alias="ciResults")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AdminPlanSummary(BaseModel):
+    """Aggregate summary presented for generated configuration plans."""
+
+    id: str
+    thread_id: str = Field(alias="threadId")
+    status: AdminPlanStatus
+    generated_at: datetime = Field(alias="generatedAt")
+    author: str
+    scope: str
+    steps: List[AdminPlanStep] = Field(default_factory=list)
+    branch: Optional[str] = None
+    base_branch: Optional[str] = Field(default=None, alias="baseBranch")
+    reviewers: List[AdminPlanReviewer] = Field(default_factory=list)
+    pull_request: Optional[AdminPlanPullRequestSummary] = Field(default=None, alias="pullRequest")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AdminPlanDiff(BaseModel):
+    """Diff metadata surfaced alongside generated plans."""
+
+    id: str
+    file: str
+    summary: str
+    diff: str
+
+
+class AgentConfigPlanResponse(BaseModel):
+    """Envelope returned when generating agent override plans."""
+
+    plan_id: str
+    plan: Optional[AdminPlanSummary] = None
+    plan_payload: Plan = Field(alias="plan_payload")
+    patch: str
+    message: Optional[str] = None
+    diffs: List[AdminPlanDiff] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AgentConfigHistoryItem(BaseModel):
+    """Recorded execution for an agent configuration override."""
+
+    id: str
+    layer: AgentConfigLayer
+    status: PlanExecutionStatus
+    requested_by: str = Field(alias="requested_by")
+    created_at: datetime = Field(alias="created_at")
+    summary: Optional[str] = None
+    plan_id: str = Field(alias="plan_id")
+    plan_payload: Optional[Plan] = Field(default=None, alias="plan_payload")
+    patch: Optional[str] = None
+    pull_request: Optional[PullRequestDetails] = Field(default=None, alias="pull_request")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AgentConfigHistoryResponse(BaseModel):
+    """Envelope returned when listing override executions for an agent."""
+
+    items: List[AgentConfigHistoryItem] = Field(default_factory=list)

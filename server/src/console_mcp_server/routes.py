@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, ValidationError, field_validator
 import yaml
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -98,6 +98,7 @@ from .config_assistant.plan_executor import (
     PlanExecutorError,
     PlanPreview,
 )
+from .change_plans import ChangePlanRecord, ChangePlanStore
 from .config_assistant.validation import MCPClientError, MCPValidationOutcome, validate_server
 from .git_providers import (
     GitProviderClient,
@@ -153,6 +154,7 @@ from .schemas import (
     DiagnosticsRequest,
     DiagnosticsResponse,
     PlanPullRequestDetails,
+    PullRequestDetails,
     RoutingDistributionEntry,
     RoutingRouteProfile,
     RoutingSimulationRequest,
@@ -211,6 +213,22 @@ from .schemas import (
     ApiKeyRotateRequest,
     ApiKeyRotateResponse,
     ApiKeysResponse,
+    AdminPlanDiff,
+    AdminPlanPullRequestSummary,
+    AdminPlanReviewer,
+    AdminPlanStatus,
+    AdminPlanStep,
+    AdminPlanStepStatus,
+    AdminPlanSummary,
+    AgentConfigHistoryItem,
+    AgentConfigHistoryResponse,
+    AgentConfigLayer,
+    AgentConfigPlanResponse,
+    AgentFinOpsUpdateRequest,
+    AgentObservabilityUpdateRequest,
+    AgentOverridesPlanRequest,
+    AgentPolicyUpdateRequest,
+    AgentRoutingUpdateRequest,
     SecurityRole,
     SecurityRoleCreateRequest,
     SecurityRoleUpdateRequest,
@@ -259,7 +277,7 @@ from .telemetry import (
     query_timeseries,
     render_telemetry_export,
 )
-from .schemas_plan import DiffSummary, Plan, PlanExecutionMode, PlanExecutionStatus
+from .schemas_plan import DiffSummary, Plan, PlanExecutionMode, PlanExecutionStatus, PlanStep, Risk
 from .security import (
     DEFAULT_AUDIT_LOGGER,
     audit_logger as get_audit_logger,
@@ -1317,6 +1335,178 @@ def _create_patch_for_new_file(path: str, content: str) -> str:
     return patch
 
 
+_AGENT_LAYER_LABELS: dict[AgentConfigLayer, str] = {
+    AgentConfigLayer.POLICIES: "Policies",
+    AgentConfigLayer.ROUTING: "Routing",
+    AgentConfigLayer.FINOPS: "FinOps",
+    AgentConfigLayer.OBSERVABILITY: "Observability",
+}
+
+
+def _agent_override_path(agent_id: str, layer: AgentConfigLayer) -> Path:
+    return Path("app") / "agents" / agent_id / "overrides" / f"{layer.value}.json"
+
+
+def _serialize_override_changes(changes: Mapping[str, Any]) -> str:
+    try:
+        serialized = json.dumps(changes or {}, ensure_ascii=False, indent=2, sort_keys=True)
+    except TypeError as exc:  # pragma: no cover - defensive guard for unserializable payloads
+        raise ValueError("Falha ao serializar overrides para JSON") from exc
+    return _ensure_trailing_newline(serialized)
+
+
+def _agent_override_summary(agent_id: str, layer: AgentConfigLayer, note: str | None) -> str:
+    label = _AGENT_LAYER_LABELS[layer]
+    base = f"Atualizar camada {label} do agente {agent_id}"
+    if note:
+        stripped = note.strip()
+        if stripped:
+            return f"{base} ({stripped})"
+    return base
+
+
+def _build_agent_override_plan(
+    *,
+    agent_id: str,
+    layer: AgentConfigLayer,
+    overrides: Mapping[str, Any],
+    note: str | None,
+    author: str,
+    plan_id: str,
+) -> tuple[Plan, str, DiffSummary, AdminPlanSummary, List[AdminPlanDiff], str]:
+    contents = _serialize_override_changes(overrides)
+    target_path = _agent_override_path(agent_id, layer).as_posix()
+    patch = _create_patch_for_new_file(target_path, contents)
+    diff_summary = DiffSummary(
+        path=target_path,
+        summary=f"Atualizar overrides de {_AGENT_LAYER_LABELS[layer]}",
+        change_type="update",
+        diff=patch,
+    )
+
+    plan = Plan(
+        intent=f"agent_{layer.value}_override",
+        summary=_agent_override_summary(agent_id, layer, note),
+        steps=[
+            PlanStep(
+                id="review-overrides",
+                title=f"Revisar overrides de {_AGENT_LAYER_LABELS[layer]}",
+                description=(
+                    "Validar consistência das alterações propostas garantindo compatibilidade com os manifests existentes."
+                ),
+            ),
+            PlanStep(
+                id="apply-overrides",
+                title="Aplicar mudanças no repositório",
+                description="Gerar patch e abrir pull request com os overrides aprovados.",
+                depends_on=["review-overrides"],
+            ),
+            PlanStep(
+                id="validate-agent",
+                title="Validar agente após as alterações",
+                description="Executar smoke tests e monitorar métricas após o rollout das configurações.",
+                depends_on=["apply-overrides"],
+            ),
+        ],
+        diffs=[diff_summary],
+        risks=[
+            Risk(
+                title="Configuração inválida",
+                impact="medium",
+                mitigation="Executar smoke tests e acompanhar logs do agente após a implantação.",
+            )
+        ],
+    )
+
+    now = datetime.now(tz=timezone.utc)
+    admin_plan = AdminPlanSummary(
+        id=plan_id,
+        threadId=f"agent/{agent_id}/{layer.value}",
+        status=AdminPlanStatus.READY,
+        generatedAt=now,
+        author=author,
+        scope=_AGENT_LAYER_LABELS[layer],
+        steps=[
+            AdminPlanStep(
+                id="collect-context",
+                title="Consolidar contexto",
+                description="Confirmar requisitos e dependências das alterações solicitadas.",
+            ),
+            AdminPlanStep(
+                id="implement-overrides",
+                title="Implementar overrides",
+                description="Aplicar alterações no repositório e preparar PR ou commit de rollout.",
+            ),
+            AdminPlanStep(
+                id="qa-agent",
+                title="QA pós-alteração",
+                description="Garantir que o agente continua saudável após o deploy das configurações.",
+            ),
+        ],
+    )
+
+    admin_diffs = [
+        AdminPlanDiff(
+            id=target_path,
+            file=target_path,
+            summary=diff_summary.summary,
+            diff=patch,
+        )
+    ]
+
+    message = note.strip() if isinstance(note, str) and note.strip() else (
+        f"Plano gerado para atualizar {_AGENT_LAYER_LABELS[layer]} do agente {agent_id}."
+    )
+
+    return plan, patch, diff_summary, admin_plan, admin_diffs, message
+
+
+def _build_agent_history_item(record: ChangePlanRecord) -> AgentConfigHistoryItem | None:
+    metadata = record.metadata if isinstance(record.metadata, dict) else {}
+    scope = metadata.get("scope")
+    if not isinstance(scope, Mapping) or scope.get("type") != "agent":
+        return None
+
+    layer_value = scope.get("layer")
+    try:
+        layer = AgentConfigLayer(layer_value)
+    except ValueError:
+        return None
+
+    plan_payload_data = metadata.get("plan_payload")
+    plan_payload: Plan | None = None
+    if isinstance(plan_payload_data, Mapping):
+        try:
+            plan_payload = Plan.model_validate(plan_payload_data)
+        except ValidationError:
+            plan_payload = None
+
+    pull_request_data = metadata.get("pull_request")
+    pull_request: PullRequestDetails | None = None
+    if isinstance(pull_request_data, Mapping):
+        try:
+            pull_request = PullRequestDetails.model_validate(pull_request_data)
+        except ValidationError:
+            pull_request = None
+
+    summary = metadata.get("plan_summary")
+    summary_text = summary if isinstance(summary, str) and summary.strip() else None
+    patch = record.diff_patch or None
+
+    return AgentConfigHistoryItem(
+        id=record.id,
+        layer=layer,
+        status=record.status,
+        requested_by=record.actor,
+        created_at=record.created_at,
+        summary=summary_text,
+        plan_id=record.plan_id,
+        plan_payload=plan_payload,
+        patch=patch,
+        pull_request=pull_request,
+    )
+
+
 @router.get("/flows/{flow_id}/versions", response_model=FlowVersionsResponse)
 def list_flow_versions_route(flow_id: str) -> FlowVersionsResponse:
     records = list_flow_versions(flow_id)
@@ -1470,39 +1660,6 @@ class PlanExecutionDiff(BaseModel):
     patch: str
 
 
-class PullRequestDetails(PlanPullRequestDetails):
-    @classmethod
-    def from_snapshot(cls, snapshot: PullRequestSnapshot) -> "PullRequestDetails":
-        payload = snapshot.to_metadata()
-        payload.setdefault("id", snapshot.identifier)
-        payload.setdefault("number", snapshot.number)
-        payload.setdefault("provider", snapshot.provider)
-        payload.setdefault("url", snapshot.url)
-        payload.setdefault("title", snapshot.title)
-        payload.setdefault("state", snapshot.state)
-        payload.setdefault("head_sha", snapshot.head_sha)
-        payload.setdefault("branch", snapshot.branch)
-        if "reviewers" not in payload:
-            payload["reviewers"] = [
-                {
-                    "id": reviewer.id,
-                    "name": reviewer.name,
-                    "status": reviewer.status,
-                }
-                for reviewer in snapshot.reviewers
-            ]
-        if "ci_results" not in payload:
-            payload["ci_results"] = [
-                {
-                    "name": result.name,
-                    "status": result.status,
-                    "details_url": result.details_url,
-                }
-                for result in snapshot.ci_results
-            ]
-        return cls(**payload)  # type: ignore[arg-type]
-
-
 class ApprovalDecision(str, Enum):
     APPROVE = "approve"
     REJECT = "reject"
@@ -1520,6 +1677,7 @@ class ApplyPlanRequest(BaseModel):
     approval_id: str | None = Field(default=None)
     approval_decision: ApprovalDecision | None = Field(default=None)
     approval_reason: str | None = Field(default=None)
+    layer: AgentConfigLayer | None = Field(default=None)
 
 
 class ApplyPlanResponse(BaseModel):
@@ -1766,6 +1924,53 @@ def plan_agent_onboarding(request: AgentPlanRequest, http_request: Request) -> P
     )
 
 
+@router.post("/config/agents/{agent_id}/plan", response_model=AgentConfigPlanResponse)
+def plan_agent_overrides(
+    agent_id: str, payload: AgentOverridesPlanRequest, http_request: Request
+) -> AgentConfigPlanResponse:
+    """Generate a configuration plan for updating an agent override layer."""
+
+    user = require_roles(http_request, Role.PLANNER)
+    overrides_request = payload.to_layer_request()
+    plan_id = f"{agent_id}-{payload.layer.value}-{uuid4().hex[:8]}"
+    author_name = user.name or (user.email or "Console MCP")
+
+    try:
+        plan, patch, diff_summary, admin_plan, admin_diffs, message = _build_agent_override_plan(
+            agent_id=agent_id,
+            layer=payload.layer,
+            overrides=overrides_request.changes,
+            note=overrides_request.note,
+            author=author_name,
+            plan_id=plan_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    response = AgentConfigPlanResponse(
+        plan_id=plan_id,
+        plan=admin_plan,
+        plan_payload=plan,
+        patch=patch,
+        message=message,
+        diffs=admin_diffs,
+    )
+
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.agents.layer.plan",
+        resource=f"/config/agents/{agent_id}/plan",
+        plan_id=plan_id,
+        metadata={
+            "agent": agent_id,
+            "layer": payload.layer.value,
+            "diff_path": diff_summary.path,
+        },
+    )
+
+    return response
+
+
 @router.post("/config/rag/query", response_model=RagQueryResponse)
 def query_rag_endpoint(payload: RagQueryRequest) -> RagQueryResponse:
     """Execute a lightweight RAG search over the local documentation corpus."""
@@ -1802,8 +2007,22 @@ def _execute_plan_application(
     resource: str,
     action_prefix: str,
     log_prefix: str,
+    metadata: Mapping[str, Any] | None = None,
 ) -> ApplyPlanResponse:
     executor = get_plan_executor()
+
+    metadata_payload: dict[str, Any] = dict(metadata or {})
+    if payload.layer is not None:
+        metadata_payload.setdefault("layer", payload.layer.value)
+    if payload.plan is not None:
+        metadata_payload.setdefault("plan_summary", payload.plan.summary)
+        metadata_payload.setdefault("plan_intent", payload.plan.intent)
+        metadata_payload.setdefault("approval_rules", list(payload.plan.approval_rules))
+        try:
+            metadata_payload.setdefault("plan_payload", payload.plan.model_dump(mode="json"))
+        except TypeError:  # pragma: no cover - fallback for non-JSON safe payloads
+            metadata_payload.setdefault("plan_payload", payload.plan.model_dump())
+    metadata_arg = metadata_payload or None
 
     try:
         if payload.mode is PlanExecutionMode.DRY_RUN and payload.approval_decision is None:
@@ -1818,6 +2037,7 @@ def _execute_plan_application(
                 plan_id=payload.plan_id,
                 patch=payload.patch,
                 actor=payload.actor,
+                metadata=metadata_arg,
             )
             get_audit_logger(http_request).log(
                 actor=user,
@@ -1852,6 +2072,7 @@ def _execute_plan_application(
                     actor_email=payload.actor_email,
                     commit_message=payload.commit_message,
                     mode=payload.mode,
+                    metadata=metadata_arg,
                 )
                 get_audit_logger(http_request).log(
                     actor=user,
@@ -1968,6 +2189,34 @@ def apply_agent_plan(payload: ApplyPlanRequest, http_request: Request) -> ApplyP
     )
 
 
+@router.post("/config/agents/{agent_id}/apply", response_model=ApplyPlanResponse)
+def apply_agent_layer_plan(
+    agent_id: str, payload: ApplyPlanRequest, http_request: Request
+) -> ApplyPlanResponse:
+    """Apply a scoped agent override plan using Git workflows."""
+
+    if payload.layer is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="layer é obrigatório para aplicar overrides do agente.",
+        )
+
+    metadata = {
+        "agent": agent_id,
+        "layer": payload.layer.value,
+        "scope": {"type": "agent", "agent_id": agent_id, "layer": payload.layer.value},
+    }
+
+    return _execute_plan_application(
+        payload,
+        http_request,
+        resource=f"/config/agents/{agent_id}/apply",
+        action_prefix="config.agents.layer.apply",
+        log_prefix="config.agents.layer.apply",
+        metadata=metadata,
+    )
+
+
 @router.post("/config/apply/status", response_model=ApplyPlanResponse)
 def sync_plan_status(payload: PlanStatusSyncRequest, http_request: Request) -> ApplyPlanResponse:
     """Update plan execution metadata with the latest status from Git providers."""
@@ -2013,6 +2262,33 @@ def sync_plan_status(payload: PlanStatusSyncRequest, http_request: Request) -> A
         approval_id=result.approval_id,
         pull_request=_serialize_pull_request(result.pull_request),
     )
+
+
+@router.get("/config/agents/{agent_id}/history", response_model=AgentConfigHistoryResponse)
+def list_agent_override_history(
+    agent_id: str,
+    http_request: Request,
+    layer: AgentConfigLayer | None = Query(default=None),
+) -> AgentConfigHistoryResponse:
+    """Return past executions for agent override plans."""
+
+    user = require_roles(http_request, Role.VIEWER)
+    store = ChangePlanStore()
+    records = store.list_for_agent(agent_id, layer=layer.value if layer else None, limit=50)
+    items: list[AgentConfigHistoryItem] = []
+    for record in records:
+        item = _build_agent_history_item(record)
+        if item is not None:
+            items.append(item)
+
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="config.agents.layer.history",
+        resource=f"/config/agents/{agent_id}/history",
+        metadata={"agent": agent_id, "layer": layer.value if layer else None},
+    )
+
+    return AgentConfigHistoryResponse(items=items)
 
 
 @router.post(

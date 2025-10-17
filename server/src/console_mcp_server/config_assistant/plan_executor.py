@@ -151,6 +151,7 @@ class PlanExecutor:
         plan_id: str,
         patch: str,
         actor: str,
+        metadata: Mapping[str, Any] | None = None,
     ) -> PlanExecutionResult:
         repo = self._repository()
         try:
@@ -159,6 +160,8 @@ class PlanExecutor:
             logger.warning("plan.dry_run_failed", plan_id=plan_id, error=str(exc))
             raise PlanExecutorError("Falha ao validar patch durante o dry-run") from exc
 
+        metadata_payload = dict(metadata or {})
+        metadata_payload["base_branch"] = repo.active_branch()
         record = self._store.create(
             plan_id=plan_id,
             actor=actor,
@@ -167,7 +170,7 @@ class PlanExecutor:
             diff_stat=diff_stat,
             diff_patch=patch,
             risks=self._risks(plan),
-            metadata={"base_branch": repo.active_branch()},
+            metadata=metadata_payload,
         )
 
         logger.info("plan.dry_run", plan_id=plan_id, diff_stat=diff_stat)
@@ -196,6 +199,7 @@ class PlanExecutor:
         actor_email: str,
         commit_message: str,
         mode: PlanExecutionMode,
+        metadata: Mapping[str, Any] | None = None,
     ) -> PlanExecutionResult:
         if mode is PlanExecutionMode.DIRECT and not self._allow_direct_commits:
             raise PlanExecutorError("Commits diretos não estão habilitados para este ambiente.")
@@ -207,6 +211,13 @@ class PlanExecutor:
             logger.warning("plan.approval_preview_failed", plan_id=plan_id, error=str(exc))
             raise PlanExecutorError("Falha ao validar patch durante submissão para aprovação") from exc
 
+        metadata_payload = dict(metadata or {})
+        metadata_payload.setdefault("plan_summary", plan.summary)
+        metadata_payload.setdefault("approval_rules", list(plan.approval_rules))
+        metadata_payload.setdefault("plan_intent", plan.intent)
+        metadata_payload["base_branch"] = repo.active_branch()
+        metadata_payload["commit_message"] = commit_message
+        metadata_payload["actor_email"] = actor_email
         record = self._store.create(
             plan_id=plan_id,
             actor=actor,
@@ -215,13 +226,7 @@ class PlanExecutor:
             diff_stat=diff_stat,
             diff_patch=patch,
             risks=self._risks(plan),
-            metadata={
-                "base_branch": repo.active_branch(),
-                "commit_message": commit_message,
-                "actor_email": actor_email,
-                "plan_summary": plan.summary,
-                "approval_rules": list(plan.approval_rules),
-            },
+            metadata=metadata_payload,
         )
 
         approval = self._approvals.create(
