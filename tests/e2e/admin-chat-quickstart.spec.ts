@@ -40,7 +40,7 @@ const complianceSummary = {
 
 const headers = { status: 200, contentType: 'application/json' } as const;
 
-test('exibe quickstart com links válidos no Admin Chat', async ({ page }) => {
+test('@docs exibe quickstart com player, link para docs e exemplos rápidos', async ({ page }) => {
   await page.route('**/api/v1/servers', (route) =>
     route.fulfill({ ...headers, body: JSON.stringify(serversResponse) }),
   );
@@ -74,12 +74,26 @@ test('exibe quickstart com links válidos no Admin Chat', async ({ page }) => {
 
   const quickstartRegion = page.getByRole('region', { name: 'Comece rápido' });
   await expect(quickstartRegion).toBeVisible();
-  await expect(quickstartRegion.getByRole('link', { name: 'Assistir demo' })).toHaveAttribute(
-    'href',
-    'https://www.youtube.com/watch?v=J0jrn9qPKDg',
-  );
+
+  const demoButton = quickstartRegion.getByRole('button', { name: 'Assistir demo' });
+  await demoButton.click();
+
+  const mediaDialog = page.getByRole('dialog', { name: 'Veja o Admin Chat em ação' });
+  await expect(mediaDialog).toBeVisible();
+  await expect(
+    mediaDialog.frameLocator("iframe[title='Walkthrough do Admin Chat']").locator('body'),
+  ).toBeVisible();
+  await mediaDialog.getByRole('button', { name: 'Fechar player' }).click();
+  await expect(mediaDialog).toBeHidden();
+
   await expect(quickstartRegion.getByRole('link', { name: 'Abrir documentação' })).toHaveAttribute(
     'href',
     'https://github.com/openai/intellij-mcp-orchestration/blob/main/docs/admin-chat-quickstart.md',
+  );
+
+  const exampleButton = quickstartRegion.getByRole('button', { name: 'Gerar plano HITL' });
+  await exampleButton.click();
+  await expect(page.getByLabel('Mensagem para o copiloto')).toHaveValue(
+    'Preciso habilitar checkpoints HITL para as rotas críticas com aprovação dupla.',
   );
 });

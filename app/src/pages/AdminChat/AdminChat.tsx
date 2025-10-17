@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useCallback, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useMemo, useRef, useState } from 'react';
 
 import {
   fetchNotifications,
@@ -12,6 +12,8 @@ import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffView
 import PlanSummary from './PlanSummary';
 import RiskCard from './RiskCard';
 import McpOnboardingWizard from './McpOnboardingWizard';
+import MediaLightbox from '../../components/MediaLightbox';
+import MediaPlayer, { type MediaSource } from '../../components/MediaPlayer';
 
 const ROLE_LABELS = {
   user: 'Operador',
@@ -71,15 +73,51 @@ const SUPPORTED_ARTIFACTS: SupportedArtifact[] = [
   },
 ];
 
-const QUICKSTART_RESOURCES = [
+type QuickstartMedia = MediaSource & {
+  thumbnail?: string;
+  thumbnailAlt?: string;
+};
+
+interface QuickstartExample {
+  id: string;
+  label: string;
+  prompt: string;
+  scope?: string;
+  description?: string;
+  focus?: 'prompt' | 'scope';
+}
+
+interface QuickstartResource {
+  id: string;
+  badge: string;
+  title: string;
+  description: string;
+  cta: string;
+  media?: QuickstartMedia;
+  href?: string;
+  hrefLabel?: string;
+  examples?: QuickstartExample[];
+}
+
+const QUICKSTART_RESOURCES: QuickstartResource[] = [
   {
     id: 'admin-chat-demo',
     badge: 'Demo',
     title: 'Veja o Admin Chat em ação',
     description:
       'Assista ao walkthrough com geração de plano, revisão de diffs e aprovação HITL em menos de 2 minutos.',
-    href: 'https://www.youtube.com/watch?v=J0jrn9qPKDg',
     cta: 'Assistir demo',
+    media: {
+      type: 'iframe',
+      src: 'https://www.youtube.com/embed/J0jrn9qPKDg',
+      title: 'Walkthrough do Admin Chat',
+      allow:
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+      thumbnail: 'https://img.youtube.com/vi/J0jrn9qPKDg/hqdefault.jpg',
+      thumbnailAlt: 'Frame do walkthrough do Admin Chat com plano e revisão de diffs na tela',
+    },
+    href: 'https://www.youtube.com/watch?v=J0jrn9qPKDg',
+    hrefLabel: 'Abrir no YouTube',
   },
   {
     id: 'admin-chat-docs',
@@ -87,10 +125,36 @@ const QUICKSTART_RESOURCES = [
     title: 'Leia o quickstart completo',
     description:
       'Guia passo a passo com intents suportadas, exemplos de payload e comandos HTTP para o Admin Chat.',
-    href: 'https://github.com/openai/intellij-mcp-orchestration/blob/main/docs/admin-chat-quickstart.md',
     cta: 'Abrir documentação',
+    href: 'https://github.com/openai/intellij-mcp-orchestration/blob/main/docs/admin-chat-quickstart.md',
   },
-] as const;
+  {
+    id: 'admin-chat-examples',
+    badge: 'Exemplos',
+    title: 'Teste pedidos prontos',
+    description:
+      'Preencha o prompt e o escopo automaticamente com fluxos aprovados pela plataforma.',
+    cta: 'Usar exemplo',
+    examples: [
+      {
+        id: 'hitl-scope',
+        label: 'Gerar plano HITL',
+        prompt: 'Preciso habilitar checkpoints HITL para as rotas críticas com aprovação dupla.',
+        scope: 'Habilitar checkpoints HITL nas rotas prioritárias',
+        description: 'Sugestão validada para reforçar checkpoints antes do rollout.',
+      },
+      {
+        id: 'manifest-reload',
+        label: 'Regenerar manifesto MCP',
+        prompt:
+          'Quero regenerar o manifesto do agente de faturamento com suporte a structured-output mantendo owners.',
+        scope: 'Atualizar manifesto do agente de faturamento com owners atualizados',
+        description: 'Útil para validar alterações antes de solicitar um reload automatizado.',
+        focus: 'scope',
+      },
+    ],
+  },
+];
 
 const RELOAD_ACTOR_STORAGE_KEY = 'admin-chat.reload.actor';
 const RELOAD_ACTOR_EMAIL_STORAGE_KEY = 'admin-chat.reload.actor_email';
@@ -142,6 +206,8 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
     hasConversation,
   } = useAdminChat();
 
+  const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const scopeInputRef = useRef<HTMLInputElement | null>(null);
   const [prompt, setPrompt] = useState('');
   const [scope, setScope] = useState('');
   const [note, setNote] = useState('');
@@ -163,6 +229,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
   const [reloadCommitMessage, setReloadCommitMessage] = useState(() =>
     loadReloadPreference(RELOAD_COMMIT_STORAGE_KEY, 'chore: regenerar artefato de configuração'),
   );
+  const [openQuickstartResource, setOpenQuickstartResource] = useState<QuickstartResource | null>(null);
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -406,6 +473,34 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
     persistReloadPreference(RELOAD_COMMIT_STORAGE_KEY, value);
   }, []);
 
+  const handleQuickstartMediaOpen = useCallback((resource: QuickstartResource) => {
+    if (!resource.media) {
+      return;
+    }
+    setOpenQuickstartResource(resource);
+  }, []);
+
+  const handleQuickstartMediaClose = useCallback(() => {
+    setOpenQuickstartResource(null);
+  }, []);
+
+  const handleQuickstartExample = useCallback(
+    (example: QuickstartExample) => {
+      setPrompt(example.prompt);
+      if (typeof example.scope === 'string') {
+        setScope(example.scope);
+      }
+      requestAnimationFrame(() => {
+        if (example.focus === 'scope') {
+          scopeInputRef.current?.focus();
+        } else {
+          promptInputRef.current?.focus();
+        }
+      });
+    },
+    [setPrompt, setScope],
+  );
+
   const hasRisks = risks.length > 0;
   const roleLabels = useMemo(() => ROLE_LABELS, []);
 
@@ -445,6 +540,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
             name="scope"
             type="text"
             value={scope}
+            ref={scopeInputRef}
             onChange={(event) => {
               setScope(event.target.value);
               if (scopeError) {
@@ -601,6 +697,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
               rows={4}
               placeholder="Ex.: Gere um plano para habilitar checkpoints HITL nas rotas de maior risco"
               disabled={isChatLoading}
+              ref={promptInputRef}
             />
             <div className="admin-chat__button-row">
               <button type="submit" className="admin-chat__button admin-chat__button--primary" disabled={isChatLoading}>
@@ -624,25 +721,90 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
               Explore o fluxo assistido com uma demo visual e um guia com exemplos reais.
             </p>
             <div className="admin-chat__quickstart-grid">
-              {QUICKSTART_RESOURCES.map((resource) => (
-                <article
-                  key={resource.id}
-                  className="admin-chat__quickstart-card"
-                  aria-labelledby={`${resource.id}-title`}
-                >
-                  <span className="admin-chat__quickstart-badge">{resource.badge}</span>
-                  <h3 id={`${resource.id}-title`}>{resource.title}</h3>
-                  <p>{resource.description}</p>
-                  <a
-                    className="admin-chat__quickstart-link"
-                    href={resource.href}
-                    target="_blank"
-                    rel="noreferrer"
+              {QUICKSTART_RESOURCES.map((resource) => {
+                const titleId = `${resource.id}-title`;
+                const descriptionId = `${resource.id}-description`;
+                const hasActions = Boolean(resource.media || resource.href);
+
+                return (
+                  <article
+                    key={resource.id}
+                    className="admin-chat__quickstart-card"
+                    aria-labelledby={titleId}
+                    aria-describedby={descriptionId}
                   >
-                    {resource.cta}
-                  </a>
-                </article>
-              ))}
+                    <span className="admin-chat__quickstart-badge">{resource.badge}</span>
+                    {resource.media?.thumbnail ? (
+                      <button
+                        type="button"
+                        className="admin-chat__quickstart-media"
+                        onClick={() => handleQuickstartMediaOpen(resource)}
+                        aria-label={`Pré-visualizar ${resource.title}`}
+                      >
+                        <img
+                          src={resource.media.thumbnail}
+                          alt={resource.media.thumbnailAlt ?? resource.title}
+                          loading="lazy"
+                        />
+                      </button>
+                    ) : null}
+                    <h3 id={titleId}>{resource.title}</h3>
+                    <p id={descriptionId}>{resource.description}</p>
+                    {resource.examples ? (
+                      <ul className="admin-chat__quickstart-examples">
+                        {resource.examples.map((example) => {
+                          const exampleDescriptionId = `${example.id}-description`;
+                          return (
+                            <li key={example.id}>
+                              <button
+                                type="button"
+                                className="admin-chat__quickstart-example-button"
+                                onClick={() => handleQuickstartExample(example)}
+                                aria-describedby={
+                                  example.description ? exampleDescriptionId : undefined
+                                }
+                              >
+                                {example.label}
+                              </button>
+                              {example.description ? (
+                                <p
+                                  id={exampleDescriptionId}
+                                  className="admin-chat__quickstart-example-description"
+                                >
+                                  {example.description}
+                                </p>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                    {hasActions ? (
+                      <div className="admin-chat__quickstart-actions">
+                        {resource.media ? (
+                          <button
+                            type="button"
+                            className="admin-chat__quickstart-button"
+                            onClick={() => handleQuickstartMediaOpen(resource)}
+                          >
+                            {resource.cta}
+                          </button>
+                        ) : null}
+                        {resource.href ? (
+                          <a
+                            className="admin-chat__quickstart-link"
+                            href={resource.href}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                          >
+                            {resource.hrefLabel ?? resource.cta}
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           </section>
           <PlanDiffViewer diffs={planDiffItems} />
@@ -684,6 +846,26 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
           </section>
         </aside>
       </div>
+      {openQuickstartResource?.media ? (
+        <MediaLightbox
+          open={Boolean(openQuickstartResource)}
+          title={openQuickstartResource.title}
+          description={openQuickstartResource.description}
+          onClose={handleQuickstartMediaClose}
+        >
+          <MediaPlayer source={openQuickstartResource.media} />
+          {openQuickstartResource.href ? (
+            <a
+              className="admin-chat__quickstart-link"
+              href={openQuickstartResource.href}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {openQuickstartResource.hrefLabel ?? 'Abrir em nova aba'}
+            </a>
+          ) : null}
+        </MediaLightbox>
+      ) : null}
       {isReloadModalOpen && selectedArtifact ? (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="admin-reload-modal-title">
           <div className="modal">
