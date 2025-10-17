@@ -88,6 +88,56 @@ const telemetryHeatmap = {
   ],
 };
 
+const observabilityPreferences = {
+  tracing: { provider: 'langsmith', project: 'Observability' },
+  metrics: { provider: 'otlp', endpoint: 'https://collector.example.com/v1/traces' },
+  evals: null,
+  updated_at: '2024-03-08T12:00:00.000Z',
+};
+
+const observabilityMetrics = {
+  window_start: telemetryMetrics.start,
+  window_end: telemetryMetrics.end,
+  totals: {
+    runs: telemetryMetrics.total_runs,
+    tokens_in: telemetryMetrics.total_tokens_in,
+    tokens_out: telemetryMetrics.total_tokens_out,
+    avg_latency_ms: telemetryMetrics.avg_latency_ms,
+    success_rate: telemetryMetrics.success_rate,
+    cost_usd: telemetryMetrics.total_cost_usd,
+  },
+  providers: telemetryMetrics.providers,
+  kpis: {
+    latency_p95_ms: telemetryMetrics.extended.latency_p95_ms,
+    error_rate: telemetryMetrics.extended.error_rate,
+    cache_hit_rate: telemetryMetrics.extended.cache_hit_rate,
+    total_cost_usd: telemetryMetrics.total_cost_usd,
+  },
+  error_breakdown: telemetryMetrics.extended.error_breakdown,
+};
+
+const observabilityTracing = {
+  window_start: observabilityMetrics.window_start,
+  window_end: observabilityMetrics.window_end,
+  providers: telemetryMetrics.providers,
+};
+
+const evalRunResponse = {
+  run_id: 'eval-sample',
+  status: 'completed',
+  preset_id: 'latency-regression',
+  provider_id: 'glm',
+  evaluated_runs: 5,
+  success_rate: 0.9,
+  avg_latency_ms: 720,
+  summary:
+    'Preset “latency-regression” avaliou 5 execuções de GLM 46 com taxa de sucesso de 90.0% e latência média de 720 ms.',
+  started_at: '2024-03-08T12:00:00.000Z',
+  completed_at: '2024-03-08T12:00:05.000Z',
+  window_start: observabilityMetrics.window_start,
+  window_end: observabilityMetrics.window_end,
+};
+
 test('painel de observabilidade exibe métricas e aciona evals @observability', async ({ page }) => {
   await page.route('**/api/v1/servers**', (route) =>
     route.fulfill({
@@ -109,12 +159,28 @@ test('painel de observabilidade exibe métricas e aciona evals @observability', 
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [] }) }),
   );
 
+  await page.route('**/api/v1/observability/preferences', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(observabilityPreferences) }),
+  );
+
+  await page.route('**/api/v1/observability/metrics**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(observabilityMetrics) }),
+  );
+
+  await page.route('**/api/v1/observability/tracing**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(observabilityTracing) }),
+  );
+
   await page.route('**/api/v1/telemetry/metrics**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(telemetryMetrics) }),
   );
 
   await page.route('**/api/v1/telemetry/heatmap**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(telemetryHeatmap) }),
+  );
+
+  await page.route('**/api/v1/observability/evals/run', (route) =>
+    route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(evalRunResponse) }),
   );
 
   await page.route('**/api/v1/policies/compliance', (route) =>

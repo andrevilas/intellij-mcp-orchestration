@@ -6,7 +6,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import AnyHttpUrl, BaseModel, Field, ConfigDict
+from pydantic import AnyHttpUrl, BaseModel, Field, ConfigDict, model_validator
 
 from .config import ProviderConfig
 from .schemas_plan import Plan
@@ -708,6 +708,124 @@ class TelemetryMetricsResponse(BaseModel):
     success_rate: float
     providers: List[TelemetryProviderMetrics]
     extended: Optional[TelemetryMetricsExtended] = None
+
+
+class ObservabilityProviderType(str, Enum):
+    """Enumerates supported observability provider integrations."""
+
+    LANGSMITH = "langsmith"
+    OTLP = "otlp"
+
+
+class ObservabilityProviderSettings(BaseModel):
+    """Configuration payload persisted for observability providers."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: ObservabilityProviderType
+    endpoint: Optional[AnyHttpUrl] = None
+    project: Optional[str] = None
+    dataset: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+
+    @model_validator(mode="after")
+    def _validate_provider(self) -> "ObservabilityProviderSettings":
+        if self.provider is ObservabilityProviderType.OTLP and self.endpoint is None:
+            raise ValueError("endpoint é obrigatório para providers OTLP.")
+        if self.headers is not None:
+            self.headers = {str(key): str(value) for key, value in self.headers.items()}
+        return self
+
+
+class ObservabilityPreferencesResponse(BaseModel):
+    """Envelope returned when fetching stored observability preferences."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tracing: Optional[ObservabilityProviderSettings] = None
+    metrics: Optional[ObservabilityProviderSettings] = None
+    evals: Optional[ObservabilityProviderSettings] = None
+    updated_at: Optional[datetime] = None
+
+
+class ObservabilityPreferencesUpdateRequest(BaseModel):
+    """Payload accepted when updating observability preferences."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tracing: Optional[ObservabilityProviderSettings] = None
+    metrics: Optional[ObservabilityProviderSettings] = None
+    evals: Optional[ObservabilityProviderSettings] = None
+
+
+class ObservabilityMetricsTotals(BaseModel):
+    """Top-level metrics summarizing the current observability window."""
+
+    runs: int
+    tokens_in: int
+    tokens_out: int
+    avg_latency_ms: float
+    success_rate: float
+    cost_usd: float
+
+
+class ObservabilityMetricsKpis(BaseModel):
+    """Precomputed KPI snapshot derived from telemetry aggregates."""
+
+    latency_p95_ms: Optional[float] = None
+    error_rate: Optional[float] = None
+    cache_hit_rate: Optional[float] = None
+    total_cost_usd: Optional[float] = None
+
+
+class ObservabilityMetricsResponse(BaseModel):
+    """Aggregated metrics exposed by the observability endpoints."""
+
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
+    totals: ObservabilityMetricsTotals
+    providers: List[TelemetryProviderMetrics]
+    kpis: ObservabilityMetricsKpis
+    error_breakdown: List[TelemetryMetricsErrorBreakdownEntry] = Field(default_factory=list)
+
+
+class ObservabilityTraceResponse(BaseModel):
+    """Aggregated tracing payload grouped by provider."""
+
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
+    providers: List[TelemetryProviderMetrics]
+
+
+class ObservabilityEvalRunRequest(BaseModel):
+    """Payload used to trigger synthetic evaluation suites."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    preset_id: str = Field(..., min_length=1)
+    provider_id: Optional[str] = Field(
+        default=None,
+        description="Identificador do provider alvo. Use 'auto' para seleção automática.",
+    )
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
+
+
+class ObservabilityEvalRunResponse(BaseModel):
+    """Result payload returned after running an evaluation suite."""
+
+    run_id: str
+    status: Literal["completed"]
+    preset_id: str
+    provider_id: Optional[str] = None
+    evaluated_runs: int
+    success_rate: float
+    avg_latency_ms: float
+    summary: str
+    started_at: datetime
+    completed_at: datetime
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
 
 
 class TelemetryHeatmapBucket(BaseModel):

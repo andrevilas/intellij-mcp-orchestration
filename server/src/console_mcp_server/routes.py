@@ -182,6 +182,15 @@ from .schemas import (
     FlowVersionsResponse,
     FlowVersionRollbackRequest,
     FlowGraphPayload,
+    ObservabilityEvalRunRequest,
+    ObservabilityEvalRunResponse,
+    ObservabilityMetricsKpis,
+    ObservabilityMetricsResponse as ObservabilityMetricsEnvelope,
+    ObservabilityMetricsTotals,
+    ObservabilityPreferencesResponse,
+    ObservabilityPreferencesUpdateRequest,
+    ObservabilityProviderSettings,
+    ObservabilityTraceResponse,
 )
 from .secrets import secret_store
 from .secret_validation import (
@@ -189,6 +198,14 @@ from .secret_validation import (
     SecretNotConfiguredError,
     SecretValidationError,
     test_secret as validate_secret,
+)
+from .observability import (
+    ObservabilityError,
+    ObservabilityProviderNotFoundError,
+    load_preferences as load_observability_preferences,
+    run_eval_suite,
+    save_preferences as save_observability_preferences,
+    summarize_metrics as summarize_observability_metrics,
 )
 from .servers import (
     MCPServerAlreadyExistsError,
@@ -1145,6 +1162,264 @@ async def run_diagnostics(
         metadata=metadata,
     )
     return result
+
+
+@router.get("/observability/preferences", response_model=ObservabilityPreferencesResponse)
+def read_observability_preferences(
+    http_request: Request,
+) -> ObservabilityPreferencesResponse:
+    """Return stored observability provider preferences."""
+
+    ensure_security_context(http_request)
+    user = require_roles(http_request, Role.PLANNER, Role.APPROVER)
+    values, updated_at = load_observability_preferences()
+    response = ObservabilityPreferencesResponse(
+        tracing=values.get("tracing"),
+        metrics=values.get("metrics"),
+        evals=values.get("evals"),
+        updated_at=updated_at,
+    )
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="observability.preferences.read",
+        resource="/observability/preferences",
+        metadata={
+            "tracing_provider": values.get("tracing").provider.value if "tracing" in values else None,
+            "metrics_provider": values.get("metrics").provider.value if "metrics" in values else None,
+            "evals_provider": values.get("evals").provider.value if "evals" in values else None,
+        },
+    )
+    return response
+
+
+@router.put("/observability/preferences", response_model=ObservabilityPreferencesResponse)
+def update_observability_preferences(
+    payload: ObservabilityPreferencesUpdateRequest,
+    http_request: Request,
+) -> ObservabilityPreferencesResponse:
+    """Persist observability provider preferences."""
+
+    ensure_security_context(http_request)
+    user = require_roles(http_request, Role.APPROVER)
+    if not payload.model_fields_set:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe ao menos uma preferência para atualizar.",
+        )
+
+    updates: dict[str, ObservabilityProviderSettings | None] = {}
+    for key in ("tracing", "metrics", "evals"):
+        if key in payload.model_fields_set:
+            updates[key] = getattr(payload, key)
+
+    try:
+        values, updated_at = save_observability_preferences(updates)
+    except ObservabilityError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    response = ObservabilityPreferencesResponse(
+        tracing=values.get("tracing"),
+        metrics=values.get("metrics"),
+        evals=values.get("evals"),
+        updated_at=updated_at,
+    )
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="observability.preferences.update",
+        resource="/observability/preferences",
+        metadata={"updated": sorted(updates.keys())},
+    )
+    return response
+
+
+@router.get("/observability/metrics", response_model=ObservabilityMetricsEnvelope)
+def read_observability_metrics(
+    http_request: Request,
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) para filtrar eventos de telemetria",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) para filtrar eventos de telemetria",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Provider específico para filtrar agregações",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Identificador de rota para filtrar agregações",
+    ),
+) -> ObservabilityMetricsEnvelope:
+    """Return consolidated observability metrics for the requested window."""
+
+    ensure_security_context(http_request)
+    user = require_roles(http_request, Role.PLANNER)
+    try:
+        aggregates = summarize_observability_metrics(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    providers = [
+        TelemetryProviderMetrics(**provider.to_dict())
+        for provider in aggregates.providers
+    ]
+    extended = aggregates.extended
+    kpis = ObservabilityMetricsKpis(
+        latency_p95_ms=extended.latency_p95_ms if extended else None,
+        error_rate=extended.error_rate if extended else None,
+        cache_hit_rate=extended.cache_hit_rate if extended else None,
+        total_cost_usd=aggregates.total_cost_usd,
+    )
+    error_breakdown = (
+        [
+            TelemetryMetricsErrorBreakdownEntry(**entry.to_dict())
+            for entry in extended.error_breakdown
+        ]
+        if extended and extended.error_breakdown
+        else []
+    )
+
+    response = ObservabilityMetricsEnvelope(
+        window_start=aggregates.start,
+        window_end=aggregates.end,
+        totals=ObservabilityMetricsTotals(
+            runs=aggregates.total_runs,
+            tokens_in=aggregates.total_tokens_in,
+            tokens_out=aggregates.total_tokens_out,
+            avg_latency_ms=aggregates.avg_latency_ms,
+            success_rate=aggregates.success_rate,
+            cost_usd=aggregates.total_cost_usd,
+        ),
+        providers=providers,
+        kpis=kpis,
+        error_breakdown=error_breakdown,
+    )
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="observability.metrics.read",
+        resource="/observability/metrics",
+        metadata={
+            "provider_id": provider_id,
+            "route": route,
+            "total_runs": aggregates.total_runs,
+        },
+    )
+    return response
+
+
+@router.get("/observability/tracing", response_model=ObservabilityTraceResponse)
+def read_observability_tracing(
+    http_request: Request,
+    start: datetime | None = Query(
+        default=None,
+        description="Inclusive lower bound (ISO 8601) para filtrar eventos de telemetria",
+    ),
+    end: datetime | None = Query(
+        default=None,
+        description="Inclusive upper bound (ISO 8601) para filtrar eventos de telemetria",
+    ),
+    provider_id: str | None = Query(
+        default=None,
+        description="Provider específico para filtrar agregações",
+    ),
+    route: str | None = Query(
+        default=None,
+        description="Identificador de rota para filtrar agregações",
+    ),
+) -> ObservabilityTraceResponse:
+    """Return aggregated tracing metrics grouped by provider."""
+
+    ensure_security_context(http_request)
+    user = require_roles(http_request, Role.PLANNER)
+    try:
+        aggregates = summarize_observability_metrics(
+            start=start,
+            end=end,
+            provider_id=provider_id,
+            route=route,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    providers = [
+        TelemetryProviderMetrics(**provider.to_dict())
+        for provider in aggregates.providers
+    ]
+    response = ObservabilityTraceResponse(
+        window_start=aggregates.start,
+        window_end=aggregates.end,
+        providers=providers,
+    )
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="observability.tracing.read",
+        resource="/observability/tracing",
+        metadata={
+            "provider_id": provider_id,
+            "route": route,
+            "provider_count": len(providers),
+        },
+    )
+    return response
+
+
+@router.post(
+    "/observability/evals/run",
+    response_model=ObservabilityEvalRunResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_observability_eval(
+    payload: ObservabilityEvalRunRequest,
+    http_request: Request,
+) -> ObservabilityEvalRunResponse:
+    """Execute a synthetic evaluation suite across telemetry aggregates."""
+
+    ensure_security_context(http_request)
+    user = require_roles(http_request, Role.PLANNER)
+    try:
+        result = run_eval_suite(
+            preset_id=payload.preset_id,
+            provider_id=payload.provider_id,
+            start=payload.window_start,
+            end=payload.window_end,
+        )
+    except ObservabilityProviderNotFoundError as exc:
+        detail = f"Provider {exc.args[0]} não encontrado."
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    get_audit_logger(http_request).log(
+        actor=user,
+        action="observability.eval.run",
+        resource="/observability/evals/run",
+        metadata={
+            "preset": payload.preset_id,
+            "provider": result.provider_id or "auto",
+            "evaluated_runs": result.evaluated_runs,
+        },
+    )
+    return ObservabilityEvalRunResponse(
+        run_id=result.run_id,
+        status=result.status,
+        preset_id=result.preset_id,
+        provider_id=result.provider_id,
+        evaluated_runs=result.evaluated_runs,
+        success_rate=result.success_rate,
+        avg_latency_ms=result.avg_latency_ms,
+        summary=result.summary,
+        started_at=result.started_at,
+        completed_at=result.completed_at,
+        window_start=result.window_start,
+        window_end=result.window_end,
+    )
 
 
 @router.get("/telemetry/metrics", response_model=TelemetryMetricsResponse)
