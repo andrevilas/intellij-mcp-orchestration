@@ -10,11 +10,14 @@ import {
   type ServerProcessLogEntry,
   type ServerProcessLogsResult,
   type ServerProcessStateSnapshot,
+  type DiagnosticsResponse,
+  type DiagnosticsComponent,
   deleteServerDefinition,
   fetchServerHealthHistory,
   fetchServerProcessLogs,
   fetchServerProcesses,
   pingServerHealth,
+  runDiagnostics,
   restartServerProcess,
   startServerProcess,
   stopServerProcess,
@@ -197,6 +200,31 @@ function formatHealthStatus(status: ServerHealthStatus): string {
     default:
       return status;
   }
+}
+
+interface DiagnosticsState {
+  isRunning: boolean;
+  result: DiagnosticsResponse | null;
+  error: string | null;
+}
+
+function resolveProviderCountFromData(data: unknown): number | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return null;
+  }
+  const providers = (data as { providers?: unknown }).providers;
+  return Array.isArray(providers) ? providers.length : null;
+}
+
+function describeDiagnosticsComponent(
+  component: DiagnosticsComponent,
+  okMessage: string,
+  fallback: string,
+): string {
+  if (component.ok) {
+    return okMessage;
+  }
+  return component.error && component.error.trim().length > 0 ? component.error : fallback;
 }
 
 function getHealthBadgeClass(status: ServerHealthStatus | null | undefined): string {
@@ -444,6 +472,12 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     isSubmitting: false,
     error: null,
   });
+  const [diagnosticsAgent, setDiagnosticsAgent] = useState('catalog-search');
+  const [diagnosticsState, setDiagnosticsState] = useState<DiagnosticsState>({
+    isRunning: false,
+    result: null,
+    error: null,
+  });
 
   const processStatesRef = useRef<Record<string, ServerProcessStateSnapshot>>({});
   const actionControllers = useRef<Map<string, AbortController>>(new Map());
@@ -470,6 +504,31 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
   useEffect(() => {
     processStatesRef.current = processStates;
   }, [processStates]);
+
+  const handleDiagnosticsSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const trimmedAgent = diagnosticsAgent.trim();
+      if (!trimmedAgent) {
+        setDiagnosticsState({ isRunning: false, result: null, error: 'Informe o nome do agent.' });
+        return;
+      }
+
+      setDiagnosticsState({ isRunning: true, result: null, error: null });
+      try {
+        const response = await runDiagnostics({
+          agent: trimmedAgent,
+          config: { metadata: { surface: 'servers-diagnostics' } },
+        });
+        setDiagnosticsState({ isRunning: false, result: response, error: null });
+      } catch (error) {
+        const message =
+          error instanceof ApiError ? error.message : 'Não foi possível executar o diagnóstico.';
+        setDiagnosticsState({ isRunning: false, result: null, error: message });
+      }
+    },
+    [diagnosticsAgent],
+  );
 
   useEffect(() => {
     if (visibleProviders.length === 0) {
@@ -876,6 +935,100 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
       <section className="servers__hero">
         <h1>Servidores MCP · operações</h1>
         <p>Gerencie o ciclo de vida dos servidores MCP diretamente pela console. Acompanhe status em tempo real, uptime, health-checks recentes e eventos relevantes.</p>
+      </section>
+
+      <section className="servers__diagnostics" aria-labelledby="servers-diagnostics-title">
+        <header>
+          <h2 id="servers-diagnostics-title">Diagnóstico rápido</h2>
+          <p>Combine health check, inventário de providers e invoke de agent para validar a stack MCP.</p>
+        </header>
+        <form className="servers__diagnostics-form" onSubmit={handleDiagnosticsSubmit}>
+          <label htmlFor="servers-diagnostics-agent">Agent para invoke</label>
+          <div className="servers__diagnostics-controls">
+            <input
+              id="servers-diagnostics-agent"
+              type="text"
+              value={diagnosticsAgent}
+              onChange={(event) => setDiagnosticsAgent(event.target.value)}
+              placeholder="catalog-search"
+              autoComplete="off"
+            />
+            <button type="submit" disabled={diagnosticsState.isRunning || diagnosticsAgent.trim() === ''}>
+              {diagnosticsState.isRunning ? 'Executando…' : 'Executar diagnóstico'}
+            </button>
+          </div>
+        </form>
+        {diagnosticsState.error && (
+          <p className="servers__diagnostics-error" role="alert">
+            {diagnosticsState.error}
+          </p>
+        )}
+        {diagnosticsState.result && (
+          <>
+            <p className="servers__diagnostics-meta">
+              {diagnosticsState.result.summary.failures === 0
+                ? 'Todas as verificações passaram.'
+                : `${diagnosticsState.result.summary.failures} verificação(ões) falharam.`}
+            </p>
+            <div className="servers__diagnostics-grid">
+              {(() => {
+                const { health, providers, invoke } = diagnosticsState.result!;
+                const providerCount = resolveProviderCountFromData(providers.data);
+                const healthMessage = describeDiagnosticsComponent(
+                  health,
+                  'Backend respondeu com sucesso.',
+                  'Falha ao consultar /healthz.',
+                );
+                const providersMessage = describeDiagnosticsComponent(
+                  providers,
+                  providerCount != null
+                    ? `${providerCount} provider(s) carregado(s).`
+                    : 'Catálogo de providers carregado.',
+                  'Falha ao carregar providers.',
+                );
+                const invokeMessage = describeDiagnosticsComponent(
+                  invoke,
+                  'Invoke concluído sem erros.',
+                  'Falha ao invocar o agent informado.',
+                );
+                return (
+                  <>
+                    <article
+                      className={
+                        health.ok
+                          ? 'servers__diagnostics-metric servers__diagnostics-metric--ok'
+                          : 'servers__diagnostics-metric servers__diagnostics-metric--error'
+                      }
+                    >
+                      <h3>Health check do backend</h3>
+                      <p>{healthMessage}</p>
+                    </article>
+                    <article
+                      className={
+                        providers.ok
+                          ? 'servers__diagnostics-metric servers__diagnostics-metric--ok'
+                          : 'servers__diagnostics-metric servers__diagnostics-metric--error'
+                      }
+                    >
+                      <h3>Inventário de providers</h3>
+                      <p>{providersMessage}</p>
+                    </article>
+                    <article
+                      className={
+                        invoke.ok
+                          ? 'servers__diagnostics-metric servers__diagnostics-metric--ok'
+                          : 'servers__diagnostics-metric servers__diagnostics-metric--error'
+                      }
+                    >
+                      <h3>Invoke de {diagnosticsAgent.trim() || 'agent'}</h3>
+                      <p>{invokeMessage}</p>
+                    </article>
+                  </>
+                );
+              })()}
+            </div>
+          </>
+        )}
       </section>
 
       <section className="servers__status" aria-label="Resumo dos servidores">

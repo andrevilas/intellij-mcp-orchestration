@@ -29,6 +29,7 @@ import {
   fetchServerCatalog,
   fetchServerProcesses,
   fetchServerProcessLogs,
+  runDiagnostics,
   fetchSecrets,
   fetchSessions,
   fetchTelemetryHeatmap,
@@ -160,6 +161,64 @@ describe('api client', () => {
         owner: '@catalog',
       },
     ]);
+  });
+
+  it('executa diagnóstico agregando respostas normalizadas', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        timestamp: '2025-01-01T12:00:00Z',
+        summary: { total: 3, successes: 3, failures: 0, errors: {} },
+        health: { ok: true, status_code: 200, duration_ms: 12.4, data: { status: 'ok' } },
+        providers: {
+          ok: true,
+          status_code: 200,
+          duration_ms: 20.1,
+          data: { providers: [{ id: 'gemini' }, { id: 'glm46' }] },
+        },
+        invoke: {
+          ok: true,
+          status_code: 200,
+          duration_ms: 42.8,
+          data: { result: { status: 'ok' } },
+        },
+      }),
+    );
+
+    const result = await runDiagnostics({
+      agent: 'catalog-search',
+      config: { metadata: { surface: 'servers-diagnostics' } },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/diagnostics/run',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          invoke: {
+            agent: 'catalog-search',
+            config: { metadata: { surface: 'servers-diagnostics' } },
+          },
+        }),
+      }),
+    );
+
+    expect(result.summary.failures).toBe(0);
+    expect(result.health.ok).toBe(true);
+    expect(result.providers.ok).toBe(true);
+    expect(Array.isArray((result.providers.data as { providers: unknown[] }).providers)).toBe(true);
+  });
+
+  it('propaga ApiError quando o diagnóstico retorna erro', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ detail: 'invoke failed' }),
+        text: () => Promise.resolve(''),
+      } as unknown as Response),
+    );
+
+    await expect(runDiagnostics({ agent: 'catalog-search' })).rejects.toThrow(ApiError);
   });
 
   it('executes a smoke run using the agents runner endpoint', async () => {
