@@ -3897,6 +3897,21 @@ export interface PolicyPlanResponse {
   previewPayload: ConfigPlanPreviewPayload | null;
 }
 
+export interface AgentPlanRequest {
+  agent: {
+    slug: string;
+    repository: string;
+    manifest: Record<string, unknown>;
+  };
+}
+
+export interface AgentPlanResponse {
+  plan: ConfigPlan;
+  planPayload: ConfigPlanPayload;
+  preview: ConfigPlanPreview | null;
+  previewPayload: ConfigPlanPreviewPayload | null;
+}
+
 interface ReloadRequestPayload {
   artifact_type: string;
   target_path: string;
@@ -3949,6 +3964,24 @@ export async function patchConfigPoliciesPlan(
     body: JSON.stringify(body),
     signal,
   });
+  return {
+    plan: mapConfigPlanPayload(response.plan),
+    planPayload: response.plan,
+    preview: mapConfigPlanPreview(response.preview ?? null),
+    previewPayload: response.preview ?? null,
+  };
+}
+
+export async function postAgentPlan(
+  payload: AgentPlanRequest,
+  signal?: AbortSignal,
+): Promise<AgentPlanResponse> {
+  const response = await request<ConfigPlanResponsePayload>('/config/agents/plan', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal,
+  });
+
   return {
     plan: mapConfigPlanPayload(response.plan),
     planPayload: response.plan,

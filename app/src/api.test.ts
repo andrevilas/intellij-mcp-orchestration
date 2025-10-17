@@ -11,6 +11,7 @@ import {
   fetchPolicyOverrides,
   fetchPolicyManifest,
   patchConfigPoliciesPlan,
+  postAgentPlan,
   updatePolicyManifest,
   createPolicyOverride,
   updatePolicyOverride,
@@ -1307,6 +1308,98 @@ describe('api client', () => {
     expect(response.pullRequest?.ciResults).toEqual([
       { name: 'ci/tests', status: 'success', detailsUrl: 'https://ci.example.com/run/101' },
     ]);
+  });
+
+  it('gera plano para criação de novo agent com manifesto base', async () => {
+    const planPayload = {
+      intent: 'add_agent',
+      summary: "Adicionar agente sentinel-watcher ao repositório agents-hub",
+      steps: [
+        {
+          id: 'discover-server',
+          title: 'Descobrir servidor MCP',
+          description: 'Validar tools e schemas disponíveis no servidor informado.',
+          depends_on: [],
+          actions: [],
+        },
+        {
+          id: 'scaffold-agent',
+          title: "Scaffold agent 'sentinel-watcher'",
+          description: 'Gerar manifesto e stub LangGraph com o template padrão.',
+          depends_on: ['discover-server'],
+          actions: [
+            {
+              type: 'write_file',
+              path: 'agents-hub/app/agents/sentinel-watcher/agent.yaml',
+              contents: 'name: sentinel-watcher\n',
+              encoding: 'utf-8',
+              overwrite: false,
+            },
+          ],
+        },
+      ],
+      diffs: [
+        {
+          path: 'agents-hub/app/agents/sentinel-watcher/agent.yaml',
+          summary: 'Criar manifesto MCP inicial',
+          change_type: 'create',
+          diff: '--- /dev/null\n+++ agent.yaml\n+name: sentinel-watcher',
+        },
+        {
+          path: 'agents-hub/app/agents/sentinel-watcher/agent.py',
+          summary: 'Adicionar stub LangGraph',
+          change_type: 'create',
+          diff: '--- /dev/null\n+++ agent.py\n+class SentinelWatcherAgent: ...',
+        },
+      ],
+      risks: [],
+      status: 'pending' as const,
+      context: [],
+      approval_rules: [],
+    };
+
+    const previewPayload = {
+      branch: 'feature/add-sentinel-watcher',
+      base_branch: 'main',
+      commit_message: 'feat: adicionar agent sentinel-watcher',
+      pull_request: {
+        provider: 'github',
+        title: 'feat: adicionar agent sentinel-watcher',
+      },
+    };
+
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        plan: planPayload,
+        preview: previewPayload,
+      }),
+    );
+
+    const requestPayload = {
+      agent: {
+        slug: 'sentinel-watcher',
+        repository: 'agents-hub',
+        manifest: {
+          name: 'sentinel-watcher',
+          title: 'Sentinel Watcher',
+          capabilities: ['monitoring'],
+        },
+      },
+    };
+
+    const response = await postAgentPlan(requestPayload);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/config/agents/plan',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse((requestInit.body ?? '{}') as string)).toEqual(requestPayload);
+    expect(response.plan.intent).toBe('add_agent');
+    expect(response.plan.diffs).toHaveLength(2);
+    expect(response.plan.diffs[0].path).toBe('agents-hub/app/agents/sentinel-watcher/agent.yaml');
+    expect(response.planPayload.intent).toBe('add_agent');
+    expect(response.preview?.branch).toBe('feature/add-sentinel-watcher');
   });
 
   it('envia intents e regras personalizadas na simulação de roteamento', async () => {

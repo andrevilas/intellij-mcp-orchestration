@@ -1282,6 +1282,61 @@ button {
   }
 }
 
+.agent-wizard {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  z-index: 1400;
+  overflow-y: auto;
+}
+
+.agent-wizard__panel {
+  width: min(960px, 100%);
+  background: #fff;
+  border-radius: 1.5rem;
+  box-shadow: 0 28px 52px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+
+.agent-wizard__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.agent-wizard__close {
+  border: none;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.4rem 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.agent-wizard__close:hover {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.agent-wizard__close:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.4);
+  outline-offset: 2px;
+}
+
+.agent-wizard__review {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 0 clamp(0.5rem, 2vw, 1rem) clamp(1.5rem, 3vw, 2rem);
+}
+
 .mcp-wizard {
   margin-top: 1.5rem;
   border-radius: 1.25rem;
@@ -1572,6 +1627,43 @@ button {
 .agents__header p {
   margin: 0.25rem 0 0;
   color: #475569;
+}
+
+.agents__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.agents__create-button {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.65rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #f8fafc;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.28);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.agents__create-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 44px rgba(37, 99, 235, 0.32);
+}
+
+.agents__create-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.4);
+  outline-offset: 3px;
+}
+
+.agents__create-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .agents__filters {
