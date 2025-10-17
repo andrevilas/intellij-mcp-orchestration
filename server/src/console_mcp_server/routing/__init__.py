@@ -86,9 +86,9 @@ def _seeded_mod(value: str, modulo: int) -> int:
 
 def _determine_lane(provider: ProviderSummary) -> str:
     seed = _seeded_mod(f"{provider.id}-lane", 100)
-    if seed < 38:
+    if seed < 35:
         return "economy"
-    if seed < 74:
+    if seed < 82:
         return "balanced"
     return "turbo"
 

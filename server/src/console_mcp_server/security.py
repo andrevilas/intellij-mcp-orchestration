@@ -103,13 +103,13 @@ class AuditLogger:
     """Dual writer that persists audit events to JSONL and SQLite."""
 
     def __init__(self, *, path: Path | None = None, session_factory=session_scope):
-        self._path = _resolve_audit_path(path)
+        self._path_override = path
         self._session_factory = session_factory
         self._lock = Lock()
 
     @property
     def path(self) -> Path:
-        return self._path
+        return _resolve_audit_path(self._path_override)
 
     def log(
         self,
@@ -138,7 +138,8 @@ class AuditLogger:
         payload = event.asdict()
         line = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         with self._lock:
-            with self._path.open("a", encoding="utf-8") as handle:
+            path = self.path
+            with path.open("a", encoding="utf-8") as handle:
                 handle.write(line + "\n")
 
         with self._session_factory() as session:
