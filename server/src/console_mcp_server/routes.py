@@ -540,6 +540,8 @@ class PlanStatusSyncRequest(BaseModel):
 
 
 class OnboardIntent(str, Enum):
+    """Intent supported by the MCP onboarding endpoint."""
+
     PLAN = "plan"
     VALIDATE = "validate"
 
@@ -551,7 +553,14 @@ class OnboardRequest(BaseModel):
     endpoint: str | None = Field(default=None)
     auth: Dict[str, str] = Field(default_factory=dict)
     tools: list[str] = Field(default_factory=list)
-    intent: OnboardIntent = Field(default=OnboardIntent.PLAN)
+    intent: OnboardIntent = Field(
+        default=OnboardIntent.PLAN,
+        description=(
+            "Define o fluxo desejado para onboarding do agente. "
+            "Use 'plan' para gerar o plano completo ou 'validate' para somente "
+            "testar a conexão e pular a geração de plano."
+        ),
+    )
 
 
 class RagDocument(BaseModel):

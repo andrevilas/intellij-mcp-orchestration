@@ -31,7 +31,7 @@
 - **Gerar plano** — `POST /api/v1/config/plan` valida payloads obrigatórios (`agent_name`, `policy_id`, etc.) e retorna `Plan` + `diffs`.
   Reutilize `threadId` da sessão do Admin Chat para manter contexto. 【F:server/src/console_mcp_server/routes.py†L236-L336】【F:app/src/hooks/useAdminChat.ts†L111-L163】
 - **Aplicar** — `POST /api/v1/config/apply` exige `plan`, `patch`, `actor` e `actor_email` para submissões. O executor devolve `PlanExecutionResult` com `branch` e `hitl_required` quando houver aprovação humana. 【F:server/src/console_mcp_server/routes.py†L289-L374】【F:server/src/console_mcp_server/config_assistant/plan_executor.py†L18-L189】
-- **Onboarding** — `POST /api/v1/config/mcp/onboard` monta plano para criar manifesto, módulo e atualizar registry do Agents Hub. 【F:server/src/console_mcp_server/routes.py†L374-L412】
+- **Onboarding** — `POST /api/v1/config/mcp/onboard` aceita `intent` (`plan` ou `validate`) para gerar plano completo ou apenas testar o endpoint MCP. 【F:server/src/console_mcp_server/routes.py†L876-L956】
 - **Fluxo HITL** — quando `status` = `hitl_required`, reenvie `POST /config/apply` com `approval_id` e `approval_decision: approve|reject`. O log de auditoria grava a decisão com metadados. 【F:server/src/console_mcp_server/routes.py†L312-L374】【F:server/src/console_mcp_server/security.py†L120-L186】
 
 ## Rollback de planos
