@@ -16,10 +16,12 @@ from uuid import uuid4
 import structlog
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import select, text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+from .database import User as UserModel
+from .database import UserToken as UserTokenModel
 from .database import session_scope
 
 logger = structlog.get_logger("console.security")
@@ -216,7 +218,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
         *,
         session_factory=session_scope,
         audit_logger: AuditLogger | None = None,
-        protected_prefixes: Sequence[str] = ("/api/v1/config",),
+        protected_prefixes: Sequence[str] = ("/api/v1/config", "/api/v1/security"),
     ) -> None:
         super().__init__(app)
         self._session_factory = session_factory
@@ -260,25 +262,56 @@ def authenticate_bearer_token(
     """Resolve an authenticated user from a bearer token."""
 
     token_hash = hash_token(token)
+    now = datetime.now(tz=timezone.utc)
+    now_iso = now.isoformat()
     with session_factory() as session:
-        row = (
+        token_match = (
             session.execute(
-                text(
-                    """
-                    SELECT id, name, email
-                    FROM users
-                    WHERE api_token_hash = :token_hash
-                    LIMIT 1
-                    """
-                ),
-                {"token_hash": token_hash},
+                select(UserTokenModel, UserModel)
+                .join(UserModel, UserTokenModel.user_id == UserModel.id)
+                .where(UserTokenModel.token_hash == token_hash)
+                .limit(1)
             )
-            .mappings()
             .first()
         )
 
-        if row is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        user_id: str
+        email: str | None
+        name: str
+
+        if token_match is not None:
+            token_row = token_match[0]
+            user_row = token_match[1]
+            if token_row.revoked_at is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+                )
+            expires_at = _parse_timestamp(token_row.expires_at)
+            if expires_at is not None and expires_at <= now:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+                )
+            token_row.last_used_at = now_iso
+            token_row.updated_at = now_iso
+            user_id = str(user_row.id)
+            name = str(user_row.name)
+            email = str(user_row.email) if user_row.email else None
+        else:
+            legacy_user = (
+                session.execute(
+                    select(UserModel)
+                    .where(UserModel.api_token_hash == token_hash)
+                    .limit(1)
+                )
+                .scalar_one_or_none()
+            )
+            if legacy_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+                )
+            user_id = str(legacy_user.id)
+            name = str(legacy_user.name)
+            email = str(legacy_user.email) if legacy_user.email else None
 
         roles = session.execute(
             text(
@@ -289,7 +322,7 @@ def authenticate_bearer_token(
                 WHERE ur.user_id = :user_id
                 """
             ),
-            {"user_id": row["id"]},
+            {"user_id": user_id},
         ).scalars()
         assigned = frozenset(Role(role_name) for role_name in roles)
 
@@ -297,9 +330,9 @@ def authenticate_bearer_token(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User lacks assigned roles")
 
     return AuthenticatedUser(
-        id=str(row["id"]),
-        name=str(row["name"]),
-        email=str(row.get("email")) if row.get("email") else None,
+        id=user_id,
+        name=name,
+        email=email,
         roles=assigned,
     )
 
@@ -379,4 +412,11 @@ __all__ = [
     "hash_token",
     "require_roles",
 ]
+
+def _parse_timestamp(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    return datetime.fromisoformat(value)
 

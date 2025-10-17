@@ -22,6 +22,7 @@ test('@security gerencia identidades e credenciais MCP', async ({ page }) => {
       roles: ['role-ops'],
       status: 'active',
       created_at: '2024-03-01T12:00:00Z',
+      updated_at: '2024-03-05T09:30:00Z',
       last_seen_at: '2024-03-05T09:30:00Z',
       mfa_enabled: true,
     },
@@ -42,11 +43,13 @@ test('@security gerencia identidades e credenciais MCP', async ({ page }) => {
   const apiKeys = [
     {
       id: 'key-1',
+      user_id: 'user-ops',
+      user_name: 'Operações',
       name: 'Observabilidade Prod',
-      owner: 'observability',
       scopes: ['mcp:invoke'],
       status: 'active',
       created_at: '2024-01-01T12:00:00Z',
+      updated_at: '2024-01-01T12:00:00Z',
       last_used_at: '2024-03-07T10:00:00Z',
       expires_at: null,
       token_preview: 'obs****',
@@ -122,30 +125,65 @@ test('@security gerencia identidades e credenciais MCP', async ({ page }) => {
     const request = route.request();
     if (request.method() === 'POST') {
       const payload = JSON.parse(request.postData() ?? '{}');
+      const now = new Date().toISOString();
       const newUser = {
         id: `user-${users.length + 1}`,
         name: payload.name,
         email: payload.email,
         roles: payload.roles ?? [],
-        status: payload.status ?? 'active',
-        created_at: new Date().toISOString(),
+        status: 'active',
+        created_at: now,
+        updated_at: now,
         last_seen_at: null,
-        mfa_enabled: payload.mfa_enabled ?? true,
+        mfa_enabled: payload.mfa_enabled ?? false,
       };
       users.push(newUser);
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(newUser) });
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ user: newUser, secret: 'generated-secret' }),
+      });
+    }
+
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ users }) });
+  });
+
+  await page.route('**/api/v1/security/users/*', async (route) => {
+    const request = route.request();
+    const userId = request.url().split('/').pop() ?? '';
+    const index = users.findIndex((user) => user.id === userId);
+
+    if (request.method() === 'GET') {
+      const user = users[index];
+      if (!user) {
+        return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'not found' }) });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user }) });
+    }
+
+    if (request.method() === 'PUT') {
+      if (index === -1) {
+        return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'not found' }) });
+      }
+      const payload = JSON.parse(request.postData() ?? '{}');
+      users[index] = {
+        ...users[index],
+        name: payload.name ?? users[index].name,
+        email: payload.email ?? users[index].email,
+        roles: payload.roles ?? users[index].roles,
+        updated_at: new Date().toISOString(),
+      };
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: users[index] }) });
     }
 
     if (request.method() === 'DELETE') {
-      const id = request.url().split('/').pop();
-      const index = users.findIndex((user) => user.id === id);
       if (index >= 0) {
         users.splice(index, 1);
       }
       return route.fulfill({ status: 204 });
     }
 
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ users }) });
+    return route.fulfill({ status: 405 });
   });
 
   await page.route('**/api/v1/security/roles', (route) => {
@@ -153,7 +191,49 @@ test('@security gerencia identidades e credenciais MCP', async ({ page }) => {
     if (request.method() === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ roles }) });
     }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(roles[0]) });
+    if (request.method() === 'POST') {
+      const payload = JSON.parse(request.postData() ?? '{}');
+      const now = new Date().toISOString();
+      const role = {
+        id: `role-${roles.length + 1}`,
+        name: payload.name,
+        description: payload.description ?? null,
+        created_at: now,
+        updated_at: now,
+        members: 0,
+      };
+      roles.push(role);
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(role) });
+    }
+    return route.fulfill({ status: 405 });
+  });
+
+  await page.route('**/api/v1/security/roles/*', (route) => {
+    const request = route.request();
+    const roleId = request.url().split('/').pop() ?? '';
+    const index = roles.findIndex((role) => role.id === roleId);
+
+    if (request.method() === 'PUT') {
+      if (index === -1) {
+        return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'not found' }) });
+      }
+      const payload = JSON.parse(request.postData() ?? '{}');
+      roles[index] = {
+        ...roles[index],
+        description: payload.description ?? roles[index].description,
+        updated_at: new Date().toISOString(),
+      };
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(roles[index]) });
+    }
+
+    if (request.method() === 'DELETE') {
+      if (index >= 0) {
+        roles.splice(index, 1);
+      }
+      return route.fulfill({ status: 204 });
+    }
+
+    return route.fulfill({ status: 405 });
   });
 
   await page.route('**/api/v1/security/api-keys', (route) => {
@@ -161,32 +241,47 @@ test('@security gerencia identidades e credenciais MCP', async ({ page }) => {
     if (request.method() === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ keys: apiKeys }) });
     }
-    if (request.method() === 'DELETE') {
-      const id = request.url().split('/').pop();
-      const key = apiKeys.find((item) => item.id === id);
-      if (key) {
-        key.status = 'revoked';
-      }
-      return route.fulfill({ status: 204 });
-    }
     const payload = JSON.parse(request.postData() ?? '{}');
+    const now = new Date().toISOString();
+    const owner = users.find((user) => user.id === payload.user_id);
     const createdKey = {
       id: `key-${apiKeys.length + 1}`,
       name: payload.name,
-      owner: payload.owner,
-      scopes: payload.scopes,
+      user_id: payload.user_id,
+      user_name: owner?.name ?? payload.user_id,
+      scopes: payload.scopes ?? [],
       status: 'active',
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
       last_used_at: null,
       expires_at: payload.expires_at ?? null,
       token_preview: `${payload.name.slice(0, 3)}****`,
     };
     apiKeys.push(createdKey);
     return route.fulfill({
-      status: 200,
+      status: 201,
       contentType: 'application/json',
       body: JSON.stringify({ key: createdKey, secret: 'generated-secret' }),
     });
+  });
+
+  await page.route('**/api/v1/security/api-keys/*', (route) => {
+    const request = route.request();
+    const keyId = request.url().split('/').pop() ?? '';
+    if (request.url().includes('/rotate')) {
+      return route.fallback();
+    }
+    const key = apiKeys.find((item) => item.id === keyId);
+
+    if (request.method() === 'DELETE') {
+      if (key) {
+        key.status = 'revoked';
+        key.updated_at = new Date().toISOString();
+      }
+      return route.fulfill({ status: 204 });
+    }
+
+    return route.fulfill({ status: 405 });
   });
 
   await page.route('**/api/v1/security/api-keys/*/rotate', (route) => {
@@ -194,6 +289,7 @@ test('@security gerencia identidades e credenciais MCP', async ({ page }) => {
     const key = apiKeys.find((item) => item.id === id);
     if (key) {
       key.token_preview = 'rot****';
+      key.updated_at = new Date().toISOString();
       const payload = { key, secret: 'rotated-secret' };
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
     }

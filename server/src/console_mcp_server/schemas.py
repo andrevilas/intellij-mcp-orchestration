@@ -1084,3 +1084,106 @@ class FlowVersionDiffResponse(BaseModel):
     from_version: int
     to_version: int
     diff: str
+
+
+class SecurityUser(BaseModel):
+    id: str
+    name: str
+    email: Optional[str] = None
+    roles: List[str] = Field(default_factory=list)
+    status: Literal["active", "disabled"] = "active"
+    created_at: datetime
+    updated_at: datetime
+    last_seen_at: Optional[datetime] = None
+    mfa_enabled: bool = False
+
+
+class SecurityUsersResponse(BaseModel):
+    users: List[SecurityUser]
+
+
+class SecurityUserResponse(BaseModel):
+    user: SecurityUser
+
+
+class SecurityUserCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=256)
+    email: Optional[str] = Field(default=None, max_length=320)
+    roles: List[str] = Field(default_factory=list)
+    generate_token: bool = Field(
+        default=True,
+        description="When true, provisions an initial API token for the user",
+    )
+    token_name: Optional[str] = Field(default=None, max_length=128)
+
+
+class SecurityUserCreateResponse(BaseModel):
+    user: SecurityUser
+    secret: Optional[str] = None
+
+
+class SecurityUserUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=256)
+    email: Optional[str] = Field(default=None, max_length=320)
+    roles: Optional[List[str]] = Field(default=None)
+
+
+class SecurityRole(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    members: int = 0
+
+
+class SecurityRolesResponse(BaseModel):
+    roles: List[SecurityRole]
+
+
+class SecurityRoleCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=128)
+    description: Optional[str] = Field(default=None, max_length=1024)
+
+
+class SecurityRoleUpdateRequest(BaseModel):
+    description: Optional[str] = Field(default=None, max_length=1024)
+
+
+class ApiKey(BaseModel):
+    id: str
+    user_id: str
+    user_name: str
+    name: str
+    scopes: List[str] = Field(default_factory=list)
+    status: Literal["active", "expired", "revoked"]
+    token_preview: str
+    created_at: datetime
+    updated_at: datetime
+    last_used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+
+class ApiKeysResponse(BaseModel):
+    keys: List[ApiKey]
+
+
+class ApiKeyCreateRequest(BaseModel):
+    user_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=256)
+    scopes: List[str] = Field(default_factory=list)
+    expires_at: Optional[datetime] = None
+
+
+class ApiKeyCreateResponse(BaseModel):
+    key: ApiKey
+    secret: str
+
+
+class ApiKeyRotateRequest(BaseModel):
+    expires_at: Optional[datetime] = None
+
+
+class ApiKeyRotateResponse(BaseModel):
+    key: ApiKey
+    secret: str
