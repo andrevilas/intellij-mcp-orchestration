@@ -9,7 +9,12 @@ from starlette.testclient import TestClient
 
 from console_mcp_server.config_assistant.plan_executor import PlanExecutionResult
 from console_mcp_server.schemas_plan import PlanExecutionMode, PlanExecutionStatus
-from console_mcp_server.security import Role, hash_token
+from console_mcp_server.security import (
+    AuthenticatedUser,
+    DEFAULT_AUDIT_LOGGER,
+    Role,
+    hash_token,
+)
 
 pytest_plugins = ["tests.test_routes"]
 
@@ -139,3 +144,88 @@ def test_audit_log_persists_events(client: TestClient, database, monkeypatch) ->
     actions = [row[0] for row in rows]
     assert "config.plan" in actions
     assert "config.apply.dry_run" in actions
+
+
+def test_audit_logs_endpoint_supports_filters(client: TestClient, database) -> None:
+    headers = _audit_headers(database, client)
+
+    primary_actor = AuthenticatedUser(
+        id="audit-user",
+        name="Audit User",
+        email="audit@example.com",
+        roles=frozenset({Role.APPROVER}),
+    )
+    secondary_actor = AuthenticatedUser(
+        id="system",
+        name="Sistema",
+        email=None,
+        roles=frozenset({Role.VIEWER}),
+    )
+
+    first = DEFAULT_AUDIT_LOGGER.log(
+        actor=primary_actor,
+        action="security.users.list",
+        resource="/security/users",
+        metadata={"count": 2},
+    )
+    second = DEFAULT_AUDIT_LOGGER.log(
+        actor=secondary_actor,
+        action="config.plan",
+        resource="/config/plan",
+        metadata={"plan_id": "plan-123"},
+    )
+
+    with database.session_scope() as session:
+        session.execute(
+            text("UPDATE audit_events SET created_at = :ts WHERE id = :id"),
+            {"ts": "2024-04-10T10:00:00+00:00", "id": first.id},
+        )
+        session.execute(
+            text("UPDATE audit_events SET created_at = :ts WHERE id = :id"),
+            {"ts": "2024-04-12T15:30:00+00:00", "id": second.id},
+        )
+
+    response = client.get("/api/v1/audit/logs", headers=headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] >= 2
+    returned_ids = [entry["id"] for entry in payload["events"]]
+    assert second.id in returned_ids  # newest first
+    assert first.id in returned_ids
+
+    actor_filtered = client.get("/api/v1/audit/logs", params={"actor": "Audit"}, headers=headers)
+    assert actor_filtered.status_code == 200
+    actor_payload = actor_filtered.json()
+    assert actor_payload["total"] == 1
+    assert actor_payload["events"][0]["id"] == first.id
+
+    period_filtered = client.get(
+        "/api/v1/audit/logs",
+        params={"start": "2024-04-12T00:00:00Z", "end": "2024-04-13T00:00:00Z"},
+        headers=headers,
+    )
+    assert period_filtered.status_code == 200
+    period_payload = period_filtered.json()
+    assert period_payload["total"] == 1
+    assert period_payload["events"][0]["id"] == second.id
+
+    paged = client.get(
+        "/api/v1/audit/logs",
+        params={"page": 2, "page_size": 1, "action": "security"},
+        headers=headers,
+    )
+    assert paged.status_code == 200
+    paged_payload = paged.json()
+    assert paged_payload["total"] == 1
+    assert paged_payload["events"] == []  # only one record matches action filter
+
+
+def test_audit_logs_endpoint_validates_period(client: TestClient, database) -> None:
+    headers = _audit_headers(database, client)
+    response = client.get(
+        "/api/v1/audit/logs",
+        params={"start": "2024-05-10T12:00:00Z", "end": "2024-05-09T12:00:00Z"},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert "Período inválido" in response.json()["detail"]

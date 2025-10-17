@@ -59,6 +59,7 @@ import {
   createSecurityRole,
   updateSecurityRole,
   deleteSecurityRole,
+  fetchAuditLogs,
   fetchSecurityApiKeys,
   createSecurityApiKey,
   updateSecurityApiKey,
@@ -1918,6 +1919,70 @@ describe('api client', () => {
     );
     expect(result.secret).toBe('mcp_prod_secret');
     expect(result.key.tokenPreview).toBe('prod****');
+  });
+
+  it('fetches paginated audit logs with filters applied', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        events: [
+          {
+            id: 'log-1',
+            created_at: '2024-04-10T10:00:00Z',
+            actor_id: 'user-1',
+            actor_name: 'Ana Silva',
+            actor_roles: ['approver'],
+            action: 'security.users.list',
+            resource: '/security/users',
+            status: 'success',
+            plan_id: null,
+            metadata: { count: 2 },
+          },
+        ],
+        page: 1,
+        page_size: 25,
+        total: 1,
+        total_pages: 1,
+      }),
+    );
+
+    const result = await fetchAuditLogs({
+      actor: 'Ana Silva',
+      action: 'security.users',
+      start: '2024-04-01T00:00:00Z',
+      end: '2024-04-30T23:59:59Z',
+      page: 1,
+      pageSize: 25,
+    });
+
+    const [requestUrl, requestInit] = fetchSpy.mock.calls.at(-1)!;
+    const parsedUrl = new URL(requestUrl, 'https://example.com');
+
+    expect(parsedUrl.pathname).toBe('/api/v1/audit/logs');
+    expect(Object.fromEntries(parsedUrl.searchParams.entries())).toEqual({
+      page: '1',
+      page_size: '25',
+      actor: 'Ana Silva',
+      action: 'security.users',
+      start: '2024-04-01T00:00:00Z',
+      end: '2024-04-30T23:59:59Z',
+    });
+    expect(requestInit).toEqual(expect.objectContaining({ method: 'GET' }));
+    expect(result.events).toEqual([
+      {
+        id: 'log-1',
+        createdAt: '2024-04-10T10:00:00Z',
+        actorId: 'user-1',
+        actorName: 'Ana Silva',
+        actorRoles: ['approver'],
+        action: 'security.users.list',
+        resource: '/security/users',
+        status: 'success',
+        planId: null,
+        metadata: { count: 2 },
+      },
+    ]);
+    expect(result.total).toBe(1);
+    expect(result.totalPages).toBe(1);
   });
 
   it('fetches audit trail events grouped por recurso', async () => {

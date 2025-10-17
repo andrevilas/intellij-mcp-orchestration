@@ -11,6 +11,7 @@ import {
   fetchSecurityAuditTrail,
   fetchSecurityRoles,
   fetchSecurityUsers,
+  fetchAuditLogs,
   rotateSecurityApiKey,
   revokeSecurityApiKey,
   updateSecurityApiKey,
@@ -21,6 +22,7 @@ import {
   type SecurityApiKeySecret,
   type SecurityAuditEvent,
   type SecurityAuditResource,
+  type AuditLogEntry,
   type SecurityRole,
   type SecurityUser,
   type SecurityUserStatus,
@@ -62,7 +64,7 @@ const API_KEY_STATUS_LABEL = {
   expired: 'Expirada',
 } as const satisfies Record<SecurityApiKey['status'], string>;
 
-type SecurityTab = 'users' | 'roles' | 'api-keys';
+type SecurityTab = 'users' | 'roles' | 'api-keys' | 'audit';
 
 function buildDefaultUserDraft(): UserDraft {
   return {
@@ -119,6 +121,37 @@ function normalizeScopes(input: string): string[] {
 function normalizeExpiration(value: string): CreateSecurityApiKeyInput['expiresAt'] {
   const trimmed = value.trim();
   return trimmed.length === 0 ? null : trimmed;
+}
+
+function normalizeDateTimeInput(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
+function describeAuditActor(entry: AuditLogEntry): string {
+  if (entry.actorName && entry.actorId) {
+    return `${entry.actorName} (${entry.actorId})`;
+  }
+  return entry.actorName ?? entry.actorId ?? '—';
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 export default function Security() {
@@ -178,6 +211,16 @@ export default function Security() {
   const [auditEvents, setAuditEvents] = useState<SecurityAuditEvent[]>([]);
   const [isAuditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditLogsPage, setAuditLogsPage] = useState(1);
+  const [auditLogsPageSize, setAuditLogsPageSize] = useState(25);
+  const [auditLogsTotal, setAuditLogsTotal] = useState(0);
+  const [auditLogsTotalPages, setAuditLogsTotalPages] = useState(0);
+  const [isAuditTableLoading, setAuditTableLoading] = useState(false);
+  const [auditTableError, setAuditTableError] = useState<string | null>(null);
+  const [auditFilters, setAuditFilters] = useState({ actor: '', action: '', start: '', end: '' });
+  const [auditFilterDraft, setAuditFilterDraft] = useState({ actor: '', action: '', start: '', end: '' });
+  const [auditReloadToken, setAuditReloadToken] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -284,6 +327,72 @@ export default function Security() {
     return () => controller.abort();
   }, [auditResource]);
 
+  useEffect(() => {
+    if (activeTab !== 'audit') {
+      return;
+    }
+
+    const controller = new AbortController();
+    setAuditTableLoading(true);
+    setAuditTableError(null);
+
+    const startIso = normalizeDateTimeInput(auditFilters.start);
+    const endIso = normalizeDateTimeInput(auditFilters.end);
+
+    fetchAuditLogs(
+      {
+        actor: auditFilters.actor || undefined,
+        action: auditFilters.action || undefined,
+        start: startIso ?? undefined,
+        end: endIso ?? undefined,
+        page: auditLogsPage,
+        pageSize: auditLogsPageSize,
+      },
+      controller.signal,
+    )
+      .then((payload) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (payload.total_pages > 0 && auditLogsPage > payload.total_pages) {
+          setAuditLogsPage(payload.total_pages);
+          return;
+        }
+        if (payload.total_pages === 0 && auditLogsPage !== 1) {
+          setAuditLogsPage(1);
+          return;
+        }
+
+        setAuditLogs(payload.events);
+        setAuditLogsTotal(payload.total);
+        setAuditLogsTotalPages(payload.total_pages);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : 'Falha ao carregar auditoria.';
+        setAuditTableError(message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setAuditTableLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [
+    activeTab,
+    auditFilters.actor,
+    auditFilters.action,
+    auditFilters.start,
+    auditFilters.end,
+    auditLogsPage,
+    auditLogsPageSize,
+    auditReloadToken,
+  ]);
+
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLowerCase();
     return users
@@ -345,6 +454,76 @@ export default function Security() {
     });
     return map;
   }, [roles]);
+
+  const auditColumns = useMemo<ResourceTableColumn<AuditLogEntry>[]>(
+    () => [
+      {
+        id: 'created-at',
+        header: 'Registrado em',
+        render: (entry) => formatDateTime(entry.createdAt),
+      },
+      {
+        id: 'actor',
+        header: 'Ator',
+        render: (entry) => (
+          <div>
+            <strong>{describeAuditActor(entry)}</strong>
+            {entry.actorRoles.length > 0 ? (
+              <div className="resource-table__muted">Papéis: {entry.actorRoles.join(', ')}</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: 'action',
+        header: 'Ação',
+        render: (entry) => entry.action,
+      },
+      {
+        id: 'resource',
+        header: 'Recurso',
+        render: (entry) => entry.resource,
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        render: (entry) => entry.status,
+      },
+      {
+        id: 'metadata',
+        header: 'Detalhes',
+        render: (entry) => {
+          const metadata = { ...entry.metadata };
+          if (entry.planId && metadata.planId === undefined) {
+            metadata.planId = entry.planId;
+          }
+          const hasMetadata = Object.keys(metadata).length > 0;
+          return hasMetadata ? (
+            <pre className="security__audit-metadata">{JSON.stringify(metadata, null, 2)}</pre>
+          ) : (
+            '—'
+          );
+        },
+      },
+    ],
+    [],
+  );
+
+  const hasAuditFiltersApplied = useMemo(
+    () => Object.values(auditFilters).some((value) => value.trim().length > 0),
+    [auditFilters],
+  );
+
+  const hasAuditDraftValues = useMemo(
+    () => Object.values(auditFilterDraft).some((value) => value.trim().length > 0),
+    [auditFilterDraft],
+  );
+
+  const canResetAuditFilters = hasAuditFiltersApplied || hasAuditDraftValues;
+
+  const effectiveAuditTotalPages = Math.max(1, auditLogsTotalPages);
+  const isAuditNextDisabled = auditLogsTotalPages === 0 || auditLogsPage >= effectiveAuditTotalPages;
+  const isAuditPreviousDisabled = auditLogsPage <= 1;
 
   const userColumns = useMemo<ResourceTableColumn<SecurityUser>[]>(
     () => [
@@ -752,6 +931,111 @@ export default function Security() {
     [],
   );
 
+  const handleApplyAuditFilters = useCallback(() => {
+    setAuditFilters({ ...auditFilterDraft });
+    setAuditLogsPage(1);
+  }, [auditFilterDraft]);
+
+  const handleResetAuditFilters = useCallback(() => {
+    const empty = { actor: '', action: '', start: '', end: '' };
+    setAuditFilterDraft(empty);
+    setAuditFilters(empty);
+    setAuditLogsPage(1);
+  }, []);
+
+  const handleAuditPreviousPage = useCallback(() => {
+    setAuditLogsPage((current) => Math.max(1, current - 1));
+  }, []);
+
+  const handleAuditNextPage = useCallback(() => {
+    setAuditLogsPage((current) => current + 1);
+  }, []);
+
+  const handleAuditPageSizeChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    const value = Number(event.target.value);
+    if (!Number.isNaN(value) && value > 0) {
+      setAuditLogsPageSize(value);
+      setAuditLogsPage(1);
+    }
+  }, []);
+
+  const handleExportAuditCsv = useCallback(() => {
+    if (auditLogs.length === 0) {
+      return;
+    }
+
+    const header = [
+      'id',
+      'created_at',
+      'actor',
+      'roles',
+      'action',
+      'resource',
+      'status',
+      'plan_id',
+      'metadata',
+    ];
+
+    const rows = auditLogs.map((entry) => {
+      const metadata = { ...entry.metadata };
+      if (entry.planId && metadata.planId === undefined) {
+        metadata.planId = entry.planId;
+      }
+
+      const values: Array<string | null> = [
+        entry.id,
+        entry.createdAt,
+        describeAuditActor(entry),
+        entry.actorRoles.join('|'),
+        entry.action,
+        entry.resource,
+        entry.status,
+        entry.planId,
+        JSON.stringify(metadata),
+      ];
+
+      return values
+        .map((raw) => {
+          const text = raw ?? '';
+          const normalized = typeof text === 'string' ? text : String(text);
+          return `"${normalized.replace(/"/g, '""')}"`;
+        })
+        .join(';');
+    });
+
+    const csv = [header.join(';'), ...rows].join('\n');
+    const timestamp = new Date().toISOString().slice(0, 10);
+    downloadBlob(`audit-logs-${timestamp}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  }, [auditLogs]);
+
+  const handleExportAuditJson = useCallback(() => {
+    if (auditLogs.length === 0) {
+      return;
+    }
+
+    const exportFilters = {
+      actor: auditFilters.actor || null,
+      action: auditFilters.action || null,
+      start: normalizeDateTimeInput(auditFilters.start),
+      end: normalizeDateTimeInput(auditFilters.end),
+    };
+
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      page: auditLogsPage,
+      pageSize: auditLogsPageSize,
+      total: auditLogsTotal,
+      filters: exportFilters,
+      events: auditLogs,
+    };
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    downloadBlob(
+      `audit-logs-${timestamp}.json`,
+      new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+    );
+  }, [auditFilters, auditLogs, auditLogsPage, auditLogsPageSize, auditLogsTotal]);
+
   return (
     <div className="security-page">
       <header className="security-page__header">
@@ -798,6 +1082,17 @@ export default function Security() {
           onClick={() => setActiveTab('api-keys')}
         >
           API keys
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'audit'}
+          aria-controls="security-tabpanel-audit"
+          className="security-page__tab"
+          id="security-tab-audit"
+          onClick={() => setActiveTab('audit')}
+        >
+          Auditoria
         </button>
       </div>
 
@@ -1048,6 +1343,125 @@ export default function Security() {
                 </>
               )}
             />
+          </section>
+        ) : null}
+
+        {activeTab === 'audit' ? (
+          <section
+            role="tabpanel"
+            id="security-tabpanel-audit"
+            aria-labelledby="security-tab-audit"
+          >
+            <ResourceTable
+              title="Eventos de auditoria centralizada"
+              description="Investigue ações críticas com filtros por ator, ação e período. Exportações em CSV ou JSON facilitam revisões externas."
+              ariaLabel="Tabela de eventos de auditoria com filtros avançados"
+              items={auditLogs}
+              columns={auditColumns}
+              getRowId={(item) => item.id}
+              isLoading={isAuditTableLoading}
+              error={auditTableError}
+              emptyState="Nenhum evento encontrado para os filtros atuais. Ajuste o período ou refine a busca para visualizar a trilha de auditoria."
+              onRetry={() => setAuditReloadToken((value) => value + 1)}
+              toolbar={
+                <div className="security__audit-toolbar">
+                  <button type="button" onClick={handleExportAuditCsv} disabled={auditLogs.length === 0}>
+                    Exportar CSV
+                  </button>
+                  <button type="button" onClick={handleExportAuditJson} disabled={auditLogs.length === 0}>
+                    Exportar JSON
+                  </button>
+                  <span className="security__audit-summary">
+                    {auditLogsTotal} {auditLogsTotal === 1 ? 'evento' : 'eventos'}
+                  </span>
+                </div>
+              }
+              filters={
+                <form
+                  className="security__audit-filters"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleApplyAuditFilters();
+                  }}
+                >
+                  <label>
+                    Filtro por ator
+                    <input
+                      type="search"
+                      value={auditFilterDraft.actor}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setAuditFilterDraft((current) => ({ ...current, actor: event.target.value }))
+                      }
+                      placeholder="Buscar por ID, nome ou e-mail"
+                    />
+                  </label>
+                  <label>
+                    Filtro de ação
+                    <input
+                      type="search"
+                      value={auditFilterDraft.action}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setAuditFilterDraft((current) => ({ ...current, action: event.target.value }))
+                      }
+                      placeholder="Ex.: security.user.update"
+                    />
+                  </label>
+                  <label>
+                    Início do período
+                    <input
+                      type="datetime-local"
+                      value={auditFilterDraft.start}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setAuditFilterDraft((current) => ({ ...current, start: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Fim do período
+                    <input
+                      type="datetime-local"
+                      value={auditFilterDraft.end}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setAuditFilterDraft((current) => ({ ...current, end: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <div className="security__audit-filter-actions">
+                    <button type="submit">Aplicar filtros</button>
+                    <button
+                      type="button"
+                      onClick={handleResetAuditFilters}
+                      disabled={!canResetAuditFilters}
+                    >
+                      Limpar filtros
+                    </button>
+                  </div>
+                </form>
+              }
+            />
+
+            <div className="security__audit-pagination" role="navigation" aria-label="Paginação de auditoria">
+              <label className="security__audit-page-size">
+                Itens por página
+                <select value={auditLogsPageSize} onChange={handleAuditPageSizeChange}>
+                  <option value={1}>1</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </label>
+              <div className="security__audit-page-controls">
+                <button type="button" onClick={handleAuditPreviousPage} disabled={isAuditPreviousDisabled}>
+                  Página anterior
+                </button>
+                <span>
+                  Página {auditLogsTotalPages === 0 ? 1 : auditLogsPage} de {effectiveAuditTotalPages}
+                </span>
+                <button type="button" onClick={handleAuditNextPage} disabled={isAuditNextDisabled}>
+                  Próxima página
+                </button>
+              </div>
+            </div>
           </section>
         ) : null}
       </div>

@@ -6,11 +6,12 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import ceil
 from enum import Enum
 from hashlib import sha256
 from pathlib import Path
 from threading import Lock
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 from uuid import uuid4
 
 import structlog
@@ -68,6 +69,16 @@ def _resolve_audit_path(path: Path | None = None) -> Path:
         resolved = Path(__file__).resolve().parents[3] / resolved
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return resolved
+
+
+def _normalize_datetime(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
 
 
 @dataclass(frozen=True)
@@ -197,6 +208,121 @@ class AuditLogger:
         )
         return event
 
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    def _deserialize_event(payload: Mapping[str, Any]) -> AuditEvent:
+        actor_roles_raw = payload.get("actor_roles")
+        metadata_raw = payload.get("metadata")
+        try:
+            actor_roles = json.loads(actor_roles_raw) if isinstance(actor_roles_raw, str) else list(actor_roles_raw)
+        except json.JSONDecodeError:  # pragma: no cover - defensive against corrupt rows
+            actor_roles = []
+        try:
+            metadata = json.loads(metadata_raw) if isinstance(metadata_raw, str) else dict(metadata_raw or {})
+        except json.JSONDecodeError:  # pragma: no cover - defensive against corrupt rows
+            metadata = {}
+
+        created_at_raw = str(payload.get("created_at"))
+        created_at = AuditLogger._parse_datetime(created_at_raw)
+
+        return AuditEvent(
+            id=str(payload.get("id")),
+            actor_id=payload.get("actor_id"),
+            actor_name=payload.get("actor_name"),
+            actor_roles=tuple(str(role) for role in actor_roles),
+            action=str(payload.get("action")),
+            resource=str(payload.get("resource")),
+            status=str(payload.get("status")),
+            plan_id=payload.get("plan_id"),
+            metadata=metadata,
+            created_at=created_at,
+        )
+
+    def query(
+        self,
+        *,
+        actor: str | None = None,
+        action: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[AuditEvent], int, int]:
+        """Return paginated audit events applying optional filters."""
+
+        if page < 1:
+            raise ValueError("page must be >= 1")
+        if page_size < 1:
+            raise ValueError("page_size must be >= 1")
+
+        filters: list[str] = []
+        params: dict[str, Any] = {}
+
+        if actor:
+            params["actor"] = f"%{actor}%"
+            filters.append("(actor_id LIKE :actor OR actor_name LIKE :actor)")
+        if action:
+            params["action"] = f"%{action}%"
+            filters.append("action LIKE :action")
+
+        if start:
+            start_iso = _normalize_datetime(start)
+            if start_iso:
+                params["start"] = start_iso
+                filters.append("created_at >= :start")
+        if end:
+            end_iso = _normalize_datetime(end)
+            if end_iso:
+                params["end"] = end_iso
+                filters.append("created_at <= :end")
+
+        where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+        offset = (page - 1) * page_size
+
+        with self._session_factory() as session:
+            count_stmt = text(f"SELECT COUNT(*) FROM audit_events {where_clause}")
+            total: int = int(session.execute(count_stmt, params).scalar() or 0)
+
+            if total == 0:
+                return [], 0, 0
+
+            total_pages = ceil(total / page_size)
+            query_stmt = text(
+                """
+                SELECT
+                    id,
+                    actor_id,
+                    actor_name,
+                    actor_roles,
+                    action,
+                    resource,
+                    status,
+                    plan_id,
+                    metadata,
+                    created_at
+                FROM audit_events
+                {where}
+                ORDER BY created_at DESC, id DESC
+                LIMIT :limit OFFSET :offset
+                """.format(where=where_clause)
+            )
+
+            rows = session.execute(
+                query_stmt,
+                {**params, "limit": page_size, "offset": offset},
+            ).mappings()
+
+        events = [self._deserialize_event(row) for row in rows]
+        return events, total, total_pages
+
 
 class SecurityContext:
     """Container storing the authenticated user and audit logger for a request."""
@@ -218,7 +344,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
         *,
         session_factory=session_scope,
         audit_logger: AuditLogger | None = None,
-        protected_prefixes: Sequence[str] = ("/api/v1/config", "/api/v1/security"),
+        protected_prefixes: Sequence[str] = ("/api/v1/config", "/api/v1/security", "/api/v1/audit"),
     ) -> None:
         super().__init__(app)
         self._session_factory = session_factory

@@ -105,6 +105,8 @@ from .git_providers import (
     create_git_provider,
 )
 from .schemas import (
+    AuditLogEntry,
+    AuditLogsResponse,
     CostPoliciesResponse,
     CostPolicyCreateRequest,
     CostPolicyResponse,
@@ -1060,6 +1062,64 @@ def revoke_api_key(token_id: str, http_request: Request) -> Response:
         metadata=metadata,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/audit/logs", response_model=AuditLogsResponse)
+def list_audit_logs(
+    http_request: Request,
+    actor: str | None = Query(default=None, min_length=1, description="Filtro por identificador ou nome do ator"),
+    action: str | None = Query(default=None, min_length=1, description="Filtro pelo nome da ação registrada"),
+    start: datetime | None = Query(default=None, description="Data/hora inicial do período (ISO 8601)"),
+    end: datetime | None = Query(default=None, description="Data/hora final do período (ISO 8601)"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=200),
+) -> AuditLogsResponse:
+    require_roles(http_request, Role.APPROVER)
+
+    actor_filter = actor.strip() if actor else None
+    action_filter = action.strip() if action else None
+
+    if start and end and start > end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Período inválido: data inicial maior que a final.",
+        )
+
+    try:
+        events, total, total_pages = get_audit_logger(http_request).query(
+            actor=actor_filter or None,
+            action=action_filter or None,
+            start=start,
+            end=end,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:  # pragma: no cover - defensive, validated via Query bounds
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    entries = [
+        AuditLogEntry(
+            id=event.id,
+            actor_id=event.actor_id,
+            actor_name=event.actor_name,
+            actor_roles=list(event.actor_roles),
+            action=event.action,
+            resource=event.resource,
+            status=event.status,
+            plan_id=event.plan_id,
+            metadata=dict(event.metadata),
+            created_at=event.created_at,
+        )
+        for event in events
+    ]
+
+    return AuditLogsResponse(
+        events=entries,
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
 
 
 _PLAN_EXECUTOR: PlanExecutor | None = None

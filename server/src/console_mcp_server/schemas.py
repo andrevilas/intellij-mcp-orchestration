@@ -1086,6 +1086,27 @@ class FlowVersionDiffResponse(BaseModel):
     diff: str
 
 
+class AuditLogEntry(BaseModel):
+    id: str
+    created_at: datetime
+    actor_id: Optional[str] = None
+    actor_name: Optional[str] = None
+    actor_roles: List[str] = Field(default_factory=list)
+    action: str
+    resource: str
+    status: str
+    plan_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditLogsResponse(BaseModel):
+    events: List[AuditLogEntry]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
 class SecurityUser(BaseModel):
     id: str
     name: str

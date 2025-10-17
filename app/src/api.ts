@@ -993,6 +993,36 @@ export interface SecurityAuditEvent {
   metadata: Record<string, unknown> | null;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  createdAt: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorRoles: string[];
+  action: string;
+  resource: string;
+  status: string;
+  planId: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface AuditLogsPage {
+  events: AuditLogEntry[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AuditLogsQuery {
+  actor?: string;
+  action?: string;
+  start?: string;
+  end?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface CreateSecurityUserInput {
   name: string;
   email: string;
@@ -1102,6 +1132,27 @@ interface SecurityAuditEventPayload {
 
 interface SecurityAuditTrailPayload {
   events: SecurityAuditEventPayload[];
+}
+
+interface AuditLogEntryPayload {
+  id: string;
+  created_at: string;
+  actor_id?: string | null;
+  actor_name?: string | null;
+  actor_roles?: string[];
+  action: string;
+  resource: string;
+  status: string;
+  plan_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+interface AuditLogsResponsePayload {
+  events: AuditLogEntryPayload[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
 }
 
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'critical';
@@ -2120,6 +2171,60 @@ function mapSecurityAuditEvent(payload: SecurityAuditEventPayload): SecurityAudi
     target: payload.target,
     description: payload.description,
     metadata: payload.metadata ?? null,
+  };
+}
+
+function mapAuditLogEntry(payload: AuditLogEntryPayload): AuditLogEntry {
+  return {
+    id: payload.id,
+    createdAt: payload.created_at,
+    actorId: payload.actor_id ?? null,
+    actorName: payload.actor_name ?? null,
+    actorRoles: payload.actor_roles ?? [],
+    action: payload.action,
+    resource: payload.resource,
+    status: payload.status,
+    planId: payload.plan_id ?? null,
+    metadata: payload.metadata ?? {},
+  };
+}
+
+export async function fetchAuditLogs(
+  query: AuditLogsQuery = {},
+  signal?: AbortSignal,
+): Promise<AuditLogsPage> {
+  const params = new URLSearchParams();
+  const actor = query.actor?.trim();
+  const action = query.action?.trim();
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 25;
+
+  params.set('page', String(page));
+  params.set('page_size', String(pageSize));
+
+  if (actor) {
+    params.set('actor', actor);
+  }
+  if (action) {
+    params.set('action', action);
+  }
+  if (query.start) {
+    params.set('start', query.start);
+  }
+  if (query.end) {
+    params.set('end', query.end);
+  }
+
+  const search = params.toString();
+  const url = `/audit/logs${search ? `?${search}` : ''}`;
+  const payload = await request<AuditLogsResponsePayload>(url, { signal });
+
+  return {
+    events: payload.events.map(mapAuditLogEntry),
+    page: payload.page,
+    pageSize: payload.page_size,
+    total: payload.total,
+    totalPages: payload.total_pages,
   };
 }
 
