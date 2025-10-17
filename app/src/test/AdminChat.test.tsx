@@ -255,6 +255,18 @@ describe('AdminChat view', () => {
     ],
   };
 
+  const onboardValidation: NonNullable<ConfigOnboardResponse['validation']> = {
+    endpoint: 'wss://openai.example.com/ws',
+    transport: 'websocket',
+    tools: [
+      { name: 'catalog.search', description: 'Busca recursos homologados.', definition: null },
+      { name: 'catalog.metrics', description: null, definition: null },
+    ],
+    missingTools: ['metrics.ingest'],
+    serverInfo: { name: 'demo' },
+    capabilities: { tools: true },
+  };
+
   const onboardResponse: ConfigOnboardResponse = {
     plan: onboardPlan,
     diffs: [
@@ -274,6 +286,7 @@ describe('AdminChat view', () => {
       },
     ],
     message: 'Plano de onboarding preparado para openai-gpt4o.',
+    validation: onboardValidation,
   };
 
   const smokeResponse: McpSmokeRunResponse = {
@@ -326,6 +339,7 @@ describe('AdminChat view', () => {
         return Promise.resolve({
           ...onboardResponse,
           message: 'Conexão validada com sucesso.',
+          validation: onboardValidation,
         });
       }
       return Promise.resolve(onboardResponse);
@@ -460,6 +474,11 @@ describe('AdminChat view', () => {
 
     await waitFor(() => expect(postOnboardMock).toHaveBeenNthCalledWith(2, { ...expectedPayload, intent: 'plan' }));
     await waitFor(() => expect(screen.getByText(onboardResponse.message)).toBeInTheDocument());
+    expect(screen.getByRole('heading', { name: 'Resultado da validação' })).toBeInTheDocument();
+    expect(screen.getByText(onboardValidation.endpoint)).toBeInTheDocument();
+    expect(screen.getByText(onboardValidation.transport)).toBeInTheDocument();
+    expect(screen.getByText(/catalog\.search/)).toBeInTheDocument();
+    expect(screen.getByText('metrics.ingest')).toBeInTheDocument();
     expect(screen.getByText('Criar manifesto')).toBeInTheDocument();
     expect(screen.getByText('Adiciona manifesto inicial para o agente.')).toBeInTheDocument();
 

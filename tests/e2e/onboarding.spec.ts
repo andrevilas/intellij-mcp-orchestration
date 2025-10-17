@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('completes MCP onboarding wizard end-to-end', async ({ page }) => {
+test('@onboarding-validation completes MCP onboarding wizard end-to-end', async ({ page }) => {
   const chatResponse = {
     threadId: 'thread-seed',
     messages: [],
@@ -49,6 +49,17 @@ test('completes MCP onboarding wizard end-to-end', async ({ page }) => {
     ],
     risks: [],
     message: 'Plano de onboarding preparado para openai-gpt4o.',
+    validation: {
+      endpoint: 'wss://openai.example.com/ws',
+      transport: 'websocket',
+      tools: [
+        { name: 'catalog.search', description: 'Busca recursos homologados.', definition: null },
+        { name: 'catalog.metrics', description: null, definition: null },
+      ],
+      missingTools: ['metrics.ingest'],
+      serverInfo: { name: 'demo' },
+      capabilities: { tools: true },
+    },
   };
 
   const applyResponse = {
@@ -187,6 +198,11 @@ test('completes MCP onboarding wizard end-to-end', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Gerar plano de onboarding' }).click();
   await expect(page.getByText(onboardingResponse.message)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Resultado da validação' })).toBeVisible();
+  await expect(page.getByText(onboardingResponse.validation.endpoint)).toBeVisible();
+  await expect(page.getByText(onboardingResponse.validation.transport)).toBeVisible();
+  await expect(page.getByText(/catalog\.search/)).toBeVisible();
+  await expect(page.getByText('metrics.ingest')).toBeVisible();
   await expect(page.getByText('Criar manifesto')).toBeVisible();
   await expect(page.getByText('Adiciona manifesto inicial.')).toBeVisible();
 
