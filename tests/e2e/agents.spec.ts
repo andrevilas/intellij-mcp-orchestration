@@ -57,6 +57,9 @@ async function registerBaseRoutes(page: Page) {
   await page.route('**/api/v1/smoke/endpoints', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ endpoints: [] }), contentType: 'application/json' }),
   );
+  await page.route('**/api/v1/smoke/endpoints', (route) =>
+    route.fulfill({ status: 200, body: JSON.stringify({ endpoints: [] }), contentType: 'application/json' }),
+  );
   await page.route('**/agents/agents', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify(agentsResponse), contentType: 'application/json' }),
   );
