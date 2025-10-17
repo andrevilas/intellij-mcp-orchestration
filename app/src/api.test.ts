@@ -895,6 +895,9 @@ describe('api client', () => {
         cost_center: 'mlops',
         budgets: [{ tier: 'balanced', amount: 1200, currency: 'USD', period: 'monthly' }],
         alerts: [{ threshold: 0.7, channel: 'slack' }],
+        cache: { ttl_seconds: 900 },
+        rate_limit: { requests_per_minute: 240 },
+        graceful_degradation: { strategy: 'fallback', message: 'fallback turbo' },
       },
       hitl: {
         enabled: true,
@@ -944,6 +947,9 @@ describe('api client', () => {
     ]);
     expect(snapshot.runtime.tracing.sampleRate).toBe(0.3);
     expect(snapshot.hitl.checkpoints).toHaveLength(1);
+    expect(snapshot.finops.cache?.ttlSeconds).toBe(900);
+    expect(snapshot.finops.rateLimit?.requestsPerMinute).toBe(240);
+    expect(snapshot.finops.gracefulDegradation).toEqual({ strategy: 'fallback', message: 'fallback turbo' });
 
     fetchSpy.mockResolvedValueOnce(mockFetchResponse(manifestPayload));
 
