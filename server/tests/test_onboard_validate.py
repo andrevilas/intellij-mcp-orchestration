@@ -66,8 +66,8 @@ def test_onboard_validate_only_runs_validation(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["plan"] is None
-    assert body["preview"] is None
+    assert "plan" not in body
+    assert "preview" not in body
     validation = body["validation"]
     assert validation["endpoint"] == outcome.endpoint
     assert validation["transport"] == outcome.transport

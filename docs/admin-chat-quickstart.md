@@ -30,7 +30,7 @@ Os endpoints do Config Assistant aceitam intents tipadas — use-as tanto pela U
 | `add_agent` | `POST /api/v1/config/plan` | `{ "intent": "add_agent", "payload": { "agent_name": "demo" } }` | Gera plano para adicionar agente MCP, incluindo diffs e riscos. 【F:server/src/console_mcp_server/config_assistant/intents.py†L1-L39】【F:server/src/console_mcp_server/routes.py†L236-L289】 |
 | `edit_policies` | `POST /api/v1/config/plan` | `{ "intent": "edit_policies", "payload": { "policy_id": "spend-guard" } }` | Cria plano para ajustar políticas existentes. 【F:server/src/console_mcp_server/config_assistant/intents.py†L21-L32】【F:server/src/console_mcp_server/routes.py†L289-L336】 |
 | `generate_artifact` | `POST /api/v1/config/reload` | `{ "artifact_type": "finops.checklist", "target_path": "generated/cache.md" }` | Planeja regeneração de artefatos. 【F:server/src/console_mcp_server/config_assistant/intents.py†L33-L39】【F:server/src/console_mcp_server/routes.py†L336-L374】 |
-| `plan` / `validate` | `POST /api/v1/config/mcp/onboard` | `{ "repository": "agents/new-agent", "intent": "plan" }` | Gera plano completo (`plan`) ou apenas valida o endpoint (`validate`). 【F:server/src/console_mcp_server/routes.py†L876-L956】 |
+| `plan` / `validate` | `POST /api/v1/config/mcp/onboard` | `{ "repository": "agents/new-agent", "intent": "plan" }` | Gera plano completo (`plan`) ou apenas valida o endpoint (`validate`, resposta só traz `validation`). 【F:server/src/console_mcp_server/routes.py†L903-L988】 |
 
 ## Exemplos de comando (HTTP)
 
