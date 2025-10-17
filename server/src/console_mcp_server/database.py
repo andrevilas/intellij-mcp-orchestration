@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator, Iterable, Sequence
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import ForeignKey, String, create_engine, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 DEFAULT_DB_PATH = Path("~/.mcp/console.db")
 DB_ENV_VAR = "CONSOLE_MCP_DB_PATH"
@@ -451,6 +451,36 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=13,
+        description="manage user-scoped API tokens",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS user_tokens (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                token_hash TEXT NOT NULL UNIQUE,
+                prefix TEXT NOT NULL,
+                scopes TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_used_at TEXT,
+                expires_at TEXT,
+                revoked_at TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_tokens_user
+                ON user_tokens (user_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_tokens_status
+                ON user_tokens (revoked_at, expires_at)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None
@@ -599,15 +629,82 @@ def reset_state() -> None:
 
 
 __all__ = [
-    "MIGRATIONS",
+    "Base",
     "Migration",
-    "DB_ENV_VAR",
+    "MIGRATIONS",
     "DEFAULT_DB_PATH",
+    "DB_ENV_VAR",
+    "User",
+    "Role",
+    "UserRole",
+    "UserToken",
     "bootstrap_database",
     "database_path",
     "get_engine",
     "get_sessionmaker",
+    "reset_state",
     "run_migrations",
     "session_scope",
-    "reset_state",
 ]
+
+
+# SQLAlchemy ORM models -----------------------------------------------------
+
+
+class Base(DeclarativeBase):
+    """Declarative base used by lightweight ORM repositories."""
+
+
+class User(Base):
+    """ORM mapping for the ``users`` table."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    api_token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class Role(Base):
+    """ORM mapping for the ``roles`` table."""
+
+    __tablename__ = "roles"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class UserRole(Base):
+    """Join table mapping users to roles."""
+
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"), primary_key=True)
+    assigned_at: Mapped[str] = mapped_column(String, nullable=False)
+    assigned_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class UserToken(Base):
+    """API token issued for a given user."""
+
+    __tablename__ = "user_tokens"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    prefix: Mapped[str] = mapped_column(String, nullable=False)
+    scopes: Mapped[str] = mapped_column(String, nullable=False, default="[]")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+    last_used_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    expires_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    revoked_at: Mapped[str | None] = mapped_column(String, nullable=True)
+

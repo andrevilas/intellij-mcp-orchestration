@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import difflib
+import json
+import secrets
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Iterable, Mapping
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
+from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from .policies import (
     CostPolicyAlreadyExistsError,
@@ -44,6 +50,11 @@ from .policy_deployments import (
 from .policy_rollout import build_rollout_plans
 from .policy_templates import list_policy_templates
 from .diagnostics import diagnostics_service
+from .database import Role as RoleModel
+from .database import User as UserModel
+from .database import UserRole as UserRoleModel
+from .database import UserToken as UserTokenModel
+from .database import session_scope
 from .marketplace import (
     MarketplaceArtifactError,
     MarketplaceEntryAlreadyExistsError,
@@ -191,6 +202,22 @@ from .schemas import (
     ObservabilityPreferencesUpdateRequest,
     ObservabilityProviderSettings,
     ObservabilityTraceResponse,
+    ApiKey,
+    ApiKeyCreateRequest,
+    ApiKeyCreateResponse,
+    ApiKeyRotateRequest,
+    ApiKeyRotateResponse,
+    ApiKeysResponse,
+    SecurityRole,
+    SecurityRoleCreateRequest,
+    SecurityRoleUpdateRequest,
+    SecurityRolesResponse,
+    SecurityUser,
+    SecurityUserCreateRequest,
+    SecurityUserCreateResponse,
+    SecurityUserResponse,
+    SecurityUserUpdateRequest,
+    SecurityUsersResponse,
 )
 from .secrets import secret_store
 from .secret_validation import (
@@ -234,6 +261,7 @@ from .security import (
     DEFAULT_AUDIT_LOGGER,
     audit_logger as get_audit_logger,
     ensure_security_context,
+    hash_token,
     require_roles,
     Role,
 )
@@ -248,6 +276,791 @@ from .supervisor import (
 
 router = APIRouter(prefix="/api/v1", tags=["console"])
 assistant_logger = structlog.get_logger("console.config.routes")
+security_logger = structlog.get_logger("console.security.routes")
+
+
+class RoleNotFoundError(LookupError):
+    """Raised when attempting to reference a role that does not exist."""
+
+
+class UserNotFoundError(LookupError):
+    """Raised when a user lookup fails."""
+
+
+class TokenNotFoundError(LookupError):
+    """Raised when an API token lookup fails."""
+
+
+class TokenRevokedError(RuntimeError):
+    """Raised when attempting to rotate or use a revoked token."""
+
+
+def _parse_timestamp(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    return datetime.fromisoformat(value)
+
+
+def _normalize_datetime(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
+
+
+def _token_status(token: UserTokenModel, *, now: datetime | None = None) -> str:
+    now = now or datetime.now(timezone.utc)
+    if token.revoked_at is not None:
+        return "revoked"
+    expires_at = _parse_timestamp(token.expires_at)
+    if expires_at is not None and expires_at <= now:
+        return "expired"
+    return "active"
+
+
+def _is_token_active(token: UserTokenModel, *, now: datetime | None = None) -> bool:
+    return _token_status(token, now=now) == "active"
+
+
+class SecurityUserService:
+    """Repository layer exposing CRUD helpers for RBAC users."""
+
+    def __init__(self, *, session_factory=session_scope):
+        self._session_factory = session_factory
+
+    def list_users(self) -> list[SecurityUser]:
+        with self._session_factory() as session:
+            users = session.execute(select(UserModel).order_by(UserModel.name)).scalars().all()
+            if not users:
+                return []
+
+            user_ids = [user.id for user in users]
+
+            roles_map: dict[str, set[str]] = {user_id: set() for user_id in user_ids}
+            if user_ids:
+                role_rows = session.execute(
+                    select(UserRoleModel.user_id, RoleModel.name)
+                    .join(RoleModel, RoleModel.id == UserRoleModel.role_id)
+                    .where(UserRoleModel.user_id.in_(user_ids))
+                ).all()
+                for row in role_rows:
+                    roles_map[str(row[0])].add(str(row[1]))
+
+            tokens_map: dict[str, list[UserTokenModel]] = {user_id: [] for user_id in user_ids}
+            token_rows = session.execute(
+                select(UserTokenModel).where(UserTokenModel.user_id.in_(user_ids))
+            ).scalars().all()
+            for token in token_rows:
+                tokens_map.setdefault(token.user_id, []).append(token)
+
+        return [
+            self._build_user(user, roles_map.get(user.id, set()), tokens_map.get(user.id, []))
+            for user in users
+        ]
+
+    def get_user(self, user_id: str) -> SecurityUser:
+        with self._session_factory() as session:
+            user = session.get(UserModel, user_id)
+            if user is None:
+                raise UserNotFoundError(f"User '{user_id}' not found")
+
+            roles = session.execute(
+                select(RoleModel.name)
+                .join(UserRoleModel, UserRoleModel.role_id == RoleModel.id)
+                .where(UserRoleModel.user_id == user_id)
+            ).scalars().all()
+            tokens = session.execute(
+                select(UserTokenModel).where(UserTokenModel.user_id == user_id)
+            ).scalars().all()
+
+        return self._build_user(user, set(str(role) for role in roles), list(tokens))
+
+    def create_user(
+        self,
+        *,
+        name: str,
+        email: str | None,
+        roles: Sequence[str],
+        generate_token: bool,
+        token_name: str | None,
+        actor_id: str | None,
+    ) -> tuple[SecurityUser, str | None]:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        user_id = f"user-{uuid4().hex}"
+
+        normalized_roles = sorted({role for role in roles})
+        token_secret: str | None = secrets.token_urlsafe(32) if generate_token else None
+        token_hash = hash_token(token_secret) if token_secret else hash_token(uuid4().hex)
+
+        with self._session_factory() as session:
+            user = UserModel(
+                id=user_id,
+                name=name,
+                email=email,
+                api_token_hash=token_hash,
+                created_at=now_iso,
+                updated_at=now_iso,
+            )
+            session.add(user)
+            session.flush()
+
+            role_records = self._fetch_roles(session, normalized_roles)
+            for role in role_records:
+                session.add(
+                    UserRoleModel(
+                        user_id=user.id,
+                        role_id=role.id,
+                        assigned_at=now_iso,
+                        assigned_by=actor_id,
+                    )
+                )
+
+            if token_secret is not None:
+                token = UserTokenModel(
+                    id=f"token-{uuid4().hex}",
+                    user_id=user.id,
+                    name=token_name or "Primary",
+                    token_hash=token_hash,
+                    prefix=token_secret[:4],
+                    scopes=json.dumps([], ensure_ascii=False, sort_keys=True),
+                    created_at=now_iso,
+                    updated_at=now_iso,
+                )
+                session.add(token)
+
+        created = self.get_user(user_id)
+        return created, token_secret
+
+    def update_user(
+        self,
+        user_id: str,
+        *,
+        name: str | None,
+        email: str | None,
+        roles: Sequence[str] | None,
+        actor_id: str | None,
+    ) -> SecurityUser:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        with self._session_factory() as session:
+            user = session.get(UserModel, user_id)
+            if user is None:
+                raise UserNotFoundError(f"User '{user_id}' not found")
+
+            if name is not None:
+                user.name = name
+            if email is not None:
+                user.email = email
+            user.updated_at = now_iso
+
+            if roles is not None:
+                normalized_roles = sorted({role for role in roles})
+                role_records = self._fetch_roles(session, normalized_roles)
+                existing_links = session.execute(
+                    select(UserRoleModel).where(UserRoleModel.user_id == user_id)
+                ).scalars().all()
+                existing_role_ids = {link.role_id for link in existing_links}
+                target_role_ids = {role.id for role in role_records}
+
+                for link in existing_links:
+                    if link.role_id not in target_role_ids:
+                        session.delete(link)
+
+                for role in role_records:
+                    if role.id not in existing_role_ids:
+                        session.add(
+                            UserRoleModel(
+                                user_id=user_id,
+                                role_id=role.id,
+                                assigned_at=now_iso,
+                                assigned_by=actor_id,
+                            )
+                        )
+
+        return self.get_user(user_id)
+
+    def delete_user(self, user_id: str) -> None:
+        with self._session_factory() as session:
+            user = session.get(UserModel, user_id)
+            if user is None:
+                raise UserNotFoundError(f"User '{user_id}' not found")
+            session.delete(user)
+
+    def _fetch_roles(self, session: Session, roles: Sequence[str]) -> list[RoleModel]:
+        if not roles:
+            return []
+
+        role_rows = session.execute(
+            select(RoleModel).where(RoleModel.name.in_(roles))
+        ).scalars().all()
+        found_names = {role.name for role in role_rows}
+        missing = sorted(set(roles) - found_names)
+        if missing:
+            raise RoleNotFoundError(
+                "Roles not found: " + ", ".join(missing)
+            )
+        return list(role_rows)
+
+    def _build_user(
+        self,
+        user: UserModel,
+        roles: Iterable[str],
+        tokens: Sequence[UserTokenModel],
+    ) -> SecurityUser:
+        now = datetime.now(timezone.utc)
+        created_at = _parse_timestamp(user.created_at) or now
+        updated_at = _parse_timestamp(user.updated_at) or now
+        last_seen_candidates = [
+            ts for ts in (_parse_timestamp(token.last_used_at) for token in tokens) if ts is not None
+        ]
+        last_seen_at = max(last_seen_candidates) if last_seen_candidates else None
+        status = "active" if any(_is_token_active(token, now=now) for token in tokens) else "disabled"
+        return SecurityUser(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            roles=sorted({str(role) for role in roles}),
+            status=status,
+            created_at=created_at,
+            updated_at=updated_at,
+            last_seen_at=last_seen_at,
+            mfa_enabled=False,
+        )
+
+
+class SecurityRoleService:
+    """Repository for managing role metadata."""
+
+    def __init__(self, *, session_factory=session_scope):
+        self._session_factory = session_factory
+
+    def list_roles(self) -> list[SecurityRole]:
+        with self._session_factory() as session:
+            rows = session.execute(
+                select(RoleModel, func.count(UserRoleModel.user_id))
+                .outerjoin(UserRoleModel, RoleModel.id == UserRoleModel.role_id)
+                .group_by(RoleModel.id)
+                .order_by(RoleModel.name)
+            ).all()
+        return [self._build_role(row[0], int(row[1])) for row in rows]
+
+    def create_role(self, *, name: str, description: str | None) -> SecurityRole:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        with self._session_factory() as session:
+            role = RoleModel(
+                id=f"role-{uuid4().hex}",
+                name=name,
+                description=description,
+                created_at=now_iso,
+                updated_at=now_iso,
+            )
+            session.add(role)
+            session.flush()
+        return self._build_role(role, 0)
+
+    def update_role(self, role_id: str, *, description: str | None) -> SecurityRole:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        with self._session_factory() as session:
+            role = session.get(RoleModel, role_id)
+            if role is None:
+                raise RoleNotFoundError(f"Role '{role_id}' not found")
+            role.description = description
+            role.updated_at = now_iso
+            session.flush()
+            members = session.execute(
+                select(func.count()).where(UserRoleModel.role_id == role_id)
+            ).scalar_one()
+        return self._build_role(role, int(members))
+
+    def delete_role(self, role_id: str) -> None:
+        with self._session_factory() as session:
+            role = session.get(RoleModel, role_id)
+            if role is None:
+                raise RoleNotFoundError(f"Role '{role_id}' not found")
+            session.delete(role)
+
+    def _build_role(self, role: RoleModel, members: int) -> SecurityRole:
+        now = datetime.now(timezone.utc)
+        created_at = _parse_timestamp(role.created_at) or now
+        updated_at = _parse_timestamp(role.updated_at) or now
+        return SecurityRole(
+            id=role.id,
+            name=role.name,
+            description=role.description,
+            created_at=created_at,
+            updated_at=updated_at,
+            members=members,
+        )
+
+
+class ApiTokenService:
+    """Repository for API tokens, providing rotation and revocation helpers."""
+
+    def __init__(self, *, session_factory=session_scope):
+        self._session_factory = session_factory
+
+    def list_tokens(self, *, user_id: str | None = None) -> list[ApiKey]:
+        with self._session_factory() as session:
+            stmt = select(UserTokenModel, UserModel).join(UserModel, UserModel.id == UserTokenModel.user_id)
+            if user_id is not None:
+                stmt = stmt.where(UserTokenModel.user_id == user_id)
+            rows = session.execute(stmt.order_by(UserTokenModel.created_at.desc())).all()
+        now = datetime.now(timezone.utc)
+        return [self._build_token(row[0], row[1], now=now) for row in rows]
+
+    def create_token(
+        self,
+        *,
+        user_id: str,
+        name: str,
+        scopes: Sequence[str],
+        expires_at: datetime | None,
+    ) -> tuple[ApiKey, str]:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        secret = secrets.token_urlsafe(40)
+        token_hash = hash_token(secret)
+        expires_iso = _normalize_datetime(expires_at)
+
+        with self._session_factory() as session:
+            user = session.get(UserModel, user_id)
+            if user is None:
+                raise UserNotFoundError(f"User '{user_id}' not found")
+
+            token = UserTokenModel(
+                id=f"token-{uuid4().hex}",
+                user_id=user_id,
+                name=name,
+                token_hash=token_hash,
+                prefix=secret[:4],
+                scopes=json.dumps(list(scopes), ensure_ascii=False, sort_keys=True),
+                created_at=now_iso,
+                updated_at=now_iso,
+                expires_at=expires_iso,
+            )
+            session.add(token)
+            user.api_token_hash = token_hash
+            user.updated_at = now_iso
+            session.flush()
+
+        api_key = self.get_token(token.id)
+        return api_key, secret
+
+    def rotate_token(
+        self,
+        token_id: str,
+        *,
+        expires_at: datetime | None,
+    ) -> tuple[ApiKey, str]:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        secret = secrets.token_urlsafe(40)
+        token_hash = hash_token(secret)
+        expires_iso = _normalize_datetime(expires_at)
+
+        with self._session_factory() as session:
+            token = session.get(UserTokenModel, token_id)
+            if token is None:
+                raise TokenNotFoundError(f"Token '{token_id}' not found")
+            if token.revoked_at is not None:
+                raise TokenRevokedError(f"Token '{token_id}' has been revoked")
+
+            user = session.get(UserModel, token.user_id)
+            if user is None:
+                raise UserNotFoundError(f"User '{token.user_id}' not found")
+
+            token.token_hash = token_hash
+            token.prefix = secret[:4]
+            token.updated_at = now_iso
+            token.last_used_at = None
+            if expires_at is None:
+                token.expires_at = None
+            elif expires_iso is not None:
+                token.expires_at = expires_iso
+
+            user.api_token_hash = token_hash
+            user.updated_at = now_iso
+            session.flush()
+
+        api_key = self.get_token(token_id)
+        return api_key, secret
+
+    def revoke_token(self, token_id: str) -> ApiKey:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        with self._session_factory() as session:
+            token = session.get(UserTokenModel, token_id)
+            if token is None:
+                raise TokenNotFoundError(f"Token '{token_id}' not found")
+            if token.revoked_at is not None:
+                raise TokenRevokedError(f"Token '{token_id}' has already been revoked")
+
+            user = session.get(UserModel, token.user_id)
+            if user is None:
+                raise UserNotFoundError(f"User '{token.user_id}' not found")
+
+            token.revoked_at = now_iso
+            token.updated_at = now_iso
+            self._sync_primary_token(session, user, now=now)
+            session.flush()
+
+        return self.get_token(token_id)
+
+    def get_token(self, token_id: str) -> ApiKey:
+        with self._session_factory() as session:
+            row = session.execute(
+                select(UserTokenModel, UserModel)
+                .join(UserModel, UserModel.id == UserTokenModel.user_id)
+                .where(UserTokenModel.id == token_id)
+                .limit(1)
+            ).first()
+            if row is None:
+                raise TokenNotFoundError(f"Token '{token_id}' not found")
+        return self._build_token(row[0], row[1])
+
+    def _build_token(
+        self,
+        token: UserTokenModel,
+        user: UserModel,
+        *,
+        now: datetime | None = None,
+    ) -> ApiKey:
+        now = now or datetime.now(timezone.utc)
+        created_at = _parse_timestamp(token.created_at) or now
+        updated_at = _parse_timestamp(token.updated_at) or now
+        last_used_at = _parse_timestamp(token.last_used_at)
+        expires_at = _parse_timestamp(token.expires_at)
+        status = _token_status(token, now=now)
+        try:
+            scopes = json.loads(token.scopes or "[]")
+            if not isinstance(scopes, list):
+                scopes = []
+        except json.JSONDecodeError:
+            scopes = []
+
+        return ApiKey(
+            id=token.id,
+            user_id=token.user_id,
+            user_name=user.name,
+            name=token.name,
+            scopes=[str(scope) for scope in scopes],
+            status=status,
+            token_preview=f"{token.prefix}****",
+            created_at=created_at,
+            updated_at=updated_at,
+            last_used_at=last_used_at,
+            expires_at=expires_at,
+        )
+
+    def _sync_primary_token(self, session: Session, user: UserModel, *, now: datetime) -> None:
+        now_iso = now.isoformat()
+        tokens = session.execute(
+            select(UserTokenModel).where(UserTokenModel.user_id == user.id)
+        ).scalars().all()
+        active = [token for token in tokens if _is_token_active(token, now=now)]
+        if active:
+            user.api_token_hash = active[0].token_hash
+        else:
+            user.api_token_hash = hash_token(uuid4().hex)
+        user.updated_at = now_iso
+
+
+user_service = SecurityUserService()
+role_service = SecurityRoleService()
+token_service = ApiTokenService()
+
+
+@router.get("/security/users", response_model=SecurityUsersResponse)
+def list_security_users(http_request: Request) -> SecurityUsersResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    records = user_service.list_users()
+    security_logger.info(
+        "security.users.list",
+        count=len(records),
+        actor_id=actor.id,
+    )
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.users.list",
+        resource="/security/users",
+        metadata={"count": len(records)},
+    )
+    return SecurityUsersResponse(users=records)
+
+
+@router.post(
+    "/security/users",
+    response_model=SecurityUserCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_security_user(payload: SecurityUserCreateRequest, http_request: Request) -> SecurityUserCreateResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        user, secret = user_service.create_user(
+            name=payload.name,
+            email=payload.email,
+            roles=payload.roles,
+            generate_token=payload.generate_token,
+            token_name=payload.token_name,
+            actor_id=actor.id,
+        )
+    except RoleNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unable to create user. Identifier already in use.",
+        ) from exc
+
+    metadata = {"user_id": user.id, "roles": user.roles, "generated_token": secret is not None}
+    security_logger.info("security.user.create", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.user.create",
+        resource=f"/security/users/{user.id}",
+        metadata=metadata,
+    )
+    return SecurityUserCreateResponse(user=user, secret=secret)
+
+
+@router.get("/security/users/{user_id}", response_model=SecurityUserResponse)
+def get_security_user(user_id: str, http_request: Request) -> SecurityUserResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        user = user_service.get_user(user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.user.read",
+        resource=f"/security/users/{user_id}",
+    )
+    return SecurityUserResponse(user=user)
+
+
+@router.put("/security/users/{user_id}", response_model=SecurityUserResponse)
+def update_security_user(user_id: str, payload: SecurityUserUpdateRequest, http_request: Request) -> SecurityUserResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        user = user_service.update_user(
+            user_id,
+            name=payload.name,
+            email=payload.email,
+            roles=payload.roles if payload.roles is not None else None,
+            actor_id=actor.id,
+        )
+    except RoleNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    metadata = {"user_id": user.id, "roles": user.roles}
+    security_logger.info("security.user.update", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.user.update",
+        resource=f"/security/users/{user_id}",
+        metadata=metadata,
+    )
+    return SecurityUserResponse(user=user)
+
+
+@router.delete("/security/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_security_user(user_id: str, http_request: Request) -> Response:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        user_service.delete_user(user_id)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    metadata = {"user_id": user_id}
+    security_logger.info("security.user.delete", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.user.delete",
+        resource=f"/security/users/{user_id}",
+        metadata=metadata,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/security/roles", response_model=SecurityRolesResponse)
+def list_security_roles(http_request: Request) -> SecurityRolesResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    records = role_service.list_roles()
+    security_logger.info("security.roles.list", count=len(records), actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.roles.list",
+        resource="/security/roles",
+        metadata={"count": len(records)},
+    )
+    return SecurityRolesResponse(roles=records)
+
+
+@router.post(
+    "/security/roles",
+    response_model=SecurityRole,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_security_role(payload: SecurityRoleCreateRequest, http_request: Request) -> SecurityRole:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        role = role_service.create_role(name=payload.name, description=payload.description)
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Role '{payload.name}' already exists",
+        ) from exc
+
+    metadata = {"role_id": role.id, "name": role.name}
+    security_logger.info("security.role.create", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.role.create",
+        resource=f"/security/roles/{role.id}",
+        metadata=metadata,
+    )
+    return role
+
+
+@router.put("/security/roles/{role_id}", response_model=SecurityRole)
+def update_security_role(role_id: str, payload: SecurityRoleUpdateRequest, http_request: Request) -> SecurityRole:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        role = role_service.update_role(role_id, description=payload.description)
+    except RoleNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    metadata = {"role_id": role.id}
+    security_logger.info("security.role.update", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.role.update",
+        resource=f"/security/roles/{role_id}",
+        metadata=metadata,
+    )
+    return role
+
+
+@router.delete("/security/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_security_role(role_id: str, http_request: Request) -> Response:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        role_service.delete_role(role_id)
+    except RoleNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    metadata = {"role_id": role_id}
+    security_logger.info("security.role.delete", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.role.delete",
+        resource=f"/security/roles/{role_id}",
+        metadata=metadata,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/security/api-keys", response_model=ApiKeysResponse)
+def list_api_keys(http_request: Request, user_id: Optional[str] = Query(default=None)) -> ApiKeysResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    records = token_service.list_tokens(user_id=user_id)
+    filtered_metadata = {k: v for k, v in {"count": len(records), "user_id": user_id}.items() if v is not None}
+    security_logger.info("security.tokens.list", **filtered_metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.tokens.list",
+        resource="/security/api-keys",
+        metadata=filtered_metadata,
+    )
+    return ApiKeysResponse(keys=records)
+
+
+@router.post(
+    "/security/api-keys",
+    response_model=ApiKeyCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_api_key(payload: ApiKeyCreateRequest, http_request: Request) -> ApiKeyCreateResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        key, secret = token_service.create_token(
+            user_id=payload.user_id,
+            name=payload.name,
+            scopes=payload.scopes,
+            expires_at=payload.expires_at,
+        )
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except IntegrityError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Unable to create API key") from exc
+
+    metadata = {"token_id": key.id, "user_id": key.user_id, "name": key.name}
+    security_logger.info("security.token.create", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.token.create",
+        resource=f"/security/api-keys/{key.id}",
+        metadata=metadata,
+    )
+    return ApiKeyCreateResponse(key=key, secret=secret)
+
+
+@router.post("/security/api-keys/{token_id}/rotate", response_model=ApiKeyRotateResponse)
+def rotate_api_key(token_id: str, payload: ApiKeyRotateRequest, http_request: Request) -> ApiKeyRotateResponse:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        key, secret = token_service.rotate_token(token_id, expires_at=payload.expires_at)
+    except TokenNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except TokenRevokedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    metadata = {"token_id": key.id, "user_id": key.user_id}
+    security_logger.info("security.token.rotate", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.token.rotate",
+        resource=f"/security/api-keys/{token_id}/rotate",
+        metadata=metadata,
+    )
+    return ApiKeyRotateResponse(key=key, secret=secret)
+
+
+@router.delete("/security/api-keys/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_api_key(token_id: str, http_request: Request) -> Response:
+    actor = require_roles(http_request, Role.APPROVER)
+    try:
+        key = token_service.revoke_token(token_id)
+    except TokenNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except TokenRevokedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    metadata = {"token_id": token_id, "user_id": key.user_id}
+    security_logger.info("security.token.revoke", **metadata, actor_id=actor.id)
+    get_audit_logger(http_request).log(
+        actor=actor,
+        action="security.token.revoke",
+        resource=f"/security/api-keys/{token_id}",
+        metadata=metadata,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 _PLAN_EXECUTOR: PlanExecutor | None = None
 _GIT_PROVIDER_CLIENT: GitProviderClient | None = None
