@@ -361,6 +361,76 @@ class FinOpsABExperiment(BaseModel):
     )
 
 
+class FinOpsCachePolicy(BaseModel):
+    """Caching strategy applied to FinOps calculations."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    ttl_seconds: int | None = Field(
+        default=None,
+        ge=0,
+        alias="ttl_seconds",
+        serialization_alias="ttl_seconds",
+        description="Tempo em segundos que um resultado deve permanecer em cache",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_aliases(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "ttl_seconds" not in values and "ttlSeconds" in values:
+                values["ttl_seconds"] = values.pop("ttlSeconds")
+            if "ttl_seconds" not in values and "cache_ttl" in values:
+                values["ttl_seconds"] = values.pop("cache_ttl")
+        elif isinstance(values, (int, float)):
+            return {"ttl_seconds": values}
+        return values
+
+
+class FinOpsRateLimitPolicy(BaseModel):
+    """Rate limit applied when executing FinOps sensitive workloads."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    requests_per_minute: int | None = Field(
+        default=None,
+        ge=1,
+        alias="requests_per_minute",
+        serialization_alias="requests_per_minute",
+        description="Número máximo de execuções permitidas por minuto",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_aliases(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "requests_per_minute" not in values and "requestsPerMinute" in values:
+                values["requests_per_minute"] = values.pop("requestsPerMinute")
+            if "requests_per_minute" not in values and "rate_limit" in values and not isinstance(
+                values.get("rate_limit"), dict
+            ):
+                values["requests_per_minute"] = values.pop("rate_limit")
+        elif isinstance(values, (int, float)):
+            return {"requests_per_minute": values}
+        return values
+
+
+class FinOpsGracefulDegradation(BaseModel):
+    """Behaviour when FinOps policies need to degrade service quality."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: str | None = Field(default=None, description="Estratégia aplicada ao degradar o serviço")
+    message: str | None = Field(default=None, description="Mensagem informativa exibida para clientes")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_aliases(cls, values: Any) -> Any:
+        if isinstance(values, str):
+            return {"strategy": values}
+        return values
+
+
 class FinOpsBudget(BaseModel):
     """Budget allocation for a routing tier."""
 
@@ -395,6 +465,18 @@ class FinOpsConfig(BaseModel):
     ab_history: list[FinOpsABExperiment] = Field(
         default_factory=list,
         description="Historical A/B experiments used to inform FinOps decisions",
+    )
+    cache: FinOpsCachePolicy | None = Field(
+        default=None,
+        description="Política de cache aplicada às decisões FinOps",
+    )
+    rate_limit: FinOpsRateLimitPolicy | None = Field(
+        default=None,
+        description="Limite de requisições aplicado ao executar rotas controladas por FinOps",
+    )
+    graceful_degradation: FinOpsGracefulDegradation | None = Field(
+        default=None,
+        description="Estratégia utilizada ao degradar o serviço sob restrições de FinOps",
     )
 
 

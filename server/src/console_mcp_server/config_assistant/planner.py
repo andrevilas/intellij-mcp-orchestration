@@ -39,6 +39,24 @@ DEFAULT_APPROVAL_RULES: dict[AssistantIntent, tuple[str, ...]] = {
 }
 
 
+def _summarize_finops_manifest_changes(changes: Mapping[str, Any]) -> str:
+    """Return a human readable summary for FinOps manifest updates."""
+
+    sections: list[str] = []
+    if any(key in changes for key in ("cache", "cache_ttl", "cacheTTL")):
+        sections.append("cache TTL")
+    if any(key in changes for key in ("rate_limit", "rateLimit", "rate_limit_rpm")):
+        sections.append("rate limit")
+    if any(key in changes for key in ("graceful_degradation", "gracefulDegradation")):
+        sections.append("graceful degradation")
+
+    if not sections:
+        return "Atualizar manifesto FinOps"
+
+    joined = ", ".join(sections)
+    return f"Atualizar manifesto FinOps ({joined})"
+
+
 def plan_intent(intent: AssistantIntent | str, payload: Mapping[str, Any] | None = None) -> Plan:
     """Create a plan for the requested intent using the provided context."""
 
@@ -342,6 +360,13 @@ def _plan_edit_policies(payload: Mapping[str, Any]) -> Plan:
 def _plan_edit_finops(payload: Mapping[str, Any]) -> Plan:
     report_id = str(payload["report_id"])
     thresholds = payload.get("thresholds")
+    finops_changes: Mapping[str, Any] | None = None
+
+    changes = payload.get("changes")
+    if isinstance(changes, Mapping):
+        candidate = changes.get("finops")
+        if isinstance(candidate, Mapping):
+            finops_changes = candidate
 
     steps = [
         PlanStep(
@@ -373,6 +398,16 @@ def _plan_edit_finops(payload: Mapping[str, Any]) -> Plan:
             summary="Regerar dashboards com os dados mais recentes",
         ),
     ]
+
+    if finops_changes:
+        summary = _summarize_finops_manifest_changes(finops_changes)
+        diffs.insert(
+            0,
+            create_diff(
+                path="policies/manifest.json",
+                summary=summary,
+            ),
+        )
 
     if thresholds:
         diffs.append(

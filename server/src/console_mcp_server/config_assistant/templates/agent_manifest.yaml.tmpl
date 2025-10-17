@@ -65,6 +65,13 @@ finops:
   alerts:
     - threshold: 0.75
       channel: slack
+  cache:
+    ttl_seconds: 600
+  rate_limit:
+    requests_per_minute: 180
+  graceful_degradation:
+    strategy: fallback
+    message: Servindo rotas alternativas
 hitl:
   checkpoints:
     - name: Revisão inicial
