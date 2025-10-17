@@ -432,6 +432,25 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=12,
+        description="store observability provider preferences",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS observability_preferences (
+                key TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                config TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_observability_preferences_updated_at
+                ON observability_preferences (updated_at)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None
