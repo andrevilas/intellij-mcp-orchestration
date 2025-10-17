@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, Mapping
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
-from pydantic import AnyHttpUrl, BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
 
 from .policies import (
     CostPolicyAlreadyExistsError,
@@ -547,6 +547,26 @@ class OnboardIntent(str, Enum):
 
 
 class OnboardRequest(BaseModel):
+    """Payload aceito pelo endpoint de onboarding MCP."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "repository": "agents/demo-agent",
+                    "intent": "plan",
+                    "capabilities": ["chat"],
+                    "tools": ["catalog.search"],
+                },
+                {
+                    "repository": "agents/demo-agent",
+                    "endpoint": "wss://demo.example/ws",
+                    "intent": "validate",
+                },
+            ]
+        }
+    )
+
     repository: str = Field(..., min_length=1)
     agent_name: str | None = Field(default=None)
     capabilities: list[str] = Field(default_factory=list)
@@ -880,7 +900,11 @@ def sync_plan_status(payload: PlanStatusSyncRequest, http_request: Request) -> A
     )
 
 
-@router.post("/config/mcp/onboard", response_model=OnboardResponse)
+@router.post(
+    "/config/mcp/onboard",
+    response_model=OnboardResponse,
+    response_model_exclude_none=True,
+)
 def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> OnboardResponse:
     """Produce a plan focused on onboarding a new MCP agent."""
 

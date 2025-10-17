@@ -63,8 +63,6 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   } as const;
 
   const validationResponse = {
-    plan: null,
-    preview: null,
     validation: onboardingResponse.validation,
   } as const;
 
