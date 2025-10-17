@@ -12,6 +12,9 @@ from console_mcp_server.security import Role
 from .test_config_routes import _seed_user
 
 
+pytest_plugins = ["tests.test_routes"]
+
+
 def test_onboard_validate_only_runs_validation(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

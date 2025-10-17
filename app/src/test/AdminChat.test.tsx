@@ -337,7 +337,9 @@ describe('AdminChat view', () => {
     postOnboardMock.mockImplementation((payload: ConfigOnboardRequest) => {
       if (payload.intent === 'validate') {
         return Promise.resolve({
-          ...onboardResponse,
+          plan: null,
+          diffs: [],
+          risks: [],
           message: 'Conexão validada com sucesso.',
           validation: onboardValidation,
         });

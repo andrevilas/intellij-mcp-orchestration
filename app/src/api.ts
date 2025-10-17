@@ -3442,10 +3442,10 @@ export interface ConfigOnboardValidation {
 }
 
 export interface ConfigOnboardResponse {
-  plan: AdminPlanSummary;
+  plan: AdminPlanSummary | null;
   diffs: AdminPlanDiff[];
   risks: AdminRiskItem[];
-  message: string;
+  message: string | null;
   validation: ConfigOnboardValidation | null;
 }
 
@@ -3460,10 +3460,10 @@ export async function postConfigMcpOnboard(
   });
 
   return {
-    plan: response.plan,
-    diffs: response.diffs,
-    risks: response.risks,
-    message: response.message,
+    plan: response.plan ?? null,
+    diffs: Array.isArray(response.diffs) ? response.diffs : [],
+    risks: Array.isArray(response.risks) ? response.risks : [],
+    message: typeof response.message === 'string' ? response.message : null,
     validation: mapConfigOnboardValidation(response.validation ?? null),
   };
 }
@@ -3727,10 +3727,10 @@ interface ConfigOnboardValidationPayload {
 }
 
 interface ConfigOnboardResponsePayload {
-  plan: AdminPlanSummary;
-  diffs: AdminPlanDiff[];
-  risks: AdminRiskItem[];
-  message: string;
+  plan?: AdminPlanSummary | null;
+  diffs?: AdminPlanDiff[] | null;
+  risks?: AdminRiskItem[] | null;
+  message?: string | null;
   validation?: ConfigOnboardValidationPayload | null;
 }
 
