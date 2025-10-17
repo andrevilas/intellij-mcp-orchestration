@@ -457,6 +457,10 @@ class PlanResponse(BaseModel):
     validation: MCPValidationModel | None = None
 
 
+class OnboardResponse(PlanResponse):
+    plan: Plan | None = None
+
+
 class PlanExecutionDiff(BaseModel):
     stat: str
     patch: str
@@ -535,6 +539,11 @@ class PlanStatusSyncRequest(BaseModel):
     provider_payload: Dict[str, Any] | None = Field(default=None)
 
 
+class OnboardIntent(str, Enum):
+    PLAN = "plan"
+    VALIDATE = "validate"
+
+
 class OnboardRequest(BaseModel):
     repository: str = Field(..., min_length=1)
     agent_name: str | None = Field(default=None)
@@ -542,6 +551,7 @@ class OnboardRequest(BaseModel):
     endpoint: str | None = Field(default=None)
     auth: Dict[str, str] = Field(default_factory=dict)
     tools: list[str] = Field(default_factory=list)
+    intent: OnboardIntent = Field(default=OnboardIntent.PLAN)
 
 
 class RagDocument(BaseModel):
@@ -861,8 +871,8 @@ def sync_plan_status(payload: PlanStatusSyncRequest, http_request: Request) -> A
     )
 
 
-@router.post("/config/mcp/onboard", response_model=PlanResponse)
-def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> PlanResponse:
+@router.post("/config/mcp/onboard", response_model=OnboardResponse)
+def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> OnboardResponse:
     """Produce a plan focused on onboarding a new MCP agent."""
 
     user = require_roles(http_request, Role.PLANNER)
@@ -879,6 +889,38 @@ def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> PlanRes
         payload["auth"] = request.auth
     if request.tools:
         payload["tools"] = request.tools
+
+    def _run_validation() -> MCPValidationOutcome | None:
+        if not request.endpoint:
+            return None
+        try:
+            return validate_server(payload)
+        except MCPClientError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Falha ao validar servidor MCP: {exc}",
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if request.intent == OnboardIntent.VALIDATE:
+        if not request.endpoint:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Endpoint é obrigatório para validar o servidor MCP.",
+            )
+        validation_outcome = _run_validation()
+        get_audit_logger(http_request).log(
+            actor=user,
+            action="config.onboard.validate",
+            resource="/config/mcp/onboard",
+            metadata={"agent": agent_name},
+        )
+        return OnboardResponse(
+            plan=None,
+            preview=None,
+            validation=_serialize_validation_details(validation_outcome),
+        )
 
     plan = _build_plan(AssistantIntent.ADD_AGENT, payload)
 
@@ -898,17 +940,7 @@ def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> PlanRes
         )
         preview = None
 
-    validation_outcome: MCPValidationOutcome | None = None
-    if request.endpoint:
-        try:
-            validation_outcome = validate_server(payload)
-        except MCPClientError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Falha ao validar servidor MCP: {exc}",
-            ) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    validation_outcome = _run_validation()
 
     get_audit_logger(http_request).log(
         actor=user,
@@ -916,7 +948,7 @@ def onboard_mcp_agent(request: OnboardRequest, http_request: Request) -> PlanRes
         resource="/config/mcp/onboard",
         metadata={"agent": agent_name},
     )
-    return PlanResponse(
+    return OnboardResponse(
         plan=plan,
         preview=_serialize_plan_preview(preview),
         validation=_serialize_validation_details(validation_outcome),
