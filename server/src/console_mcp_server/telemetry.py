@@ -1272,7 +1272,7 @@ def compute_marketplace_performance(
     provider_id: str | None = None,
     route: str | None = None,
 ) -> tuple[MarketplacePerformance, ...]:
-    catalog = {entry.entry_id: entry for entry in list_marketplace_entries()}
+    catalog = {entry.id: entry for entry in list_marketplace_entries()}
     if not catalog:
         return tuple()
 
@@ -1344,7 +1344,7 @@ def compute_marketplace_performance(
             cohort = cohort_raw.strip() or None
 
         stats = performances.setdefault(
-            entry.entry_id,
+            entry.id,
             {
                 "entry": entry,
                 "run_count": 0,
@@ -1410,7 +1410,7 @@ def compute_marketplace_performance(
 
         results.append(
             MarketplacePerformance(
-                entry_id=entry.entry_id,
+                entry_id=entry.id,
                 name=entry.name,
                 origin=entry.origin,
                 rating=float(entry.rating),
