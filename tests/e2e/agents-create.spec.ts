@@ -173,7 +173,7 @@ test('cria novo agent via wizard e aplica plano com smoke opcional', async ({ pa
     },
   };
 
-  await page.route('**/api/v1/config/apply', (route) => {
+  await page.route('**/api/v1/config/agents/apply', (route) => {
     applyRequests.push(route.request().postDataJSON());
     route.fulfill({ status: 200, body: JSON.stringify(applyResponse), contentType: 'application/json' });
   });

@@ -4000,6 +4000,8 @@ export interface ApplyPolicyPlanRequest {
   commitMessage?: string;
 }
 
+export interface ApplyAgentPlanRequest extends ApplyPolicyPlanRequest {}
+
 export interface ApplyPolicyPlanResponse {
   status: ConfigPlanStatus;
   mode: ConfigPlanExecutionMode;
@@ -4029,6 +4031,27 @@ export async function postPolicyPlanApply(
     commit_message: payload.commitMessage ?? 'chore: aplicar plano de configuração',
   };
   const response = await request<ApplyPlanResponsePayload>('/config/apply', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+    signal,
+  });
+  return mapApplyPlanResponse(response);
+}
+
+export async function postAgentPlanApply(
+  payload: ApplyAgentPlanRequest,
+  signal?: AbortSignal,
+): Promise<ApplyPolicyPlanResponse> {
+  const requestBody: ApplyPlanRequestPayload = {
+    plan_id: payload.planId,
+    plan: payload.plan,
+    patch: payload.patch,
+    mode: payload.mode ?? 'branch_pr',
+    actor: payload.actor,
+    actor_email: payload.actorEmail,
+    commit_message: payload.commitMessage ?? 'chore: aplicar plano de configuração',
+  };
+  const response = await request<ApplyPlanResponsePayload>('/config/agents/apply', {
     method: 'POST',
     body: JSON.stringify(requestBody),
     signal,
