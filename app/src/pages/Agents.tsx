@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSmokeRun, AgentStatus, AgentSummary } from '../api';
 import { ApiError, fetchAgents, postAgentSmokeRun } from '../api';
 import AgentDetailPanel from '../components/AgentDetailPanel';
+import AgentCreateWizard from './Agents/AgentCreateWizard';
 import SmokeEndpointsPanel from '../components/SmokeEndpointsPanel';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
 
@@ -40,7 +41,43 @@ function Agents(): JSX.Element {
   const [pendingSmoke, setPendingSmoke] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [activeAgent, setActiveAgent] = useState<AgentSummary | null>(null);
+  const [isCreateWizardOpen, setCreateWizardOpen] = useState(false);
   const smokeControllers = useRef(new Map<string, AbortController>());
+
+  const reloadAgents = useCallback(() => {
+    setIsLoading(true);
+    setError(null);
+
+    fetchAgents()
+      .then((response) => {
+        setAgents(response);
+      })
+      .catch((cause) => {
+        const message =
+          cause instanceof ApiError
+            ? cause.message
+            : 'Falha ao carregar catálogo de agents.';
+        setError(message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
+
+  const handleOpenCreate = useCallback(() => {
+    setCreateWizardOpen(true);
+  }, []);
+
+  const handleCloseCreate = useCallback(() => {
+    setCreateWizardOpen(false);
+  }, []);
+
+  const handleAgentCreated = useCallback(
+    (_slug: string) => {
+      reloadAgents();
+    },
+    [reloadAgents],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -213,35 +250,40 @@ function Agents(): JSX.Element {
           <h2>Catálogo de agents</h2>
           <p>Monitore owners, status operacionais e últimos deploys.</p>
         </div>
-        <form
-          className="agents__filters"
-          onSubmit={(event) => event.preventDefault()}
-          role="search"
-        >
-          <label className="agents__filter">
-            <span>Buscar agente</span>
-            <input
-              type="search"
-              value={query}
-              placeholder="Nome, owner ou capability"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <label className="agents__filter">
-            <span>Filtrar status</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-            >
-              <option value="all">Todos</option>
-              {availableStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {formatStatus(status)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </form>
+        <div className="agents__controls">
+          <form
+            className="agents__filters"
+            onSubmit={(event) => event.preventDefault()}
+            role="search"
+          >
+            <label className="agents__filter">
+              <span>Buscar agente</span>
+              <input
+                type="search"
+                value={query}
+                placeholder="Nome, owner ou capability"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            <label className="agents__filter">
+              <span>Filtrar status</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              >
+                <option value="all">Todos</option>
+                {availableStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {formatStatus(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </form>
+          <button type="button" className="agents__create-button" onClick={handleOpenCreate}>
+            + Novo agent
+          </button>
+        </div>
       </header>
 
       <SmokeEndpointsPanel />
@@ -425,6 +467,11 @@ function Agents(): JSX.Element {
       {activeAgent ? (
         <AgentDetailPanel key={activeAgent.name} agent={activeAgent} onClose={handleCloseDetail} />
       ) : null}
+      <AgentCreateWizard
+        isOpen={isCreateWizardOpen}
+        onClose={handleCloseCreate}
+        onAgentCreated={handleAgentCreated}
+      />
     </section>
   );
 }
