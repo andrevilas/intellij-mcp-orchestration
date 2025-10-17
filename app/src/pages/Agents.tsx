@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSmokeRun, AgentStatus, AgentSummary } from '../api';
 import { ApiError, fetchAgents, postAgentSmokeRun } from '../api';
 import AgentDetailPanel from '../components/AgentDetailPanel';
+import SmokeEndpointsPanel from '../components/SmokeEndpointsPanel';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
 
 type StatusFilter = 'all' | AgentStatus;
@@ -242,6 +243,8 @@ function Agents(): JSX.Element {
           </label>
         </form>
       </header>
+
+      <SmokeEndpointsPanel />
 
       {toast ? (
         <div

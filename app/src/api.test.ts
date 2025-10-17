@@ -47,6 +47,8 @@ import {
   testSecret,
   upsertSecret,
   postAgentSmokeRun,
+  fetchSmokeEndpoints,
+  triggerSmokeEndpoint,
   postPolicyPlanApply,
 } from './api';
 
@@ -188,6 +190,104 @@ describe('api client', () => {
       reportUrl: 'https://runner.example/report',
       startedAt: '2025-01-02T10:05:00Z',
       finishedAt: null,
+    });
+  });
+
+  it('fetches smoke endpoints using the console API', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        endpoints: [
+          {
+            id: 'health-check',
+            name: 'Health check',
+            description: 'Valida status HTTP.',
+            url: 'https://example.com/health',
+            last_run: {
+              run_id: 'run-42',
+              status: 'passed',
+              summary: 'OK',
+              triggered_by: 'alice',
+              triggered_at: '2025-01-03T12:00:00Z',
+              finished_at: '2025-01-03T12:00:01Z',
+              logs: [
+                {
+                  id: 'log-1',
+                  timestamp: '2025-01-03T12:00:01Z',
+                  level: 'info',
+                  message: 'GET /health -> 200',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const result = await fetchSmokeEndpoints();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/smoke/endpoints',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual([
+      {
+        id: 'health-check',
+        name: 'Health check',
+        description: 'Valida status HTTP.',
+        url: 'https://example.com/health',
+        lastRun: {
+          runId: 'run-42',
+          status: 'passed',
+          summary: 'OK',
+          triggeredBy: 'alice',
+          triggeredAt: '2025-01-03T12:00:00Z',
+          finishedAt: '2025-01-03T12:00:01Z',
+          logs: [
+            {
+              id: 'log-1',
+              timestamp: '2025-01-03T12:00:01Z',
+              level: 'info',
+              message: 'GET /health -> 200',
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it('triggers a smoke endpoint run and maps metadata', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        run_id: 'run-777',
+        status: 'running',
+        summary: 'Execução em andamento.',
+        triggered_by: 'service-account',
+        triggered_at: '2025-01-04T09:00:00Z',
+        finished_at: null,
+        logs: [],
+      }),
+    );
+
+    const result = await triggerSmokeEndpoint('health-check');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/smoke/endpoints/health-check/run',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+    expect(result).toEqual({
+      runId: 'run-777',
+      status: 'running',
+      summary: 'Execução em andamento.',
+      triggeredBy: 'service-account',
+      triggeredAt: '2025-01-04T09:00:00Z',
+      finishedAt: null,
+      logs: [],
     });
   });
 
