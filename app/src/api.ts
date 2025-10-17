@@ -48,6 +48,35 @@ export interface AgentSmokeRun {
   finishedAt: string | null;
 }
 
+export type SmokeRunStatus = 'queued' | 'running' | 'passed' | 'failed';
+
+export type SmokeRunLogLevel = 'debug' | 'info' | 'warning' | 'error';
+
+export interface SmokeRunLogEntry {
+  id: string;
+  timestamp: string;
+  level: SmokeRunLogLevel;
+  message: string;
+}
+
+export interface SmokeRunSummary {
+  runId: string;
+  status: SmokeRunStatus;
+  summary: string | null;
+  triggeredBy: string | null;
+  triggeredAt: string | null;
+  finishedAt: string | null;
+  logs: SmokeRunLogEntry[];
+}
+
+export interface SmokeEndpoint {
+  id: string;
+  name: string;
+  description: string | null;
+  url: string;
+  lastRun: SmokeRunSummary | null;
+}
+
 export interface Session {
   id: string;
   provider_id: string;
@@ -1330,6 +1359,35 @@ interface AgentSmokeRunPayload {
   finished_at: string | null;
 }
 
+interface SmokeRunLogPayload {
+  id: string;
+  timestamp: string;
+  level: SmokeRunLogLevel;
+  message: string;
+}
+
+interface SmokeRunPayload {
+  run_id: string;
+  status: SmokeRunStatus;
+  summary?: string | null;
+  triggered_by?: string | null;
+  triggered_at?: string | null;
+  finished_at?: string | null;
+  logs?: SmokeRunLogPayload[] | null;
+}
+
+interface SmokeEndpointPayload {
+  id: string;
+  name: string;
+  description?: string | null;
+  url: string;
+  last_run?: SmokeRunPayload | null;
+}
+
+interface SmokeEndpointListResponsePayload {
+  endpoints: SmokeEndpointPayload[];
+}
+
 function mapAgentModel(payload?: AgentModelPayload | null): AgentModelConfig | null {
   if (!payload) {
     return null;
@@ -1376,6 +1434,41 @@ function mapAgentSmokeRun(payload: AgentSmokeRunPayload): AgentSmokeRun {
   };
 }
 
+function mapSmokeRunLog(payload: SmokeRunLogPayload): SmokeRunLogEntry {
+  return {
+    id: payload.id,
+    timestamp: payload.timestamp,
+    level: payload.level,
+    message: payload.message,
+  };
+}
+
+function mapSmokeRunSummary(payload: SmokeRunPayload | null | undefined): SmokeRunSummary | null {
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    runId: payload.run_id,
+    status: payload.status,
+    summary: payload.summary ?? null,
+    triggeredBy: payload.triggered_by ?? null,
+    triggeredAt: payload.triggered_at ?? null,
+    finishedAt: payload.finished_at ?? null,
+    logs: (payload.logs ?? []).map(mapSmokeRunLog),
+  };
+}
+
+function mapSmokeEndpoint(payload: SmokeEndpointPayload): SmokeEndpoint {
+  return {
+    id: payload.id,
+    name: payload.name,
+    description: payload.description ?? null,
+    url: payload.url,
+    lastRun: mapSmokeRunSummary(payload.last_run ?? null),
+  };
+}
+
 export async function fetchAgents(signal?: AbortSignal): Promise<AgentSummary[]> {
   const data = await requestAgents<AgentListResponsePayload>('/agents', { signal });
   return data.agents.map(mapAgentSummary);
@@ -1391,6 +1484,27 @@ export async function postAgentSmokeRun(
     signal,
   });
   return mapAgentSmokeRun(data);
+}
+
+export async function fetchSmokeEndpoints(signal?: AbortSignal): Promise<SmokeEndpoint[]> {
+  const data = await request<SmokeEndpointListResponsePayload>('/smoke/endpoints', { signal });
+  return data.endpoints.map(mapSmokeEndpoint);
+}
+
+export async function triggerSmokeEndpoint(
+  endpointId: string,
+  signal?: AbortSignal,
+): Promise<SmokeRunSummary> {
+  const encoded = encodeURIComponent(endpointId);
+  const data = await request<SmokeRunPayload>(`/smoke/endpoints/${encoded}/run`, {
+    method: 'POST',
+    signal,
+  });
+  const summary = mapSmokeRunSummary(data);
+  if (!summary) {
+    throw new Error('Resposta inválida da API de smoke tests');
+  }
+  return summary;
 }
 
 function mapMcpServer(payload: McpServerPayload): McpServer {
