@@ -422,6 +422,22 @@ def test_telemetry_metrics_endpoint_returns_aggregates(client: TestClient) -> No
     assert providers['glm46']['success_rate'] == pytest.approx(1.0)
     assert providers['gemini']['success_rate'] == pytest.approx(0.0)
 
+    extended = payload['extended']
+    assert extended is not None
+    assert extended['cache_hit_rate'] is None
+    assert extended['cached_tokens'] is None
+    assert extended['error_rate'] == pytest.approx(0.5)
+    assert isinstance(extended['latency_p95_ms'], (int, float))
+    assert isinstance(extended['latency_p99_ms'], (int, float))
+
+    cost_breakdown = extended['cost_breakdown']
+    assert isinstance(cost_breakdown, list)
+    assert any(entry['cost_usd'] > 0 for entry in cost_breakdown)
+
+    error_breakdown = extended['error_breakdown']
+    categories = {item['category'] for item in error_breakdown}
+    assert 'Error' in categories
+
     filtered = client.get(
         '/api/v1/telemetry/metrics',
         params={
@@ -1018,8 +1034,6 @@ def test_cost_policies_crud_flow(client: TestClient) -> None:
         'monthly_spend_limit': 1250.50,
         'currency': 'USD',
         'tags': ['global', 'finops'],
-        'enforcement_mode': 'enforce',
-        'alert_thresholds': [65, 85, 95],
     }
 
     create_response = client.post('/api/v1/policies', json=create_payload)
@@ -1031,8 +1045,8 @@ def test_cost_policies_crud_flow(client: TestClient) -> None:
     assert created['currency'] == 'USD'
     assert created['tags'] == ['global', 'finops']
     assert created['description'] == 'Cap monthly spend for all providers'
-    assert created['enforcement_mode'] == 'enforce'
-    assert created['alert_thresholds'] == [65, 85, 95]
+    assert 'enforcement_mode' not in created
+    assert 'alert_thresholds' not in created
     assert created['created_at']
     assert created['updated_at']
 
@@ -1055,8 +1069,6 @@ def test_cost_policies_crud_flow(client: TestClient) -> None:
         'monthly_spend_limit': 1750.0,
         'currency': 'EUR',
         'tags': ['europe'],
-        'enforcement_mode': 'monitor',
-        'alert_thresholds': [80, 95],
     }
 
     update_response = client.put('/api/v1/policies/global-spend', json=update_payload)
@@ -1067,8 +1079,8 @@ def test_cost_policies_crud_flow(client: TestClient) -> None:
     assert updated['monthly_spend_limit'] == pytest.approx(1750.0)
     assert updated['currency'] == 'EUR'
     assert updated['tags'] == ['europe']
-    assert updated['enforcement_mode'] == 'monitor'
-    assert updated['alert_thresholds'] == [80, 95]
+    assert 'enforcement_mode' not in updated
+    assert 'alert_thresholds' not in updated
     assert updated['updated_at'] != updated['created_at']
 
     missing_update = client.put('/api/v1/policies/missing', json=update_payload)

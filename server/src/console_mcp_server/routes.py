@@ -144,6 +144,9 @@ from .schemas import (
     RoutingSimulationResponse,
     TelemetryHeatmapBucket,
     TelemetryHeatmapResponse,
+    TelemetryMetricsCostBreakdownEntry,
+    TelemetryMetricsErrorBreakdownEntry,
+    TelemetryMetricsExtended,
     TelemetryMetricsResponse,
     TelemetryProviderMetrics,
     TelemetryParetoResponse,
@@ -1116,6 +1119,11 @@ def read_telemetry_metrics(
             TelemetryProviderMetrics(**provider.to_dict())
             for provider in aggregates.providers
         ],
+        extended=(
+            TelemetryMetricsExtended(**aggregates.extended.to_dict())
+            if aggregates.extended
+            else None
+        ),
     )
 
 
