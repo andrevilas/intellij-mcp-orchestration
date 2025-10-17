@@ -198,6 +198,9 @@ export interface PolicyOverridesConfig {
     costCenter?: string | null;
     budgets?: FinOpsBudget[] | null;
     alerts?: FinOpsAlertThreshold[] | null;
+    cache?: FinOpsCachePolicyConfig | null;
+    rateLimit?: FinOpsRateLimitPolicyConfig | null;
+    gracefulDegradation?: FinOpsGracefulDegradationConfig | null;
   } | null;
   hitl?: {
     enabled?: boolean;
@@ -359,11 +362,27 @@ export interface FinOpsAlertThreshold {
   channel: HitlEscalationChannel;
 }
 
+export interface FinOpsCachePolicyConfig {
+  ttlSeconds: number | null;
+}
+
+export interface FinOpsRateLimitPolicyConfig {
+  requestsPerMinute: number | null;
+}
+
+export interface FinOpsGracefulDegradationConfig {
+  strategy: string | null;
+  message: string | null;
+}
+
 export interface FinOpsPolicyConfig {
   costCenter: string;
   budgets: FinOpsBudget[];
   alerts: FinOpsAlertThreshold[];
   abHistory: FinOpsAbExperiment[];
+  cache: FinOpsCachePolicyConfig | null;
+  rateLimit: FinOpsRateLimitPolicyConfig | null;
+  gracefulDegradation: FinOpsGracefulDegradationConfig | null;
 }
 
 export interface RoutingIntentConfig {
@@ -704,11 +723,27 @@ interface FinOpsAlertPayload {
   channel: HitlEscalationChannel;
 }
 
+interface FinOpsCachePayload {
+  ttl_seconds?: number | null;
+}
+
+interface FinOpsRateLimitPayload {
+  requests_per_minute?: number | null;
+}
+
+interface FinOpsGracefulDegradationPayload {
+  strategy?: string | null;
+  message?: string | null;
+}
+
 interface FinOpsConfigPayload {
   cost_center?: string;
   budgets?: FinOpsBudgetPayload[];
   alerts?: FinOpsAlertPayload[];
   ab_history?: FinOpsAbExperimentPayload[];
+  cache?: FinOpsCachePayload | null;
+  rate_limit?: FinOpsRateLimitPayload | null;
+  graceful_degradation?: FinOpsGracefulDegradationPayload | null;
 }
 
 interface RoutingIntentPayload {
@@ -1985,6 +2020,33 @@ function mapFinOpsBudgetPayload(payload: FinOpsBudgetPayload): FinOpsBudget {
 }
 
 function mapFinOpsConfigPayload(payload?: FinOpsConfigPayload): FinOpsPolicyConfig {
+  const ttlSeconds = normalizePositive(payload?.cache?.ttl_seconds ?? null, null);
+  const cache: FinOpsCachePolicyConfig | null =
+    payload && (payload.cache !== undefined || ttlSeconds !== null)
+      ? { ttlSeconds }
+      : ttlSeconds !== null
+        ? { ttlSeconds }
+        : null;
+
+  const requestsPerMinute = normalizePositive(payload?.rate_limit?.requests_per_minute ?? null, null);
+  const rateLimit: FinOpsRateLimitPolicyConfig | null =
+    payload && (payload.rate_limit !== undefined || requestsPerMinute !== null)
+      ? { requestsPerMinute }
+      : requestsPerMinute !== null
+        ? { requestsPerMinute }
+        : null;
+
+  const strategyRaw = payload?.graceful_degradation?.strategy ?? null;
+  const messageRaw = payload?.graceful_degradation?.message ?? null;
+  const strategy = typeof strategyRaw === 'string' ? strategyRaw.trim() : '';
+  const message = typeof messageRaw === 'string' ? messageRaw.trim() : '';
+  const gracefulDegradation: FinOpsGracefulDegradationConfig | null =
+    strategy || message
+      ? { strategy: strategy || null, message: message || null }
+      : payload?.graceful_degradation !== undefined
+        ? { strategy: null, message: null }
+        : null;
+
   return {
     costCenter: payload?.cost_center ?? 'default',
     budgets: (payload?.budgets ?? []).map(mapFinOpsBudgetPayload),
@@ -1993,6 +2055,9 @@ function mapFinOpsConfigPayload(payload?: FinOpsConfigPayload): FinOpsPolicyConf
       channel: alert.channel,
     })),
     abHistory: (payload?.ab_history ?? []).map(mapAbExperimentPayload),
+    cache,
+    rateLimit,
+    gracefulDegradation,
   };
 }
 
@@ -2169,7 +2234,7 @@ function mapPolicyOverridesConfig(payload?: PolicyOverridesPayload | null): Poli
   }
 
   if (payload.finops) {
-    const finops: { costCenter?: string; budgets?: FinOpsBudget[]; alerts?: FinOpsAlertThreshold[] } = {};
+    const finops: NonNullable<PolicyOverridesConfig['finops']> = {};
     if (payload.finops.cost_center !== undefined) {
       finops.costCenter = payload.finops.cost_center ?? 'default';
     }
@@ -2181,6 +2246,21 @@ function mapPolicyOverridesConfig(payload?: PolicyOverridesPayload | null): Poli
         threshold: clampZeroOne(alert.threshold, 0.5),
         channel: alert.channel,
       }));
+    }
+    if (payload.finops.cache !== undefined) {
+      const ttl = normalizePositive(payload.finops.cache?.ttl_seconds ?? null, null);
+      finops.cache = { ttlSeconds: ttl };
+    }
+    if (payload.finops.rate_limit !== undefined) {
+      const requests = normalizePositive(payload.finops.rate_limit?.requests_per_minute ?? null, null);
+      finops.rateLimit = { requestsPerMinute: requests };
+    }
+    if (payload.finops.graceful_degradation !== undefined) {
+      const rawStrategy = payload.finops.graceful_degradation?.strategy ?? null;
+      const rawMessage = payload.finops.graceful_degradation?.message ?? null;
+      const strategy = typeof rawStrategy === 'string' ? rawStrategy.trim() : '';
+      const message = typeof rawMessage === 'string' ? rawMessage.trim() : '';
+      finops.gracefulDegradation = { strategy: strategy || null, message: message || null };
     }
     if (Object.keys(finops).length > 0) {
       overrides.finops = finops;
@@ -2358,6 +2438,20 @@ function serializePolicyOverrides(overrides?: PolicyOverridesConfig | null): Pol
         channel: alert.channel,
       }));
     }
+    if (overrides.finops.cache !== undefined) {
+      const ttlSeconds = overrides.finops.cache?.ttlSeconds ?? null;
+      finops.cache = { ttl_seconds: ttlSeconds };
+    }
+    if (overrides.finops.rateLimit !== undefined) {
+      const requestsPerMinute = overrides.finops.rateLimit?.requestsPerMinute ?? null;
+      finops.rate_limit = { requests_per_minute: requestsPerMinute };
+    }
+    if (overrides.finops.gracefulDegradation !== undefined) {
+      finops.graceful_degradation = {
+        strategy: overrides.finops.gracefulDegradation?.strategy ?? null,
+        message: overrides.finops.gracefulDegradation?.message ?? null,
+      };
+    }
     if (Object.keys(finops).length > 0) {
       payload.finops = finops;
     }
@@ -2496,6 +2590,20 @@ function serializePolicyManifestUpdate(payload: PolicyManifestUpdateInput): Poli
         threshold: alert.threshold,
         channel: alert.channel,
       }));
+    }
+    if (payload.finops.cache !== undefined) {
+      const ttlSeconds = payload.finops.cache?.ttlSeconds ?? null;
+      finops.cache = { ttl_seconds: ttlSeconds };
+    }
+    if (payload.finops.rateLimit !== undefined) {
+      const requestsPerMinute = payload.finops.rateLimit?.requestsPerMinute ?? null;
+      finops.rate_limit = { requests_per_minute: requestsPerMinute };
+    }
+    if (payload.finops.gracefulDegradation !== undefined) {
+      finops.graceful_degradation = {
+        strategy: payload.finops.gracefulDegradation?.strategy ?? null,
+        message: payload.finops.gracefulDegradation?.message ?? null,
+      };
     }
     if (Object.keys(finops).length > 0) {
       result.finops = finops;

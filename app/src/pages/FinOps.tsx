@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { createTwoFilesPatch } from 'diff';
 import {
   Area,
   AreaChart,
@@ -33,14 +34,23 @@ import {
   fetchTelemetryLaneCosts,
   fetchMarketplacePerformance,
   fetchPolicyManifest,
-  updatePolicyManifest,
+  patchConfigPoliciesPlan,
+  postPolicyPlanApply,
   type BudgetPeriod,
   type HitlEscalationChannel,
   type RoutingTierId,
   type FinOpsPullRequestReportPayload,
   type FinOpsSprintReportPayload,
   type ReportStatus,
+  type PolicyPlanResponse,
+  type ConfigPlanDiffSummary,
+  type ConfigPlanPreview,
+  type AdminPlanSummary,
+  type AdminPlanPullRequestSummary,
+  type PlanExecutionPullRequest,
 } from '../api';
+import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
+import PlanSummary from './AdminChat/PlanSummary';
 
 export interface FinOpsProps {
   providers: ProviderSummary[];
@@ -198,6 +208,195 @@ const TIER_LABEL: Record<RoutingTierId, string> = {
   balanced: 'Balanced',
   turbo: 'Turbo',
 };
+
+const POLICY_MANIFEST_ID = 'manifest';
+
+const GRACEFUL_STRATEGIES = [
+  { value: 'fallback', label: 'Fallback automático' },
+  { value: 'throttle', label: 'Throttle progressivo' },
+  { value: 'static', label: 'Resposta estática' },
+  { value: 'none', label: 'Desabilitar degradação' },
+] as const;
+
+type GracefulStrategyOption = (typeof GRACEFUL_STRATEGIES)[number]['value'];
+
+type PendingFinOpsPlan = {
+  id: string;
+  plan: PolicyPlanResponse['plan'];
+  planPayload: PolicyPlanResponse['planPayload'];
+  patch: string;
+  diffs: PlanDiffItem[];
+  nextSnapshot: PolicyManifestSnapshot;
+};
+
+function generatePlanId(): string {
+  const cryptoApi = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
+  }
+  return `finops-plan-${Date.now()}`;
+}
+
+function cloneManifest(snapshot: PolicyManifestSnapshot): PolicyManifestSnapshot {
+  return JSON.parse(JSON.stringify(snapshot)) as PolicyManifestSnapshot;
+}
+
+function formatManifestSnapshot(snapshot: PolicyManifestSnapshot): string {
+  return `${JSON.stringify(snapshot, null, 2)}\n`;
+}
+
+function applyFinOpsUpdateToSnapshot(
+  current: PolicyManifestSnapshot,
+  update: PolicyManifestUpdateInput,
+): PolicyManifestSnapshot {
+  const next = cloneManifest(current);
+  if (!update.finops) {
+    return next;
+  }
+
+  const finops = next.finops;
+  if (update.finops.costCenter !== undefined) {
+    finops.costCenter = update.finops.costCenter ?? finops.costCenter;
+  }
+  if (update.finops.budgets) {
+    finops.budgets = update.finops.budgets.map((budget) => ({ ...budget }));
+  } else if (update.finops.budgets === null) {
+    finops.budgets = [];
+  }
+  if (update.finops.alerts) {
+    finops.alerts = update.finops.alerts.map((alert) => ({ ...alert }));
+  } else if (update.finops.alerts === null) {
+    finops.alerts = [];
+  }
+  if (update.finops.cache !== undefined) {
+    finops.cache = update.finops.cache
+      ? { ttlSeconds: update.finops.cache.ttlSeconds ?? null }
+      : { ttlSeconds: null };
+  }
+  if (update.finops.rateLimit !== undefined) {
+    finops.rateLimit = update.finops.rateLimit
+      ? { requestsPerMinute: update.finops.rateLimit.requestsPerMinute ?? null }
+      : { requestsPerMinute: null };
+  }
+  if (update.finops.gracefulDegradation !== undefined) {
+    finops.gracefulDegradation = update.finops.gracefulDegradation
+      ? {
+          strategy: update.finops.gracefulDegradation.strategy ?? null,
+          message: update.finops.gracefulDegradation.message ?? null,
+        }
+      : { strategy: null, message: null };
+  }
+
+  next.updatedAt = new Date().toISOString();
+  return next;
+}
+
+function mapPlanDiffItems(diffs: ConfigPlanDiffSummary[], manifestPatch: string): PlanDiffItem[] {
+  const hasManifestPatch = manifestPatch.trim().length > 0;
+
+  if (!diffs || diffs.length === 0) {
+    if (!hasManifestPatch) {
+      throw new Error('Plano FinOps não retornou diff para o manifesto.');
+    }
+    return [
+      {
+        id: 'finops-manifest',
+        title: 'policies/manifest.json',
+        summary: 'Atualizar políticas financeiras e limites operacionais',
+        diff: manifestPatch,
+      },
+    ];
+  }
+
+  return diffs.map((diff, index) => {
+    const isManifestFile = diff.path.endsWith('manifest.json');
+    if (isManifestFile && !hasManifestPatch) {
+      throw new Error('Plano FinOps não forneceu diff detalhado do manifesto.');
+    }
+
+    const diffContent = isManifestFile ? manifestPatch : diff.diff ?? '';
+    if (!diffContent.trim()) {
+      throw new Error(`Plano FinOps retornou diff vazio para ${diff.path}.`);
+    }
+
+    return {
+      id: `${diff.path}-${index}`,
+      title: diff.path,
+      summary: diff.summary,
+      diff: diffContent,
+    };
+  });
+}
+
+function mapPreviewPullRequest(preview: ConfigPlanPreview | null): AdminPlanPullRequestSummary | null {
+  const pr = preview?.pullRequest;
+  if (!pr) {
+    return null;
+  }
+  const identifier = pr.title?.trim() || 'finops-preview-pr';
+  return {
+    id: identifier,
+    number: '',
+    title: pr.title,
+    url: '',
+    state: 'draft',
+    reviewStatus: null,
+    reviewers: [],
+    branch: preview?.branch ?? null,
+    ciResults: [],
+  };
+}
+
+function mapExecutionPullRequest(pr: PlanExecutionPullRequest | null): AdminPlanPullRequestSummary | null {
+  if (!pr) {
+    return null;
+  }
+  return {
+    id: pr.id,
+    number: pr.number,
+    title: pr.title,
+    url: pr.url,
+    state: pr.state,
+    reviewStatus: pr.reviewStatus ?? null,
+    reviewers: pr.reviewers ?? [],
+    branch: pr.branch ?? null,
+    ciResults: pr.ciResults ?? [],
+  };
+}
+
+function buildPlanSummary(
+  planId: string,
+  plan: PolicyPlanResponse['plan'],
+  preview: ConfigPlanPreview | null,
+): AdminPlanSummary {
+  const generatedAt = new Date().toISOString();
+  const steps = plan.steps.map((step, index) => {
+    const impact = step.actions
+      .map((action) => `${action.type.toUpperCase()} ${action.path}`.trim())
+      .join('\n');
+    return {
+      id: step.id || `finops-step-${index}`,
+      title: step.title,
+      description: step.description,
+      status: 'ready' as const,
+      impact: impact.length > 0 ? impact : null,
+    };
+  });
+
+  return {
+    id: planId,
+    threadId: 'finops-manifest',
+    status: 'ready',
+    generatedAt,
+    author: 'Console MCP',
+    scope: plan.summary || 'Atualizar políticas FinOps',
+    steps,
+    branch: preview?.branch ?? null,
+    baseBranch: preview?.baseBranch ?? null,
+    reviewers: [],
+    pullRequest: mapPreviewPullRequest(preview),
+  };
+}
 
 const PERIOD_OPTIONS: Array<{ value: BudgetPeriod; label: string }> = [
   { value: 'daily', label: 'Diário' },
@@ -621,9 +820,31 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [budgetErrors, setBudgetErrors] = useState<BudgetRowErrors[]>([]);
   const [alertRows, setAlertRows] = useState<AlertRow[]>([]);
   const [alertErrors, setAlertErrors] = useState<AlertRowErrors[]>([]);
-  const [finOpsMessage, setFinOpsMessage] = useState<string | null>(null);
-  const [isFinOpsSaving, setFinOpsSaving] = useState(false);
+  const [cacheTtl, setCacheTtl] = useState('');
+  const [rateLimit, setRateLimit] = useState('');
+  const [gracefulStrategy, setGracefulStrategy] = useState<GracefulStrategyOption>('fallback');
+  const [gracefulMessage, setGracefulMessage] = useState('');
+  const [cacheTtlError, setCacheTtlError] = useState<string | null>(null);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+  const [planSummary, setPlanSummary] = useState<AdminPlanSummary | null>(null);
+  const [planDiffItems, setPlanDiffItems] = useState<PlanDiffItem[]>([]);
+  const [pendingPlan, setPendingPlan] = useState<PendingFinOpsPlan | null>(null);
+  const [planStatusMessage, setPlanStatusMessage] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [isPlanGenerating, setPlanGenerating] = useState(false);
+  const [isPlanApplying, setPlanApplying] = useState(false);
   const [costCenterError, setCostCenterError] = useState<string | null>(null);
+
+  const isFormDisabled = isManifestLoading || isPlanGenerating || isPlanApplying;
+
+  const resetPendingPlan = useCallback(() => {
+    setPendingPlan(null);
+    setPlanDiffItems([]);
+    setPlanError(null);
+    if (planSummary && planSummary.status !== 'applied') {
+      setPlanSummary(null);
+    }
+  }, [planSummary]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -697,13 +918,39 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     const alertTemplate = alerts.length > 0 ? alerts : [{ threshold: '75', channel: 'slack' }];
     setAlertRows(alertTemplate);
     setAlertErrors(alertTemplate.map(() => ({}) as AlertRowErrors));
-  }, [manifest]);
 
-  const handleCostCenterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setCostCenter(event.target.value);
-    setCostCenterError(null);
-    setFinOpsMessage(null);
-  }, []);
+    const ttlValue = finops.cache?.ttlSeconds;
+    setCacheTtl(ttlValue !== undefined && ttlValue !== null ? String(ttlValue) : '');
+    setCacheTtlError(null);
+
+    const rateLimitValue = finops.rateLimit?.requestsPerMinute;
+    setRateLimit(rateLimitValue !== undefined && rateLimitValue !== null ? String(rateLimitValue) : '');
+    setRateLimitError(null);
+
+    const availableStrategies = new Set(GRACEFUL_STRATEGIES.map((item) => item.value));
+    const strategyValue = finops.gracefulDegradation?.strategy ?? 'fallback';
+    setGracefulStrategy(
+      availableStrategies.has(strategyValue as GracefulStrategyOption)
+        ? (strategyValue as GracefulStrategyOption)
+        : 'fallback',
+    );
+    setGracefulMessage(finops.gracefulDegradation?.message ?? '');
+    if (!planSummary || planSummary.status !== 'applied') {
+      setPlanStatusMessage(null);
+    }
+    setPlanError(null);
+  }, [manifest, planSummary?.status]);
+
+  const handleCostCenterChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setCostCenter(event.target.value);
+      setCostCenterError(null);
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
+    },
+    [resetPendingPlan],
+  );
 
   const handleBudgetChange = useCallback(
     (index: number, field: keyof BudgetRow, value: string) => {
@@ -721,9 +968,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         next[index] = { ...(next[index] ?? {}), amount: undefined, currency: undefined };
         return next;
       });
-      setFinOpsMessage(null);
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
     },
-    [],
+    [resetPendingPlan],
   );
 
   const handleAddBudget = useCallback(() => {
@@ -732,7 +981,10 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       { tier: 'economy', amount: '', currency: 'USD', period: 'monthly' },
     ]);
     setBudgetErrors((current) => [...current, {}]);
-  }, []);
+    setPlanStatusMessage(null);
+    setPlanError(null);
+    resetPendingPlan();
+  }, [resetPendingPlan]);
 
   const handleRemoveBudget = useCallback(
     (index: number) => {
@@ -752,8 +1004,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         next.splice(index, 1);
         return next;
       });
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
     },
-    [],
+    [resetPendingPlan],
   );
 
   const handleAlertChange = useCallback(
@@ -772,15 +1027,20 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         next[index] = { ...(next[index] ?? {}), threshold: undefined };
         return next;
       });
-      setFinOpsMessage(null);
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
     },
-    [],
+    [resetPendingPlan],
   );
 
   const handleAddAlert = useCallback(() => {
     setAlertRows((current) => [...current, { threshold: '80', channel: 'email' }]);
     setAlertErrors((current) => [...current, {}]);
-  }, []);
+    setPlanStatusMessage(null);
+    setPlanError(null);
+    resetPendingPlan();
+  }, [resetPendingPlan]);
 
   const handleRemoveAlert = useCallback(
     (index: number) => {
@@ -800,13 +1060,69 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         next.splice(index, 1);
         return next;
       });
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
     },
-    [],
+    [resetPendingPlan],
+  );
+
+  const handleCacheTtlChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setCacheTtl(event.target.value);
+      setCacheTtlError(null);
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
+    },
+    [resetPendingPlan],
+  );
+
+  const handleRateLimitChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setRateLimit(event.target.value);
+      setRateLimitError(null);
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
+    },
+    [resetPendingPlan],
+  );
+
+  const handleGracefulStrategyChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const value = event.target.value as GracefulStrategyOption;
+      setGracefulStrategy(value);
+      if (value === 'none') {
+        setGracefulMessage('');
+      }
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
+    },
+    [resetPendingPlan],
+  );
+
+  const handleGracefulMessageChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setGracefulMessage(event.target.value);
+      setPlanStatusMessage(null);
+      setPlanError(null);
+      resetPendingPlan();
+    },
+    [resetPendingPlan],
   );
 
   const handleFinOpsSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+
+      if (!manifest) {
+        setPlanError('Carregue o manifesto atual antes de gerar um plano.');
+        return;
+      }
+
+      resetPendingPlan();
 
       let hasErrors = false;
       const trimmedCostCenter = costCenter.trim();
@@ -876,8 +1192,38 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
 
       setAlertErrors(nextAlertErrors);
 
+      const trimmedTtl = cacheTtl.trim();
+      let cacheTtlValue: number | null = null;
+      if (trimmedTtl) {
+        const parsed = Number(trimmedTtl);
+        if (Number.isNaN(parsed) || parsed < 0) {
+          setCacheTtlError('Defina um TTL de cache válido em segundos.');
+          hasErrors = true;
+        } else {
+          cacheTtlValue = Math.round(parsed);
+          setCacheTtlError(null);
+        }
+      } else {
+        setCacheTtlError(null);
+      }
+
+      const trimmedRateLimit = rateLimit.trim();
+      let rateLimitValue: number | null = null;
+      if (trimmedRateLimit) {
+        const parsed = Number(trimmedRateLimit);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+          setRateLimitError('Informe um limite de requisições por minuto válido.');
+          hasErrors = true;
+        } else {
+          rateLimitValue = Math.round(parsed);
+          setRateLimitError(null);
+        }
+      } else {
+        setRateLimitError(null);
+      }
+
       if (hasErrors) {
-        setFinOpsMessage(null);
+        setPlanStatusMessage(null);
         return;
       }
 
@@ -886,40 +1232,135 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           costCenter: trimmedCostCenter,
           budgets: normalizedBudgets,
           alerts: normalizedAlerts,
+          cache: { ttlSeconds: cacheTtlValue },
+          rateLimit: { requestsPerMinute: rateLimitValue },
+          gracefulDegradation: {
+            strategy: gracefulStrategy === 'none' ? null : gracefulStrategy,
+            message: gracefulMessage.trim() || null,
+          },
         },
       };
 
-      setIsFinOpsSaving(true);
-      setFinOpsMessage(null);
+      setPlanGenerating(true);
+      setPlanStatusMessage(null);
+      setPlanError(null);
 
-      updatePolicyManifest(payload)
-        .then(() => {
-          setFinOpsMessage('Política financeira atualizada com sucesso.');
-          setManifest((current) => {
-            if (!current || !payload.finops) {
-              return current;
-            }
-            return {
-              ...current,
-              finops: {
-                ...current.finops,
-                costCenter: payload.finops.costCenter ?? current.finops.costCenter,
-                budgets: payload.finops.budgets ?? current.finops.budgets,
-                alerts: payload.finops.alerts ?? current.finops.alerts,
-              },
-              updatedAt: new Date().toISOString(),
-            };
-          });
-        })
-        .catch(() => {
-          setFinOpsMessage('Falha ao salvar budgets e alertas. Tente novamente.');
-        })
-        .finally(() => {
-          setIsFinOpsSaving(false);
+      try {
+        const planResponse = await patchConfigPoliciesPlan({
+          policyId: POLICY_MANIFEST_ID,
+          changes: payload,
         });
+
+        const nextSnapshot = applyFinOpsUpdateToSnapshot(manifest, payload);
+        const currentManifestString = formatManifestSnapshot(manifest);
+        const nextManifestString = formatManifestSnapshot(nextSnapshot);
+        const patch = createTwoFilesPatch(
+          'policies/manifest.json',
+          'policies/manifest.json',
+          currentManifestString,
+          nextManifestString,
+          undefined,
+          undefined,
+          { context: 3 },
+        );
+
+        const diffs = mapPlanDiffItems(planResponse.plan.diffs, patch);
+        const planId = generatePlanId();
+
+        setPendingPlan({
+          id: planId,
+          plan: planResponse.plan,
+          planPayload: planResponse.planPayload,
+          patch,
+          diffs,
+          nextSnapshot,
+        });
+        setPlanDiffItems(diffs);
+        setPlanSummary(buildPlanSummary(planId, planResponse.plan, planResponse.preview ?? null));
+        setPlanStatusMessage('Plano gerado. Revise as alterações antes de aplicar.');
+      } catch (error) {
+        console.error('Failed to gerar plano FinOps', error);
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Falha ao gerar plano FinOps. Tente novamente.';
+        setPlanError(message);
+        setPlanStatusMessage(null);
+        setPendingPlan(null);
+        setPlanDiffItems([]);
+        if (!planSummary || planSummary.status !== 'applied') {
+          setPlanSummary(null);
+        }
+      } finally {
+        setPlanGenerating(false);
+      }
     },
-    [alertRows, budgetRows, costCenter],
+    [
+      alertRows,
+      budgetRows,
+      cacheTtl,
+      costCenter,
+      gracefulMessage,
+      gracefulStrategy,
+      manifest,
+      rateLimit,
+      resetPendingPlan,
+      planSummary,
+    ],
   );
+
+  const handlePlanApply = useCallback(async () => {
+    if (!pendingPlan) {
+      setPlanError('Gere um plano antes de aplicar as mudanças.');
+      return;
+    }
+
+    setPlanApplying(true);
+    setPlanError(null);
+    try {
+      const response = await postPolicyPlanApply({
+        planId: pendingPlan.id,
+        plan: pendingPlan.planPayload,
+        patch: pendingPlan.patch,
+        actor: 'Console MCP',
+        actorEmail: 'finops@console.mcp',
+        commitMessage: 'chore: atualizar políticas FinOps',
+      });
+
+      setManifest(pendingPlan.nextSnapshot);
+      setPlanSummary((current) => {
+        const base = current ?? buildPlanSummary(pendingPlan.id, pendingPlan.plan, null);
+        const pullRequest = mapExecutionPullRequest(response.pullRequest) ?? base.pullRequest ?? null;
+        return {
+          ...base,
+          status: 'applied',
+          branch: response.branch ?? base.branch ?? null,
+          baseBranch: response.baseBranch ?? base.baseBranch ?? null,
+          pullRequest,
+        };
+      });
+      const details = [response.message];
+      if (response.branch) {
+        details.push(`Branch: ${response.branch}`);
+      }
+      if (response.pullRequest?.url) {
+        details.push(`PR: ${response.pullRequest.url}`);
+      }
+      setPlanStatusMessage(details.join(' '));
+      setPendingPlan(null);
+      setPlanDiffItems(pendingPlan.diffs);
+    } catch (error) {
+      console.error('Failed to aplicar plano FinOps', error);
+      setPlanError('Falha ao aplicar plano FinOps. Tente novamente.');
+    } finally {
+      setPlanApplying(false);
+    }
+  }, [pendingPlan]);
+
+  const handlePlanReset = useCallback(() => {
+    resetPendingPlan();
+    setPlanStatusMessage('Plano descartado. Ajuste a política e gere novamente.');
+  }, [resetPendingPlan]);
 
   useEffect(() => {
     if (!hasProviders) {
@@ -1948,7 +2389,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           </span>
         </header>
         {manifestError && <p className="error">{manifestError}</p>}
-        {finOpsMessage && <p className="status status--inline">{finOpsMessage}</p>}
+        {planError && <p className="error">{planError}</p>}
+        {planStatusMessage && <p className="status status--inline">{planStatusMessage}</p>}
         <form className="finops-policy__form" onSubmit={handleFinOpsSubmit}>
           <div className="finops-policy__grid">
             <label className="form-field">
@@ -1958,7 +2400,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                 value={costCenter}
                 onChange={handleCostCenterChange}
                 placeholder="ex.: AI-Guardrails"
-                disabled={isManifestLoading || isFinOpsSaving}
+                disabled={isFormDisabled}
                 aria-invalid={costCenterError ? 'true' : 'false'}
                 aria-describedby={costCenterError ? 'finops-costcenter-error' : undefined}
               />
@@ -1967,6 +2409,62 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                   {costCenterError}
                 </span>
               )}
+            </label>
+            <label className="form-field">
+              <span>Cache TTL (segundos)</span>
+              <input
+                type="number"
+                min={0}
+                value={cacheTtl}
+                onChange={handleCacheTtlChange}
+                placeholder="ex.: 300"
+                disabled={isFormDisabled}
+                aria-invalid={cacheTtlError ? 'true' : 'false'}
+                aria-describedby={cacheTtlError ? 'finops-cache-ttl-error' : undefined}
+              />
+              {cacheTtlError && (
+                <span id="finops-cache-ttl-error" className="form-field__error">
+                  {cacheTtlError}
+                </span>
+              )}
+            </label>
+            <label className="form-field">
+              <span>Rate limit (req/min)</span>
+              <input
+                type="number"
+                min={1}
+                value={rateLimit}
+                onChange={handleRateLimitChange}
+                placeholder="ex.: 120"
+                disabled={isFormDisabled}
+                aria-invalid={rateLimitError ? 'true' : 'false'}
+                aria-describedby={rateLimitError ? 'finops-ratelimit-error' : undefined}
+              />
+              {rateLimitError && (
+                <span id="finops-ratelimit-error" className="form-field__error">
+                  {rateLimitError}
+                </span>
+              )}
+            </label>
+            <label className="form-field">
+              <span>Estratégia de degradação graciosa</span>
+              <select value={gracefulStrategy} onChange={handleGracefulStrategyChange} disabled={isFormDisabled}>
+                {GRACEFUL_STRATEGIES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Mensagem de degradação</span>
+              <input
+                type="text"
+                value={gracefulMessage}
+                onChange={handleGracefulMessageChange}
+                placeholder="ex.: Servindo respostas em modo reduzido"
+                disabled={isFormDisabled || gracefulStrategy === 'none'}
+              />
             </label>
           </div>
 
@@ -1993,7 +2491,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                         <select
                           value={row.tier}
                           onChange={(event) => handleBudgetChange(index, 'tier', event.target.value)}
-                          disabled={isFinOpsSaving}
+                          disabled={isFormDisabled}
                         >
                           {(Object.keys(TIER_LABEL) as RoutingTierId[]).map((tier) => (
                             <option key={tier} value={tier}>
@@ -2010,7 +2508,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                             step="0.01"
                             value={row.amount}
                             onChange={(event) => handleBudgetChange(index, 'amount', event.target.value)}
-                            disabled={isFinOpsSaving}
+                            disabled={isFormDisabled}
                             aria-invalid={budgetErrors[index]?.amount ? 'true' : 'false'}
                             aria-describedby={budgetErrors[index]?.amount ? `budget-amount-${index}` : undefined}
                           />
@@ -2027,7 +2525,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                             type="text"
                             value={row.currency}
                             onChange={(event) => handleBudgetChange(index, 'currency', event.target.value.toUpperCase())}
-                            disabled={isFinOpsSaving}
+                            disabled={isFormDisabled}
                             maxLength={6}
                             aria-invalid={budgetErrors[index]?.currency ? 'true' : 'false'}
                             aria-describedby={budgetErrors[index]?.currency ? `budget-currency-${index}` : undefined}
@@ -2043,7 +2541,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                         <select
                           value={row.period}
                           onChange={(event) => handleBudgetChange(index, 'period', event.target.value)}
-                          disabled={isFinOpsSaving}
+                          disabled={isFormDisabled}
                         >
                           {PERIOD_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -2057,7 +2555,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                           type="button"
                           className="button button--ghost finops-policy__remove"
                           onClick={() => handleRemoveBudget(index)}
-                          disabled={isFinOpsSaving || budgetRows.length <= 1}
+                          disabled={isFormDisabled || budgetRows.length <= 1}
                         >
                           Remover
                         </button>
@@ -2071,7 +2569,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               type="button"
               className="button button--ghost finops-policy__add"
               onClick={handleAddBudget}
-              disabled={isFinOpsSaving}
+              disabled={isFormDisabled}
             >
               Adicionar budget
             </button>
@@ -2093,7 +2591,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                       max={100}
                       value={row.threshold}
                       onChange={(event) => handleAlertChange(index, 'threshold', event.target.value)}
-                      disabled={isFinOpsSaving}
+                      disabled={isFormDisabled}
                       aria-invalid={alertErrors[index]?.threshold ? 'true' : 'false'}
                       aria-describedby={alertErrors[index]?.threshold ? `alert-threshold-${index}` : undefined}
                     />
@@ -2108,7 +2606,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                     <select
                       value={row.channel}
                       onChange={(event) => handleAlertChange(index, 'channel', event.target.value)}
-                      disabled={isFinOpsSaving}
+                      disabled={isFormDisabled}
                     >
                       {ESCALATION_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -2121,7 +2619,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                     type="button"
                     className="button button--ghost finops-policy__remove"
                     onClick={() => handleRemoveAlert(index)}
-                    disabled={isFinOpsSaving || alertRows.length <= 1}
+                    disabled={isFormDisabled || alertRows.length <= 1}
                   >
                     Remover
                   </button>
@@ -2132,7 +2630,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               type="button"
               className="button button--ghost finops-policy__add"
               onClick={handleAddAlert}
-              disabled={isFinOpsSaving}
+              disabled={isFormDisabled}
             >
               Adicionar alerta
             </button>
@@ -2142,12 +2640,45 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             <button
               type="submit"
               className="button button--primary"
-              disabled={isManifestLoading || isFinOpsSaving}
+              disabled={isManifestLoading || isPlanGenerating}
             >
-              {isFinOpsSaving ? 'Salvando…' : 'Salvar política FinOps'}
+              {isPlanGenerating ? 'Gerando plano…' : 'Gerar plano FinOps'}
             </button>
           </div>
         </form>
+        <section className="finops-plan" aria-label="Plano FinOps">
+          <PlanSummary
+            plan={planSummary}
+            isLoading={isPlanGenerating || isPlanApplying}
+            actions={
+              pendingPlan ? (
+                <div className="plan-summary__actions">
+                  <button
+                    type="button"
+                    className="button button--ghost"
+                    onClick={handlePlanReset}
+                    disabled={isPlanGenerating || isPlanApplying}
+                  >
+                    Descartar plano
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--primary"
+                    onClick={handlePlanApply}
+                    disabled={isPlanGenerating || isPlanApplying}
+                  >
+                    {isPlanApplying ? 'Aplicando…' : 'Aplicar plano'}
+                  </button>
+                </div>
+              ) : null
+            }
+          />
+          <PlanDiffViewer
+            diffs={planDiffItems}
+            title="Diffs sugeridos"
+            emptyMessage="Gere um plano FinOps para visualizar as alterações propostas."
+          />
+        </section>
       </section>
 
       {timeseriesError && (
