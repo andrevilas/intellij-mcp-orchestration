@@ -51,6 +51,20 @@ import {
   fetchSmokeEndpoints,
   triggerSmokeEndpoint,
   postPolicyPlanApply,
+  fetchSecurityUsers,
+  createSecurityUser,
+  updateSecurityUser,
+  deleteSecurityUser,
+  fetchSecurityRoles,
+  createSecurityRole,
+  updateSecurityRole,
+  deleteSecurityRole,
+  fetchSecurityApiKeys,
+  createSecurityApiKey,
+  updateSecurityApiKey,
+  rotateSecurityApiKey,
+  revokeSecurityApiKey,
+  fetchSecurityAuditTrail,
 } from './api';
 
 function mockFetchResponse<T>(payload: T): Promise<Response> {
@@ -1801,5 +1815,144 @@ describe('api client', () => {
     expect(response.plan.diffs[0].changeType).toBe('create');
     expect(response.plan.context[0].title).toBe('Guia');
     expect(response.agentCode).toBe('print("hello")');
+  });
+
+  it('maps security users payloads and normalizes fields', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        users: [
+          {
+            id: 'user-1',
+            name: 'Ana Silva',
+            email: 'ana@empresa.com',
+            roles: ['role-ops'],
+            status: 'active',
+            created_at: '2024-03-01T12:00:00Z',
+            last_seen_at: '2024-03-05T09:30:00Z',
+            mfa_enabled: true,
+          },
+        ],
+      }),
+    );
+
+    const users = await fetchSecurityUsers();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/security/users',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(users).toEqual([
+      {
+        id: 'user-1',
+        name: 'Ana Silva',
+        email: 'ana@empresa.com',
+        roles: ['role-ops'],
+        status: 'active',
+        createdAt: '2024-03-01T12:00:00Z',
+        lastSeenAt: '2024-03-05T09:30:00Z',
+        mfaEnabled: true,
+      },
+    ]);
+  });
+
+  it('creates security users with MFA flag persisted in the request body', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        id: 'user-2',
+        name: 'Bruno',
+        email: 'bruno@empresa.com',
+        roles: [],
+        status: 'invited',
+        created_at: '2024-04-01T12:00:00Z',
+        last_seen_at: null,
+        mfa_enabled: false,
+      }),
+    );
+
+    await createSecurityUser({
+      name: 'Bruno',
+      email: 'bruno@empresa.com',
+      roles: [],
+      status: 'invited',
+      mfaEnabled: false,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/security/users',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Bruno',
+          email: 'bruno@empresa.com',
+          roles: [],
+          status: 'invited',
+          mfa_enabled: false,
+        }),
+      }),
+    );
+  });
+
+  it('rotates API keys and returns the new secret payload', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        key: {
+          id: 'key-1',
+          name: 'Prod',
+          owner: 'observability',
+          scopes: ['mcp:invoke'],
+          status: 'active',
+          created_at: '2024-01-01T00:00:00Z',
+          last_used_at: null,
+          expires_at: null,
+          token_preview: 'prod****',
+        },
+        secret: 'mcp_prod_secret',
+      }),
+    );
+
+    const result = await rotateSecurityApiKey('key-1');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/security/api-keys/key-1/rotate',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.secret).toBe('mcp_prod_secret');
+    expect(result.key.tokenPreview).toBe('prod****');
+  });
+
+  it('fetches audit trail events grouped por recurso', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        events: [
+          {
+            id: 'audit-1',
+            timestamp: '2024-04-10T10:00:00Z',
+            actor: 'ana@empresa.com',
+            action: 'role.assigned',
+            target: 'user-1',
+            description: 'Atribuiu papel Operações',
+            metadata: { reason: 'onboarding' },
+          },
+        ],
+      }),
+    );
+
+    const events = await fetchSecurityAuditTrail('user', 'user-1');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/security/audit/user/user-1',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(events).toEqual([
+      {
+        id: 'audit-1',
+        timestamp: '2024-04-10T10:00:00Z',
+        actor: 'ana@empresa.com',
+        action: 'role.assigned',
+        target: 'user-1',
+        description: 'Atribuiu papel Operações',
+        metadata: { reason: 'onboarding' },
+      },
+    ]);
   });
 });
