@@ -38,6 +38,7 @@ import {
   fetchMarketplacePerformance,
   fetchMarketplaceEntries,
   importMarketplaceEntry,
+  postConfigReload,
   simulateRouting,
   readSecret,
   restartServerProcess,
@@ -963,6 +964,73 @@ describe('api client', () => {
     expect(response.plan.steps[0].actions[0]).toMatchObject({ path: 'policies/manifest.json', overwrite: true });
     expect(response.plan.context[0]).toMatchObject({ title: 'Manifesto atual', chunk: 1 });
     expect(response.plan.approvalRules).toEqual(['routing-admins']);
+  });
+
+  it('gera plano de reload e normaliza patch', async () => {
+    const reloadResponse = {
+      message: 'Plano gerado para regerar finops.checklist.',
+      plan: {
+        intent: 'generate_artifact',
+        summary: 'Gerar checklist finops',
+        steps: [
+          {
+            id: 'write-artifact',
+            title: 'Escrever artefato',
+            description: 'Salvar checklist em disco',
+            depends_on: [],
+            actions: [
+              {
+                type: 'write_file',
+                path: 'generated/cache.md',
+                contents: '# Checklist',
+                encoding: 'utf-8',
+                overwrite: true,
+              },
+            ],
+          },
+        ],
+        diffs: [
+          {
+            path: 'generated/cache.md',
+            summary: 'Atualizar checklist',
+            change_type: 'update',
+            diff: '--- a/generated/cache.md\n+++ b/generated/cache.md',
+          },
+        ],
+        risks: [],
+        status: 'pending' as const,
+        context: [],
+        approval_rules: [],
+      },
+      patch: '--- a/generated/cache.md\n+++ b/generated/cache.md\n+Conteúdo',
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(reloadResponse));
+
+    const response = await postConfigReload({
+      artifactType: 'finops.checklist',
+      targetPath: 'generated/cache.md',
+      parameters: { owner: 'finops' },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/config/reload',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse((requestInit.body ?? '{}') as string)).toEqual({
+      artifact_type: 'finops.checklist',
+      target_path: 'generated/cache.md',
+      parameters: { owner: 'finops' },
+    });
+    expect(response.message).toBe(reloadResponse.message);
+    expect(response.plan.intent).toBe('generate_artifact');
+    expect(response.plan.diffs[0]).toMatchObject({
+      path: 'generated/cache.md',
+      diff: reloadResponse.patch,
+    });
+    expect(response.planPayload.intent).toBe('generate_artifact');
+    expect(response.patch).toBe(reloadResponse.patch);
   });
 
   it('aplica planos de políticas enviando autor e commit', async () => {

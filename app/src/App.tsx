@@ -782,7 +782,7 @@ function App() {
         )}
         {activeView === 'admin-chat' && (
           <section role="tabpanel" id="panel-admin-chat" aria-labelledby="tab-admin-chat">
-            <AdminChat />
+            <AdminChat onNotificationsUpdate={applyNotifications} />
           </section>
         )}
         {activeView === 'marketplace' && (

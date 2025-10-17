@@ -2917,6 +2917,19 @@ export interface ConfigPlan {
   approvalRules: string[];
 }
 
+export interface ConfigReloadRequest {
+  artifactType: string;
+  targetPath: string;
+  parameters?: Record<string, unknown>;
+}
+
+export interface ConfigReloadResponse {
+  message: string;
+  plan: ConfigPlan;
+  planPayload: ConfigPlanPayload;
+  patch: string;
+}
+
 export interface ConfigPlanPreviewPullRequest {
   provider: string | null;
   title: string;
@@ -2959,6 +2972,45 @@ export interface PolicyPlanResponse {
   planPayload: ConfigPlanPayload;
   preview: ConfigPlanPreview | null;
   previewPayload: ConfigPlanPreviewPayload | null;
+}
+
+interface ReloadRequestPayload {
+  artifact_type: string;
+  target_path: string;
+  parameters?: Record<string, unknown>;
+}
+
+interface ReloadResponsePayload {
+  message: string;
+  plan: ConfigPlanPayload;
+  patch: string;
+}
+
+export async function postConfigReload(
+  requestPayload: ConfigReloadRequest,
+  signal?: AbortSignal,
+): Promise<ConfigReloadResponse> {
+  const body: ReloadRequestPayload = {
+    artifact_type: requestPayload.artifactType,
+    target_path: requestPayload.targetPath,
+  };
+
+  if (requestPayload.parameters && Object.keys(requestPayload.parameters).length > 0) {
+    body.parameters = requestPayload.parameters;
+  }
+
+  const response = await request<ReloadResponsePayload>('/config/reload', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  return {
+    message: response.message,
+    plan: mapConfigPlanPayload(response.plan),
+    planPayload: response.plan,
+    patch: response.patch,
+  };
 }
 
 export async function patchConfigPoliciesPlan(
