@@ -592,17 +592,34 @@ describe('AdminChat view', () => {
     expect(planWithin.getByText('Pendente')).toBeInTheDocument();
   });
 
-  it('exibe cartões de quickstart com links para a demo e a documentação', () => {
+  it('exibe quickstart com player acessível, link para docs e exemplos clicáveis', async () => {
+    const user = userEvent.setup();
     render(<AdminChat />);
 
     const quickstartRegion = screen.getByRole('region', { name: 'Comece rápido' });
     const quickstartScope = within(quickstartRegion);
-    const demoLink = quickstartScope.getByRole('link', { name: 'Assistir demo' });
-    expect(demoLink).toHaveAttribute('href', 'https://www.youtube.com/watch?v=J0jrn9qPKDg');
+
     const docsLink = quickstartScope.getByRole('link', { name: 'Abrir documentação' });
     expect(docsLink).toHaveAttribute(
       'href',
       'https://github.com/openai/intellij-mcp-orchestration/blob/main/docs/admin-chat-quickstart.md',
+    );
+
+    const demoButton = quickstartScope.getByRole('button', { name: 'Assistir demo' });
+    await user.click(demoButton);
+
+    const mediaDialog = await screen.findByRole('dialog', { name: 'Veja o Admin Chat em ação' });
+    expect(within(mediaDialog).getByTitle('Walkthrough do Admin Chat')).toBeInTheDocument();
+    await user.click(within(mediaDialog).getByRole('button', { name: 'Fechar player' }));
+
+    const exampleButton = quickstartScope.getByRole('button', { name: 'Gerar plano HITL' });
+    await user.click(exampleButton);
+
+    expect(screen.getByLabelText('Mensagem para o copiloto')).toHaveValue(
+      'Preciso habilitar checkpoints HITL para as rotas críticas com aprovação dupla.',
+    );
+    expect(screen.getByLabelText('Escopo do plano')).toHaveValue(
+      'Habilitar checkpoints HITL nas rotas prioritárias',
     );
   });
 
