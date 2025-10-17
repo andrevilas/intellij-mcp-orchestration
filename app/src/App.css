@@ -2337,6 +2337,221 @@ main.dashboard {
   color: #0f172a;
 }
 
+.observability__preferences {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+  gap: 1.75rem;
+  align-items: start;
+  margin-bottom: 2rem;
+}
+
+.observability__preferences-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+}
+
+.observability__preferences-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+
+.observability__preferences-header h3 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #0f172a;
+}
+
+.observability__preferences-header p {
+  margin: 0.35rem 0 0;
+  color: #475569;
+  max-width: 32rem;
+}
+
+.observability__preferences-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #312e81;
+  font-size: 0.85rem;
+}
+
+.observability__preference {
+  margin: 0;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(248, 250, 252, 0.85);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.observability__preference legend {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 1.05rem;
+  margin: 0;
+  padding: 0;
+}
+
+.observability__preference-description {
+  margin: 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.observability__preference-muted {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.observability__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.observability__toggle input {
+  width: 40px;
+  height: 20px;
+  appearance: none;
+  background: #cbd5f5;
+  border-radius: 9999px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.observability__toggle input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+
+.observability__toggle input:checked {
+  background: #4c1d95;
+}
+
+.observability__toggle input:checked::after {
+  transform: translateX(20px);
+}
+
+.observability__toggle input:focus-visible {
+  outline: 2px solid #4c1d95;
+  outline-offset: 2px;
+}
+
+.observability__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.observability__field label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.observability__field select,
+.observability__field input {
+  border-radius: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  color: #0f172a;
+  background: #fff;
+}
+
+.observability__field select:focus-visible,
+.observability__field input:focus-visible {
+  outline: 2px solid #4c1d95;
+  outline-offset: 2px;
+}
+
+.observability__field small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.observability__field-error {
+  color: #dc2626;
+  font-size: 0.82rem;
+}
+
+.observability__feedback {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.85rem;
+  font-size: 0.9rem;
+}
+
+.observability__feedback--success {
+  background: rgba(134, 239, 172, 0.3);
+  color: #166534;
+}
+
+.observability__feedback--error {
+  background: rgba(254, 202, 202, 0.4);
+  color: #b91c1c;
+}
+
+.observability__preferences-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.observability__preferences-actions button {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.65rem 1.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #4338ca, #7c3aed);
+  color: #fff;
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+
+.observability__preferences-actions button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+  opacity: 0.65;
+}
+
+.observability__preferences-actions button:not(:disabled):hover {
+  filter: brightness(1.05);
+}
+
+@media (max-width: 1200px) {
+  .observability__preferences {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .observability__tabs {
   display: flex;
   flex-wrap: wrap;

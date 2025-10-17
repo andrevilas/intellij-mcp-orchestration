@@ -93,6 +93,7 @@ const observabilityPreferences = {
   metrics: { provider: 'otlp', endpoint: 'https://collector.example.com/v1/traces' },
   evals: null,
   updated_at: '2024-03-08T12:00:00.000Z',
+  audit: { actor_id: 'user-123', actor_name: 'Observability Admin', actor_roles: ['approver'] },
 };
 
 const observabilityMetrics = {
