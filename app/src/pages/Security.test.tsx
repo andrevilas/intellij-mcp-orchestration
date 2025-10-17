@@ -9,6 +9,7 @@ import {
   fetchSecurityApiKeys,
   createSecurityUser,
   fetchSecurityAuditTrail,
+  fetchAuditLogs,
   rotateSecurityApiKey,
 } from '../api';
 
@@ -32,6 +33,7 @@ vi.mock('../api', async () => {
     rotateSecurityApiKey: vi.fn(),
     revokeSecurityApiKey: vi.fn(),
     fetchSecurityAuditTrail: vi.fn(),
+    fetchAuditLogs: vi.fn(),
   };
 });
 
@@ -40,6 +42,7 @@ const mockFetchRoles = fetchSecurityRoles as Mocked<typeof fetchSecurityRoles>;
 const mockFetchApiKeys = fetchSecurityApiKeys as Mocked<typeof fetchSecurityApiKeys>;
 const mockCreateUser = createSecurityUser as Mocked<typeof createSecurityUser>;
 const mockFetchAudit = fetchSecurityAuditTrail as Mocked<typeof fetchSecurityAuditTrail>;
+const mockFetchAuditLogs = fetchAuditLogs as Mocked<typeof fetchAuditLogs>;
 const mockRotateKey = rotateSecurityApiKey as Mocked<typeof rotateSecurityApiKey>;
 
 describe('Security page', () => {
@@ -114,6 +117,26 @@ describe('Security page', () => {
     });
 
     mockFetchAudit.mockResolvedValue([]);
+    mockFetchAuditLogs.mockResolvedValue({
+      events: [
+        {
+          id: 'log-1',
+          createdAt: '2024-03-08T09:00:00Z',
+          actorId: 'user-1',
+          actorName: 'Ana Silva',
+          actorRoles: ['approver'],
+          action: 'security.users.list',
+          resource: '/security/users',
+          status: 'success',
+          planId: null,
+          metadata: { count: 2 },
+        },
+      ],
+      page: 1,
+      pageSize: 25,
+      total: 1,
+      totalPages: 1,
+    });
     mockRotateKey.mockResolvedValue({
       key: {
         id: 'key-1',
@@ -176,5 +199,40 @@ describe('Security page', () => {
 
     expect(fetchSecurityAuditTrail).toHaveBeenCalledWith('api-key', 'key-1', expect.any(AbortSignal));
     await screen.findByRole('complementary', { name: /Auditoria/ });
+  });
+
+  it('renderiza auditoria agregada com filtros e exportação', async () => {
+    const user = userEvent.setup();
+    render(<Security />);
+
+    await user.click(await screen.findByRole('tab', { name: 'Auditoria' }));
+    const table = await screen.findByRole('table', {
+      name: /Tabela de eventos de auditoria com filtros avançados/i,
+    });
+
+    expect(mockFetchAuditLogs).toHaveBeenCalledWith(
+      {
+        actor: undefined,
+        action: undefined,
+        start: undefined,
+        end: undefined,
+        page: 1,
+        pageSize: 25,
+      },
+      expect.any(AbortSignal),
+    );
+    expect(within(table).getByText('security.users.list')).toBeInTheDocument();
+    expect(screen.getByText('1 evento')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Filtro de ação'), 'security.user');
+    await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
+
+    expect(mockFetchAuditLogs).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: 'security.user' }),
+      expect.any(AbortSignal),
+    );
+
+    expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Exportar JSON' })).toBeEnabled();
   });
 });
