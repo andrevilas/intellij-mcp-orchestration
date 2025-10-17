@@ -60,7 +60,13 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
       serverInfo: { name: 'demo' },
       capabilities: { tools: true },
     },
-  };
+  } as const;
+
+  const validationResponse = {
+    plan: null,
+    preview: null,
+    validation: onboardingResponse.validation,
+  } as const;
 
   const applyResponse = {
     status: 'applied',
@@ -148,7 +154,11 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   });
 
   await page.route('**/api/v1/config/mcp/onboard', (route) => {
-    onboardPayloads.push(route.request().postDataJSON());
+    const payload = route.request().postDataJSON();
+    onboardPayloads.push(payload);
+    if (payload.intent === 'validate') {
+      return route.fulfill({ status: 200, body: JSON.stringify(validationResponse), contentType: 'application/json' });
+    }
     return route.fulfill({ status: 200, body: JSON.stringify(onboardingResponse), contentType: 'application/json' });
   });
 
