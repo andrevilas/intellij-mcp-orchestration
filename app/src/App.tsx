@@ -41,6 +41,7 @@ import Flows from './pages/Flows';
 import Marketplace from './pages/Marketplace';
 import Agents from './pages/Agents';
 import Observability from './pages/Observability';
+import Security from './pages/Security';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -138,6 +139,12 @@ const VIEW_DEFINITIONS = [
     label: 'Chaves',
     description: 'Gestão de credenciais e testes de conectividade',
     keywords: ['credentials', 'access', 'tokens'],
+  },
+  {
+    id: 'security',
+    label: 'Segurança',
+    description: 'Identidades, papéis e auditorias em tempo real',
+    keywords: ['iam', 'roles', 'auditoria', 'mfa'],
   },
   {
     id: 'policies',
@@ -779,6 +786,11 @@ function App() {
               onSecretReveal={handleSecretReveal}
               onSecretTest={handleSecretTest}
             />
+          </section>
+        )}
+        {activeView === 'security' && (
+          <section role="tabpanel" id="panel-security" aria-labelledby="tab-security">
+            <Security />
           </section>
         )}
         {activeView === 'policies' && (

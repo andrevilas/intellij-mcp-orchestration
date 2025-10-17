@@ -944,6 +944,166 @@ export interface SecretTestResult {
   message: string;
 }
 
+export type SecurityUserStatus = 'active' | 'suspended' | 'invited';
+
+export interface SecurityUser {
+  id: string;
+  name: string;
+  email: string;
+  roles: string[];
+  status: SecurityUserStatus;
+  createdAt: string;
+  lastSeenAt: string | null;
+  mfaEnabled: boolean;
+}
+
+export interface SecurityRole {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  members: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SecurityApiKeyStatus = 'active' | 'revoked' | 'expired';
+
+export interface SecurityApiKey {
+  id: string;
+  name: string;
+  owner: string;
+  scopes: string[];
+  status: SecurityApiKeyStatus;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  tokenPreview: string | null;
+}
+
+export type SecurityAuditResource = 'user' | 'role' | 'api-key';
+
+export interface SecurityAuditEvent {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  target: string;
+  description: string;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface CreateSecurityUserInput {
+  name: string;
+  email: string;
+  roles: string[];
+  status: SecurityUserStatus;
+  mfaEnabled: boolean;
+}
+
+export interface UpdateSecurityUserInput {
+  name?: string;
+  email?: string;
+  roles?: string[];
+  status?: SecurityUserStatus;
+  mfaEnabled?: boolean;
+}
+
+export interface CreateSecurityRoleInput {
+  name: string;
+  description: string;
+  permissions: string[];
+}
+
+export interface UpdateSecurityRoleInput {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+}
+
+export interface CreateSecurityApiKeyInput {
+  name: string;
+  owner: string;
+  scopes: string[];
+  expiresAt?: string | null;
+}
+
+export interface UpdateSecurityApiKeyInput {
+  name?: string;
+  owner?: string;
+  scopes?: string[];
+  expiresAt?: string | null;
+}
+
+export interface SecurityApiKeySecret {
+  key: SecurityApiKey;
+  secret: string;
+}
+
+interface SecurityUserPayload {
+  id: string;
+  name: string;
+  email: string;
+  roles: string[];
+  status: SecurityUserStatus;
+  created_at: string;
+  last_seen_at?: string | null;
+  mfa_enabled?: boolean;
+}
+
+interface SecurityUsersResponsePayload {
+  users: SecurityUserPayload[];
+}
+
+interface SecurityRolePayload {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  members: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SecurityRolesResponsePayload {
+  roles: SecurityRolePayload[];
+}
+
+interface SecurityApiKeyPayload {
+  id: string;
+  name: string;
+  owner: string;
+  scopes: string[];
+  status: SecurityApiKeyStatus;
+  created_at: string;
+  last_used_at?: string | null;
+  expires_at?: string | null;
+  token_preview?: string | null;
+}
+
+interface SecurityApiKeyListPayload {
+  keys: SecurityApiKeyPayload[];
+}
+
+interface SecurityApiKeySecretPayload {
+  key: SecurityApiKeyPayload;
+  secret: string;
+}
+
+interface SecurityAuditEventPayload {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  target: string;
+  description: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+interface SecurityAuditTrailPayload {
+  events: SecurityAuditEventPayload[];
+}
+
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'critical';
 export type NotificationCategory = 'operations' | 'finops' | 'policies' | 'platform';
 
@@ -1910,6 +2070,227 @@ export async function testSecret(
     method: 'POST',
     signal,
   });
+}
+
+function mapSecurityUser(payload: SecurityUserPayload): SecurityUser {
+  return {
+    id: payload.id,
+    name: payload.name,
+    email: payload.email,
+    roles: payload.roles,
+    status: payload.status,
+    createdAt: payload.created_at,
+    lastSeenAt: payload.last_seen_at ?? null,
+    mfaEnabled: Boolean(payload.mfa_enabled),
+  };
+}
+
+function mapSecurityRole(payload: SecurityRolePayload): SecurityRole {
+  return {
+    id: payload.id,
+    name: payload.name,
+    description: payload.description,
+    permissions: payload.permissions,
+    members: payload.members,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapSecurityApiKey(payload: SecurityApiKeyPayload): SecurityApiKey {
+  return {
+    id: payload.id,
+    name: payload.name,
+    owner: payload.owner,
+    scopes: payload.scopes,
+    status: payload.status,
+    createdAt: payload.created_at,
+    lastUsedAt: payload.last_used_at ?? null,
+    expiresAt: payload.expires_at ?? null,
+    tokenPreview: payload.token_preview ?? null,
+  };
+}
+
+function mapSecurityAuditEvent(payload: SecurityAuditEventPayload): SecurityAuditEvent {
+  return {
+    id: payload.id,
+    timestamp: payload.timestamp,
+    actor: payload.actor,
+    action: payload.action,
+    target: payload.target,
+    description: payload.description,
+    metadata: payload.metadata ?? null,
+  };
+}
+
+export async function fetchSecurityUsers(signal?: AbortSignal): Promise<SecurityUser[]> {
+  const payload = await request<SecurityUsersResponsePayload>('/security/users', { signal });
+  return payload.users.map(mapSecurityUser);
+}
+
+export async function createSecurityUser(
+  input: CreateSecurityUserInput,
+  signal?: AbortSignal,
+): Promise<SecurityUser> {
+  const payload = await request<SecurityUserPayload>('/security/users', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      email: input.email,
+      roles: input.roles,
+      status: input.status,
+      mfa_enabled: input.mfaEnabled,
+    }),
+    signal,
+  });
+  return mapSecurityUser(payload);
+}
+
+export async function updateSecurityUser(
+  userId: string,
+  input: UpdateSecurityUserInput,
+  signal?: AbortSignal,
+): Promise<SecurityUser> {
+  const payload = await request<SecurityUserPayload>(`/security/users/${encodeURIComponent(userId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: input.name,
+      email: input.email,
+      roles: input.roles,
+      status: input.status,
+      mfa_enabled: input.mfaEnabled,
+    }),
+    signal,
+  });
+  return mapSecurityUser(payload);
+}
+
+export async function deleteSecurityUser(userId: string, signal?: AbortSignal): Promise<void> {
+  await request<void>(`/security/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    signal,
+  });
+}
+
+export async function fetchSecurityRoles(signal?: AbortSignal): Promise<SecurityRole[]> {
+  const payload = await request<SecurityRolesResponsePayload>('/security/roles', { signal });
+  return payload.roles.map(mapSecurityRole);
+}
+
+export async function createSecurityRole(
+  input: CreateSecurityRoleInput,
+  signal?: AbortSignal,
+): Promise<SecurityRole> {
+  const payload = await request<SecurityRolePayload>('/security/roles', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      description: input.description,
+      permissions: input.permissions,
+    }),
+    signal,
+  });
+  return mapSecurityRole(payload);
+}
+
+export async function updateSecurityRole(
+  roleId: string,
+  input: UpdateSecurityRoleInput,
+  signal?: AbortSignal,
+): Promise<SecurityRole> {
+  const payload = await request<SecurityRolePayload>(`/security/roles/${encodeURIComponent(roleId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: input.name,
+      description: input.description,
+      permissions: input.permissions,
+    }),
+    signal,
+  });
+  return mapSecurityRole(payload);
+}
+
+export async function deleteSecurityRole(roleId: string, signal?: AbortSignal): Promise<void> {
+  await request<void>(`/security/roles/${encodeURIComponent(roleId)}`, {
+    method: 'DELETE',
+    signal,
+  });
+}
+
+export async function fetchSecurityApiKeys(signal?: AbortSignal): Promise<SecurityApiKey[]> {
+  const payload = await request<SecurityApiKeyListPayload>('/security/api-keys', { signal });
+  return payload.keys.map(mapSecurityApiKey);
+}
+
+export async function createSecurityApiKey(
+  input: CreateSecurityApiKeyInput,
+  signal?: AbortSignal,
+): Promise<SecurityApiKeySecret> {
+  const payload = await request<SecurityApiKeySecretPayload>('/security/api-keys', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      owner: input.owner,
+      scopes: input.scopes,
+      expires_at: input.expiresAt ?? null,
+    }),
+    signal,
+  });
+  return { key: mapSecurityApiKey(payload.key), secret: payload.secret };
+}
+
+export async function updateSecurityApiKey(
+  apiKeyId: string,
+  input: UpdateSecurityApiKeyInput,
+  signal?: AbortSignal,
+): Promise<SecurityApiKey> {
+  const payload = await request<SecurityApiKeyPayload>(
+    `/security/api-keys/${encodeURIComponent(apiKeyId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: input.name,
+        owner: input.owner,
+        scopes: input.scopes,
+        expires_at: input.expiresAt ?? null,
+      }),
+      signal,
+    },
+  );
+  return mapSecurityApiKey(payload);
+}
+
+export async function rotateSecurityApiKey(
+  apiKeyId: string,
+  signal?: AbortSignal,
+): Promise<SecurityApiKeySecret> {
+  const payload = await request<SecurityApiKeySecretPayload>(
+    `/security/api-keys/${encodeURIComponent(apiKeyId)}/rotate`,
+    { method: 'POST', signal },
+  );
+  return { key: mapSecurityApiKey(payload.key), secret: payload.secret };
+}
+
+export async function revokeSecurityApiKey(
+  apiKeyId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await request<void>(`/security/api-keys/${encodeURIComponent(apiKeyId)}`, {
+    method: 'DELETE',
+    signal,
+  });
+}
+
+export async function fetchSecurityAuditTrail(
+  resource: SecurityAuditResource,
+  resourceId: string,
+  signal?: AbortSignal,
+): Promise<SecurityAuditEvent[]> {
+  const payload = await request<SecurityAuditTrailPayload>(
+    `/security/audit/${encodeURIComponent(resource)}/${encodeURIComponent(resourceId)}`,
+    { signal },
+  );
+  return payload.events.map(mapSecurityAuditEvent);
 }
 
 export async function fetchPolicyTemplates(signal?: AbortSignal): Promise<PolicyTemplateCatalog> {
