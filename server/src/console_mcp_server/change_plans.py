@@ -269,6 +269,49 @@ class ChangePlanStore:
             ).mappings()
             return [ChangePlanRecord.from_row(row) for row in rows]
 
+    def list_for_agent(
+        self,
+        agent_id: str,
+        *,
+        layer: str | None = None,
+        limit: int = 50,
+    ) -> list[ChangePlanRecord]:
+        agent_literal = json.dumps(agent_id, ensure_ascii=False)
+        agent_pattern = f'%"agent_id": {agent_literal}%' if agent_literal.startswith('"') else f'%"agent_id": "{agent_id}"%'
+        conditions = ["metadata LIKE :agent_pattern"]
+        params: dict[str, Any] = {"agent_pattern": agent_pattern, "limit": limit}
+        if layer is not None:
+            params["layer_pattern"] = f'%"layer": "{layer}"%'
+            conditions.append("metadata LIKE :layer_pattern")
+
+        where_clause = " AND ".join(conditions)
+        query = text(
+            f"""
+            SELECT
+                id,
+                plan_id,
+                actor,
+                mode,
+                status,
+                branch,
+                commit_sha,
+                diff_stat,
+                diff_patch,
+                risks,
+                metadata,
+                created_at,
+                updated_at
+            FROM change_plans
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """
+        )
+
+        with self._session_factory() as session:
+            rows = session.execute(query, params).mappings()
+            return [ChangePlanRecord.from_row(row) for row in rows]
+
 
 def _fetch_one(session: Session, record_id: str) -> ChangePlanRecord | None:
     row = (
