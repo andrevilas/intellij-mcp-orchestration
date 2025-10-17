@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   Area,
   AreaChart,
@@ -11,8 +11,21 @@ import {
   YAxis,
 } from 'recharts';
 
-import type { ProviderSummary, TelemetryMetrics } from '../api';
+import {
+  ApiError,
+  fetchObservabilityPreferences,
+  updateObservabilityPreferences,
+  type AdminPlanStep,
+  type AdminPlanSummary,
+  type ObservabilityPreferences,
+  type ObservabilityPreferencesUpdateInput,
+  type ObservabilityProviderSettings,
+  type ObservabilityProviderType,
+  type ProviderSummary,
+  type TelemetryMetrics,
+} from '../api';
 import KpiCard from '../components/KpiCard';
+import PlanSummary from './AdminChat/PlanSummary';
 
 export interface ObservabilityProps {
   providers: ProviderSummary[];
@@ -70,6 +83,231 @@ const latencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const numberFormatter = new Intl.NumberFormat('pt-BR');
 
+type PreferenceKey = 'tracing' | 'metrics' | 'evals';
+
+interface PreferenceFormState {
+  isEnabled: boolean;
+  provider: ObservabilityProviderType | '';
+  endpoint: string;
+  project: string;
+  touched: {
+    provider: boolean;
+    endpoint: boolean;
+    project: boolean;
+  };
+}
+
+type PreferenceStateMap = Record<PreferenceKey, PreferenceFormState>;
+
+interface PreferenceErrors {
+  provider?: string;
+  endpoint?: string;
+  project?: string;
+}
+
+type PreferenceErrorsMap = Record<PreferenceKey, PreferenceErrors>;
+
+type PreferencesFeedback = { kind: 'success' | 'error'; message: string };
+
+const PROVIDER_LABELS: Record<ObservabilityProviderType, string> = {
+  langsmith: 'LangSmith',
+  otlp: 'OTLP collector',
+};
+
+const PROVIDER_OPTIONS: Array<{ value: ObservabilityProviderType; label: string }> = [
+  { value: 'langsmith', label: PROVIDER_LABELS.langsmith },
+  { value: 'otlp', label: PROVIDER_LABELS.otlp },
+];
+
+const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
+  tracing: 'Tracing',
+  metrics: 'Métricas',
+  evals: 'Evals',
+};
+
+const PREFERENCE_DESCRIPTIONS: Record<PreferenceKey, string> = {
+  tracing: 'Envie spans consolidados para inspecionar regressões e latência.',
+  metrics: 'Publique métricas agregadas em coletores externos.',
+  evals: 'Conecte providers de evals para validar providers MCP.',
+};
+
+const DEFAULT_PROVIDER_BY_KEY: Record<PreferenceKey, ObservabilityProviderType> = {
+  tracing: 'langsmith',
+  metrics: 'otlp',
+  evals: 'langsmith',
+};
+
+const EMPTY_STATE: PreferenceFormState = {
+  isEnabled: false,
+  provider: '',
+  endpoint: '',
+  project: '',
+  touched: { provider: false, endpoint: false, project: false },
+};
+
+function cloneEmptyState(): PreferenceFormState {
+  return {
+    ...EMPTY_STATE,
+    touched: { ...EMPTY_STATE.touched },
+  };
+}
+
+function mapSettingsToFormState(
+  settings: ObservabilityProviderSettings | null,
+): PreferenceFormState {
+  if (!settings) {
+    return cloneEmptyState();
+  }
+  return {
+    isEnabled: true,
+    provider: settings.provider,
+    endpoint: settings.endpoint ?? '',
+    project: settings.project ?? '',
+    touched: { provider: false, endpoint: false, project: false },
+  };
+}
+
+function buildPreferenceStateFromPreferences(
+  preferences: ObservabilityPreferences | null,
+): PreferenceStateMap {
+  return {
+    tracing: mapSettingsToFormState(preferences?.tracing ?? null),
+    metrics: mapSettingsToFormState(preferences?.metrics ?? null),
+    evals: mapSettingsToFormState(preferences?.evals ?? null),
+  };
+}
+
+function validatePreference(key: PreferenceKey, state: PreferenceFormState): PreferenceErrors {
+  if (!state.isEnabled) {
+    return {};
+  }
+  const errors: PreferenceErrors = {};
+  if (!state.provider) {
+    errors.provider = `Selecione um provider para ${PREFERENCE_LABELS[key].toLowerCase()}.`;
+  }
+  if (state.provider === 'otlp') {
+    const endpoint = state.endpoint.trim();
+    if (!endpoint) {
+      errors.endpoint = 'Endpoint é obrigatório para providers OTLP.';
+    } else {
+      try {
+        const parsed = new URL(endpoint);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          throw new Error('Invalid protocol');
+        }
+      } catch {
+        errors.endpoint = 'Informe uma URL válida (https://collector...).';
+      }
+    }
+  }
+  if (state.provider === 'langsmith') {
+    const project = state.project.trim();
+    if (!project) {
+      errors.project = 'Informe o nome do projeto LangSmith.';
+    }
+  }
+  return errors;
+}
+
+function buildUpdateInputFromState(state: PreferenceStateMap): ObservabilityPreferencesUpdateInput {
+  const payload: ObservabilityPreferencesUpdateInput = {};
+  (Object.keys(state) as PreferenceKey[]).forEach((key) => {
+    const entry = state[key];
+    if (!entry.isEnabled) {
+      payload[key] = null;
+      return;
+    }
+    if (!entry.provider) {
+      payload[key] = null;
+      return;
+    }
+    const normalized: ObservabilityProviderSettings = {
+      provider: entry.provider,
+    };
+    if (entry.provider === 'otlp') {
+      normalized.endpoint = entry.endpoint.trim();
+    }
+    if (entry.provider === 'langsmith') {
+      normalized.project = entry.project.trim();
+    }
+    payload[key] = normalized;
+  });
+  return payload;
+}
+
+function describePreferenceSettings(
+  key: PreferenceKey,
+  settings: ObservabilityProviderSettings | null,
+): { description: string; impact: string | null } {
+  if (!settings) {
+    return {
+      description: `${PREFERENCE_LABELS[key]} desativado.`,
+      impact: 'Nenhum provider configurado.',
+    };
+  }
+  const providerLabel = PROVIDER_LABELS[settings.provider];
+  const details: string[] = [];
+  if (settings.provider === 'langsmith') {
+    details.push(settings.project ? `Projeto: ${settings.project}` : 'Projeto não informado');
+  }
+  if (settings.provider === 'otlp') {
+    details.push(settings.endpoint ? `Endpoint: ${settings.endpoint}` : 'Endpoint não informado');
+  }
+  return {
+    description: `${providerLabel} ativo para ${PREFERENCE_LABELS[key].toLowerCase()}.`,
+    impact: details.length > 0 ? details.join(' · ') : null,
+  };
+}
+
+function buildPreferencesPlan(preferences: ObservabilityPreferences | null): AdminPlanSummary | null {
+  if (!preferences?.updatedAt) {
+    return null;
+  }
+
+  const steps: AdminPlanStep[] = (Object.keys(PREFERENCE_LABELS) as PreferenceKey[]).map((key) => {
+    const snapshot = describePreferenceSettings(key, preferences[key]);
+    return {
+      id: `observability-${key}`,
+      title: PREFERENCE_LABELS[key],
+      description: snapshot.description,
+      status: 'ready',
+      impact: snapshot.impact,
+    };
+  });
+
+  return {
+    id: 'observability-preferences',
+    threadId: 'observability-preferences',
+    status: 'applied',
+    generatedAt: preferences.updatedAt,
+    author: preferences.audit?.actorName ?? preferences.audit?.actorId ?? 'Console MCP',
+    scope: 'Preferências globais de observabilidade',
+    steps,
+    branch: null,
+    baseBranch: null,
+    reviewers: [],
+    pullRequest: null,
+  };
+}
+
+function extractApiErrorMessage(error: ApiError, fallback: string): string {
+  if (error.status === 401) {
+    return 'Você não tem permissão para executar esta ação.';
+  }
+  if (!error.body) {
+    return fallback;
+  }
+  try {
+    const parsed = JSON.parse(error.body) as { detail?: unknown };
+    if (parsed && typeof parsed === 'object' && typeof parsed.detail === 'string') {
+      return parsed.detail;
+    }
+  } catch {
+    // Ignore JSON parse failures and fallback to raw body
+  }
+  return error.body || fallback;
+}
+
 function formatLatency(value: number | null | undefined): string {
   if (value === null || value === undefined) {
     return 'Sem dados';
@@ -103,6 +341,12 @@ export default function Observability({
   const [selectedEvalPreset, setSelectedEvalPreset] = useState<string>('latency-regression');
   const [isRunningEval, setIsRunningEval] = useState(false);
   const [evalResult, setEvalResult] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<ObservabilityPreferences | null>(null);
+  const [formState, setFormState] = useState<PreferenceStateMap>(buildPreferenceStateFromPreferences(null));
+  const [isLoadingPreferences, setIsLoadingPreferences] = useState<boolean>(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState<boolean>(false);
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<PreferencesFeedback | null>(null);
   const pendingEvalTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -111,6 +355,43 @@ export default function Observability({
         window.clearTimeout(pendingEvalTimer.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoadingPreferences(true);
+
+    fetchObservabilityPreferences(controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setPreferences(result);
+        setFormState(buildPreferenceStateFromPreferences(result));
+        setPreferencesError(null);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (error instanceof ApiError) {
+          const message = error.status === 401
+            ? 'Você não tem permissão para visualizar as preferências de observabilidade.'
+            : extractApiErrorMessage(error, 'Falha ao carregar preferências de observabilidade.');
+          setPreferencesError(message);
+        } else {
+          setPreferencesError('Falha ao carregar preferências de observabilidade.');
+        }
+        setPreferences(null);
+        setFormState(buildPreferenceStateFromPreferences(null));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingPreferences(false);
+        }
+      });
+
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -127,6 +408,26 @@ export default function Observability({
     providers.forEach((provider) => map.set(provider.id, provider));
     return map;
   }, [providers]);
+
+  const validationErrors = useMemo<PreferenceErrorsMap>(() => {
+    const result = {} as PreferenceErrorsMap;
+    (Object.keys(PREFERENCE_LABELS) as PreferenceKey[]).forEach((key) => {
+      result[key] = validatePreference(key, formState[key]);
+    });
+    return result;
+  }, [formState]);
+
+  const hasBlockingErrors = useMemo(() => {
+    return (Object.keys(validationErrors) as PreferenceKey[]).some((key) => {
+      const entry = validationErrors[key];
+      return Boolean(entry.provider || entry.endpoint || entry.project);
+    });
+  }, [validationErrors]);
+
+  const preferencesPlan = useMemo(() => buildPreferencesPlan(preferences), [preferences]);
+
+  const isFormReadOnly = preferencesError !== null && !preferences;
+  const disableForm = isLoadingPreferences || isSavingPreferences || isFormReadOnly;
 
   const traceRows: TraceRow[] = useMemo(() => {
     if (!metrics) {
@@ -197,6 +498,125 @@ export default function Observability({
       transports,
     };
   }, [providers]);
+
+  function handleToggleChange(key: PreferenceKey, enabled: boolean) {
+    setFormState((current) => {
+      const next = { ...current };
+      const state = {
+        ...next[key],
+        isEnabled: enabled,
+        touched: { provider: false, endpoint: false, project: false },
+      };
+      if (enabled && !state.provider) {
+        state.provider = DEFAULT_PROVIDER_BY_KEY[key];
+      }
+      next[key] = state;
+      return next;
+    });
+    setFeedback(null);
+  }
+
+  function handleProviderChange(key: PreferenceKey, event: ChangeEvent<HTMLSelectElement>) {
+    const value = event.target.value as ObservabilityProviderType;
+    setFormState((current) => {
+      const next = { ...current };
+      const touched = { ...next[key].touched, provider: true };
+      next[key] = {
+        ...next[key],
+        provider: value,
+        touched,
+        endpoint: value === 'langsmith' ? '' : next[key].endpoint,
+        project: value === 'otlp' ? '' : next[key].project,
+      };
+      return next;
+    });
+    setFeedback(null);
+  }
+
+  function handleEndpointChange(key: PreferenceKey, event: ChangeEvent<HTMLInputElement>) {
+    const value = event.target.value;
+    setFormState((current) => {
+      const next = { ...current };
+      next[key] = {
+        ...next[key],
+        endpoint: value,
+        touched: { ...next[key].touched, endpoint: true },
+      };
+      return next;
+    });
+    setFeedback(null);
+  }
+
+  function handleProjectChange(key: PreferenceKey, event: ChangeEvent<HTMLInputElement>) {
+    const value = event.target.value;
+    setFormState((current) => {
+      const next = { ...current };
+      next[key] = {
+        ...next[key],
+        project: value,
+        touched: { ...next[key].touched, project: true },
+      };
+      return next;
+    });
+    setFeedback(null);
+  }
+
+  function handlePreferencesSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (hasBlockingErrors) {
+      setFormState((current) => {
+        const next = { ...current };
+        (Object.keys(validationErrors) as PreferenceKey[]).forEach((key) => {
+          const entry = validationErrors[key];
+          const touched = { ...next[key].touched };
+          if (entry.provider) {
+            touched.provider = true;
+          }
+          if (entry.endpoint) {
+            touched.endpoint = true;
+          }
+          if (entry.project) {
+            touched.project = true;
+          }
+          next[key] = { ...next[key], touched };
+        });
+        return next;
+      });
+      setFeedback({ kind: 'error', message: 'Corrija os campos destacados antes de salvar.' });
+      return;
+    }
+
+    const payload = buildUpdateInputFromState(formState);
+    setIsSavingPreferences(true);
+    setFeedback(null);
+
+    updateObservabilityPreferences(payload)
+      .then((result) => {
+        setPreferences(result);
+        setFormState(buildPreferenceStateFromPreferences(result));
+        setPreferencesError(null);
+        setFeedback({
+          kind: 'success',
+          message: 'Preferências de observabilidade atualizadas com sucesso.',
+        });
+      })
+      .catch((error) => {
+        if (error instanceof ApiError) {
+          setFeedback({
+            kind: 'error',
+            message: extractApiErrorMessage(error, 'Falha ao salvar preferências de observabilidade.'),
+          });
+        } else {
+          setFeedback({
+            kind: 'error',
+            message: 'Falha ao salvar preferências de observabilidade.',
+          });
+        }
+      })
+      .finally(() => {
+        setIsSavingPreferences(false);
+      });
+  }
 
   function handleEvalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -288,6 +708,144 @@ export default function Observability({
           )}
         </aside>
       </header>
+
+      <div className="observability__preferences">
+        <form className="observability__preferences-form" onSubmit={handlePreferencesSubmit} noValidate>
+          <header className="observability__preferences-header">
+            <div>
+              <h3>Preferências de observabilidade</h3>
+              <p>
+                Conecte tracing, métricas e evals às ferramentas oficiais para garantir auditoria centralizada.
+              </p>
+            </div>
+            {isLoadingPreferences ? (
+              <span className="observability__preferences-tag" role="status" aria-live="polite">
+                Carregando…
+              </span>
+            ) : null}
+          </header>
+
+          {(Object.keys(PREFERENCE_LABELS) as PreferenceKey[]).map((key) => {
+            const state = formState[key];
+            const errors = validationErrors[key];
+            const providerId = `observability-${key}-provider`;
+            const endpointId = `observability-${key}-endpoint`;
+            const projectId = `observability-${key}-project`;
+            const showProviderError = Boolean(state.touched.provider && errors.provider);
+            const showEndpointField = state.isEnabled && state.provider === 'otlp';
+            const showProjectField = state.isEnabled && state.provider === 'langsmith';
+            const showEndpointError = Boolean(state.touched.endpoint && errors.endpoint);
+            const showProjectError = Boolean(state.touched.project && errors.project);
+            return (
+              <fieldset key={key} className="observability__preference" disabled={disableForm}>
+                <legend>
+                  <span>{PREFERENCE_LABELS[key]}</span>
+                  <label className="observability__toggle">
+                    <input
+                      type="checkbox"
+                      checked={state.isEnabled}
+                      onChange={(event) => handleToggleChange(key, event.target.checked)}
+                      disabled={disableForm}
+                    />
+                    <span>{state.isEnabled ? 'Ativo' : 'Desativado'}</span>
+                  </label>
+                </legend>
+                <p className="observability__preference-description">{PREFERENCE_DESCRIPTIONS[key]}</p>
+                <div className="observability__field">
+                  <label htmlFor={providerId}>Provider</label>
+                  <select
+                    id={providerId}
+                    value={state.provider}
+                    onChange={(event) => handleProviderChange(key, event)}
+                    disabled={!state.isEnabled || disableForm}
+                  >
+                    <option value="" disabled>
+                      Selecione um provider
+                    </option>
+                    {PROVIDER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {showProviderError ? (
+                    <span className="observability__field-error" role="alert">
+                      {errors.provider}
+                    </span>
+                  ) : null}
+                </div>
+                {showEndpointField ? (
+                  <div className="observability__field">
+                    <label htmlFor={endpointId}>Endpoint</label>
+                    <input
+                      type="url"
+                      id={endpointId}
+                      value={state.endpoint}
+                      onChange={(event) => handleEndpointChange(key, event)}
+                      placeholder="https://collector.exemplo.com/v1/traces"
+                      disabled={disableForm}
+                      autoComplete="off"
+                    />
+                    <small>Informe o endpoint HTTP(s) do coletor OTLP configurado.</small>
+                    {showEndpointError ? (
+                      <span className="observability__field-error" role="alert">
+                        {errors.endpoint}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {showProjectField ? (
+                  <div className="observability__field">
+                    <label htmlFor={projectId}>Projeto</label>
+                    <input
+                      type="text"
+                      id={projectId}
+                      value={state.project}
+                      onChange={(event) => handleProjectChange(key, event)}
+                      placeholder="Nome do projeto LangSmith"
+                      disabled={disableForm}
+                      autoComplete="off"
+                    />
+                    <small>Projeto LangSmith que receberá spans e execuções avaliadas.</small>
+                    {showProjectError ? (
+                      <span className="observability__field-error" role="alert">
+                        {errors.project}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {!state.isEnabled ? (
+                  <p className="observability__preference-muted">Preferência desativada para este domínio.</p>
+                ) : null}
+              </fieldset>
+            );
+          })}
+
+          {preferencesError ? (
+            <p role="alert" className="observability__feedback observability__feedback--error">
+              {preferencesError}
+            </p>
+          ) : null}
+
+          {feedback ? (
+            <p
+              role={feedback.kind === 'error' ? 'alert' : 'status'}
+              className={`observability__feedback observability__feedback--${feedback.kind}`}
+              aria-live="polite"
+            >
+              {feedback.message}
+            </p>
+          ) : null}
+
+          <div className="observability__preferences-actions">
+            <button type="submit" disabled={disableForm || hasBlockingErrors || isSavingPreferences}>
+              {isSavingPreferences ? 'Salvando…' : 'Salvar preferências'}
+            </button>
+          </div>
+        </form>
+
+        <PlanSummary plan={preferencesPlan} isLoading={isLoadingPreferences || isSavingPreferences} />
+      </div>
 
       <div className="observability__tabs" role="tablist" aria-label="Seções do painel de observabilidade">
         {TABS.map((tab) => (

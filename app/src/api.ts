@@ -6,6 +6,124 @@ export type HitlEscalationChannel = 'email' | 'slack' | 'pagerduty';
 export type HitlRequestStatus = 'pending' | 'approved' | 'rejected';
 export type HitlResolution = 'approved' | 'rejected';
 
+export type ObservabilityProviderType = 'langsmith' | 'otlp';
+
+export interface ObservabilityProviderSettings {
+  provider: ObservabilityProviderType;
+  endpoint?: string | null;
+  project?: string | null;
+  dataset?: string | null;
+  headers?: Record<string, string> | null;
+}
+
+export interface ObservabilityPreferencesAudit {
+  actorId: string | null;
+  actorName: string | null;
+  actorRoles: string[];
+}
+
+export interface ObservabilityPreferences {
+  tracing: ObservabilityProviderSettings | null;
+  metrics: ObservabilityProviderSettings | null;
+  evals: ObservabilityProviderSettings | null;
+  updatedAt: string | null;
+  audit: ObservabilityPreferencesAudit | null;
+}
+
+export interface ObservabilityPreferencesUpdateInput {
+  tracing?: ObservabilityProviderSettings | null;
+  metrics?: ObservabilityProviderSettings | null;
+  evals?: ObservabilityProviderSettings | null;
+}
+
+interface ObservabilityProviderSettingsPayload {
+  provider: ObservabilityProviderType;
+  endpoint?: string | null;
+  project?: string | null;
+  dataset?: string | null;
+  headers?: Record<string, string> | null;
+}
+
+interface ObservabilityPreferencesAuditPayload {
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_roles?: string[] | null;
+}
+
+interface ObservabilityPreferencesResponsePayload {
+  tracing?: ObservabilityProviderSettingsPayload | null;
+  metrics?: ObservabilityProviderSettingsPayload | null;
+  evals?: ObservabilityProviderSettingsPayload | null;
+  updated_at?: string | null;
+  audit?: ObservabilityPreferencesAuditPayload | null;
+}
+
+function mapObservabilityProviderSettings(
+  payload: ObservabilityProviderSettingsPayload | null | undefined,
+): ObservabilityProviderSettings | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    provider: payload.provider,
+    endpoint: payload.endpoint ?? null,
+    project: payload.project ?? null,
+    dataset: payload.dataset ?? null,
+    headers: payload.headers ?? null,
+  };
+}
+
+function mapObservabilityPreferencesAudit(
+  payload: ObservabilityPreferencesAuditPayload | null | undefined,
+): ObservabilityPreferencesAudit | null {
+  if (!payload) {
+    return null;
+  }
+  return {
+    actorId: payload.actor_id,
+    actorName: payload.actor_name,
+    actorRoles: payload.actor_roles ?? [],
+  };
+}
+
+function mapObservabilityPreferences(payload: ObservabilityPreferencesResponsePayload | null): ObservabilityPreferences {
+  return {
+    tracing: mapObservabilityProviderSettings(payload?.tracing),
+    metrics: mapObservabilityProviderSettings(payload?.metrics),
+    evals: mapObservabilityProviderSettings(payload?.evals),
+    updatedAt: payload?.updated_at ?? null,
+    audit: mapObservabilityPreferencesAudit(payload?.audit),
+  };
+}
+
+function normalizeObservabilityProviderSettings(
+  settings: ObservabilityProviderSettings,
+): ObservabilityProviderSettingsPayload {
+  return {
+    provider: settings.provider,
+    endpoint: settings.endpoint ?? null,
+    project: settings.project ?? null,
+    dataset: settings.dataset ?? null,
+    headers: settings.headers ?? null,
+  };
+}
+
+function buildObservabilityPreferencesUpdatePayload(
+  input: ObservabilityPreferencesUpdateInput,
+): Record<string, ObservabilityProviderSettingsPayload | null> {
+  const payload: Record<string, ObservabilityProviderSettingsPayload | null> = {};
+  if (Object.prototype.hasOwnProperty.call(input, 'tracing')) {
+    payload.tracing = input.tracing ? normalizeObservabilityProviderSettings(input.tracing) : null;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'metrics')) {
+    payload.metrics = input.metrics ? normalizeObservabilityProviderSettings(input.metrics) : null;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'evals')) {
+    payload.evals = input.evals ? normalizeObservabilityProviderSettings(input.evals) : null;
+  }
+  return payload;
+}
+
 export interface ProviderSummary {
   id: string;
   name: string;
@@ -1665,6 +1783,32 @@ async function requestAgents<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     return undefined as T;
   }
+}
+
+export async function fetchObservabilityPreferences(
+  signal?: AbortSignal,
+): Promise<ObservabilityPreferences> {
+  const payload = await request<ObservabilityPreferencesResponsePayload>('/observability/preferences', {
+    method: 'GET',
+    signal,
+  });
+  return mapObservabilityPreferences(payload ?? null);
+}
+
+export async function updateObservabilityPreferences(
+  input: ObservabilityPreferencesUpdateInput,
+  signal?: AbortSignal,
+): Promise<ObservabilityPreferences> {
+  const payload = buildObservabilityPreferencesUpdatePayload(input);
+  const response = await request<ObservabilityPreferencesResponsePayload>('/observability/preferences', {
+    method: 'PUT',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  return mapObservabilityPreferences(response ?? null);
 }
 
 interface AgentModelPayload {

@@ -1,8 +1,23 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { ProviderSummary, TelemetryMetrics } from '../api';
+vi.mock('../api', async () => {
+  const actual = await vi.importActual<typeof import('../api')>('../api');
+  return {
+    ...actual,
+    fetchObservabilityPreferences: vi.fn(),
+    updateObservabilityPreferences: vi.fn(),
+  };
+});
+
+import {
+  fetchObservabilityPreferences,
+  updateObservabilityPreferences,
+  type ObservabilityPreferences,
+  type ProviderSummary,
+  type TelemetryMetrics,
+} from '../api';
 import Observability from './Observability';
 
 function defineResizeObserver() {
@@ -88,9 +103,25 @@ describe('Observability page', () => {
     },
   };
 
-  it('renderiza KPIs e gráficos com métricas consolidadas', () => {
+  const preferences: ObservabilityPreferences = {
+    tracing: { provider: 'langsmith', project: 'Observability' },
+    metrics: { provider: 'otlp', endpoint: 'https://collector.exemplo.com/v1/traces' },
+    evals: null,
+    updatedAt: '2024-03-08T12:00:00.000Z',
+    audit: { actorId: 'user-123', actorName: 'Observability Admin', actorRoles: ['approver'] },
+  };
+
+  beforeEach(() => {
+    vi.mocked(fetchObservabilityPreferences).mockResolvedValue(preferences);
+    vi.mocked(updateObservabilityPreferences).mockResolvedValue(preferences);
+    vi.mocked(fetchObservabilityPreferences).mockClear();
+    vi.mocked(updateObservabilityPreferences).mockClear();
+  });
+
+  it('renderiza KPIs e gráficos com métricas consolidadas', async () => {
     render(<Observability providers={providers} metrics={metrics} isLoading={false} initialError={null} />);
 
+    await waitFor(() => expect(fetchObservabilityPreferences).toHaveBeenCalled());
     expect(screen.getByRole('heading', { name: 'Observabilidade unificada' })).toBeInTheDocument();
     expect(screen.getByText('Latência P95')).toBeInTheDocument();
     expect(screen.getByText('930 ms')).toBeInTheDocument();
@@ -106,6 +137,8 @@ describe('Observability page', () => {
   it('permite alternar para a aba de tracing e exibe tabela agregada', async () => {
     const user = userEvent.setup();
     render(<Observability providers={providers} metrics={metrics} isLoading={false} initialError={null} />);
+
+    await waitFor(() => expect(fetchObservabilityPreferences).toHaveBeenCalled());
 
     await user.click(screen.getByRole('tab', { name: /Tracing/ }));
 
@@ -124,6 +157,8 @@ describe('Observability page', () => {
 
     render(<Observability providers={providers} metrics={metrics} isLoading={false} initialError={null} />);
 
+    await waitFor(() => expect(fetchObservabilityPreferences).toHaveBeenCalled());
+
     await user.click(screen.getByRole('tab', { name: /Evals/ }));
     const triggerButton = screen.getByRole('button', { name: 'Disparar eval agora' });
     await user.click(triggerButton);
@@ -137,8 +172,10 @@ describe('Observability page', () => {
     );
   });
 
-  it('exibe orientações quando não há providers ou métricas carregadas', () => {
+  it('exibe orientações quando não há providers ou métricas carregadas', async () => {
     render(<Observability providers={[]} metrics={null} isLoading={false} initialError={null} />);
+
+    await waitFor(() => expect(fetchObservabilityPreferences).toHaveBeenCalled());
 
     expect(
       screen.getByText(
