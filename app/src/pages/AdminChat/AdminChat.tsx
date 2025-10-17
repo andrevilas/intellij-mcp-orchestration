@@ -71,6 +71,27 @@ const SUPPORTED_ARTIFACTS: SupportedArtifact[] = [
   },
 ];
 
+const QUICKSTART_RESOURCES = [
+  {
+    id: 'admin-chat-demo',
+    badge: 'Demo',
+    title: 'Veja o Admin Chat em ação',
+    description:
+      'Assista ao walkthrough com geração de plano, revisão de diffs e aprovação HITL em menos de 2 minutos.',
+    href: 'https://www.youtube.com/watch?v=J0jrn9qPKDg',
+    cta: 'Assistir demo',
+  },
+  {
+    id: 'admin-chat-docs',
+    badge: 'Docs',
+    title: 'Leia o quickstart completo',
+    description:
+      'Guia passo a passo com intents suportadas, exemplos de payload e comandos HTTP para o Admin Chat.',
+    href: 'https://github.com/openai/intellij-mcp-orchestration/blob/main/docs/admin-chat-quickstart.md',
+    cta: 'Abrir documentação',
+  },
+] as const;
+
 const RELOAD_ACTOR_STORAGE_KEY = 'admin-chat.reload.actor';
 const RELOAD_ACTOR_EMAIL_STORAGE_KEY = 'admin-chat.reload.actor_email';
 const RELOAD_COMMIT_STORAGE_KEY = 'admin-chat.reload.commit_message';
@@ -593,6 +614,37 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
 
         <aside className="admin-chat__panel admin-chat__panel--summary">
           <PlanSummary plan={plan} isLoading={isPlanLoading} actions={planActions} />
+          <section
+            className="admin-chat__quickstart"
+            role="region"
+            aria-labelledby="admin-chat-quickstart-title"
+          >
+            <h2 id="admin-chat-quickstart-title">Comece rápido</h2>
+            <p className="admin-chat__quickstart-lead">
+              Explore o fluxo assistido com uma demo visual e um guia com exemplos reais.
+            </p>
+            <div className="admin-chat__quickstart-grid">
+              {QUICKSTART_RESOURCES.map((resource) => (
+                <article
+                  key={resource.id}
+                  className="admin-chat__quickstart-card"
+                  aria-labelledby={`${resource.id}-title`}
+                >
+                  <span className="admin-chat__quickstart-badge">{resource.badge}</span>
+                  <h3 id={`${resource.id}-title`}>{resource.title}</h3>
+                  <p>{resource.description}</p>
+                  <a
+                    className="admin-chat__quickstart-link"
+                    href={resource.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {resource.cta}
+                  </a>
+                </article>
+              ))}
+            </div>
+          </section>
           <PlanDiffViewer diffs={planDiffItems} />
           <section className="admin-chat__risks">
             <h2>Riscos e checkpoints</h2>

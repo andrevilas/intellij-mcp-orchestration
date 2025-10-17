@@ -77,6 +77,21 @@ describe('AdminChat view', () => {
         impact: 'Garante mitigação de riscos críticos.',
       },
     ],
+    branch: 'feature/hitl-checkpoints',
+    baseBranch: 'main',
+    reviewers: [{ id: 'rev-ana', name: 'Ana Moreira', status: 'approved' }],
+    pullRequest: {
+      id: 'pr-42',
+      number: '42',
+      title: 'feat: habilitar checkpoints HITL',
+      url: 'https://github.com/mcp/console/pull/42',
+      state: 'open',
+      reviewStatus: 'pending',
+      reviewers: [
+        { id: 'rev-ana', name: 'Ana Moreira', status: 'approved' },
+        { id: 'rev-ravi', name: 'Ravi Singh', status: 'pending' },
+      ],
+    },
   };
 
   const planResponse: ConfigPlanResponse = {
@@ -463,6 +478,57 @@ describe('AdminChat view', () => {
       }),
     );
     expect(screen.getByText(/Smoke em execução/)).toBeInTheDocument();
+  });
+
+  it('exibe metadados do branch, do PR e dos revisores no resumo do plano', async () => {
+    render(<AdminChat />);
+
+    const messageField = screen.getByLabelText('Mensagem para o copiloto');
+    await userEvent.type(messageField, 'Quais guardrails devo atualizar?');
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar mensagem' }));
+    await waitFor(() => expect(postChatMock).toHaveBeenCalled());
+
+    const scopeInput = screen.getByLabelText('Escopo do plano');
+    await userEvent.clear(scopeInput);
+    await userEvent.type(scopeInput, 'Habilitar checkpoints HITL nas rotas prioritárias');
+    await userEvent.click(screen.getByRole('button', { name: 'Gerar plano' }));
+
+    await waitFor(() => expect(postPlanMock).toHaveBeenCalled());
+    await screen.findByText('Atualizar política de checkpoints');
+
+    const planHeading = await screen.findByRole('heading', { name: 'Plano de configuração' });
+    const planSection = planHeading.closest('section');
+    expect(planSection).not.toBeNull();
+    const planWithin = within(planSection as HTMLElement);
+
+    await waitFor(() =>
+      expect(planWithin.getByText('feature/hitl-checkpoints', { selector: 'code' })).toBeInTheDocument(),
+    );
+    expect(planWithin.getByText('main', { selector: 'code' })).toBeInTheDocument();
+
+    const prLink = planWithin.getByRole('link', { name: '#42 — feat: habilitar checkpoints HITL' });
+    expect(prLink).toHaveAttribute('href', 'https://github.com/mcp/console/pull/42');
+
+    await waitFor(() => expect(planWithin.getByText('Aberto')).toBeInTheDocument());
+    expect(planWithin.getByText('Aguardando revisão')).toBeInTheDocument();
+    expect(planWithin.getByText('Ana Moreira')).toBeInTheDocument();
+    expect(planWithin.getByText('Aprovado')).toBeInTheDocument();
+    expect(planWithin.getByText('Ravi Singh')).toBeInTheDocument();
+    expect(planWithin.getByText('Pendente')).toBeInTheDocument();
+  });
+
+  it('exibe cartões de quickstart com links para a demo e a documentação', () => {
+    render(<AdminChat />);
+
+    const quickstartRegion = screen.getByRole('region', { name: 'Comece rápido' });
+    const quickstartScope = within(quickstartRegion);
+    const demoLink = quickstartScope.getByRole('link', { name: 'Assistir demo' });
+    expect(demoLink).toHaveAttribute('href', 'https://www.youtube.com/watch?v=J0jrn9qPKDg');
+    const docsLink = quickstartScope.getByRole('link', { name: 'Abrir documentação' });
+    expect(docsLink).toHaveAttribute(
+      'href',
+      'https://github.com/openai/intellij-mcp-orchestration/blob/main/docs/admin-chat-quickstart.md',
+    );
   });
 
   it('gera plano de reload exibindo diff e aplica com atualização de notificações', async () => {
