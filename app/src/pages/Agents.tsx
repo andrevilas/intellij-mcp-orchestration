@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentSmokeRun, AgentStatus, AgentSummary } from '../api';
 import { ApiError, fetchAgents, postAgentSmokeRun } from '../api';
-import AgentDetailPanel from '../components/AgentDetailPanel';
+import AgentDetail from './Agents/AgentDetail';
 import NewAgentWizard from './Agents/NewAgentWizard';
 import SmokeEndpointsPanel from '../components/SmokeEndpointsPanel';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
@@ -465,7 +465,7 @@ function Agents(): JSX.Element {
         </>
       )}
       {activeAgent ? (
-        <AgentDetailPanel key={activeAgent.name} agent={activeAgent} onClose={handleCloseDetail} />
+        <AgentDetail key={activeAgent.name} agent={activeAgent} onClose={handleCloseDetail} />
       ) : null}
       <NewAgentWizard
         isOpen={isCreateWizardOpen}

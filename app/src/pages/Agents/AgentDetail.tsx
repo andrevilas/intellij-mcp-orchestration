@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import type { AgentSummary } from '../api';
-import { useAgent, type AgentError } from '../hooks/useAgent';
-import { getAgentsBaseUrl } from '../services/httpClient';
-import type { AgentInvokeConfig, AgentInvokeRequest } from '../types/agent';
-import { createAgentRequestId, mergeAgentConfigs } from '../utils/agentRequest';
-import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
-import JsonEditor from './JsonEditor';
-import AgentConfigLayerEditor from './AgentConfigLayerEditor';
+import type { AgentConfigHistoryItem, AgentConfigLayer, AgentSummary } from '../../api';
+import { useAgent, type AgentError } from '../../hooks/useAgent';
+import { getAgentsBaseUrl } from '../../services/httpClient';
+import type { AgentInvokeConfig, AgentInvokeRequest } from '../../types/agent';
+import { createAgentRequestId, mergeAgentConfigs } from '../../utils/agentRequest';
+import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../../utils/agents';
+import JsonEditor from '../../components/JsonEditor';
+import AgentConfigLayerEditor, {
+  type AgentConfigLayerEditorHandle,
+} from '../../components/AgentConfigLayerEditor';
 
-interface AgentDetailPanelProps {
+interface AgentDetailProps {
   agent: AgentSummary;
   onClose: () => void;
 }
@@ -18,6 +20,15 @@ interface AgentDetailPanelProps {
 type PlaygroundInput = Record<string, unknown>;
 
 type PlaygroundRequest = AgentInvokeRequest<PlaygroundInput, AgentInvokeConfig>;
+
+type ActionAlert = { kind: 'success' | 'error' | 'info'; message: string } | null;
+
+const EMPTY_HISTORY: Record<AgentConfigLayer, AgentConfigHistoryItem[]> = {
+  policies: [],
+  routing: [],
+  finops: [],
+  observability: [],
+};
 
 function escapeSingleQuotes(value: string): string {
   return value.replace(/'/g, "'\\''");
@@ -63,7 +74,7 @@ function parseEditorValue<T extends Record<string, unknown>>(
   }
 }
 
-export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelProps): JSX.Element {
+export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<
     'playground' | 'config' | 'policies' | 'routing' | 'finops' | 'observability'
   >('playground');
@@ -72,6 +83,13 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
   const [payloadError, setPayloadError] = useState<string | null>(null);
   const [overridesError, setOverridesError] = useState<string | null>(null);
   const [lastRequest, setLastRequest] = useState<PlaygroundRequest | null>(null);
+  const [historyCache, setHistoryCache] = useState<Record<AgentConfigLayer, AgentConfigHistoryItem[]>>({
+    ...EMPTY_HISTORY,
+  });
+  const [alert, setAlert] = useState<ActionAlert>(null);
+  const [isActionRunning, setActionRunning] = useState(false);
+  const isGovernanceTab =
+    activeTab === 'policies' || activeTab === 'routing' || activeTab === 'finops' || activeTab === 'observability';
 
   const defaultConfig = useMemo<AgentInvokeConfig>(
     () => ({ metadata: { caller: 'console-playground', surface: 'agent-detail' } }),
@@ -86,6 +104,11 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
     defaultConfig,
   });
 
+  const policiesRef = useRef<AgentConfigLayerEditorHandle>(null);
+  const routingRef = useRef<AgentConfigLayerEditorHandle>(null);
+  const finopsRef = useRef<AgentConfigLayerEditorHandle>(null);
+  const observabilityRef = useRef<AgentConfigLayerEditorHandle>(null);
+
   useEffect(() => {
     setActiveTab('playground');
     setPayloadText(JSON.stringify({ query: '' }, null, 2));
@@ -93,6 +116,8 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
     setPayloadError(null);
     setOverridesError(null);
     setLastRequest(null);
+    setHistoryCache({ ...EMPTY_HISTORY });
+    setAlert(null);
     reset({ preserveFallback: false });
   }, [agent.name, reset]);
 
@@ -101,6 +126,21 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
       setLastRequest(data.request as PlaygroundRequest);
     }
   }, [data]);
+
+  const getActiveEditor = useCallback(() => {
+    switch (activeTab) {
+      case 'policies':
+        return policiesRef.current;
+      case 'routing':
+        return routingRef.current;
+      case 'finops':
+        return finopsRef.current;
+      case 'observability':
+        return observabilityRef.current;
+      default:
+        return null;
+    }
+  }, [activeTab]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -153,6 +193,108 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
     reset({ preserveFallback: false });
   };
 
+  const handleHistoryUpdate = useCallback((layer: AgentConfigLayer, items: AgentConfigHistoryItem[]) => {
+    setHistoryCache((current) => ({ ...current, [layer]: items }));
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    const editor = getActiveEditor();
+    if (!editor) {
+      setAlert({ kind: 'error', message: 'Selecione uma camada de configuração para salvar.' });
+      return;
+    }
+
+    setActionRunning(true);
+    setAlert({ kind: 'info', message: 'Gerando plano…' });
+
+    try {
+      const plan = await editor.plan();
+      if (!plan) {
+        setAlert({
+          kind: 'error',
+          message: 'Não foi possível gerar o plano. Revise a configuração e tente novamente.',
+        });
+        return;
+      }
+
+      const response = await editor.apply();
+      if (!response) {
+        setAlert({
+          kind: 'error',
+          message: 'Falha ao aplicar alterações. Verifique os detalhes da camada selecionada.',
+        });
+        return;
+      }
+
+      const details = [response.message];
+      if (response.branch) {
+        details.push(`Branch: ${response.branch}`);
+      }
+      if (response.pullRequest?.url) {
+        details.push(`PR: ${response.pullRequest.url}`);
+      }
+      setAlert({ kind: 'success', message: details.join(' ') });
+    } catch (actionError) {
+      console.error('Falha ao salvar alterações do agent', actionError);
+      setAlert({
+        kind: 'error',
+        message:
+          actionError instanceof Error
+            ? actionError.message
+            : 'Falha ao salvar alterações. Tente novamente.',
+      });
+    } finally {
+      setActionRunning(false);
+    }
+  }, [getActiveEditor]);
+
+  const handleCreateRollback = useCallback(async () => {
+    const editor = getActiveEditor();
+    if (!editor) {
+      setAlert({ kind: 'error', message: 'Selecione uma camada de configuração para criar rollback.' });
+      return;
+    }
+
+    setActionRunning(true);
+    setAlert({ kind: 'info', message: 'Carregando histórico…' });
+
+    try {
+      let historyItems = editor.getCachedHistory();
+      if (!historyItems.length) {
+        historyItems = await editor.loadHistory();
+      }
+
+      const latest = historyItems[0];
+      if (!latest) {
+        setAlert({ kind: 'error', message: 'Nenhum histórico disponível para rollback.' });
+        return;
+      }
+
+      const response = await editor.rollback(latest.id);
+      if (!response) {
+        setAlert({ kind: 'error', message: 'Falha ao criar rollback. Verifique o histórico selecionado.' });
+        return;
+      }
+
+      const details = [response.message];
+      if (response.pullRequest?.url) {
+        details.push(`PR: ${response.pullRequest.url}`);
+      }
+      setAlert({ kind: 'success', message: details.join(' ') });
+    } catch (actionError) {
+      console.error('Falha ao criar rollback do agent', actionError);
+      setAlert({
+        kind: 'error',
+        message:
+          actionError instanceof Error
+            ? actionError.message
+            : 'Falha ao criar rollback. Tente novamente.',
+      });
+    } finally {
+      setActionRunning(false);
+    }
+  }, [getActiveEditor]);
+
   const agentsBase = useMemo(() => getAgentsBaseUrl().replace(/\/$/, ''), []);
   const apiKey = (import.meta.env.VITE_CONSOLE_API_KEY ?? '').trim();
   const apiKeyHeader = apiKey || '<API_KEY>';
@@ -179,10 +321,39 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
           <p className="agent-detail__breadcrumb">Agents · {agent.name}</p>
           <h3 id="agent-detail-title">{agent.title}</h3>
         </div>
+        <div className="agent-detail__toolbar">
+          <button
+            type="button"
+            className="agent-detail__run agent-detail__toolbar-button"
+            onClick={handleSave}
+            disabled={isActionRunning || !isGovernanceTab}
+          >
+            {isActionRunning && isGovernanceTab ? 'Processando…' : 'Salvar alterações'}
+          </button>
+          <button
+            type="button"
+            className="agent-detail__reset agent-detail__toolbar-button"
+            onClick={handleCreateRollback}
+            disabled={isActionRunning || !isGovernanceTab}
+          >
+            Criar rollback
+          </button>
+        </div>
         <button type="button" className="agent-detail__close" onClick={onClose} aria-label="Fechar detalhes">
           ×
         </button>
       </header>
+
+      {alert ? (
+        <p
+          className={`agent-config-editor__message${
+            alert.kind === 'error' ? ' agent-config-editor__message--error' : ''
+          }`}
+          role={alert.kind === 'error' ? 'alert' : 'status'}
+        >
+          {alert.message}
+        </p>
+      ) : null}
 
       <div className="agent-detail__tabs" role="tablist" aria-label={`Detalhes de ${agent.title}`}>
         <button
@@ -408,7 +579,13 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
         hidden={activeTab !== 'policies'}
         className="agent-detail__panel"
       >
-        <AgentConfigLayerEditor agent={agent} layer="policies" />
+        <AgentConfigLayerEditor
+          ref={policiesRef}
+          agent={agent}
+          layer="policies"
+          initialHistory={historyCache.policies}
+          onHistoryUpdate={(items) => handleHistoryUpdate('policies', items)}
+        />
       </section>
 
       <section
@@ -418,7 +595,13 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
         hidden={activeTab !== 'routing'}
         className="agent-detail__panel"
       >
-        <AgentConfigLayerEditor agent={agent} layer="routing" />
+        <AgentConfigLayerEditor
+          ref={routingRef}
+          agent={agent}
+          layer="routing"
+          initialHistory={historyCache.routing}
+          onHistoryUpdate={(items) => handleHistoryUpdate('routing', items)}
+        />
       </section>
 
       <section
@@ -428,7 +611,13 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
         hidden={activeTab !== 'finops'}
         className="agent-detail__panel"
       >
-        <AgentConfigLayerEditor agent={agent} layer="finops" />
+        <AgentConfigLayerEditor
+          ref={finopsRef}
+          agent={agent}
+          layer="finops"
+          initialHistory={historyCache.finops}
+          onHistoryUpdate={(items) => handleHistoryUpdate('finops', items)}
+        />
       </section>
 
       <section
@@ -438,7 +627,13 @@ export default function AgentDetailPanel({ agent, onClose }: AgentDetailPanelPro
         hidden={activeTab !== 'observability'}
         className="agent-detail__panel"
       >
-        <AgentConfigLayerEditor agent={agent} layer="observability" />
+        <AgentConfigLayerEditor
+          ref={observabilityRef}
+          agent={agent}
+          layer="observability"
+          initialHistory={historyCache.observability}
+          onHistoryUpdate={(items) => handleHistoryUpdate('observability', items)}
+        />
       </section>
     </aside>
   );
