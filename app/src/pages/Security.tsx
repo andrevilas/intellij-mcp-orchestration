@@ -30,6 +30,7 @@ import {
 import ResourceTable, { type ResourceTableColumn } from '../components/ResourceTable';
 import ResourceDialog from '../components/ResourceDialog';
 import AuditTrailPanel from '../components/AuditTrailPanel';
+import ConfigReloadAction from '../components/ConfigReloadAction';
 
 interface UserDraft {
   name: string;
@@ -1352,6 +1353,7 @@ export default function Security() {
             id="security-tabpanel-audit"
             aria-labelledby="security-tab-audit"
           >
+            <ConfigReloadAction />
             <ResourceTable
               title="Eventos de auditoria centralizada"
               description="Investigue ações críticas com filtros por ator, ação e período. Exportações em CSV ou JSON facilitam revisões externas."

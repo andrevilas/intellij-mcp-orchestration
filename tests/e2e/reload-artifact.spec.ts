@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Config reload modal', () => {
+test.describe('@config-reload governed flow', () => {
   const reloadPlanPayload = {
     intent: 'generate_artifact',
     summary: 'Gerar checklist finops',
@@ -30,7 +30,7 @@ test.describe('Config reload modal', () => {
       },
     ],
     risks: [],
-    status: 'pending',
+    status: 'pending' as const,
     context: [],
     approval_rules: [],
   };
@@ -39,6 +39,7 @@ test.describe('Config reload modal', () => {
     message: 'Plano gerado para regerar finops.checklist.',
     plan: reloadPlanPayload,
     patch: '--- a/generated/cache.md\n+++ b/generated/cache.md\n+Conteúdo',
+    plan_id: 'reload-plan-1',
   };
 
   const applyResponse = {
@@ -53,7 +54,22 @@ test.describe('Config reload modal', () => {
     hitl_required: false,
     message: 'Artefato regenerado com sucesso.',
     approval_id: null,
-    pull_request: null,
+    pull_request: {
+      provider: 'github',
+      id: 'pr-42',
+      number: '42',
+      url: 'https://github.com/example/pr/42',
+      title: 'chore: regenerate artifact',
+      state: 'open',
+      head_sha: 'def456',
+      branch: 'chore/reload-artifact',
+      ci_status: 'pending',
+      review_status: 'review_required',
+      merged: false,
+      last_synced_at: '2025-02-10T12:00:00Z',
+      reviewers: [],
+      ci_results: [],
+    },
   };
 
   test.beforeEach(async ({ page }) => {
@@ -89,11 +105,26 @@ test.describe('Config reload modal', () => {
         body: JSON.stringify({ threadId: 'thread-1', messages: [] }),
       }),
     );
+    await page.route('**/api/v1/security/users', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ users: [] }) }),
+    );
+    await page.route('**/api/v1/security/roles', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ roles: [] }) }),
+    );
+    await page.route('**/api/v1/security/api-keys', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ api_keys: [] }) }),
+    );
+    await page.route('**/api/v1/audit/logs**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ events: [], page: 1, page_size: 25, total: 0, total_pages: 0 }),
+      }),
+    );
   });
 
-  test('aplica plano de reload após revisão', async ({ page }) => {
+  test('aplica plano governado após revisão', async ({ page }) => {
     const applyRequests: unknown[] = [];
-    const notificationRequests: unknown[] = [];
 
     await page.route('**/api/v1/config/reload', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(reloadResponse) }),
@@ -103,49 +134,43 @@ test.describe('Config reload modal', () => {
       applyRequests.push(payload ? JSON.parse(payload) : {});
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(applyResponse) });
     });
-    await page.route('**/api/v1/notifications', (route) => {
-      notificationRequests.push(route.request());
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [] }) });
-    });
 
     await page.goto('/');
-    await page.getByRole('button', { name: 'Admin Chat' }).click();
-    await expect(page.getByRole('heading', { name: 'Assistente administrativo MCP' })).toBeVisible();
+    await page.getByRole('button', { name: 'Segurança' }).click();
+    await page.getByRole('tab', { name: 'Auditoria' }).click();
+    await expect(page.getByRole('heading', { name: 'Reload governado de configuração' })).toBeVisible();
 
-    const reloadButtons = await page.getByRole('button', { name: 'Regenerar artefato' }).all();
-    await reloadButtons[reloadButtons.length - 1].click();
+    await page.selectOption('#config-reload-artifact', 'finops.checklist');
+    await page.fill('#config-reload-target', 'generated/cache.md');
+    await page.fill('#config-reload-parameters', '{"owner":"finops"}');
+    await page.getByRole('button', { name: 'Gerar plano' }).click();
 
-    await page.fill('#admin-reload-target', 'generated/cache.md');
-    await page.fill('#admin-reload-parameters', '{"owner":"finops"}');
-    await page.getByRole('button', { name: 'Gerar plano' }).last().click();
+    await expect(page.getByRole('heading', { name: 'Plano gerado' })).toBeVisible();
+    await page.fill('#config-reload-actor', 'Ana Operator');
+    await page.fill('#config-reload-email', 'ana@example.com');
+    await page.fill('#config-reload-commit', 'chore: atualizar checklist finops');
+    await page.fill('#config-reload-justification', 'Validar com FinOps.');
+    await page.getByRole('button', { name: 'Aplicar plano' }).click();
 
-    await expect(page.getByText('Gerar checklist finops')).toBeVisible();
-    await page.fill('#admin-reload-actor', 'Ana Operator');
-    await page.fill('#admin-reload-email', 'ana@example.com');
-    await page.fill('#admin-reload-commit', 'chore: atualizar checklist finops');
-    await page.getByRole('button', { name: 'Aplicar plano' }).last().click();
+    await expect(page.locator('.config-reload__success')).toContainText('Artefato regenerado com sucesso');
+    await expect(page.getByText(/Executor: Ana Operator/)).toBeVisible();
 
-    await expect(page.getByText('Artefato regenerado com sucesso.')).toBeVisible();
+    await page.getByRole('button', { name: 'Ver auditoria' }).click();
+    await expect(page.getByRole('complementary')).toBeVisible();
+    await expect(page.getByText(/config\.reload\.apply/)).toBeVisible();
+
     expect(applyRequests).toHaveLength(1);
     const payload = applyRequests[0] as Record<string, unknown>;
-    expect(payload.plan_id).toMatch(/^reload-/);
+    expect(payload.plan_id).toBe('reload-plan-1');
     expect(payload.actor).toBe('Ana Operator');
     expect(payload.actor_email).toBe('ana@example.com');
+    expect(payload.commit_message).toBe('chore: atualizar checklist finops');
     expect(payload.patch).toBe(reloadResponse.patch);
-    expect(notificationRequests.length).toBeGreaterThan(0);
   });
 
-  test('permite cancelar modal de reload sem aplicar', async ({ page }) => {
+  test('permite limpar plano governado antes de aplicar', async ({ page }) => {
     await page.route('**/api/v1/config/reload', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          message: reloadResponse.message,
-          plan: reloadResponse.plan,
-          patch: reloadResponse.patch,
-        }),
-      }),
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(reloadResponse) }),
     );
 
     const applyRequests: unknown[] = [];
@@ -154,20 +179,19 @@ test.describe('Config reload modal', () => {
       applyRequests.push(body ? JSON.parse(body) : {});
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(applyResponse) });
     });
-    await page.route('**/api/v1/notifications', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [] }) }),
-    );
 
     await page.goto('/');
-    await page.getByRole('button', { name: 'Admin Chat' }).click();
-    const reloadButtons = await page.getByRole('button', { name: 'Regenerar artefato' }).all();
-    await reloadButtons[reloadButtons.length - 1].click();
+    await page.getByRole('button', { name: 'Segurança' }).click();
+    await page.getByRole('tab', { name: 'Auditoria' }).click();
+    await expect(page.getByRole('heading', { name: 'Reload governado de configuração' })).toBeVisible();
 
-    await page.fill('#admin-reload-target', 'generated/cache.md');
-    await page.getByRole('button', { name: 'Gerar plano' }).last().click();
-    await expect(page.getByText('Gerar checklist finops')).toBeVisible();
-    await page.getByRole('button', { name: 'Cancelar' }).click();
-    await expect(page.locator('role=dialog')).toHaveCount(0);
+    await page.selectOption('#config-reload-artifact', 'finops.checklist');
+    await page.fill('#config-reload-target', 'generated/cache.md');
+    await page.getByRole('button', { name: 'Gerar plano' }).click();
+    await expect(page.getByRole('heading', { name: 'Plano gerado' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Limpar', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Plano gerado' })).toHaveCount(0);
     expect(applyRequests).toHaveLength(0);
   });
 });

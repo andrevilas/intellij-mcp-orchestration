@@ -40,6 +40,8 @@ import {
   fetchMarketplaceEntries,
   importMarketplaceEntry,
   postConfigReload,
+  planGovernedConfigReload,
+  applyGovernedConfigReload,
   simulateRouting,
   readSecret,
   restartServerProcess,
@@ -1213,6 +1215,114 @@ describe('api client', () => {
     });
     expect(response.planPayload.intent).toBe('generate_artifact');
     expect(response.patch).toBe(reloadResponse.patch);
+  });
+
+  it('gera plano governado preservando planId retornado pelo backend', async () => {
+    const reloadResponse = {
+      message: 'Plano governado para regenerar checklist.',
+      plan: {
+        intent: 'generate_artifact',
+        summary: 'Gerar checklist finops',
+        steps: [],
+        diffs: [
+          {
+            path: 'generated/cache.md',
+            summary: 'Atualizar checklist',
+            change_type: 'update',
+            diff: '--- a/generated/cache.md\n+++ b/generated/cache.md\n+Conteúdo',
+          },
+        ],
+        risks: [],
+        status: 'pending' as const,
+        context: [],
+        approval_rules: [],
+      },
+      plan_id: 'reload-plan-99',
+      patch: '--- a/generated/cache.md\n+++ b/generated/cache.md\n+Conteúdo',
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(reloadResponse));
+
+    const response = await planGovernedConfigReload({
+      artifactType: 'finops.checklist',
+      targetPath: 'generated/cache.md',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/config/reload',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(response.planId).toBe('reload-plan-99');
+    expect(response.plan.summary).toBe('Gerar checklist finops');
+    expect(response.patch).toBe(reloadResponse.patch);
+  });
+
+  it('aplica plano governado de reload consolidando metadados de branch', async () => {
+    const planPayload = {
+      intent: 'generate_artifact',
+      summary: 'Gerar checklist finops',
+      steps: [],
+      diffs: [],
+      risks: [],
+      status: 'pending' as const,
+      context: [],
+      approval_rules: [],
+    };
+
+    const applyResponse = {
+      status: 'completed' as const,
+      mode: 'branch_pr' as const,
+      plan_id: 'reload-plan-99',
+      record_id: 'rec-reload-1',
+      branch: 'chore/reload-artifact',
+      base_branch: 'main',
+      commit_sha: 'def456',
+      diff: { stat: '1 file changed', patch: 'diff --git a/generated/cache.md b/generated/cache.md' },
+      hitl_required: false,
+      message: 'Artefato regenerado com sucesso.',
+      approval_id: null,
+      pull_request: {
+        provider: 'github',
+        id: 'pr-204',
+        number: '204',
+        url: 'https://github.com/example/pr/204',
+        title: 'chore: regenerate artifact',
+        state: 'open',
+        head_sha: 'def456',
+        branch: 'chore/reload-artifact',
+        ci_status: 'pending',
+        review_status: 'review_required',
+        merged: false,
+        last_synced_at: '2025-02-10T12:00:00Z',
+        reviewers: [],
+        ci_results: [],
+      },
+    };
+
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse(applyResponse));
+
+    const response = await applyGovernedConfigReload({
+      planId: 'reload-plan-99',
+      plan: planPayload,
+      patch: 'diff --git a/generated/cache.md b/generated/cache.md',
+      actor: 'Ana Operator',
+      actorEmail: 'ana@example.com',
+      commitMessage: 'chore: atualizar checklist finops',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/config/apply',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(response).toMatchObject({
+      status: 'completed',
+      branch: 'chore/reload-artifact',
+      baseBranch: 'main',
+      commitSha: 'def456',
+      recordId: 'rec-reload-1',
+      message: 'Artefato regenerado com sucesso.',
+    });
+    expect(response.pullRequest).toMatchObject({ number: '204', url: 'https://github.com/example/pr/204' });
   });
 
   it('aplica planos de políticas enviando autor e commit', async () => {
