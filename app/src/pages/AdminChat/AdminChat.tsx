@@ -12,6 +12,7 @@ import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffView
 import PlanSummary from './PlanSummary';
 import RiskCard from './RiskCard';
 import McpOnboardingWizard from './McpOnboardingWizard';
+import McpServersList from './McpServersList';
 import MediaLightbox from '../../components/MediaLightbox';
 import MediaPlayer, { type MediaSource } from '../../components/MediaPlayer';
 
@@ -707,6 +708,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
           </form>
 
           <McpOnboardingWizard />
+          <McpServersList />
         </section>
 
         <aside className="admin-chat__panel admin-chat__panel--summary">

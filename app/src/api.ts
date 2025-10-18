@@ -4436,6 +4436,173 @@ export async function postConfigMcpOnboard(
   };
 }
 
+export interface ConfigMcpUpdatePlanRequest {
+  serverId: string;
+  changes: Partial<McpServerUpdateInput>;
+  note?: string | null;
+}
+
+export interface ConfigMcpUpdateDiff {
+  id: string;
+  title: string;
+  summary?: string | null;
+  diff?: string | null;
+}
+
+export interface ConfigMcpUpdatePlanResponse {
+  planId: string;
+  summary: string;
+  message: string | null;
+  diffs: ConfigMcpUpdateDiff[];
+}
+
+export interface ConfigMcpUpdateAuditMetadata {
+  recordId: string;
+  branch?: string | null;
+  pullRequest?: ConfigApplyPullRequest | null;
+}
+
+export interface ConfigMcpUpdateApplyRequest {
+  planId: string;
+  serverId: string;
+  actor: string;
+  actorEmail: string;
+  commitMessage?: string | null;
+  note?: string | null;
+}
+
+export interface ConfigMcpUpdateApplyResponse {
+  status: 'applied' | 'failed';
+  message: string;
+  audit: ConfigMcpUpdateAuditMetadata | null;
+  errors: string[];
+}
+
+interface ConfigMcpUpdateDiffPayload {
+  id: string;
+  title: string;
+  summary?: string | null;
+  diff?: string | null;
+}
+
+interface ConfigMcpUpdatePlanRequestPayload {
+  mode: 'plan';
+  server_id: string;
+  changes: Record<string, unknown>;
+  note?: string | null;
+}
+
+interface ConfigMcpUpdatePlanResponsePayload {
+  plan_id: string;
+  summary?: string | null;
+  message?: string | null;
+  diffs?: ConfigMcpUpdateDiffPayload[] | null;
+}
+
+interface ConfigMcpUpdateApplyRequestPayload {
+  mode: 'apply';
+  plan_id: string;
+  server_id: string;
+  actor: string;
+  actor_email: string;
+  commit_message?: string | null;
+  note?: string | null;
+}
+
+interface ConfigMcpUpdateApplyResponsePayload {
+  status: 'applied' | 'failed';
+  message: string;
+  record_id?: string | null;
+  branch?: string | null;
+  pull_request?: ConfigApplyPullRequest | null;
+  errors?: string[] | null;
+}
+
+function mapConfigMcpUpdateDiff(payload: ConfigMcpUpdateDiffPayload): ConfigMcpUpdateDiff {
+  return {
+    id: payload.id,
+    title: payload.title,
+    summary: payload.summary ?? null,
+    diff: payload.diff ?? null,
+  };
+}
+
+function mapConfigMcpUpdateAudit(
+  payload: ConfigMcpUpdateApplyResponsePayload,
+): ConfigMcpUpdateAuditMetadata | null {
+  const recordId = payload.record_id;
+  if (!recordId) {
+    return null;
+  }
+  return {
+    recordId,
+    branch: payload.branch ?? null,
+    pullRequest: payload.pull_request ?? null,
+  };
+}
+
+export async function planConfigMcpUpdate(
+  requestPayload: ConfigMcpUpdatePlanRequest,
+  signal?: AbortSignal,
+): Promise<ConfigMcpUpdatePlanResponse> {
+  const body: ConfigMcpUpdatePlanRequestPayload = {
+    mode: 'plan',
+    server_id: requestPayload.serverId,
+    changes: requestPayload.changes ?? {},
+  };
+
+  if (requestPayload.note) {
+    body.note = requestPayload.note;
+  }
+
+  const response = await request<ConfigMcpUpdatePlanResponsePayload>('/config/mcp/update', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  return {
+    planId: response.plan_id,
+    summary: response.summary ?? '',
+    message: response.message ?? null,
+    diffs: Array.isArray(response.diffs) ? response.diffs.map(mapConfigMcpUpdateDiff) : [],
+  };
+}
+
+export async function applyConfigMcpUpdate(
+  requestPayload: ConfigMcpUpdateApplyRequest,
+  signal?: AbortSignal,
+): Promise<ConfigMcpUpdateApplyResponse> {
+  const body: ConfigMcpUpdateApplyRequestPayload = {
+    mode: 'apply',
+    plan_id: requestPayload.planId,
+    server_id: requestPayload.serverId,
+    actor: requestPayload.actor,
+    actor_email: requestPayload.actorEmail,
+  };
+
+  if (requestPayload.commitMessage) {
+    body.commit_message = requestPayload.commitMessage;
+  }
+
+  if (requestPayload.note !== undefined) {
+    body.note = requestPayload.note;
+  }
+
+  const response = await request<ConfigMcpUpdateApplyResponsePayload>('/config/mcp/update', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  return {
+    status: response.status,
+    message: response.message,
+    audit: mapConfigMcpUpdateAudit(response),
+    errors: Array.isArray(response.errors) ? response.errors : [],
+  };
+}
+
 export interface McpSmokeRunRequest {
   recordId: string;
   planId: string;
