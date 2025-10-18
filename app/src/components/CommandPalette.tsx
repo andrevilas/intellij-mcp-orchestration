@@ -114,7 +114,7 @@ export default function CommandPalette({
           onSelect: () => {
             onAgentResultSelect?.(item);
           },
-        } satisfies CommandOption;
+        } as CommandOption;
       });
   }, [agentData, onAgentResultSelect]);
 

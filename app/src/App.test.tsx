@@ -5,6 +5,16 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import App, { NOTIFICATION_READ_STATE_KEY } from './App';
+import './icons';
+import { ThemeProvider } from './theme/ThemeContext';
+
+function renderWithinProviders(): ReturnType<typeof render> {
+  return render(
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>,
+  );
+}
 
 function createFetchResponse<T>(payload: T): Promise<Response> {
   return Promise.resolve({
@@ -469,7 +479,22 @@ describe('App provider orchestration flow', () => {
       },
     };
 
-    let deploymentsState = [
+    type PolicyDeploymentRecord = {
+      id: string;
+      template_id: 'economy' | 'balanced' | 'turbo';
+      deployed_at: string;
+      author: string;
+      window: string | null;
+      note: string | null;
+      slo_p95_ms: number;
+      budget_usage_pct: number;
+      incidents_count: number;
+      guardrail_score: number;
+      created_at: string;
+      updated_at: string;
+    };
+
+    let deploymentsState: PolicyDeploymentRecord[] = [
       {
         id: 'deploy-economy-20250201',
         template_id: 'economy',
@@ -504,11 +529,18 @@ describe('App provider orchestration flow', () => {
 
     const processBaseTime = new Date('2024-06-01T10:00:00Z').getTime();
     let processLogCounter = 1;
-    let processLogs = [
+    type ProcessLogEntry = {
+      id: number;
+      timestamp: string;
+      level: 'info' | 'error';
+      message: string;
+    };
+
+    let processLogs: ProcessLogEntry[] = [
       {
         id: processLogCounter,
         timestamp: new Date(processBaseTime).toISOString(),
-        level: 'info' as const,
+        level: 'info',
         message: 'Processo iniciado pelo supervisor (PID 321).',
       },
     ];
@@ -539,7 +571,7 @@ describe('App provider orchestration flow', () => {
       },
     ];
 
-    function appendProcessLog(message: string, level: 'info' | 'error' = 'info') {
+    function appendProcessLog(message: string, level: ProcessLogEntry['level'] = 'info') {
       processLogCounter += 1;
       const timestamp = new Date(processBaseTime + processLogCounter * 1000).toISOString();
       processLogs = [...processLogs, { id: processLogCounter, timestamp, level, message }];
@@ -824,7 +856,7 @@ describe('App provider orchestration flow', () => {
         const metrics = templateMetrics[templateId] ?? templateMetrics.economy;
         deploymentCounter += 1;
         const timestamp = `2025-04-20T12:00:${deploymentCounter.toString().padStart(2, '0')}+00:00`;
-        const newDeployment = {
+        const newDeployment: PolicyDeploymentRecord = {
           id: `deploy-${templateId}-test-${deploymentCounter}`,
           template_id: templateId,
           deployed_at: timestamp,
@@ -882,7 +914,7 @@ describe('App provider orchestration flow', () => {
   it('lists providers and provisions a session on demand', async () => {
     const user = userEvent.setup();
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -971,7 +1003,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1011,7 +1043,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1073,7 +1105,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1210,7 +1242,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1256,7 +1288,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1287,7 +1319,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1404,7 +1436,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1439,7 +1471,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1512,7 +1544,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1544,7 +1576,7 @@ describe('App provider orchestration flow', () => {
     const user = userEvent.setup();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1569,7 +1601,7 @@ describe('App provider orchestration flow', () => {
       .mockRejectedValueOnce(new Error('offline'));
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1595,7 +1627,7 @@ describe('App provider orchestration flow', () => {
       .mockResolvedValueOnce(createFetchResponse({ notifications: [] }));
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1621,7 +1653,7 @@ describe('App provider orchestration flow', () => {
 
     let firstRender: ReturnType<typeof render> | undefined;
     await act(async () => {
-      firstRender = render(<App />);
+      firstRender = renderWithinProviders();
       await Promise.resolve();
     });
 
@@ -1647,7 +1679,7 @@ describe('App provider orchestration flow', () => {
     firstRender.unmount();
 
     await act(async () => {
-      render(<App />);
+      renderWithinProviders();
       await Promise.resolve();
     });
 

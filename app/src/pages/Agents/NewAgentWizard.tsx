@@ -488,7 +488,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
           status: 'applied',
           branch: response.branch ?? base.branch ?? null,
           baseBranch: response.baseBranch ?? base.baseBranch ?? null,
-          pullRequest: mapExecutionPullRequest(response.pullRequest) ?? base.pullRequest ?? null,
+          pullRequest: mapExecutionPullRequest(response.pullRequest ?? null) ?? base.pullRequest ?? null,
         };
       });
       setPendingPlan(null);

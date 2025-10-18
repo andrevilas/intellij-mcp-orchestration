@@ -356,18 +356,18 @@ export default function Security() {
           return;
         }
 
-        if (payload.total_pages > 0 && auditLogsPage > payload.total_pages) {
-          setAuditLogsPage(payload.total_pages);
+        if (payload.totalPages > 0 && auditLogsPage > payload.totalPages) {
+          setAuditLogsPage(payload.totalPages);
           return;
         }
-        if (payload.total_pages === 0 && auditLogsPage !== 1) {
+        if (payload.totalPages === 0 && auditLogsPage !== 1) {
           setAuditLogsPage(1);
           return;
         }
 
         setAuditLogs(payload.events);
         setAuditLogsTotal(payload.total);
-        setAuditLogsTotalPages(payload.total_pages);
+        setAuditLogsTotalPages(payload.totalPages);
       })
       .catch((error) => {
         if (controller.signal.aborted) {

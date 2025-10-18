@@ -2927,19 +2927,44 @@ function mapPolicyOverridesConfig(payload?: PolicyOverridesPayload | null): Poli
       }));
     }
     if (payload.finops.cache !== undefined) {
-      const ttl = normalizePositive(payload.finops.cache?.ttl_seconds ?? null, null);
-      finops.cache = { ttlSeconds: ttl };
+      const cache = payload.finops.cache;
+      if (cache !== null && typeof cache === 'object') {
+        const ttl = 'ttl_seconds' in cache ? normalizePositive(cache.ttl_seconds ?? null, null) : null;
+        finops.cache = { ttlSeconds: ttl };
+      } else if (typeof cache === 'number') {
+        finops.cache = { ttlSeconds: normalizePositive(cache, null) };
+      }
     }
     if (payload.finops.rate_limit !== undefined) {
-      const requests = normalizePositive(payload.finops.rate_limit?.requests_per_minute ?? null, null);
-      finops.rateLimit = { requestsPerMinute: requests };
+      const rate = payload.finops.rate_limit;
+      if (rate !== null && typeof rate === 'object') {
+        const rateSource = rate as { requests_per_minute?: number | null; requestsPerMinute?: number | null };
+        const rawRequests =
+          rateSource.requests_per_minute ?? rateSource.requestsPerMinute ?? null;
+        const requests = normalizePositive(rawRequests ?? null, null);
+        finops.rateLimit = { requestsPerMinute: requests };
+      } else if (typeof rate === 'number') {
+        finops.rateLimit = { requestsPerMinute: normalizePositive(rate, null) };
+      }
     }
     if (payload.finops.graceful_degradation !== undefined) {
-      const rawStrategy = payload.finops.graceful_degradation?.strategy ?? null;
-      const rawMessage = payload.finops.graceful_degradation?.message ?? null;
-      const strategy = typeof rawStrategy === 'string' ? rawStrategy.trim() : '';
-      const message = typeof rawMessage === 'string' ? rawMessage.trim() : '';
-      finops.gracefulDegradation = { strategy: strategy || null, message: message || null };
+      const degradation = payload.finops.graceful_degradation;
+      if (degradation !== null && typeof degradation === 'object') {
+        const rawStrategy =
+          'strategy' in degradation && typeof degradation.strategy === 'string'
+            ? degradation.strategy
+            : null;
+        const rawMessage =
+          'message' in degradation && typeof degradation.message === 'string'
+            ? degradation.message
+            : null;
+        const strategy = rawStrategy?.trim() ?? '';
+        const message = rawMessage?.trim() ?? '';
+        finops.gracefulDegradation = { strategy: strategy || null, message: message || null };
+      } else if (typeof degradation === 'string') {
+        const normalized = degradation.trim();
+        finops.gracefulDegradation = { strategy: null, message: normalized || null };
+      }
     }
     if (Object.keys(finops).length > 0) {
       overrides.finops = finops;
@@ -5260,35 +5285,37 @@ function mapPlanExecutionPullRequest(
   }
   const reviewersSource = Array.isArray(payload.reviewers) ? payload.reviewers : [];
   const reviewers: PlanExecutionReviewer[] = reviewersSource
-    .map((reviewer) => {
-      const name = typeof reviewer?.name === 'string' ? reviewer?.name.trim() : '';
+    .map((reviewer): PlanExecutionReviewer | null => {
+      const name = typeof reviewer?.name === 'string' ? reviewer.name.trim() : '';
       if (!name) {
         return null;
       }
       const idSource = reviewer?.id ?? name;
+      const status = typeof reviewer?.status === 'string' ? reviewer.status : null;
       return {
         id: String(idSource ?? name),
         name,
-        status: typeof reviewer?.status === 'string' ? reviewer.status : null,
+        ...(status !== null ? { status } : {}),
       };
     })
     .filter((item): item is PlanExecutionReviewer => item !== null);
 
   const ciSource = Array.isArray(payload.ci_results) ? payload.ci_results : [];
   const ciResults: PlanExecutionCiResult[] = ciSource
-    .map((result) => {
+    .map((result): PlanExecutionCiResult | null => {
       const name = typeof result?.name === 'string' ? result.name.trim() : '';
       const status = typeof result?.status === 'string' ? result.status.trim() : '';
       if (!name || !status) {
         return null;
       }
+      const detailsUrl =
+        typeof result?.details_url === 'string' && result.details_url.length > 0
+          ? result.details_url
+          : null;
       return {
         name,
         status,
-        detailsUrl:
-          typeof result?.details_url === 'string' && result.details_url.length > 0
-            ? result.details_url
-            : null,
+        ...(detailsUrl ? { detailsUrl } : {}),
       };
     })
     .filter((item): item is PlanExecutionCiResult => item !== null);

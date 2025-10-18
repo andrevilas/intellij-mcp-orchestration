@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { IconProp } from '@fortawesome/fontawesome-svg-core';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import clsx from 'clsx';
 
 import './App.css';
 import type {
@@ -30,6 +33,7 @@ import {
 import CommandPalette from './components/CommandPalette';
 import NotificationCenter, { type NotificationItem } from './components/NotificationCenter';
 import ProvisioningDialog, { type ProvisioningSubmission } from './components/ProvisioningDialog';
+import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import Dashboard from './pages/Dashboard';
 import FinOps from './pages/FinOps';
 import Keys from './pages/Keys';
@@ -42,6 +46,7 @@ import Marketplace from './pages/Marketplace';
 import Agents from './pages/Agents';
 import Observability from './pages/Observability';
 import Security from './pages/Security';
+import ThemeSwitch from './theme/ThemeSwitch';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -186,6 +191,21 @@ const VIEW_DEFINITIONS = [
 
 type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
 
+const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
+  dashboard: 'gauge-high',
+  observability: 'satellite-dish',
+  servers: 'server',
+  agents: 'robot',
+  keys: 'key',
+  security: 'shield-halved',
+  policies: 'users-gear',
+  routing: 'shuffle',
+  flows: 'diagram-project',
+  finops: 'table-columns',
+  marketplace: 'store',
+  'admin-chat': 'message',
+};
+
 function App() {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -207,6 +227,7 @@ function App() {
   const [pendingProvider, setPendingProvider] = useState<ProviderSummary | null>(null);
   const [isProvisionDialogOpen, setProvisionDialogOpen] = useState(false);
   const [isProvisionSubmitting, setProvisionSubmitting] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const mainRef = useRef<HTMLElement | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -270,29 +291,34 @@ function App() {
           fetchPolicyCompliance(controller.signal),
         ]);
 
-        if (
-          providerResult.status !== 'fulfilled' ||
-          sessionResult.status !== 'fulfilled' ||
-          secretResult.status !== 'fulfilled'
-        ) {
-          throw providerResult.status === 'rejected'
-            ? providerResult.reason
-            : sessionResult.status === 'rejected'
-              ? sessionResult.reason
-              : secretResult.reason;
+        let bootstrapError: unknown = null;
+        if (providerResult.status === 'rejected') {
+          bootstrapError = providerResult.reason;
+        } else if (sessionResult.status === 'rejected') {
+          bootstrapError = sessionResult.reason;
+        } else if (secretResult.status === 'rejected') {
+          bootstrapError = secretResult.reason;
+        }
+
+        if (bootstrapError) {
+          throw bootstrapError;
         }
 
         if (controller.signal.aborted) {
           return;
         }
 
-        setProviders(providerResult.value ?? []);
+        const providerList = providerResult.status === 'fulfilled' ? providerResult.value ?? [] : [];
+        const sessionList = sessionResult.status === 'fulfilled' ? sessionResult.value ?? [] : [];
+        const secretList = secretResult.status === 'fulfilled' ? secretResult.value ?? [] : [];
+
+        setProviders(providerList);
         setSessions(
-          (sessionResult.value ?? [])
+          sessionList
             .slice()
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+            .sort((a: Session, b: Session) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
         );
-        setSecrets(secretResult.value ?? []);
+        setSecrets(secretList);
         setInitialError(null);
 
         if (metricsResult.status === 'fulfilled') {
@@ -450,11 +476,16 @@ function App() {
     });
   }, []);
 
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen((current) => !current);
+  }, []);
+
   const handleNavigate = useCallback(
     (view: ViewId, options: { focusContent?: boolean } = {}) => {
       setActiveView(view);
       setPaletteOpen(false);
       setNotificationOpen(false);
+      setSidebarOpen(false);
       if (options.focusContent !== false) {
         requestAnimationFrame(() => {
           mainRef.current?.focus({ preventScroll: true });
@@ -545,6 +576,14 @@ function App() {
 
     return [...viewCommands, ...providerCommands];
   }, [handleNavigate, handleProvisionRequest, providers]);
+
+  const breadcrumbs = useMemo<BreadcrumbItem[]>(() => {
+    const active = VIEW_DEFINITIONS.find((view) => view.id === activeView);
+    return [
+      { label: 'Console MCP', href: '#main-content' },
+      { label: active?.label ?? 'Visão atual', isCurrent: true },
+    ];
+  }, [activeView]);
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
@@ -658,14 +697,32 @@ function App() {
         Ir para o conteúdo principal
       </a>
       <header className="app-shell__header">
-        <div>
-          <span className="app-shell__eyebrow">Promenade Agent Hub</span>
-          <h1>Operações unificadas</h1>
+        <div className="app-shell__branding">
+          <button
+            type="button"
+            className="app-shell__sidebar-toggle btn btn-outline-secondary d-lg-none"
+            aria-expanded={isSidebarOpen}
+            aria-controls="primary-navigation"
+            onClick={handleToggleSidebar}
+          >
+            <FontAwesomeIcon icon="bars" className="me-2" fixedWidth aria-hidden="true" />
+            Menu
+          </button>
+          <div>
+            <span className="app-shell__eyebrow">Promenade Agent Hub</span>
+            <h1>Operações unificadas</h1>
+          </div>
         </div>
         <div className="app-shell__actions">
+          <ThemeSwitch className="d-none d-lg-inline-flex" />
           <nav
             aria-label="Navegação principal"
-            className="app-shell__nav"
+            id="primary-navigation"
+            className={clsx(
+              'app-shell__nav nav flex-column flex-lg-row gap-2',
+              isSidebarOpen && 'app-shell__nav--open',
+            )}
+            data-open={isSidebarOpen}
             ref={navRef}
             onKeyDown={handleNavKeyDown}
           >
@@ -673,59 +730,76 @@ function App() {
               <button
                 key={view.id}
                 type="button"
-                className={activeView === view.id ? 'nav-button nav-button--active' : 'nav-button'}
-                aria-current={activeView === view.id ? 'page' : undefined}
+                className={clsx('nav-button', {
+                  'nav-button--active': activeView === view.id,
+                })}
+                id={`nav-${view.id}`}
                 tabIndex={activeView === view.id ? 0 : -1}
-                id={`tab-${view.id}`}
-                aria-controls={`panel-${view.id}`}
+                aria-current={activeView === view.id ? 'page' : undefined}
+                onFocus={() => handleNavigate(view.id, { focusContent: false })}
+                onMouseEnter={() => handleNavigate(view.id, { focusContent: false })}
                 onClick={() => handleNavigate(view.id)}
               >
-                {view.label}
+                <FontAwesomeIcon
+                  icon={VIEW_ICON_MAP[view.id]}
+                  fixedWidth
+                  className="me-2"
+                  aria-hidden="true"
+                />
+                <span className="nav-button__label">{view.label}</span>
               </button>
             ))}
+            <ThemeSwitch className="d-lg-none mt-3" />
           </nav>
-          <button
-            type="button"
-            className="notification-button"
-            aria-haspopup="dialog"
-            aria-expanded={isNotificationOpen}
-            aria-controls="notification-center-panel"
-            onClick={() => {
-              setNotificationOpen(true);
-              setPaletteOpen(false);
-            }}
-            aria-label={notificationButtonLabel}
-            ref={notificationButtonRef}
-          >
-            <span className="notification-button__text">Notificações</span>
-            <span
-              className={
-                unreadCount > 0
-                  ? 'notification-button__badge'
-                  : 'notification-button__badge notification-button__badge--muted'
-              }
-              aria-hidden={unreadCount === 0}
+          <div className="app-shell__quick-actions">
+            <button
+              type="button"
+              className="notification-button"
+              aria-haspopup="dialog"
+              aria-expanded={isNotificationOpen}
+              aria-controls="notification-center-panel"
+              onClick={() => {
+                setNotificationOpen(true);
+                setPaletteOpen(false);
+              }}
+              aria-label={notificationButtonLabel}
+              ref={notificationButtonRef}
             >
-              {unreadCount}
-            </span>
-            <kbd aria-hidden="true">⇧⌘N</kbd>
-          </button>
-          <button
-            type="button"
-            className="command-button"
-            aria-haspopup="dialog"
-            aria-expanded={isPaletteOpen}
-            onClick={() => {
-              setPaletteOpen(true);
-              setNotificationOpen(false);
-            }}
-            ref={commandButtonRef}
-          >
-            <span className="command-button__text">Command palette</span>
-            <kbd aria-hidden="true">⌘K</kbd>
-          </button>
+              <FontAwesomeIcon icon="bell" className="me-2" fixedWidth aria-hidden="true" />
+              <span className="notification-button__text">Notificações</span>
+              <span
+                className={
+                  unreadCount > 0
+                    ? 'notification-button__badge'
+                    : 'notification-button__badge notification-button__badge--muted'
+                }
+                aria-hidden={unreadCount === 0}
+              >
+                {unreadCount}
+              </span>
+              <kbd aria-hidden="true">⇧⌘N</kbd>
+            </button>
+            <button
+              type="button"
+              className="command-button"
+              aria-haspopup="dialog"
+              aria-expanded={isPaletteOpen}
+              onClick={() => {
+                setPaletteOpen(true);
+                setNotificationOpen(false);
+              }}
+              ref={commandButtonRef}
+            >
+              <FontAwesomeIcon icon="circle-half-stroke" className="me-2" fixedWidth aria-hidden="true" />
+              <span className="command-button__text">Command palette</span>
+              <kbd aria-hidden="true">⌘K</kbd>
+            </button>
+          </div>
         </div>
       </header>
+      <div className="app-shell__breadcrumbs">
+        <Breadcrumbs items={breadcrumbs} />
+      </div>
       <main
         className="app-shell__content"
         role="main"
@@ -735,7 +809,7 @@ function App() {
         ref={mainRef}
       >
         {activeView === 'dashboard' && (
-          <section role="tabpanel" id="panel-dashboard" aria-labelledby="tab-dashboard">
+          <section role="tabpanel" id="panel-dashboard" aria-labelledby="nav-dashboard">
             <Dashboard
               providers={providers}
               sessions={sessions}
@@ -754,7 +828,7 @@ function App() {
           <section
             role="tabpanel"
             id="panel-observability"
-            aria-labelledby="tab-observability"
+            aria-labelledby="nav-observability"
           >
             <Observability
               providers={providers}
@@ -765,17 +839,17 @@ function App() {
           </section>
         )}
         {activeView === 'servers' && (
-          <section role="tabpanel" id="panel-servers" aria-labelledby="tab-servers">
+          <section role="tabpanel" id="panel-servers" aria-labelledby="nav-servers">
             <Servers providers={providers} isLoading={isLoading} initialError={initialError} />
           </section>
         )}
         {activeView === 'agents' && (
-          <section role="tabpanel" id="panel-agents" aria-labelledby="tab-agents">
+          <section role="tabpanel" id="panel-agents" aria-labelledby="nav-agents">
             <Agents />
           </section>
         )}
         {activeView === 'keys' && (
-          <section role="tabpanel" id="panel-keys" aria-labelledby="tab-keys">
+          <section role="tabpanel" id="panel-keys" aria-labelledby="nav-keys">
             <Keys
               providers={providers}
               secrets={secrets}
@@ -789,37 +863,37 @@ function App() {
           </section>
         )}
         {activeView === 'security' && (
-          <section role="tabpanel" id="panel-security" aria-labelledby="tab-security">
+          <section role="tabpanel" id="panel-security" aria-labelledby="nav-security">
             <Security />
           </section>
         )}
         {activeView === 'policies' && (
-          <section role="tabpanel" id="panel-policies" aria-labelledby="tab-policies">
+          <section role="tabpanel" id="panel-policies" aria-labelledby="nav-policies">
             <Policies providers={providers} isLoading={isLoading} initialError={initialError} />
           </section>
         )}
         {activeView === 'routing' && (
-          <section role="tabpanel" id="panel-routing" aria-labelledby="tab-routing">
+          <section role="tabpanel" id="panel-routing" aria-labelledby="nav-routing">
             <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
           </section>
         )}
         {activeView === 'flows' && (
-          <section role="tabpanel" id="panel-flows" aria-labelledby="tab-flows">
+          <section role="tabpanel" id="panel-flows" aria-labelledby="nav-flows">
             <Flows />
           </section>
         )}
         {activeView === 'finops' && (
-          <section role="tabpanel" id="panel-finops" aria-labelledby="tab-finops">
+          <section role="tabpanel" id="panel-finops" aria-labelledby="nav-finops">
             <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
           </section>
         )}
         {activeView === 'admin-chat' && (
-          <section role="tabpanel" id="panel-admin-chat" aria-labelledby="tab-admin-chat">
+          <section role="tabpanel" id="panel-admin-chat" aria-labelledby="nav-admin-chat">
             <AdminChat onNotificationsUpdate={applyNotifications} />
           </section>
         )}
         {activeView === 'marketplace' && (
-          <section role="tabpanel" id="panel-marketplace" aria-labelledby="tab-marketplace">
+          <section role="tabpanel" id="panel-marketplace" aria-labelledby="nav-marketplace">
             <Marketplace />
           </section>
         )}

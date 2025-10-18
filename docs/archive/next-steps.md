@@ -5,12 +5,12 @@
 > Atualização 2025-10-15 08:29: roadmap revisado com **sprints explícitas (M1–M6)** e inclusão de **suporte a temas (Light/Dark)** para a UI. Consulte `ui-next-steps.md` para o detalhamento operacional.
 
 ## Status auditado (2025-10-18)
-- [ ] **M1 — Fundamentos & Shell** · Bloqueado — pendente de Bootstrap/FA, tokens e tema (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M1 — Fundamentos & Shell** · Bloqueado — pendente de AppShell acessível e navegação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M2 — Ações & Feedback** · Bloqueado — componentes críticos (wizards/modais) ausentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M5 — Páginas Core** · Bloqueado — fluxos Dashboard/Servers/FinOps/Policies/Routing falhando (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **M6 — Theming/Performance/Observabilidade** · Bloqueado — build quebrado impede métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M6 — Performance & Observabilidade** · Bloqueado — build quebrado impede métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 
 ## North Star & KPIs
 - **Lead time por PR**: -40% (30 dias)
@@ -47,8 +47,6 @@
 ## Sprints (planejamento macro)
 
 ### M1 — Fundamentos & Shell (UI) · 1,5–2,0 semanas
-- Setup Bootstrap/FA com **SCSS seletivo** (TASK-UI-BS-000)
-- **Tokens & Temas Light/Dark** (TASK-UI-BS-001)
 - AppShell (Navbar+Sidebar) e Navegação (Breadcrumbs/Pagination) (TASK-UI-SH-010/ UI-NAV-011)
 
 ### M2 — Ações & Feedback (UI) · 1,0–1,5 semanas
@@ -75,9 +73,7 @@
 - Routing Lab (TASK-UI-PG-074)
 - FinOps (TASK-UI-PG-075)
 
-### M6 — Theming, Performance & Observabilidade de UI · 1,0 semana
-- Tema Dark refinado (TASK-UI-TH-080)
-- Dieta de bundle e code splitting (TASK-UI-TH-081)
+### M6 — Performance & Observabilidade de UI · 1,0 semana
 - UI Kit vivo (TASK-UI-OBS-082)
 
 > Nota: as sprints de **backend (BE-1 a BE-3)**, **policies/routing (PR-1)**, **observabilidade/finops (FO-1, FO-2)** e **ops (OPS-2 a OPS-4)** seguem plano já descrito anteriormente e podem rodar **paralelamente** às sprints UI quando não houver bloqueios.
