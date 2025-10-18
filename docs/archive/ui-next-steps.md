@@ -9,6 +9,31 @@
 - Cada componente com estados: `loading`, `empty`, `error`, `success`.
 - Telemetria leve de UI (console/log dev) para rastrear interações críticas.
 
+## Status auditado (2025-10-18)
+- [ ] **TASK-UI-BS-000** · Bootstrap/Font Awesome não instalados; CSS ad-hoc em uso (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-BS-001** · Tokens/temas ausentes; tema dark indisponível (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-SH-010** · AppShell sem tokens e dependente de dados remotos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-NAV-011** · Breadcrumbs/paginação não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-ACT-020** · Catálogo de botões/instrumentos incompleto (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-ACT-021** · Dropdowns/tooltips sem cobertura (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FB-022** · Alerts/toasts inconsistentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-MOD-023** · Modais críticos não presentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-DATA-030** · Cards KPI/lista/detalhe incompletos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-DATA-031** · Tabela + EmptyState sem comportamento esperado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-DATA-032** · Badges/progress não padronizados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FORM-040** · Controles de formulário fora do padrão Bootstrap (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-070** · Dashboard sem fluxos funcionais (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-071** · Página Servers depende de backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-072** · Keys sem máscara/validação confiável (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-073** · Policies não aplicam templates/rollback (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-074** · Routing Lab incompleto (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-075** · FinOps sem gráficos exportáveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-TH-080** · Tema dark não refinado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-TH-081** · Dieta de bundle inexistente (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-OBS-082** · UI Kit vivo não disponível (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+
 ---
 
 # Sprint M1 — Fundamentos & Shell (1,5–2,0 semanas)

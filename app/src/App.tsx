@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { IconProp } from '@fortawesome/fontawesome-svg-core';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import clsx from 'clsx';
 
 import './App.css';
 import type {
@@ -30,6 +33,7 @@ import {
 import CommandPalette from './components/CommandPalette';
 import NotificationCenter, { type NotificationItem } from './components/NotificationCenter';
 import ProvisioningDialog, { type ProvisioningSubmission } from './components/ProvisioningDialog';
+import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import Dashboard from './pages/Dashboard';
 import FinOps from './pages/FinOps';
 import Keys from './pages/Keys';
@@ -42,6 +46,7 @@ import Marketplace from './pages/Marketplace';
 import Agents from './pages/Agents';
 import Observability from './pages/Observability';
 import Security from './pages/Security';
+import ThemeSwitch from './theme/ThemeSwitch';
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -186,6 +191,21 @@ const VIEW_DEFINITIONS = [
 
 type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
 
+const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
+  dashboard: 'gauge-high',
+  observability: 'satellite-dish',
+  servers: 'server',
+  agents: 'robot',
+  keys: 'key',
+  security: 'shield-halved',
+  policies: 'users-gear',
+  routing: 'shuffle',
+  flows: 'diagram-project',
+  finops: 'table-columns',
+  marketplace: 'store',
+  'admin-chat': 'message',
+};
+
 function App() {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -207,6 +227,7 @@ function App() {
   const [pendingProvider, setPendingProvider] = useState<ProviderSummary | null>(null);
   const [isProvisionDialogOpen, setProvisionDialogOpen] = useState(false);
   const [isProvisionSubmitting, setProvisionSubmitting] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const mainRef = useRef<HTMLElement | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -450,11 +471,16 @@ function App() {
     });
   }, []);
 
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarOpen((current) => !current);
+  }, []);
+
   const handleNavigate = useCallback(
     (view: ViewId, options: { focusContent?: boolean } = {}) => {
       setActiveView(view);
       setPaletteOpen(false);
       setNotificationOpen(false);
+      setSidebarOpen(false);
       if (options.focusContent !== false) {
         requestAnimationFrame(() => {
           mainRef.current?.focus({ preventScroll: true });
@@ -545,6 +571,14 @@ function App() {
 
     return [...viewCommands, ...providerCommands];
   }, [handleNavigate, handleProvisionRequest, providers]);
+
+  const breadcrumbs = useMemo<BreadcrumbItem[]>(() => {
+    const active = VIEW_DEFINITIONS.find((view) => view.id === activeView);
+    return [
+      { label: 'Console MCP', href: '#main-content' },
+      { label: active?.label ?? 'Visão atual', isCurrent: true },
+    ];
+  }, [activeView]);
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
@@ -658,14 +692,33 @@ function App() {
         Ir para o conteúdo principal
       </a>
       <header className="app-shell__header">
-        <div>
-          <span className="app-shell__eyebrow">Promenade Agent Hub</span>
-          <h1>Operações unificadas</h1>
+        <div className="app-shell__branding">
+          <button
+            type="button"
+            className="app-shell__sidebar-toggle btn btn-outline-secondary d-lg-none"
+            aria-expanded={isSidebarOpen}
+            aria-controls="primary-navigation"
+            onClick={handleToggleSidebar}
+          >
+            <FontAwesomeIcon icon="bars" className="me-2" fixedWidth aria-hidden="true" />
+            Menu
+          </button>
+          <div>
+            <span className="app-shell__eyebrow">Promenade Agent Hub</span>
+            <h1>Operações unificadas</h1>
+          </div>
         </div>
         <div className="app-shell__actions">
+          <ThemeSwitch className="d-none d-lg-inline-flex" />
           <nav
             aria-label="Navegação principal"
-            className="app-shell__nav"
+            id="primary-navigation"
+            className={clsx(
+              'app-shell__nav nav flex-column flex-lg-row gap-2',
+              isSidebarOpen && 'app-shell__nav--open',
+            )}
+            data-open={isSidebarOpen}
+            role="tablist"
             ref={navRef}
             onKeyDown={handleNavKeyDown}
           >
@@ -673,59 +726,76 @@ function App() {
               <button
                 key={view.id}
                 type="button"
-                className={activeView === view.id ? 'nav-button nav-button--active' : 'nav-button'}
-                aria-current={activeView === view.id ? 'page' : undefined}
+                className={clsx('nav-button', {
+                  'nav-button--active': activeView === view.id,
+                })}
+                aria-selected={activeView === view.id}
                 tabIndex={activeView === view.id ? 0 : -1}
                 id={`tab-${view.id}`}
                 aria-controls={`panel-${view.id}`}
+                role="tab"
                 onClick={() => handleNavigate(view.id)}
               >
-                {view.label}
+                <FontAwesomeIcon
+                  icon={VIEW_ICON_MAP[view.id]}
+                  fixedWidth
+                  className="me-2"
+                  aria-hidden="true"
+                />
+                <span className="nav-button__label">{view.label}</span>
               </button>
             ))}
+            <ThemeSwitch className="d-lg-none mt-3" />
           </nav>
-          <button
-            type="button"
-            className="notification-button"
-            aria-haspopup="dialog"
-            aria-expanded={isNotificationOpen}
-            aria-controls="notification-center-panel"
-            onClick={() => {
-              setNotificationOpen(true);
-              setPaletteOpen(false);
-            }}
-            aria-label={notificationButtonLabel}
-            ref={notificationButtonRef}
-          >
-            <span className="notification-button__text">Notificações</span>
-            <span
-              className={
-                unreadCount > 0
-                  ? 'notification-button__badge'
-                  : 'notification-button__badge notification-button__badge--muted'
-              }
-              aria-hidden={unreadCount === 0}
+          <div className="app-shell__quick-actions">
+            <button
+              type="button"
+              className="notification-button"
+              aria-haspopup="dialog"
+              aria-expanded={isNotificationOpen}
+              aria-controls="notification-center-panel"
+              onClick={() => {
+                setNotificationOpen(true);
+                setPaletteOpen(false);
+              }}
+              aria-label={notificationButtonLabel}
+              ref={notificationButtonRef}
             >
-              {unreadCount}
-            </span>
-            <kbd aria-hidden="true">⇧⌘N</kbd>
-          </button>
-          <button
-            type="button"
-            className="command-button"
-            aria-haspopup="dialog"
-            aria-expanded={isPaletteOpen}
-            onClick={() => {
-              setPaletteOpen(true);
-              setNotificationOpen(false);
-            }}
-            ref={commandButtonRef}
-          >
-            <span className="command-button__text">Command palette</span>
-            <kbd aria-hidden="true">⌘K</kbd>
-          </button>
+              <FontAwesomeIcon icon="bell" className="me-2" fixedWidth aria-hidden="true" />
+              <span className="notification-button__text">Notificações</span>
+              <span
+                className={
+                  unreadCount > 0
+                    ? 'notification-button__badge'
+                    : 'notification-button__badge notification-button__badge--muted'
+                }
+                aria-hidden={unreadCount === 0}
+              >
+                {unreadCount}
+              </span>
+              <kbd aria-hidden="true">⇧⌘N</kbd>
+            </button>
+            <button
+              type="button"
+              className="command-button"
+              aria-haspopup="dialog"
+              aria-expanded={isPaletteOpen}
+              onClick={() => {
+                setPaletteOpen(true);
+                setNotificationOpen(false);
+              }}
+              ref={commandButtonRef}
+            >
+              <FontAwesomeIcon icon="circle-half-stroke" className="me-2" fixedWidth aria-hidden="true" />
+              <span className="command-button__text">Command palette</span>
+              <kbd aria-hidden="true">⌘K</kbd>
+            </button>
+          </div>
         </div>
       </header>
+      <div className="app-shell__breadcrumbs">
+        <Breadcrumbs items={breadcrumbs} />
+      </div>
       <main
         className="app-shell__content"
         role="main"

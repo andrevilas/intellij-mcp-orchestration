@@ -1,4 +1,4 @@
-import { useId, useMemo } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   ScatterChart,
@@ -25,6 +25,7 @@ import type {
 } from '../api';
 import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
+import Pagination from '../components/navigation/Pagination';
 
 export interface DashboardProps {
   providers: ProviderSummary[];
@@ -38,6 +39,8 @@ export interface DashboardProps {
   compliance?: PolicyComplianceSummary | null;
   onProvision(provider: ProviderSummary): void;
 }
+
+const SESSION_PAGE_SIZE = 6;
 
 interface HeatmapPoint {
   day: string;
@@ -336,10 +339,44 @@ export function Dashboard({
   compliance,
   onProvision,
 }: DashboardProps) {
+  const [currentSessionPage, setCurrentSessionPage] = useState(1);
   const derived = useMemo(
     () => deriveDashboardData(providers, metrics, heatmapBuckets),
     [providers, metrics, heatmapBuckets],
   );
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE));
+    if (currentSessionPage > totalPages) {
+      setCurrentSessionPage(totalPages);
+    }
+  }, [sessions, currentSessionPage]);
+
+  const sessionPageCount = useMemo(
+    () => Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE)),
+    [sessions.length],
+  );
+
+  const paginatedSessions = useMemo(() => {
+    if (sessions.length === 0) {
+      return [];
+    }
+    const startIndex = (currentSessionPage - 1) * SESSION_PAGE_SIZE;
+    return sessions.slice(startIndex, startIndex + SESSION_PAGE_SIZE);
+  }, [sessions, currentSessionPage]);
+
+  const sessionRange = useMemo(() => {
+    if (sessions.length === 0) {
+      return { start: 0, end: 0 };
+    }
+    const start = (currentSessionPage - 1) * SESSION_PAGE_SIZE + 1;
+    const end = Math.min(currentSessionPage * SESSION_PAGE_SIZE, sessions.length);
+    return { start, end };
+  }, [sessions, currentSessionPage]);
+
+  const handleSessionPageChange = useCallback((page: number) => {
+    setCurrentSessionPage(page);
+  }, []);
 
   const complianceState = useMemo(() => {
     if (!compliance) {
@@ -773,26 +810,39 @@ export function Dashboard({
         {sessions.length === 0 && <p className="info">Ainda não há sessões registradas nesta execução.</p>}
 
         {sessions.length > 0 && (
-          <ul className="session-list">
-            {sessions.map((session) => (
-              <li key={session.id} className="session-item">
-                <div className="session-header">
-                  <span className="session-id">{session.id}</span>
-                  <span className="session-status">{session.status}</span>
-                </div>
-                <div className="session-meta">
-                  <span>
-                    Provedor: <strong>{session.provider_id}</strong>
-                  </span>
-                  <span>
-                    Criado em: {new Date(session.created_at).toLocaleString()}
-                  </span>
-                  {session.reason && <span>Motivo: {session.reason}</span>}
-                  {session.client && <span>Cliente: {session.client}</span>}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="session-list">
+              {paginatedSessions.map((session) => (
+                <li key={session.id} className="session-item">
+                  <div className="session-header">
+                    <span className="session-id">{session.id}</span>
+                    <span className="session-status">{session.status}</span>
+                  </div>
+                  <div className="session-meta">
+                    <span>
+                      Provedor: <strong>{session.provider_id}</strong>
+                    </span>
+                    <span>
+                      Criado em: {new Date(session.created_at).toLocaleString()}
+                    </span>
+                    {session.reason && <span>Motivo: {session.reason}</span>}
+                    {session.client && <span>Cliente: {session.client}</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="session-pagination">
+              <span className="session-pagination__summary" role="status" aria-live="polite">
+                Mostrando {sessionRange.start}–{sessionRange.end} de {sessions.length} sessões
+              </span>
+              <Pagination
+                currentPage={currentSessionPage}
+                pageCount={sessionPageCount}
+                onPageChange={handleSessionPageChange}
+                ariaLabel="Paginação do histórico de sessões"
+              />
+            </div>
+          </>
         )}
       </section>
     </main>
