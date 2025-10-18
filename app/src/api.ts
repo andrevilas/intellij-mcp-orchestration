@@ -3980,6 +3980,7 @@ export interface ConfigReloadResponse {
   plan: ConfigPlan;
   planPayload: ConfigPlanPayload;
   patch: string;
+  planId?: string | null;
 }
 
 export interface ConfigPlanPreviewPullRequest {
@@ -4117,6 +4118,7 @@ interface ReloadResponsePayload {
   message: string;
   plan: ConfigPlanPayload;
   patch: string;
+  plan_id?: string | null;
 }
 
 interface AgentConfigPlanResponsePayload {
@@ -4169,6 +4171,90 @@ export async function postConfigReload(
     plan: mapConfigPlanPayload(response.plan),
     planPayload: response.plan,
     patch: response.patch,
+    planId: response.plan_id ?? null,
+  };
+}
+
+export interface GovernedConfigReloadPlanRequest extends ConfigReloadRequest {}
+
+export interface GovernedConfigReloadPlanResponse {
+  planId: string;
+  message: string;
+  plan: ConfigPlan;
+  planPayload: ConfigPlanPayload;
+  patch: string;
+}
+
+export interface GovernedConfigReloadApplyRequest {
+  planId: string;
+  plan: ConfigPlanPayload;
+  patch: string;
+  actor: string;
+  actorEmail: string;
+  commitMessage?: string | null;
+}
+
+export interface GovernedConfigReloadApplyResponse {
+  status: ConfigPlanStatus;
+  message: string;
+  recordId: string;
+  branch?: string | null;
+  baseBranch?: string | null;
+  commitSha?: string | null;
+  pullRequest?: ConfigApplyPullRequest | null;
+}
+
+function generateGovernedPlanId(): string {
+  try {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID();
+    }
+  } catch {
+    // ignore runtime errors from crypto availability checks
+  }
+  return `reload-plan-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export async function planGovernedConfigReload(
+  requestPayload: GovernedConfigReloadPlanRequest,
+  signal?: AbortSignal,
+): Promise<GovernedConfigReloadPlanResponse> {
+  const response = await postConfigReload(requestPayload, signal);
+  const planId = response.planId ?? generateGovernedPlanId();
+
+  return {
+    planId,
+    message: response.message,
+    plan: response.plan,
+    planPayload: response.planPayload,
+    patch: response.patch,
+  };
+}
+
+export async function applyGovernedConfigReload(
+  requestPayload: GovernedConfigReloadApplyRequest,
+  signal?: AbortSignal,
+): Promise<GovernedConfigReloadApplyResponse> {
+  const response = await postPolicyPlanApply(
+    {
+      planId: requestPayload.planId,
+      plan: requestPayload.plan,
+      patch: requestPayload.patch,
+      actor: requestPayload.actor,
+      actorEmail: requestPayload.actorEmail,
+      commitMessage: requestPayload.commitMessage ?? undefined,
+    },
+    signal,
+  );
+
+  return {
+    status: response.status,
+    message: response.message,
+    recordId: response.recordId,
+    branch: response.branch ?? null,
+    baseBranch: response.baseBranch ?? null,
+    commitSha: response.commitSha ?? null,
+    pullRequest: response.pullRequest ?? null,
   };
 }
 
