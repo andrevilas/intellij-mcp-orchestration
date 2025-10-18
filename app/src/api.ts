@@ -4090,6 +4090,23 @@ export interface AgentPlanResponse {
   previewPayload: ConfigPlanPreviewPayload | null;
 }
 
+export interface GovernedAgentPlanRequest {
+  agent: {
+    slug: string;
+    repository: string;
+    manifest: Record<string, unknown>;
+  };
+  manifestSource?: string | null;
+  mcpServers: string[];
+}
+
+export interface GovernedAgentPlanResponse {
+  plan: ConfigPlan;
+  planPayload: ConfigPlanPayload;
+  preview: ConfigPlanPreview | null;
+  previewPayload: ConfigPlanPreviewPayload | null;
+}
+
 interface ReloadRequestPayload {
   artifact_type: string;
   target_path: string;
@@ -4181,6 +4198,24 @@ export async function postAgentPlan(
   signal?: AbortSignal,
 ): Promise<AgentPlanResponse> {
   const response = await request<ConfigPlanResponsePayload>('/config/agents/plan', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  return {
+    plan: mapConfigPlanPayload(response.plan),
+    planPayload: response.plan,
+    preview: mapConfigPlanPreview(response.preview ?? null),
+    previewPayload: response.preview ?? null,
+  };
+}
+
+export async function postGovernedAgentPlan(
+  payload: GovernedAgentPlanRequest,
+  signal?: AbortSignal,
+): Promise<GovernedAgentPlanResponse> {
+  const response = await request<ConfigPlanResponsePayload>('/config/agents?intent=plan', {
     method: 'POST',
     body: JSON.stringify(payload),
     signal,
