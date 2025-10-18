@@ -11,7 +11,6 @@ import {
   fetchPolicyOverrides,
   fetchPolicyManifest,
   patchConfigPoliciesPlan,
-  postAgentPlan,
   updatePolicyManifest,
   createPolicyOverride,
   updatePolicyOverride,
@@ -53,6 +52,7 @@ import {
   triggerSmokeEndpoint,
   postAgentPlanApply,
   postPolicyPlanApply,
+  postGovernedAgentPlan,
   fetchSecurityUsers,
   createSecurityUser,
   updateSecurityUser,
@@ -1456,12 +1456,14 @@ describe('api client', () => {
           capabilities: ['monitoring'],
         },
       },
+      manifestSource: '{"title":"Sentinel Watcher"}',
+      mcpServers: ['catalog'],
     };
 
-    const response = await postAgentPlan(requestPayload);
+    const response = await postGovernedAgentPlan(requestPayload);
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/v1/config/agents/plan',
+      '/api/v1/config/agents?intent=plan',
       expect.objectContaining({ method: 'POST' }),
     );
     const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
