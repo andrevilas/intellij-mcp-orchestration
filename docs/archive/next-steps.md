@@ -4,6 +4,14 @@
 
 > Atualização 2025-10-15 08:29: roadmap revisado com **sprints explícitas (M1–M6)** e inclusão de **suporte a temas (Light/Dark)** para a UI. Consulte `ui-next-steps.md` para o detalhamento operacional.
 
+## Status auditado (2025-10-18)
+- [ ] **M1 — Fundamentos & Shell** · Bloqueado — pendente de Bootstrap/FA, tokens e tema (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M2 — Ações & Feedback** · Bloqueado — componentes críticos (wizards/modais) ausentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M5 — Páginas Core** · Bloqueado — fluxos Dashboard/Servers/FinOps/Policies/Routing falhando (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M6 — Theming/Performance/Observabilidade** · Bloqueado — build quebrado impede métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+
 ## North Star & KPIs
 - **Lead time por PR**: -40% (30 dias)
 - **Custo por PR**: -25% vs. baseline
