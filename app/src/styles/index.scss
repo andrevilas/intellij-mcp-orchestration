@@ -1,0 +1,101 @@
+@use 'sass:map';
+@import 'bootstrap/scss/functions';
+@import 'bootstrap/scss/variables';
+@import 'bootstrap/scss/maps';
+@import 'bootstrap/scss/mixins';
+@import 'bootstrap/scss/root';
+@import 'bootstrap/scss/buttons';
+@import 'bootstrap/scss/forms';
+@import 'bootstrap/scss/nav';
+@import 'bootstrap/scss/navbar';
+@import 'bootstrap/scss/dropdown';
+@import 'bootstrap/scss/pagination';
+
+:root {
+  --mcp-surface: #ffffff;
+  --mcp-surface-subtle: #f8fafc;
+  --mcp-surface-contrast: #0f172a;
+  --mcp-border-strong: rgba(15, 23, 42, 0.1);
+  --mcp-border-subtle: rgba(15, 23, 42, 0.08);
+  --mcp-interactive: #4338ca;
+  --mcp-interactive-soft: rgba(67, 56, 202, 0.08);
+  --mcp-focus-ring: rgba(67, 56, 202, 0.45);
+  --mcp-shadow-soft: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --mcp-sidebar-bg: #0f172a;
+  --mcp-sidebar-fg: #e2e8f0;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --mcp-surface: #0f172a;
+  --mcp-surface-subtle: #111c34;
+  --mcp-surface-contrast: #e2e8f0;
+  --mcp-border-strong: rgba(148, 163, 184, 0.24);
+  --mcp-border-subtle: rgba(148, 163, 184, 0.16);
+  --mcp-interactive: #818cf8;
+  --mcp-interactive-soft: rgba(129, 140, 248, 0.16);
+  --mcp-focus-ring: rgba(129, 140, 248, 0.55);
+  --mcp-shadow-soft: 0 18px 38px rgba(15, 23, 42, 0.55);
+  --mcp-sidebar-bg: #0b1120;
+  --mcp-sidebar-fg: #cbd5f5;
+}
+
+body {
+  background-color: var(--mcp-surface-subtle);
+  color: var(--mcp-surface-contrast);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+}
+
+.theme-switch .btn {
+  min-width: 6.5rem;
+}
+
+.theme-switch .btn.active {
+  background-color: var(--mcp-interactive);
+  border-color: var(--mcp-interactive);
+  color: #fff;
+}
+
+.theme-switch .btn:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  outline-offset: 2px;
+}
+
+.breadcrumb-link {
+  color: var(--mcp-interactive);
+  text-decoration: none;
+}
+
+.breadcrumb-link:hover,
+.breadcrumb-link:focus {
+  text-decoration: underline;
+}
+
+.breadcrumb-item.active .breadcrumb-text {
+  color: var(--mcp-surface-contrast);
+  font-weight: 600;
+}
+
+.breadcrumb {
+  --bs-breadcrumb-divider-color: var(--mcp-border-subtle);
+}
+
+.pagination .page-link {
+  color: var(--mcp-interactive);
+}
+
+.pagination .page-link:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  outline-offset: 2px;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: var(--mcp-interactive);
+  border-color: var(--mcp-interactive);
+  color: #fff;
+}
+
+.pagination .page-item.disabled .page-link {
+  color: rgba(99, 102, 241, 0.65);
+}

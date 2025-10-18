@@ -897,7 +897,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
       return;
     }
 
-    const planId = pendingPlan.plan.id ?? pendingPlan.id;
+    const planId = pendingPlan.id;
     setPlanApplying(true);
     setPlanError(null);
     try {

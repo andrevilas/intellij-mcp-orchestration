@@ -419,7 +419,7 @@ interface BudgetRowErrors {
   currency?: string;
 }
 
-interface AlertRow extends FinOpsAlertThreshold {
+interface AlertRow extends Omit<FinOpsAlertThreshold, 'threshold'> {
   threshold: string;
 }
 
@@ -897,14 +897,14 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       period: budget.period,
     }));
 
-    const budgetTemplate =
+    const budgetTemplate: BudgetRow[] =
       budgets.length > 0
         ? budgets
         : (['economy', 'balanced', 'turbo'] as RoutingTierId[]).map((tier) => ({
             tier,
             amount: '',
             currency: 'USD',
-            period: 'monthly',
+            period: 'monthly' as BudgetPeriod,
           }));
 
     setBudgetRows(budgetTemplate);
@@ -915,7 +915,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       channel: alert.channel,
     }));
 
-    const alertTemplate = alerts.length > 0 ? alerts : [{ threshold: '75', channel: 'slack' }];
+    const alertTemplate: AlertRow[] =
+      alerts.length > 0 ? alerts : [{ threshold: '75', channel: 'slack' as HitlEscalationChannel }];
     setAlertRows(alertTemplate);
     setAlertErrors(alertTemplate.map(() => ({}) as AlertRowErrors));
 
@@ -1330,7 +1331,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       setManifest(pendingPlan.nextSnapshot);
       setPlanSummary((current) => {
         const base = current ?? buildPlanSummary(pendingPlan.id, pendingPlan.plan, null);
-        const pullRequest = mapExecutionPullRequest(response.pullRequest) ?? base.pullRequest ?? null;
+        const pullRequest = mapExecutionPullRequest(response.pullRequest ?? null) ?? base.pullRequest ?? null;
         return {
           ...base,
           status: 'applied',
@@ -1401,7 +1402,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
 
       if (!cancelled) {
         const nextMap = results.reduce<Record<string, TimeSeriesPoint[]>>((acc, [id, series]) => {
-          acc[id] = series;
+          acc[id] = Array.isArray(series) ? [...series] : [];
           return acc;
         }, {});
         setProviderSeriesMap(nextMap);

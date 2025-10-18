@@ -55,7 +55,7 @@ export interface AgentConfigLayerEditorHandle {
   getCachedHistory: () => AgentConfigHistoryItem[];
 }
 
-function parseEditorValue(raw: string, label: string): Record<string, unknown> | null {
+function parseEditorValue(raw: string, label: string): Record<string, unknown> {
   const normalized = raw.trim();
 
   if (!normalized) {

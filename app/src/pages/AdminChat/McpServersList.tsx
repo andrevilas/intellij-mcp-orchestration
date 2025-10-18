@@ -77,9 +77,9 @@ function buildServerSnapshot(original: McpServer, draft: ServerDraft): McpServer
     ...original,
     name: input.name,
     command: input.command,
-    description: input.description,
-    tags: input.tags,
-    capabilities: input.capabilities,
+    description: input.description ?? null,
+    tags: input.tags ?? [],
+    capabilities: input.capabilities ?? [],
     transport: input.transport,
   };
 }

@@ -9,28 +9,31 @@
 - Cada componente com estados: `loading`, `empty`, `error`, `success`.
 - Telemetria leve de UI (console/log dev) para rastrear interações críticas.
 
+## Status auditado (2025-10-18)
+- [ ] **TASK-UI-SH-010** · AppShell sem tokens e dependente de dados remotos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-NAV-011** · Breadcrumbs/paginação não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-ACT-020** · Catálogo de botões/instrumentos incompleto (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-ACT-021** · Dropdowns/tooltips sem cobertura (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FB-022** · Alerts/toasts inconsistentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-MOD-023** · Modais críticos não presentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-DATA-030** · Cards KPI/lista/detalhe incompletos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-DATA-031** · Tabela + EmptyState sem comportamento esperado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-DATA-032** · Badges/progress não padronizados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FORM-040** · Controles de formulário fora do padrão Bootstrap (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-070** · Dashboard sem fluxos funcionais (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-071** · Página Servers depende de backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-072** · Keys sem máscara/validação confiável (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-073** · Policies não aplicam templates/rollback (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-074** · Routing Lab incompleto (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-075** · FinOps sem gráficos exportáveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-OBS-082** · UI Kit vivo não disponível (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+
 ---
 
 # Sprint M1 — Fundamentos & Shell (1,5–2,0 semanas)
 **North Star:** base visual escalável e navegação produtiva.
-
-### TASK-UI-BS-000 · Setup Bootstrap/FA (SCSS seletivo)
-- **Passos**
-  - `npm i bootstrap @popperjs/core @fortawesome/fontawesome-svg-core @fortawesome/free-solid-svg-icons @fortawesome/free-regular-svg-icons @fortawesome/free-brands-svg-icons @fortawesome/react-fontawesome sass`
-  - `src/styles/bootstrap.scss` com imports mínimos (functions, variables, maps, mixins, root, reboot, grid, utilities, buttons, nav, navbar, dropdown, forms, card, modal, toasts, alert, spinners, utilities/api).
-  - `src/main.tsx`: importar `./styles/bootstrap.scss` + JS dos overlays (`dropdown`, `collapse`, `modal`, `tooltip`).
-  - `src/icons.ts`: registrar ícones usados (plus, pen, trash, filter, search, chevrons, cog, bell, play/stop/refresh, brands).
-- **DoD**
-  - Build sem warnings; CSS < 200KB; ícones carregando via `library.add()`; overlays funcionais.
-
-### TASK-UI-BS-001 · Design Tokens & Temas (Light/Dark)
-- **Passos**
-  - `src/styles/_tokens.scss`: cores, espaçamentos, tipografia, radius, sombras, z-index.
-  - `src/styles/_themes.scss`: declarar CSS vars base e `.theme-dark` com overrides (cores, bg, borders, focus).
-  - `ThemeProvider` (contexto React) para aplicar/remover `.theme-dark` na `<body>`; persistir escolha em `localStorage`.
-  - Componentizar `ThemeSwitch` (botão na Navbar).
-- **DoD**
-  - Contraste AA validado (texto/ícones); switch Light/Dark sem FOUC; estados `:focus` visíveis nos dois temas.
 
 ### TASK-UI-SH-010 · AppShell (Navbar + Sidebar)
 - **Passos**: header com busca/ações; sidebar colapsável; rota ativa; breakpoint `lg`.
@@ -40,7 +43,7 @@
 - **Passos**: breadcrumbs com truncamento em telas pequenas; paginação com chevrons FA.
 - **DoD**: leitores de tela anunciam posição/total.
 
-**Entregáveis**: AppShell funcional, temas Light/Dark, navegação base.
+**Entregáveis**: AppShell funcional e navegação base.
 
 ---
 
@@ -136,14 +139,8 @@
 
 ---
 
-# Sprint M6 — Theming, Performance & UI Observability (1,0 semana)
+# Sprint M6 — Performance & UI Observability (1,0 semana)
 **North Star:** acabamento, governança e qualidade contínua.
-
-### TASK-UI-TH-080 · Tema Dark finalizado
-- Ajustes finos de contraste, foco, hover e bordas; auditoria visual completa.
-
-### TASK-UI-TH-081 · Dieta de Bundle
-- CSS < 220KB (min); code splitting por rotas (Dashboard/Servers/FinOps); eliminar imports SCSS não usados.
 
 ### TASK-UI-OBS-082 · UI Kit vivo
 - Página catálogo com **todos** os componentes contendo **snippet** de uso e variações; referência oficial da squad.

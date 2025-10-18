@@ -473,8 +473,11 @@ describe('api client', () => {
       }),
     ).rejects.toBeInstanceOf(ApiError);
     expect(captured).not.toBeNull();
-    expect(captured?.status).toBe(409);
-    expect(captured?.body).toBe('conflict');
+    if (!captured) {
+      throw new Error('ApiError esperado não foi capturado.');
+    }
+    expect(captured.status).toBe(409);
+    expect(captured.body).toBe('conflict');
   });
 
   it('requests sessions from /api/v1/sessions', async () => {
