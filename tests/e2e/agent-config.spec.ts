@@ -61,7 +61,7 @@ async function openAgentPoliciesTab(page: Page) {
   await expect(page.getByRole('tabpanel', { name: 'Policies' })).toBeVisible();
 }
 
-test('gera plano e aplica configuração de policies', async ({ page }) => {
+test('@agent-governance gera plano e aplica configuração de policies', async ({ page }) => {
   await registerBaseRoutes(page);
 
   const planRequests: unknown[] = [];
@@ -125,14 +125,13 @@ test('gera plano e aplica configuração de policies', async ({ page }) => {
   await openAgentPoliciesTab(page);
 
   await page.getByLabel('Configuração de Policies').fill('{\n  "rateLimit": 42\n}');
-  await page.getByRole('button', { name: 'Gerar plano' }).click();
+  await page.getByRole('button', { name: 'Salvar alterações' }).click();
 
   await expect(page.getByRole('heading', { name: 'Plano de configuração' })).toBeVisible();
   await expect(page.getByText('Atualizar rate limit')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Aplicar alterações' })).toBeEnabled();
-
-  await page.getByRole('button', { name: 'Aplicar alterações' }).click();
-  await expect(page.getByText('Plano aplicado com sucesso. Branch: feature/policies-update PR: https://github.com/example/repo/pull/123')).toBeVisible();
+  await expect(
+    page.getByText('Plano aplicado com sucesso. Branch: feature/policies-update PR: https://github.com/example/repo/pull/123'),
+  ).toBeVisible();
 
   expect(planRequests).toHaveLength(1);
   expect((planRequests[0] as { layer?: string }).layer).toBe('policies');
@@ -144,7 +143,7 @@ test('gera plano e aplica configuração de policies', async ({ page }) => {
   expect(applyPayload.commit_message).toContain('atualizar policies');
 });
 
-test('permite rollback a partir do histórico', async ({ page }) => {
+test('@agent-governance permite rollback a partir do histórico', async ({ page }) => {
   await registerBaseRoutes(page);
 
   await page.route('**/config/agents/catalog-search/plan', (route) =>
@@ -211,9 +210,7 @@ test('permite rollback a partir do histórico', async ({ page }) => {
 
   await openAgentPoliciesTab(page);
 
-  await page.getByRole('button', { name: 'Ver histórico' }).click();
-  await expect(page.getByText('Rollback anterior')).toBeVisible();
-  await page.getByRole('button', { name: 'Rollback' }).click();
+  await page.getByRole('button', { name: 'Criar rollback' }).click();
   await expect(page.getByText('Rollback disparado.')).toBeVisible();
 
   expect(rollbackRequests).toHaveLength(1);
@@ -222,7 +219,7 @@ test('permite rollback a partir do histórico', async ({ page }) => {
   expect(rollbackPayload.patch).toBe('diff --git');
 });
 
-test('exibe erro de validação para JSON inválido', async ({ page }) => {
+test('@agent-governance exibe erro de validação para JSON inválido', async ({ page }) => {
   await registerBaseRoutes(page);
 
   const planRequests: unknown[] = [];
@@ -244,7 +241,7 @@ test('exibe erro de validação para JSON inválido', async ({ page }) => {
   await openAgentPoliciesTab(page);
 
   await page.getByLabel('Configuração de Policies').fill('{"limit": 10');
-  await page.getByRole('button', { name: 'Gerar plano' }).click();
+  await page.getByRole('button', { name: 'Salvar alterações' }).click();
   await expect(page.getByText('Configuração contém JSON inválido.')).toBeVisible();
   expect(planRequests).toHaveLength(0);
 });
