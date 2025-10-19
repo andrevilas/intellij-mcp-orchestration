@@ -128,7 +128,18 @@ export default function UiKitShowcase(): JSX.Element {
           <Button variant="danger" loading>
             Remover
           </Button>
+          <Button
+            variant="secondary"
+            disabled
+            icon={<FontAwesomeIcon icon="shield-halved" fixedWidth aria-hidden="true" />}
+          >
+            Protegido
+          </Button>
         </div>
+        <p className="ui-kit-showcase__note">
+          Estados de <strong>loading</strong> e <strong>disabled</strong> bloqueiam o clique e mantêm o anel de foco via
+          tokens MCP.
+        </p>
         <div className="ui-kit-showcase__toolbar" role="presentation">
           <ButtonGroup segmented label="Rotinas de execução">
             {toolbarActions.map((action) => (
@@ -153,6 +164,10 @@ export default function UiKitShowcase(): JSX.Element {
             <Button variant="ghost">Detalhes</Button>
           </Tooltip>
         </div>
+        <p className="ui-kit-showcase__note">
+          Dropdowns e tooltips compartilham tokens de overlay (<code>--mcp-z-dropdown</code> &lt; <code>--mcp-z-tooltip</code>)
+          e prendem foco via teclado.
+        </p>
       </div>
 
       <div className="ui-kit-showcase__group">
@@ -174,6 +189,9 @@ export default function UiKitShowcase(): JSX.Element {
             </Button>
           )}
         </div>
+        <p className="ui-kit-showcase__note">
+          Toasts respeitam <code>--mcp-z-toast</code> e herdam o tema atual, garantindo contraste no dark mode.
+        </p>
       </div>
 
       <div className="ui-kit-showcase__group">
@@ -186,6 +204,10 @@ export default function UiKitShowcase(): JSX.Element {
             Abrir formulário
           </Button>
         </div>
+        <p className="ui-kit-showcase__note">
+          Overlays utilizam <code>--mcp-z-modal</code> &gt; <code>--mcp-z-toast</code> e os modais mantêm trap de foco com
+          confirmação em dois cliques.
+        </p>
       </div>
 
       <ConfirmationModal

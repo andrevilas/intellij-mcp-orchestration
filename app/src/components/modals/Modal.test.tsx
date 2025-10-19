@@ -13,7 +13,7 @@ function setupPortal() {
 }
 
 describe('Modal components', () => {
-  it('executa callbacks em ConfirmationModal', async () => {
+  it('requer dois cliques para confirmar e reseta estado no cancelamento', async () => {
     const cleanup = setupPortal();
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
@@ -29,10 +29,15 @@ describe('Modal components', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
-    expect(onConfirm).toHaveBeenCalled();
+    const confirmButton = screen.getByRole('button', { name: 'Confirmar' });
+    await user.click(confirmButton);
+    expect(onConfirm).not.toHaveBeenCalled();
+    await screen.findByText('Clique novamente para confirmar.');
+    await user.click(screen.getByRole('button', { name: 'Confirmar agora' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(onCancel).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeInTheDocument();
 
     cleanup();
   });
