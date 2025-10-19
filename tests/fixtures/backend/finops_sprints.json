@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "id": "sprint-m2",
+      "name": "Sprint M2",
+      "period_start": "2025-02-24",
+      "period_end": "2025-03-02",
+      "total_cost_usd": 482.37,
+      "total_tokens_in": 932145,
+      "total_tokens_out": 712804,
+      "avg_latency_ms": 842.4,
+      "success_rate": 0.978,
+      "cost_delta": -0.064,
+      "status": "on_track",
+      "summary": "Costos mantidos abaixo do budget com melhoria de 6.4% vs. sprint anterior."
+    },
+    {
+      "id": "sprint-m1",
+      "name": "Sprint M1",
+      "period_start": "2025-02-17",
+      "period_end": "2025-02-23",
+      "total_cost_usd": 514.93,
+      "total_tokens_in": 921004,
+      "total_tokens_out": 698411,
+      "avg_latency_ms": 896.1,
+      "success_rate": 0.969,
+      "cost_delta": 0.031,
+      "status": "attention",
+      "summary": "Aumento de 3.1% em custo; recomenda-se revisar rotas turbo e cache de embeddings."
+    }
+  ]
+}

@@ -96,10 +96,11 @@
 ## Recomendações
 
 ### Quick Wins
-1. **Corrigir toolchain TS/Vitest** — Remover suites Jest ou configurar `vitest` apropriadamente; ajustar tipos em `api.ts`, `App.test.tsx`.【957f66†L1-L124】
-2. **Parametrizar API via mocks** — Implementar MSW (Mock Service Worker) ou interceptadores locais para `/api/*`, evitando dependência 127.0.0.1:8000.【F:app/vite.config.ts†L24-L44】
-3. **Introduzir design tokens e tema toggle mínimo** — Criar `ThemeProvider` com persistência; aplicar CSS variables base.【F:app/src/main.tsx†L1-L16】【F:app/src/styles.css†L1-L152】
-4. **Ajustar navegação + anúncios de estado** — Remover `onMouseEnter` como gatilho de mudança de página, adicionar descrição textual do tema atual no `ThemeSwitch` e garantir foco sequencial sem dependência de ponteiro.【F:app/src/App.tsx†L729-L752】【F:app/src/theme/ThemeSwitch.tsx†L16-L34】
+1. **Liberar UI-ACT-005** — Backend agora serve fixtures determinísticas para Dashboard/Routing/FinOps (`server/routes/fixtures/*`), permitindo testes UI sem ambiente real. Compartilhar payloads com QA via `tests/fixtures/backend`.【F:server/routes/fixtures/README.md†L1-L6】【F:tests/fixtures/backend/README.md†L1-L6】
+2. **Corrigir toolchain TS/Vitest** — Remover suites Jest ou configurar `vitest` apropriadamente; ajustar tipos em `api.ts`, `App.test.tsx`.【957f66†L1-L124】
+3. **Parametrizar API via mocks** — Implementar MSW (Mock Service Worker) ou interceptadores locais para `/api/*`, evitando dependência 127.0.0.1:8000.【F:app/vite.config.ts†L24-L44】
+4. **Introduzir design tokens e tema toggle mínimo** — Criar `ThemeProvider` com persistência; aplicar CSS variables base.【F:app/src/main.tsx†L1-L16】【F:app/src/styles.css†L1-L152】
+5. **Ajustar navegação + anúncios de estado** — Remover `onMouseEnter` como gatilho de mudança de página, adicionar descrição textual do tema atual no `ThemeSwitch` e garantir foco sequencial sem dependência de ponteiro.【F:app/src/App.tsx†L729-L752】【F:app/src/theme/ThemeSwitch.tsx†L16-L34】
 
 ### Backlog Técnico
 - **Reimplementar UI kit com Bootstrap 5 modular + Font Awesome tree-shaking.**

@@ -1,0 +1,77 @@
+{
+  "start": "2025-03-01T00:00:00Z",
+  "end": "2025-03-07T23:59:59Z",
+  "total_runs": 1842,
+  "total_tokens_in": 932145,
+  "total_tokens_out": 712804,
+  "total_cost_usd": 482.37,
+  "avg_latency_ms": 842.4,
+  "success_rate": 0.978,
+  "providers": [
+    {
+      "provider_id": "glm46",
+      "run_count": 812,
+      "tokens_in": 418233,
+      "tokens_out": 312774,
+      "cost_usd": 182.11,
+      "avg_latency_ms": 768.2,
+      "success_rate": 0.986
+    },
+    {
+      "provider_id": "claude",
+      "run_count": 564,
+      "tokens_in": 276419,
+      "tokens_out": 214933,
+      "cost_usd": 169.54,
+      "avg_latency_ms": 812.9,
+      "success_rate": 0.971
+    },
+    {
+      "provider_id": "codex",
+      "run_count": 466,
+      "tokens_in": 237493,
+      "tokens_out": 185097,
+      "cost_usd": 130.72,
+      "avg_latency_ms": 954.7,
+      "success_rate": 0.972
+    }
+  ],
+  "extended": {
+    "cache_hit_rate": 0.36,
+    "cached_tokens": 128400,
+    "latency_p95_ms": 1184.0,
+    "latency_p99_ms": 1562.0,
+    "error_rate": 0.022,
+    "cost_breakdown": [
+      {
+        "id": "glm46:balanced",
+        "label": "glm46 (balanced)",
+        "lane": "balanced",
+        "provider_id": "glm46",
+        "cost_usd": 108.43,
+        "run_count": 412
+      },
+      {
+        "id": "claude:turbo",
+        "label": "claude (turbo)",
+        "lane": "turbo",
+        "provider_id": "claude",
+        "cost_usd": 143.91,
+        "run_count": 244
+      },
+      {
+        "id": "codex:economy",
+        "label": "codex (economy)",
+        "lane": "economy",
+        "provider_id": "codex",
+        "cost_usd": 87.16,
+        "run_count": 198
+      }
+    ],
+    "error_breakdown": [
+      { "category": "rate_limit", "count": 9 },
+      { "category": "timeout", "count": 14 },
+      { "category": "tool_error", "count": 17 }
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "items": [
+    {
+      "id": 987654321,
+      "provider_id": "glm46",
+      "provider_name": "GLM-4.6",
+      "route": "balanced",
+      "lane": "balanced",
+      "ts": "2025-03-07T21:45:12Z",
+      "tokens_in": 1289,
+      "tokens_out": 972,
+      "duration_ms": 842,
+      "status": "success",
+      "cost_usd": 0.082,
+      "metadata": {
+        "session_id": "sess-4451",
+        "project": "customer-churn-playbook"
+      },
+      "experiment_cohort": "cohort-a",
+      "experiment_tag": "march-rollout"
+    },
+    {
+      "id": 987654122,
+      "provider_id": "codex",
+      "provider_name": "Codex CLI",
+      "route": "economy",
+      "lane": "economy",
+      "ts": "2025-03-07T21:44:02Z",
+      "tokens_in": 1124,
+      "tokens_out": 801,
+      "duration_ms": 916,
+      "status": "tool_error",
+      "cost_usd": 0.064,
+      "metadata": {
+        "session_id": "sess-4438",
+        "error": "Missing repo permissions"
+      },
+      "experiment_cohort": null,
+      "experiment_tag": null
+    },
+    {
+      "id": 987653998,
+      "provider_id": "claude",
+      "provider_name": "Claude MCP",
+      "route": "turbo",
+      "lane": "turbo",
+      "ts": "2025-03-07T21:43:48Z",
+      "tokens_in": 1433,
+      "tokens_out": 1190,
+      "duration_ms": 774,
+      "status": "success",
+      "cost_usd": 0.129,
+      "metadata": {
+        "session_id": "sess-4437",
+        "plan_id": "plan-1198"
+      },
+      "experiment_cohort": "cohort-b",
+      "experiment_tag": "turbo-test"
+    }
+  ],
+  "next_cursor": "cursor:2025-03-07T21:43:48Z"
+}

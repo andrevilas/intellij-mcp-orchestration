@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "id": "glm46:balanced",
+      "provider_id": "glm46",
+      "provider_name": "GLM-4.6",
+      "route": "balanced",
+      "lane": "balanced",
+      "run_count": 412,
+      "tokens_in": 198411,
+      "tokens_out": 151202,
+      "cost_usd": 108.43,
+      "avg_latency_ms": 755.0,
+      "success_rate": 0.988
+    },
+    {
+      "id": "claude:turbo",
+      "provider_id": "claude",
+      "provider_name": "Claude MCP",
+      "route": "turbo",
+      "lane": "turbo",
+      "run_count": 244,
+      "tokens_in": 129977,
+      "tokens_out": 101225,
+      "cost_usd": 143.91,
+      "avg_latency_ms": 804.0,
+      "success_rate": 0.965
+    },
+    {
+      "id": "codex:economy",
+      "provider_id": "codex",
+      "provider_name": "Codex CLI",
+      "route": "economy",
+      "lane": "economy",
+      "run_count": 198,
+      "tokens_in": 98341,
+      "tokens_out": 76765,
+      "cost_usd": 87.16,
+      "avg_latency_ms": 952.0,
+      "success_rate": 0.974
+    }
+  ],
+  "next_cursor": null
+}

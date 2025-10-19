@@ -79,6 +79,7 @@ from .prices import (
 )
 from .registry import provider_registry, session_registry
 from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
+from .fixtures import load_response_fixture
 from .config_assistant.intents import AssistantIntent
 from .config_assistant.artifacts import generate_artifact
 from .config_assistant.planner import plan_intent
@@ -2828,6 +2829,11 @@ def read_telemetry_metrics(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    if aggregates.total_runs == 0:
+        fixture = load_response_fixture(TelemetryMetricsResponse, "telemetry_metrics")
+        if fixture is not None:
+            return fixture
+
     return TelemetryMetricsResponse(
         start=aggregates.start,
         end=aggregates.end,
@@ -2882,6 +2888,11 @@ def read_telemetry_heatmap(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
+    if not buckets:
+        fixture = load_response_fixture(TelemetryHeatmapResponse, "telemetry_heatmap")
+        if fixture is not None:
+            return fixture
+
     return TelemetryHeatmapResponse(
         buckets=[
             TelemetryHeatmapBucket(
@@ -2925,6 +2936,11 @@ def read_telemetry_timeseries(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
+    if not points:
+        fixture = load_response_fixture(TelemetryTimeseriesResponse, "telemetry_timeseries")
+        if fixture is not None:
+            return fixture
+
     return TelemetryTimeseriesResponse(
         items=[TelemetryTimeseriesPointModel(**point.to_dict()) for point in points],
         next_cursor=None,
@@ -2961,6 +2977,11 @@ def read_telemetry_pareto(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+
+    if not breakdown:
+        fixture = load_response_fixture(TelemetryParetoResponse, "telemetry_pareto")
+        if fixture is not None:
+            return fixture
 
     return TelemetryParetoResponse(
         items=[TelemetryRouteBreakdownModel(**entry.to_dict()) for entry in breakdown],
@@ -3015,6 +3036,11 @@ def read_telemetry_runs(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+
+    if not records:
+        fixture = load_response_fixture(TelemetryRunsResponse, "telemetry_runs")
+        if fixture is not None:
+            return fixture
 
     items = [
         TelemetryRunEntryModel(
@@ -3203,6 +3229,11 @@ def read_finops_sprint_reports(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    if not reports:
+        fixture = load_response_fixture(FinOpsSprintReportsResponse, "finops_sprints")
+        if fixture is not None:
+            return fixture
+
     items = [FinOpsSprintReportModel(**report.to_dict()) for report in reports]
     return FinOpsSprintReportsResponse(items=items)
 
@@ -3252,6 +3283,13 @@ def read_finops_pull_request_reports(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if not reports:
+        fixture = load_response_fixture(
+            FinOpsPullRequestReportsResponse, "finops_pull_requests"
+        )
+        if fixture is not None:
+            return fixture
 
     items = [FinOpsPullRequestReportModel(**report.to_dict()) for report in reports]
     return FinOpsPullRequestReportsResponse(items=items)
@@ -4189,6 +4227,11 @@ def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResp
         payload.failover_provider_id,
         payload.volume_millions,
     )
+
+    if not plan.distribution:
+        fixture = load_response_fixture(RoutingSimulationResponse, "routing_simulation")
+        if fixture is not None:
+            return fixture
 
     return RoutingSimulationResponse(
         total_cost=plan.total_cost,
