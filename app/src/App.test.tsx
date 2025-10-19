@@ -1697,4 +1697,35 @@ describe('App provider orchestration flow', () => {
     });
     expect(toggleButtons.length).toBeGreaterThan(0);
   });
+
+  it('renderiza showcase UI kit com toasts e modais acessíveis', async () => {
+    applyDefaultFetchMock();
+    const user = userEvent.setup();
+
+    await act(async () => {
+      renderWithinProviders();
+      await Promise.resolve();
+    });
+
+    const showcase = await screen.findByTestId('ui-kit-showcase');
+    expect(within(showcase).getByText('UI Kit')).toBeInTheDocument();
+
+    await user.click(within(showcase).getByRole('button', { name: 'Ações rápidas' }));
+    const toastOption = within(screen.getByRole('menu')).getByRole('menuitem', { name: /Toast de sucesso/ });
+    await user.click(toastOption);
+    expect(await screen.findByText('O servidor foi promovido para produção.')).toBeInTheDocument();
+
+    const viewport = document.querySelector('.mcp-toast-viewport');
+    expect(viewport).toHaveAttribute('data-theme', 'light');
+
+    await user.click(within(showcase).getByRole('button', { name: 'Abrir formulário' }));
+    const modal = await screen.findByRole('dialog', { name: 'Editar workflow' });
+    const input = within(modal).getByLabelText('Nome');
+    expect(input).toHaveFocus();
+    await user.clear(input);
+    await user.type(input, 'Deploy noturno');
+    await user.click(within(modal).getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByText('Deploy noturno salvo com sucesso.')).toBeInTheDocument();
+  });
 });

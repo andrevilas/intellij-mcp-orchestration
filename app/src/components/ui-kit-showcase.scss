@@ -1,0 +1,72 @@
+.ui-kit-showcase {
+  display: grid;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border: 1px dashed var(--mcp-border-strong);
+  border-radius: 1.5rem;
+  background: linear-gradient(180deg, rgba(67, 56, 202, 0.05), transparent);
+  margin-top: 2rem;
+}
+
+.ui-kit-showcase__header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.ui-kit-showcase__header p {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+[data-theme='dark'] .ui-kit-showcase__header p {
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.ui-kit-showcase__group {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ui-kit-showcase__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(15, 23, 42, 0.5);
+}
+
+[data-theme='dark'] .ui-kit-showcase__label {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+.ui-kit-showcase__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.ui-kit-showcase__column {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ui-kit-showcase__field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.ui-kit-showcase__field input,
+.ui-kit-showcase__field select {
+  border: 1px solid var(--mcp-border-strong);
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  background-color: var(--mcp-surface-subtle);
+  color: var(--mcp-surface-contrast);
+}
+
+.ui-kit-showcase__field input:focus-visible,
+.ui-kit-showcase__field select:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+}
