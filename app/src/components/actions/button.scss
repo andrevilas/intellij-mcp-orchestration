@@ -67,6 +67,12 @@
   --mcp-button-hover-fg: var(--mcp-surface-contrast);
 }
 
+.mcp-button--danger {
+  --mcp-button-bg: #dc2626;
+  --mcp-button-hover-bg: color-mix(in srgb, #dc2626 88%, #000 12%);
+  --mcp-button-shadow: 0 12px 28px rgba(220, 38, 38, 0.24);
+}
+
 .mcp-button--ghost {
   --mcp-button-bg: transparent;
   --mcp-button-fg: var(--mcp-interactive);
@@ -76,10 +82,35 @@
   --mcp-button-hover-fg: var(--mcp-interactive);
 }
 
-.mcp-button--danger {
-  --mcp-button-bg: #dc2626;
-  --mcp-button-hover-bg: color-mix(in srgb, #dc2626 88%, #000 12%);
-  --mcp-button-shadow: 0 12px 28px rgba(220, 38, 38, 0.24);
+.mcp-button--outline {
+  --mcp-button-bg: transparent;
+  --mcp-button-fg: var(--mcp-surface-contrast);
+  --mcp-button-border: color-mix(in srgb, var(--mcp-border-strong) 88%, transparent 12%);
+  --mcp-button-shadow: none;
+  --mcp-button-hover-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
+  --mcp-button-hover-fg: var(--mcp-surface-contrast);
+}
+
+.mcp-button--link {
+  --mcp-button-bg: transparent;
+  --mcp-button-fg: var(--mcp-interactive);
+  --mcp-button-border: transparent;
+  --mcp-button-shadow: none;
+  --mcp-button-hover-bg: color-mix(in srgb, var(--mcp-interactive) 12%, transparent 88%);
+  --mcp-button-hover-fg: var(--mcp-interactive);
+  --mcp-button-padding-y: 0.25rem;
+  --mcp-button-padding-x: 0.35rem;
+}
+
+.mcp-button--link,
+.mcp-button--link:focus,
+.mcp-button--link:active {
+  box-shadow: none;
+  text-decoration: underline transparent;
+}
+
+.mcp-button--link:hover:not(:disabled) {
+  text-decoration-color: currentColor;
 }
 
 .mcp-button--sm {

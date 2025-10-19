@@ -1,0 +1,45 @@
+.mcp-button-group {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+.mcp-button-group--vertical {
+  flex-direction: column;
+}
+
+.mcp-button-group--segmented {
+  gap: 0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 70%, transparent 30%);
+  border: 1px solid color-mix(in srgb, var(--mcp-border-strong) 85%, transparent 15%);
+}
+
+.mcp-button-group--segmented > .mcp-button,
+.mcp-button-group--segmented > .mcp-tooltip > .mcp-button {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  min-width: 3rem;
+}
+
+.mcp-button-group--segmented > .mcp-button + .mcp-button,
+.mcp-button-group--segmented > .mcp-button + .mcp-tooltip > .mcp-button,
+.mcp-button-group--segmented > .mcp-tooltip + .mcp-button,
+.mcp-button-group--segmented > .mcp-tooltip + .mcp-tooltip > .mcp-button {
+  border-left: 1px solid color-mix(in srgb, var(--mcp-border-strong) 75%, transparent 25%);
+}
+
+.mcp-button-group--vertical.mcp-button-group--segmented > .mcp-button + .mcp-button,
+.mcp-button-group--vertical.mcp-button-group--segmented > .mcp-button + .mcp-tooltip > .mcp-button,
+.mcp-button-group--vertical.mcp-button-group--segmented > .mcp-tooltip + .mcp-button,
+.mcp-button-group--vertical.mcp-button-group--segmented > .mcp-tooltip + .mcp-tooltip > .mcp-button {
+  border-left: none;
+  border-top: 1px solid color-mix(in srgb, var(--mcp-border-strong) 75%, transparent 25%);
+}
+
+[data-theme='dark'] .mcp-button-group--segmented {
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 40%, transparent 60%);
+}
