@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'node:path';
 
 const parsePort = (value: string | undefined, fallback: number): number => {
   if (!value) {
@@ -39,9 +40,17 @@ const AGENTS_PROXY_TARGET =
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '#fixtures': path.resolve(__dirname, '../tests/fixtures/backend'),
+    },
+  },
   server: {
     port: frontendPort,
     host: frontendHost,
+    fs: {
+      allow: [path.resolve(__dirname, '.'), path.resolve(__dirname, '../tests/fixtures')],
+    },
     proxy: {
       '/api': {
         target: API_PROXY_TARGET,
