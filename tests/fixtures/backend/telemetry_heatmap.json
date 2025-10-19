@@ -1,0 +1,14 @@
+{
+  "buckets": [
+    { "day": "2025-03-01", "provider_id": "glm46", "run_count": 96 },
+    { "day": "2025-03-01", "provider_id": "claude", "run_count": 72 },
+    { "day": "2025-03-02", "provider_id": "glm46", "run_count": 118 },
+    { "day": "2025-03-02", "provider_id": "codex", "run_count": 61 },
+    { "day": "2025-03-03", "provider_id": "glm46", "run_count": 135 },
+    { "day": "2025-03-03", "provider_id": "claude", "run_count": 80 },
+    { "day": "2025-03-04", "provider_id": "codex", "run_count": 74 },
+    { "day": "2025-03-05", "provider_id": "claude", "run_count": 91 },
+    { "day": "2025-03-06", "provider_id": "glm46", "run_count": 142 },
+    { "day": "2025-03-07", "provider_id": "codex", "run_count": 72 }
+  ]
+}

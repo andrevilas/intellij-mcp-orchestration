@@ -1,0 +1,85 @@
+{
+  "items": [
+    {
+      "day": "2025-03-01",
+      "provider_id": "glm46",
+      "run_count": 96,
+      "tokens_in": 49211,
+      "tokens_out": 38102,
+      "cost_usd": 21.84,
+      "avg_latency_ms": 742.0,
+      "success_count": 94
+    },
+    {
+      "day": "2025-03-01",
+      "provider_id": "claude",
+      "run_count": 72,
+      "tokens_in": 34188,
+      "tokens_out": 27844,
+      "cost_usd": 19.66,
+      "avg_latency_ms": 801.0,
+      "success_count": 69
+    },
+    {
+      "day": "2025-03-02",
+      "provider_id": "codex",
+      "run_count": 61,
+      "tokens_in": 29411,
+      "tokens_out": 23518,
+      "cost_usd": 16.44,
+      "avg_latency_ms": 958.0,
+      "success_count": 58
+    },
+    {
+      "day": "2025-03-03",
+      "provider_id": "glm46",
+      "run_count": 135,
+      "tokens_in": 69884,
+      "tokens_out": 51107,
+      "cost_usd": 32.05,
+      "avg_latency_ms": 755.0,
+      "success_count": 133
+    },
+    {
+      "day": "2025-03-04",
+      "provider_id": "codex",
+      "run_count": 74,
+      "tokens_in": 36555,
+      "tokens_out": 28409,
+      "cost_usd": 17.33,
+      "avg_latency_ms": 944.0,
+      "success_count": 70
+    },
+    {
+      "day": "2025-03-05",
+      "provider_id": "claude",
+      "run_count": 91,
+      "tokens_in": 41322,
+      "tokens_out": 32502,
+      "cost_usd": 23.47,
+      "avg_latency_ms": 809.0,
+      "success_count": 88
+    },
+    {
+      "day": "2025-03-06",
+      "provider_id": "glm46",
+      "run_count": 142,
+      "tokens_in": 72488,
+      "tokens_out": 55403,
+      "cost_usd": 34.27,
+      "avg_latency_ms": 731.0,
+      "success_count": 140
+    },
+    {
+      "day": "2025-03-07",
+      "provider_id": "codex",
+      "run_count": 72,
+      "tokens_in": 34679,
+      "tokens_out": 26119,
+      "cost_usd": 15.41,
+      "avg_latency_ms": 962.0,
+      "success_count": 69
+    }
+  ],
+  "next_cursor": null
+}

@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "id": "pr-1298",
+      "provider_id": "glm46",
+      "provider_name": "GLM-4.6",
+      "route": "balanced",
+      "lane": "balanced",
+      "title": "Optimize prompt caching for churn playbook",
+      "owner": "joana.santos",
+      "merged_at": "2025-03-01T15:22:04Z",
+      "cost_impact_usd": -42.18,
+      "cost_delta": -0.082,
+      "tokens_impact": -98211,
+      "status": "on_track",
+      "summary": "Reduziu tokens in/out ao reutilizar contexto base; impacto positivo em custos."
+    },
+    {
+      "id": "pr-1291",
+      "provider_id": "codex",
+      "provider_name": "Codex CLI",
+      "route": "economy",
+      "lane": "economy",
+      "title": "Failover para modelo lite em rotas experimentais",
+      "owner": "diego.moreira",
+      "merged_at": "2025-02-27T11:04:44Z",
+      "cost_impact_usd": 18.63,
+      "cost_delta": 0.036,
+      "tokens_impact": 45211,
+      "status": "attention",
+      "summary": "Failover elevou custo por ausência de cache; revisar política de roteamento."
+    }
+  ]
+}
