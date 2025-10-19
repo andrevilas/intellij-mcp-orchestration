@@ -605,6 +605,22 @@ body {
   padding-bottom: 4rem;
 }
 
+[data-view-loading] {
+  min-height: 16rem;
+}
+
+.route-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--mcp-surface-contrast);
+  font-weight: 500;
+}
+
 .app-shell__ui-kit {
   max-width: 1200px;
   width: 100%;
