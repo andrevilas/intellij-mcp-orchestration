@@ -5,7 +5,9 @@
 > Atualização 2025-10-15 08:29: roadmap revisado com **sprints explícitas (M1–M6)** e inclusão de **suporte a temas (Light/Dark)** para a UI. Consulte `ui-next-steps.md` para o detalhamento operacional.
 
 ## Status auditado (2025-10-18)
-- [ ] **M1 — Fundamentos & Shell** · Bloqueado — pendente de AppShell acessível e navegação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **M1 — Fundamentos & Shell** · Bloqueado — demais itens de shell ainda dependem de mocks/build; AppShell acessível e navegação base foram concluídos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+  - [x] **TASK-UI-SH-010** — Shell com `skip-link`, roving tabindex e atalhos documentados.
+  - [x] **TASK-UI-NAV-011** — Breadcrumbs + Pagination com tokens `--mcp-*` e foco visível.
 - [ ] **M2 — Ações & Feedback** · Bloqueado — componentes críticos (wizards/modais) ausentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).

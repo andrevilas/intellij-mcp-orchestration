@@ -10,8 +10,8 @@
 - Telemetria leve de UI (console/log dev) para rastrear interações críticas.
 
 ## Status auditado (2025-10-18)
-- [ ] **TASK-UI-SH-010** · AppShell sem tokens e dependente de dados remotos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-NAV-011** · Breadcrumbs/paginação não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-SH-010** · Shell auditado com `skip-link`, atalhos (`⌘K`/`⇧⌘N`) e roving tabindex; ainda requer mocks para dados dinâmicos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-NAV-011** · Breadcrumbs + Pagination ativos, tokens documentados e foco visível nas interações (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-ACT-020** · Catálogo de botões/instrumentos incompleto (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-ACT-021** · Dropdowns/tooltips sem cobertura (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-FB-022** · Alerts/toasts inconsistentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
