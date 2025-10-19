@@ -58,4 +58,26 @@ describe('Dropdown', () => {
       expect(screen.getByRole('button', { name: 'Controles' })).toHaveFocus();
     });
   });
+
+  it('expõe aria-label customizado e ícones nas opções', async () => {
+    const user = userEvent.setup();
+    render(
+      <Dropdown
+        label={<span aria-hidden="true">⋯</span>}
+        triggerAriaLabel="Mais ações"
+        options={[
+          {
+            ...options[0],
+            icon: <span data-testid="dropdown-icon" />,
+          },
+          ...options.slice(1),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Mais ações' }));
+    const menu = screen.getByRole('menu');
+    expect(menu).toBeInTheDocument();
+    expect(within(menu).getByTestId('dropdown-icon')).toBeInTheDocument();
+  });
 });

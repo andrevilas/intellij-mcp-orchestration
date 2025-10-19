@@ -46,6 +46,12 @@
   gap: 0.75rem;
 }
 
+.ui-kit-showcase__toolbar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
 .ui-kit-showcase__column {
   display: grid;
   gap: 0.75rem;

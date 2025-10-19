@@ -1,12 +1,14 @@
 import { FormEvent, useMemo, useState } from 'react';
 
 import Button from './actions/Button';
+import ButtonGroup from './actions/ButtonGroup';
 import Dropdown from './menus/Dropdown';
 import Tooltip from './menus/Tooltip';
 import Alert from './feedback/Alert';
 import { useToast } from './feedback/ToastProvider';
 import ConfirmationModal from './modals/ConfirmationModal';
 import FormModal from './modals/FormModal';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 import './ui-kit-showcase.scss';
 
@@ -24,6 +26,7 @@ export default function UiKitShowcase(): JSX.Element {
         id: 'toast-success',
         label: 'Toast de sucesso',
         description: 'Mostra notificação persistente',
+        icon: <FontAwesomeIcon icon="download" fixedWidth aria-hidden="true" />,
         onSelect: () =>
           pushToast({
             title: 'Provisionamento concluído',
@@ -35,13 +38,55 @@ export default function UiKitShowcase(): JSX.Element {
         id: 'open-confirmation',
         label: 'Abrir confirmação',
         description: 'Solicita aprovação explícita',
+        icon: <FontAwesomeIcon icon="share-nodes" fixedWidth aria-hidden="true" />,
         onSelect: () => setConfirmationOpen(true),
       },
       {
         id: 'open-form',
         label: 'Abrir formulário',
         description: 'Edita parâmetros críticos',
+        icon: <FontAwesomeIcon icon="pen-to-square" fixedWidth aria-hidden="true" />,
         onSelect: () => setFormOpen(true),
+      },
+    ],
+    [pushToast],
+  );
+
+  const toolbarActions = useMemo(
+    () => [
+      {
+        id: 'run',
+        icon: <FontAwesomeIcon icon="play" fixedWidth aria-hidden="true" />,
+        label: 'Executar blueprint',
+        onClick: () =>
+          pushToast({
+            title: 'Execução iniciada',
+            description: 'O blueprint foi enviado para o orquestrador.',
+            variant: 'info',
+          }),
+      },
+      {
+        id: 'restart',
+        icon: <FontAwesomeIcon icon="rotate-right" fixedWidth aria-hidden="true" />,
+        label: 'Reexecutar última etapa',
+        onClick: () =>
+          pushToast({
+            title: 'Reprocessamento agendado',
+            description: 'A etapa será repetida com rollback seguro.',
+            variant: 'success',
+          }),
+      },
+      {
+        id: 'stop',
+        icon: <FontAwesomeIcon icon="circle-stop" fixedWidth aria-hidden="true" />,
+        label: 'Cancelar',
+        variant: 'danger' as const,
+        onClick: () =>
+          pushToast({
+            title: 'Execução cancelada',
+            description: 'Nenhuma alteração adicional será aplicada.',
+            variant: 'warning',
+          }),
       },
     ],
     [pushToast],
@@ -77,10 +122,26 @@ export default function UiKitShowcase(): JSX.Element {
         <div className="ui-kit-showcase__row">
           <Button variant="primary">Primário</Button>
           <Button variant="secondary">Secundário</Button>
+          <Button variant="outline">Outline</Button>
           <Button variant="ghost">Fantasma</Button>
+          <Button variant="link">Link</Button>
           <Button variant="danger" loading>
             Remover
           </Button>
+        </div>
+        <div className="ui-kit-showcase__toolbar" role="presentation">
+          <ButtonGroup segmented label="Rotinas de execução">
+            {toolbarActions.map((action) => (
+              <Tooltip key={action.id} content={action.label} placement="bottom">
+                <Button
+                  aria-label={action.label}
+                  variant={action.variant ?? 'secondary'}
+                  icon={action.icon}
+                  onClick={action.onClick}
+                />
+              </Tooltip>
+            ))}
+          </ButtonGroup>
         </div>
       </div>
 
