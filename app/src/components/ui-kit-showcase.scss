@@ -16,11 +16,7 @@
 
 .ui-kit-showcase__header p {
   margin: 0;
-  color: rgba(15, 23, 42, 0.6);
-}
-
-[data-theme='dark'] .ui-kit-showcase__header p {
-  color: rgba(226, 232, 240, 0.7);
+  color: var(--mcp-text-subtle);
 }
 
 .ui-kit-showcase__group {
@@ -33,11 +29,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(15, 23, 42, 0.5);
-}
-
-[data-theme='dark'] .ui-kit-showcase__label {
-  color: rgba(226, 232, 240, 0.55);
+  color: var(--mcp-text-muted);
 }
 
 .ui-kit-showcase__row {
@@ -75,4 +67,14 @@
 .ui-kit-showcase__field input:focus-visible,
 .ui-kit-showcase__field select:focus-visible {
   outline: 3px solid var(--mcp-focus-ring);
+}
+
+.ui-kit-showcase__note {
+  font-size: 0.85rem;
+  color: var(--mcp-text-subtle);
+  margin: 0;
+}
+
+.ui-kit-showcase__note strong {
+  color: var(--mcp-surface-contrast);
 }
