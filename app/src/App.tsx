@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -36,18 +36,18 @@ import ProvisioningDialog, { type ProvisioningSubmission } from './components/Pr
 import UiKitShowcase from './components/UiKitShowcase';
 import { ToastProvider } from './components/feedback/ToastProvider';
 import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
-import Dashboard from './pages/Dashboard';
-import FinOps from './pages/FinOps';
-import Keys from './pages/Keys';
-import Policies from './pages/Policies';
-import Routing from './pages/Routing';
-import Servers from './pages/Servers';
-import AdminChat from './pages/AdminChat';
-import Flows from './pages/Flows';
-import Marketplace from './pages/Marketplace';
-import Agents from './pages/Agents';
-import Observability from './pages/Observability';
-import Security from './pages/Security';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Observability = lazy(() => import('./pages/Observability'));
+const Servers = lazy(() => import('./pages/Servers'));
+const Agents = lazy(() => import('./pages/Agents'));
+const Keys = lazy(() => import('./pages/Keys'));
+const Security = lazy(() => import('./pages/Security'));
+const Policies = lazy(() => import('./pages/Policies'));
+const Routing = lazy(() => import('./pages/Routing'));
+const Flows = lazy(() => import('./pages/Flows'));
+const FinOps = lazy(() => import('./pages/FinOps'));
+const Marketplace = lazy(() => import('./pages/Marketplace'));
+const AdminChat = lazy(() => import('./pages/AdminChat'));
 import ThemeSwitch from './theme/ThemeSwitch';
 
 export interface Feedback {
@@ -686,6 +686,127 @@ function App() {
     return () => window.removeEventListener('keydown', handleGlobalShortcut);
   }, []);
 
+  const renderFallbackPanel = (viewId: ViewId): JSX.Element => {
+    const view = VIEW_DEFINITIONS.find((definition) => definition.id === viewId);
+    return (
+      <section
+        role="tabpanel"
+        id={`panel-${viewId}`}
+        aria-labelledby={`nav-${viewId}`}
+        aria-busy="true"
+        data-view-loading
+      >
+        <div className="route-fallback" role="status" aria-live="polite">
+          Carregando {view?.label ?? 'painel'}…
+        </div>
+      </section>
+    );
+  };
+
+  const renderActivePanel = (): JSX.Element | null => {
+    switch (activeView) {
+      case 'dashboard':
+        return (
+          <section role="tabpanel" id="panel-dashboard" aria-labelledby="nav-dashboard">
+            <Dashboard
+              providers={providers}
+              sessions={sessions}
+              metrics={telemetryMetrics}
+              heatmapBuckets={telemetryHeatmap}
+              isLoading={isLoading}
+              initialError={initialError}
+              feedback={feedback}
+              provisioningId={provisioningId}
+              compliance={complianceSummary}
+              onProvision={handleProvisionRequest}
+            />
+          </section>
+        );
+      case 'observability':
+        return (
+          <section role="tabpanel" id="panel-observability" aria-labelledby="nav-observability">
+            <Observability
+              providers={providers}
+              metrics={telemetryMetrics}
+              isLoading={isLoading}
+              initialError={initialError}
+            />
+          </section>
+        );
+      case 'servers':
+        return (
+          <section role="tabpanel" id="panel-servers" aria-labelledby="nav-servers">
+            <Servers providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        );
+      case 'agents':
+        return (
+          <section role="tabpanel" id="panel-agents" aria-labelledby="nav-agents">
+            <Agents />
+          </section>
+        );
+      case 'keys':
+        return (
+          <section role="tabpanel" id="panel-keys" aria-labelledby="nav-keys">
+            <Keys
+              providers={providers}
+              secrets={secrets}
+              isLoading={isLoading}
+              initialError={initialError}
+              onSecretSave={handleSecretSave}
+              onSecretDelete={handleSecretDelete}
+              onSecretReveal={handleSecretReveal}
+              onSecretTest={handleSecretTest}
+            />
+          </section>
+        );
+      case 'security':
+        return (
+          <section role="tabpanel" id="panel-security" aria-labelledby="nav-security">
+            <Security />
+          </section>
+        );
+      case 'policies':
+        return (
+          <section role="tabpanel" id="panel-policies" aria-labelledby="nav-policies">
+            <Policies providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        );
+      case 'routing':
+        return (
+          <section role="tabpanel" id="panel-routing" aria-labelledby="nav-routing">
+            <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        );
+      case 'flows':
+        return (
+          <section role="tabpanel" id="panel-flows" aria-labelledby="nav-flows">
+            <Flows />
+          </section>
+        );
+      case 'finops':
+        return (
+          <section role="tabpanel" id="panel-finops" aria-labelledby="nav-finops">
+            <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
+          </section>
+        );
+      case 'admin-chat':
+        return (
+          <section role="tabpanel" id="panel-admin-chat" aria-labelledby="nav-admin-chat">
+            <AdminChat onNotificationsUpdate={applyNotifications} />
+          </section>
+        );
+      case 'marketplace':
+        return (
+          <section role="tabpanel" id="panel-marketplace" aria-labelledby="nav-marketplace">
+            <Marketplace />
+          </section>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <ToastProvider>
       <div className="app-shell">
@@ -811,95 +932,9 @@ function App() {
         id="main-content"
         ref={mainRef}
       >
-        {activeView === 'dashboard' && (
-          <section role="tabpanel" id="panel-dashboard" aria-labelledby="nav-dashboard">
-            <Dashboard
-              providers={providers}
-              sessions={sessions}
-              metrics={telemetryMetrics}
-              heatmapBuckets={telemetryHeatmap}
-              isLoading={isLoading}
-              initialError={initialError}
-              feedback={feedback}
-              provisioningId={provisioningId}
-              compliance={complianceSummary}
-              onProvision={handleProvisionRequest}
-            />
-          </section>
-        )}
-        {activeView === 'observability' && (
-          <section
-            role="tabpanel"
-            id="panel-observability"
-            aria-labelledby="nav-observability"
-          >
-            <Observability
-              providers={providers}
-              metrics={telemetryMetrics}
-              isLoading={isLoading}
-              initialError={initialError}
-            />
-          </section>
-        )}
-        {activeView === 'servers' && (
-          <section role="tabpanel" id="panel-servers" aria-labelledby="nav-servers">
-            <Servers providers={providers} isLoading={isLoading} initialError={initialError} />
-          </section>
-        )}
-        {activeView === 'agents' && (
-          <section role="tabpanel" id="panel-agents" aria-labelledby="nav-agents">
-            <Agents />
-          </section>
-        )}
-        {activeView === 'keys' && (
-          <section role="tabpanel" id="panel-keys" aria-labelledby="nav-keys">
-            <Keys
-              providers={providers}
-              secrets={secrets}
-              isLoading={isLoading}
-              initialError={initialError}
-              onSecretSave={handleSecretSave}
-              onSecretDelete={handleSecretDelete}
-              onSecretReveal={handleSecretReveal}
-              onSecretTest={handleSecretTest}
-            />
-          </section>
-        )}
-        {activeView === 'security' && (
-          <section role="tabpanel" id="panel-security" aria-labelledby="nav-security">
-            <Security />
-          </section>
-        )}
-        {activeView === 'policies' && (
-          <section role="tabpanel" id="panel-policies" aria-labelledby="nav-policies">
-            <Policies providers={providers} isLoading={isLoading} initialError={initialError} />
-          </section>
-        )}
-        {activeView === 'routing' && (
-          <section role="tabpanel" id="panel-routing" aria-labelledby="nav-routing">
-            <Routing providers={providers} isLoading={isLoading} initialError={initialError} />
-          </section>
-        )}
-        {activeView === 'flows' && (
-          <section role="tabpanel" id="panel-flows" aria-labelledby="nav-flows">
-            <Flows />
-          </section>
-        )}
-        {activeView === 'finops' && (
-          <section role="tabpanel" id="panel-finops" aria-labelledby="nav-finops">
-            <FinOps providers={providers} isLoading={isLoading} initialError={initialError} />
-          </section>
-        )}
-        {activeView === 'admin-chat' && (
-          <section role="tabpanel" id="panel-admin-chat" aria-labelledby="nav-admin-chat">
-            <AdminChat onNotificationsUpdate={applyNotifications} />
-          </section>
-        )}
-        {activeView === 'marketplace' && (
-          <section role="tabpanel" id="panel-marketplace" aria-labelledby="nav-marketplace">
-            <Marketplace />
-          </section>
-        )}
+        <Suspense fallback={renderFallbackPanel(activeView)}>
+          {renderActivePanel()}
+        </Suspense>
       </main>
       <aside className="app-shell__ui-kit" aria-label="Mostruário UI Kit">
         <UiKitShowcase />

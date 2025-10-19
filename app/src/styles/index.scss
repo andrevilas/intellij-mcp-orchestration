@@ -1,15 +1,5 @@
 @use 'sass:map';
-@import 'bootstrap/scss/functions';
-@import 'bootstrap/scss/variables';
-@import 'bootstrap/scss/maps';
-@import 'bootstrap/scss/mixins';
-@import 'bootstrap/scss/root';
-@import 'bootstrap/scss/buttons';
-@import 'bootstrap/scss/forms';
-@import 'bootstrap/scss/nav';
-@import 'bootstrap/scss/navbar';
-@import 'bootstrap/scss/dropdown';
-@import 'bootstrap/scss/pagination';
+@use 'bootstrap/scss/bootstrap' as *;
 
 :root {
   --mcp-surface: #ffffff;
