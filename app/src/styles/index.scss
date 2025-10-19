@@ -2,32 +2,124 @@
 @use 'bootstrap/scss/bootstrap' as *;
 
 :root {
+  /* Superfícies & bordas */
   --mcp-surface: #ffffff;
   --mcp-surface-subtle: #f8fafc;
+  --mcp-surface-elevated: rgba(248, 250, 252, 0.95);
+  --mcp-surface-translucent: rgba(248, 250, 252, 0.9);
   --mcp-surface-contrast: #0f172a;
   --mcp-border-strong: rgba(15, 23, 42, 0.1);
   --mcp-border-subtle: rgba(15, 23, 42, 0.08);
-  --mcp-interactive: #4338ca;
-  --mcp-interactive-soft: rgba(67, 56, 202, 0.08);
-  --mcp-focus-ring: rgba(67, 56, 202, 0.45);
-  --mcp-shadow-soft: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --mcp-border-muted: rgba(15, 23, 42, 0.05);
+  --mcp-border-accent: rgba(148, 163, 184, 0.45);
+  --mcp-overlay-soft: rgba(15, 23, 42, 0.04);
+  --mcp-overlay-strong: rgba(15, 23, 42, 0.12);
+  --mcp-backdrop: rgba(15, 23, 42, 0.45);
+  --mcp-backdrop-strong: rgba(15, 23, 42, 0.65);
   --mcp-sidebar-bg: #0f172a;
   --mcp-sidebar-fg: #e2e8f0;
+
+  /* Tokens de interação */
+  --mcp-interactive: #4338ca;
+  --mcp-interactive-soft: rgba(67, 56, 202, 0.08);
+  --mcp-interactive-alt: #6d28d9;
+  --mcp-interactive-soft-alt: rgba(124, 58, 237, 0.18);
+  --mcp-focus-ring: rgba(67, 56, 202, 0.45);
+  --mcp-shadow-soft: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --mcp-shadow-elevated: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --mcp-shadow-modal: 0 28px 52px rgba(15, 23, 42, 0.28);
+  --mcp-shadow-diff: 0 30px 80px rgba(15, 23, 42, 0.35);
+  --mcp-shadow-accent: 0 12px 28px rgba(37, 99, 235, 0.2);
+  --mcp-shadow-accent-strong: 0 16px 36px rgba(37, 99, 235, 0.28);
+  --mcp-shadow-accent-intense: 0 22px 44px rgba(37, 99, 235, 0.32);
+  --mcp-shadow-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.2);
+
+  /* Tipografia & feedback */
+  --mcp-text-muted: #475569;
+  --mcp-text-subtle: #64748b;
+  --mcp-text-inverse: #e2e8f0;
+  --mcp-info-strong: #2563eb;
+  --mcp-info-stronger: #1e40af;
+  --mcp-info-soft: rgba(37, 99, 235, 0.12);
+  --mcp-info-soft-medium: rgba(37, 99, 235, 0.16);
+  --mcp-info-soft-strong: rgba(37, 99, 235, 0.2);
+  --mcp-info-soft-fade: rgba(37, 99, 235, 0.08);
+  --mcp-info-emphasis: #0369a1;
+  --mcp-success-strong: #15803d;
+  --mcp-success-soft: rgba(34, 197, 94, 0.14);
+  --mcp-success-emphasis: #047857;
+  --mcp-danger-strong: #b91c1c;
+  --mcp-danger-soft: rgba(239, 68, 68, 0.16);
+  --mcp-warning-strong: #b45309;
+  --mcp-warning-soft: rgba(234, 179, 8, 0.2);
+  --mcp-teal-strong: #0f766e;
+  --mcp-teal-soft: rgba(15, 118, 110, 0.16);
+  --mcp-teal-stronger: #0d635d;
+  --mcp-text-secondary: #334155;
+  --mcp-text-muted-strong: #1f2937;
+
+  /* Scrollbar */
+  --mcp-scroll-thumb: rgba(148, 163, 184, 0.6);
+  --mcp-scroll-track: rgba(15, 23, 42, 0.08);
 }
 
 [data-theme='dark'] {
   color-scheme: dark;
   --mcp-surface: #0f172a;
   --mcp-surface-subtle: #111c34;
+  --mcp-surface-elevated: #111c34;
+  --mcp-surface-translucent: rgba(15, 23, 42, 0.78);
   --mcp-surface-contrast: #e2e8f0;
   --mcp-border-strong: rgba(148, 163, 184, 0.24);
   --mcp-border-subtle: rgba(148, 163, 184, 0.16);
-  --mcp-interactive: #818cf8;
-  --mcp-interactive-soft: rgba(129, 140, 248, 0.16);
-  --mcp-focus-ring: rgba(129, 140, 248, 0.55);
-  --mcp-shadow-soft: 0 18px 38px rgba(15, 23, 42, 0.55);
+  --mcp-border-muted: rgba(148, 163, 184, 0.12);
+  --mcp-border-accent: rgba(148, 163, 184, 0.35);
+  --mcp-overlay-soft: rgba(148, 163, 184, 0.12);
+  --mcp-overlay-strong: rgba(148, 163, 184, 0.2);
+  --mcp-backdrop: rgba(11, 17, 32, 0.6);
+  --mcp-backdrop-strong: rgba(11, 17, 32, 0.75);
   --mcp-sidebar-bg: #0b1120;
   --mcp-sidebar-fg: #cbd5f5;
+
+  --mcp-interactive: #818cf8;
+  --mcp-interactive-soft: rgba(129, 140, 248, 0.22);
+  --mcp-interactive-alt: #a855f7;
+  --mcp-interactive-soft-alt: rgba(168, 85, 247, 0.28);
+  --mcp-focus-ring: rgba(129, 140, 248, 0.55);
+  --mcp-shadow-soft: 0 18px 38px rgba(8, 11, 22, 0.55);
+  --mcp-shadow-elevated: 0 18px 38px rgba(8, 11, 22, 0.55);
+  --mcp-shadow-modal: 0 24px 44px rgba(8, 11, 22, 0.6);
+  --mcp-shadow-diff: 0 20px 60px rgba(8, 11, 22, 0.72);
+  --mcp-shadow-accent: 0 12px 28px rgba(129, 140, 248, 0.3);
+  --mcp-shadow-accent-strong: 0 16px 36px rgba(129, 140, 248, 0.36);
+  --mcp-shadow-accent-intense: 0 22px 44px rgba(129, 140, 248, 0.42);
+  --mcp-shadow-focus-ring: 0 0 0 3px rgba(129, 140, 248, 0.28);
+
+  --mcp-text-muted: #cbd5f5;
+  --mcp-text-subtle: #94a3b8;
+  --mcp-text-inverse: #0f172a;
+  --mcp-info-strong: #a5b4fc;
+  --mcp-info-stronger: #6366f1;
+  --mcp-info-soft: rgba(165, 180, 252, 0.26);
+  --mcp-info-soft-medium: rgba(165, 180, 252, 0.34);
+  --mcp-info-soft-strong: rgba(129, 140, 248, 0.38);
+  --mcp-info-soft-fade: rgba(129, 140, 248, 0.18);
+  --mcp-info-emphasis: #22d3ee;
+  --mcp-success-strong: #4ade80;
+  --mcp-success-soft: rgba(74, 222, 128, 0.26);
+  --mcp-success-emphasis: #10b981;
+  --mcp-danger-strong: #f87171;
+  --mcp-danger-soft: rgba(248, 113, 113, 0.32);
+  --mcp-warning-strong: #facc15;
+  --mcp-warning-soft: rgba(250, 204, 21, 0.28);
+  --mcp-teal-strong: #2dd4bf;
+  --mcp-teal-soft: rgba(45, 212, 191, 0.28);
+  --mcp-teal-stronger: #14b8a6;
+  --mcp-text-secondary: #cbd5f5;
+  --mcp-text-muted-strong: #e2e8f0;
+
+  --mcp-scroll-thumb: rgba(203, 213, 225, 0.6);
+  --mcp-scroll-track: rgba(11, 17, 32, 0.35);
 }
 
 body {
@@ -87,5 +179,5 @@ body {
 }
 
 .pagination .page-item.disabled .page-link {
-  color: rgba(99, 102, 241, 0.65);
+  color: color-mix(in srgb, var(--mcp-interactive) 65%, transparent);
 }

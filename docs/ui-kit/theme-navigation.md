@@ -4,6 +4,15 @@ Este guia resume o funcionamento dos componentes recém-introduzidos no shell da
 
 ---
 
+## Tokens MCP — Guia rápido (Designers & QA)
+
+- **Fonte de verdade:** `app/src/styles/index.scss` — seção `:root` lista tokens Light e `[data-theme='dark']` mapeia equivalentes para modo escuro.【F:app/src/styles/index.scss†L4-L123】
+- **Superfícies e alertas:** `app/src/styles/base.scss` aplica `--mcp-surface*`, `--mcp-success-*`, `--mcp-warning-*` e `--mcp-danger-*` em painéis, alerts e quick actions; use essas referências ao revisar contrastes ou aprovar mocks.【F:app/src/styles/base.scss†L38-L336】
+- **Como consumir:** em Figma/QA, alinhe tokens ao tema ativo (`document.documentElement.dataset.theme`). Designers podem mapear `--mcp-interactive`, `--mcp-info-*` e `--mcp-focus-ring` para estados de foco/hover; QA deve verificar via DevTools (`Computed → var(--token)`).
+- **Checklist visual:** sempre validar Light & Dark com capturas anexadas aos dossiês de sprint e registrar desvios no Audit Report.
+
+---
+
 ## ThemeSwitch (`app/src/theme/ThemeSwitch.tsx`)
 
 | Prop | Tipo | Default | Descrição |
@@ -22,7 +31,7 @@ Este guia resume o funcionamento dos componentes recém-introduzidos no shell da
 
 **Checklist de A11y:**
 - [x] Botões acessíveis via teclado (Tab/Shift+Tab).
-- [ ] Adicionar anúncio textual do tema atual no grupo (ex.: `aria-live="polite"`).
+- [x] Anúncio textual persistente do tema atual via `aria-live` dentro do grupo.【F:app/src/theme/ThemeSwitch.tsx†L11-L47】
 
 ---
 

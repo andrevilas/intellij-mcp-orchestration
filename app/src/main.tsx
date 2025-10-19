@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './icons';
 import './styles/index.scss';
-import './styles.css';
+import './styles/base.scss';
 import { ThemeProvider } from './theme/ThemeContext';
 
 const rootElement = document.getElementById('root');

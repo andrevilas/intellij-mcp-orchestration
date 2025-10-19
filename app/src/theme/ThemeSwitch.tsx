@@ -11,10 +11,16 @@ interface ThemeSwitchProps {
 export default function ThemeSwitch({ className }: ThemeSwitchProps): JSX.Element {
   const { theme, setTheme } = useTheme();
   const switchId = useId();
+  const statusId = `${switchId}-status`;
   const isDark = theme === 'dark';
 
   return (
-    <div className={clsx('btn-group theme-switch', className)} role="group" aria-label="Alternar tema">
+    <div
+      className={clsx('btn-group theme-switch', className)}
+      role="group"
+      aria-label="Alternar tema"
+      aria-describedby={statusId}
+    >
       <button
         type="button"
         className={clsx('btn btn-outline-secondary', { active: !isDark })}
@@ -35,6 +41,9 @@ export default function ThemeSwitch({ className }: ThemeSwitchProps): JSX.Elemen
         <FontAwesomeIcon icon="moon" className="me-2" fixedWidth aria-hidden />
         Escuro
       </button>
+      <span id={statusId} className="visually-hidden" aria-live="polite" aria-atomic="true">
+        Tema atual: {isDark ? 'Escuro' : 'Claro'}
+      </span>
     </div>
   );
 }
