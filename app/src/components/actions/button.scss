@@ -1,0 +1,127 @@
+.mcp-button {
+  --mcp-button-bg: var(--mcp-interactive);
+  --mcp-button-fg: #ffffff;
+  --mcp-button-border: transparent;
+  --mcp-button-shadow: 0 10px 30px rgba(67, 56, 202, 0.18);
+  --mcp-button-hover-bg: color-mix(in srgb, var(--mcp-interactive) 92%, #000 8%);
+  --mcp-button-hover-fg: #ffffff;
+  --mcp-button-gap: 0.5rem;
+  --mcp-button-radius: 0.75rem;
+  --mcp-button-padding-y: 0.55rem;
+  --mcp-button-padding-x: 1.25rem;
+  --mcp-button-font-size: 0.95rem;
+  --mcp-button-font-weight: 600;
+  --mcp-button-height: auto;
+
+  align-items: center;
+  background-color: var(--mcp-button-bg);
+  border: 1px solid var(--mcp-button-border);
+  border-radius: var(--mcp-button-radius);
+  box-shadow: var(--mcp-button-shadow);
+  color: var(--mcp-button-fg);
+  display: inline-flex;
+  font-size: var(--mcp-button-font-size);
+  font-weight: var(--mcp-button-font-weight);
+  gap: var(--mcp-button-gap);
+  justify-content: center;
+  line-height: 1.2;
+  min-height: var(--mcp-button-height);
+  padding: var(--mcp-button-padding-y) var(--mcp-button-padding-x);
+  position: relative;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 160ms ease,
+    transform 160ms ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.mcp-button:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  outline-offset: 2px;
+}
+
+.mcp-button:hover:not(:disabled) {
+  background-color: var(--mcp-button-hover-bg);
+  color: var(--mcp-button-hover-fg);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+  transform: translateY(-1px);
+}
+
+.mcp-button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+}
+
+.mcp-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  box-shadow: none;
+}
+
+.mcp-button--secondary {
+  --mcp-button-bg: var(--mcp-surface-subtle);
+  --mcp-button-fg: var(--mcp-surface-contrast);
+  --mcp-button-border: var(--mcp-border-strong);
+  --mcp-button-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  --mcp-button-hover-bg: color-mix(in srgb, var(--mcp-surface-subtle) 90%, #000 10%);
+  --mcp-button-hover-fg: var(--mcp-surface-contrast);
+}
+
+.mcp-button--ghost {
+  --mcp-button-bg: transparent;
+  --mcp-button-fg: var(--mcp-interactive);
+  --mcp-button-border: transparent;
+  --mcp-button-shadow: none;
+  --mcp-button-hover-bg: var(--mcp-interactive-soft);
+  --mcp-button-hover-fg: var(--mcp-interactive);
+}
+
+.mcp-button--danger {
+  --mcp-button-bg: #dc2626;
+  --mcp-button-hover-bg: color-mix(in srgb, #dc2626 88%, #000 12%);
+  --mcp-button-shadow: 0 12px 28px rgba(220, 38, 38, 0.24);
+}
+
+.mcp-button--sm {
+  --mcp-button-padding-y: 0.4rem;
+  --mcp-button-padding-x: 0.85rem;
+  --mcp-button-font-size: 0.85rem;
+  --mcp-button-radius: 0.65rem;
+}
+
+.mcp-button__spinner {
+  aspect-ratio: 1 / 1;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  height: 1.1em;
+  width: 1.1em;
+  animation: mcp-button-spin 600ms linear infinite;
+}
+
+.mcp-button--secondary .mcp-button__spinner,
+.mcp-button--ghost .mcp-button__spinner {
+  border-color: rgba(15, 23, 42, 0.25);
+  border-top-color: currentColor;
+}
+
+.mcp-button__icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mcp-button__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.mcp-button--loading .mcp-button__content {
+  opacity: 0.85;
+}
+
+@keyframes mcp-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

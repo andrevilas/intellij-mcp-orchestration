@@ -1,0 +1,44 @@
+.mcp-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.mcp-tooltip__bubble {
+  position: absolute;
+  white-space: nowrap;
+  background-color: var(--mcp-surface-contrast);
+  color: var(--mcp-surface);
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  box-shadow: var(--mcp-shadow-soft);
+  transform: translate(-50%, -0.5rem);
+  top: 0;
+  left: 50%;
+  z-index: 30;
+}
+
+.mcp-tooltip[data-placement='bottom'] .mcp-tooltip__bubble {
+  top: auto;
+  bottom: 0;
+  transform: translate(-50%, 0.5rem);
+}
+
+.mcp-tooltip[data-placement='right'] .mcp-tooltip__bubble {
+  top: 50%;
+  left: 100%;
+  transform: translate(0.75rem, -50%);
+}
+
+.mcp-tooltip[data-placement='left'] .mcp-tooltip__bubble {
+  top: 50%;
+  left: 0;
+  transform: translate(-0.75rem, -50%);
+}
+
+[data-theme='dark'] .mcp-tooltip__bubble {
+  background-color: var(--mcp-surface);
+  color: var(--mcp-surface-contrast);
+}

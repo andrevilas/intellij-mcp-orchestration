@@ -1,0 +1,78 @@
+.mcp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+}
+
+.mcp-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.mcp-modal__dialog {
+  position: relative;
+  background-color: var(--mcp-surface);
+  border-radius: 1.25rem;
+  box-shadow: var(--mcp-shadow-soft);
+  padding: 1.5rem;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mcp-modal__dialog:focus {
+  outline: none;
+}
+
+.mcp-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mcp-modal__description {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+[data-theme='dark'] .mcp-modal__description {
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.mcp-modal__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mcp-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.mcp-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.mcp-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mcp-modal__form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}

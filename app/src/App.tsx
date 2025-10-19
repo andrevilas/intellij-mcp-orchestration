@@ -33,6 +33,8 @@ import {
 import CommandPalette from './components/CommandPalette';
 import NotificationCenter, { type NotificationItem } from './components/NotificationCenter';
 import ProvisioningDialog, { type ProvisioningSubmission } from './components/ProvisioningDialog';
+import UiKitShowcase from './components/UiKitShowcase';
+import { ToastProvider } from './components/feedback/ToastProvider';
 import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import Dashboard from './pages/Dashboard';
 import FinOps from './pages/FinOps';
@@ -685,7 +687,8 @@ function App() {
   }, []);
 
   return (
-    <div className="app-shell">
+    <ToastProvider>
+      <div className="app-shell">
       <a
         href="#main-content"
         className="skip-link"
@@ -898,6 +901,9 @@ function App() {
           </section>
         )}
       </main>
+      <aside className="app-shell__ui-kit" aria-label="Mostruário UI Kit">
+        <UiKitShowcase />
+      </aside>
       <footer className="app-shell__footer">
         © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
       </footer>
@@ -920,7 +926,8 @@ function App() {
         onClose={handleClosePalette}
         commands={commandOptions}
       />
-    </div>
+      </div>
+    </ToastProvider>
   );
 }
 

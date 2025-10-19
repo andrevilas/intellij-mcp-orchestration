@@ -605,6 +605,13 @@ body {
   padding-bottom: 4rem;
 }
 
+.app-shell__ui-kit {
+  max-width: 1200px;
+  width: 100%;
+  margin: -1rem auto 0;
+  padding: 0 2rem 2rem;
+}
+
 .app-shell__footer {
   position: sticky;
   bottom: 0;

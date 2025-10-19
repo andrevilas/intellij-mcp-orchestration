@@ -1,0 +1,84 @@
+.mcp-alert {
+  --mcp-alert-bg: var(--mcp-surface-subtle);
+  --mcp-alert-border: var(--mcp-border-strong);
+  --mcp-alert-color: var(--mcp-surface-contrast);
+  --mcp-alert-accent: var(--mcp-interactive);
+
+  align-items: center;
+  background-color: var(--mcp-alert-bg);
+  border: 1px solid var(--mcp-alert-border);
+  border-left: 4px solid var(--mcp-alert-accent);
+  border-radius: 1rem;
+  color: var(--mcp-alert-color);
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr auto;
+  padding: 0.9rem 1.1rem;
+  position: relative;
+}
+
+.mcp-alert__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.mcp-alert__description {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.mcp-alert__action {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.mcp-alert__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.mcp-alert__dismiss {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.8rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.mcp-alert__dismiss:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  border-radius: 0.4rem;
+}
+
+.mcp-alert--success {
+  --mcp-alert-accent: #16a34a;
+}
+
+.mcp-alert--warning {
+  --mcp-alert-accent: #f97316;
+}
+
+.mcp-alert--error {
+  --mcp-alert-accent: #dc2626;
+}
+
+.mcp-toast-viewport {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: grid;
+  gap: 0.75rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  z-index: 50;
+}
+
+.mcp-toast-viewport[data-theme='dark'] .mcp-alert {
+  --mcp-alert-bg: rgba(15, 23, 42, 0.9);
+  --mcp-alert-border: rgba(148, 163, 184, 0.35);
+  --mcp-alert-color: var(--mcp-surface);
+}
