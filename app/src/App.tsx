@@ -861,7 +861,6 @@ function App() {
                 tabIndex={activeView === view.id ? 0 : -1}
                 aria-current={activeView === view.id ? 'page' : undefined}
                 onFocus={() => handleNavigate(view.id, { focusContent: false })}
-                onMouseEnter={() => handleNavigate(view.id, { focusContent: false })}
                 onClick={() => handleNavigate(view.id)}
               >
                 <FontAwesomeIcon

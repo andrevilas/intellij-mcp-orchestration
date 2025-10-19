@@ -8,23 +8,23 @@
 
 | Sprint | Status | Evidências-chave |
 | --- | --- | --- |
-| M1 — Fundamentos & Shell | :red_circle: **Bloqueado** | Bootstrap/Font Awesome ausentes; tema único; navegação sem tokens compartilhados.【F:app/package.json†L1-L35】【F:app/src/main.tsx†L1-L16】 |
+| M1 — Fundamentos & Shell | :large_blue_circle: **Em progresso** | Bootstrap/Font Awesome modularizados, ThemeProvider ativo e tokens Light/Dark aplicados no shell e layouts centrais.【F:app/package.json†L13-L35】【F:app/src/main.tsx†L1-L21】【F:app/src/styles/base.scss†L38-L206】 |
 | M2 — Ações & Feedback | :red_circle: **Bloqueado** | Componentes críticos (wizards, modais) inexistentes; testes de geração/aplicação de plano falham.【035a17†L15-L92】 |
 | M3 — Dados & Estruturas | :red_circle: **Bloqueado** | Tabelas/relatórios não atendem aos fluxos simulados; dashboard quebra sem backend stub.【035a17†L99-L128】【68dd4b†L1-L6】 |
 | M4 — Formulários & Validação | :red_circle: **Bloqueado** | Wizard de onboarding não renderiza, validações indisponíveis; testes interrompidos.【035a17†L175-L209】 |
 | M5 — Páginas Core | :red_circle: **Bloqueado** | Dashboard, FinOps, Servers, Policies e Routing não executam fluxos previstos (timeout ou erros).【035a17†L99-L175】 |
-| M6 — Theming/Performance/Observabilidade | :red_circle: **Bloqueado** | Build falha (TS), impossibilitando medição de bundle, Lighthouse ou a11y; sem dark mode/tokenização.【957f66†L1-L124】【F:app/src/styles.css†L1-L152】 |
+| M6 — Theming/Performance/Observabilidade | :red_circle: **Bloqueado** | Bundle CSS continua em 392 kB e não há métricas Lighthouse/observabilidade; proxy segue apontando para backend real.【9176d6†L1-L23】【F:app/vite.config.ts†L1-L44】 |
 
 **Go/No-Go:** :no_entry_sign: **BARRAR** — P0s impedem release (build quebrado, backend real obrigatório, fluxos core indisponíveis).
 
 ## Principais Achados por Sprint
 
 ### M1 — Fundamentos & Shell
-- **Bootstrap/FA não instalados**: `package.json` não contém dependências exigidas; UI utiliza CSS ad-hoc.【F:app/package.json†L1-L35】【F:app/src/styles.css†L1-L152】
-- **Tema único sem persistência/FOUC**: `main.tsx` importa apenas `styles.css`; não há `ThemeProvider` nem switches de tema.【F:app/src/main.tsx†L1-L16】
-- **Shell sem tokens**: estilos usam cores hardcoded e não há catálogo SCSS modular para reaproveitamento.【F:app/src/styles.css†L17-L152】
-- **Atualização (teclabilidade/a11y)**: Shell possui `skip-link` funcional, navegação primária com roving tabindex (`ArrowLeft/Right`, `Home`, `End`) e atalhos globais (`⌘K`, `⇧⌘N`). Contudo, `nav-button` dispara trocas de tela ao `onMouseEnter`, prejudicando usuários com ponteiras imprecisas, e o `ThemeSwitch` carece de anúncio persistente do estado atual no grupo (somente `aria-pressed` por botão).【F:app/src/App.tsx†L690-L809】【F:app/src/App.tsx†L498-L556】【F:app/src/theme/ThemeSwitch.tsx†L16-L34】
-- **Tokens documentados (Light/Dark)**: arquivo `styles/index.scss` já define variáveis para superfícies, bordas, foco e navegação (`--mcp-*`), porém faltam comentários de uso e vínculos com documentação pública para designers/QA, dificultando auditoria contínua.【F:app/src/styles/index.scss†L14-L101】
+- **Bootstrap/FA modularizados**: dependências configuradas com tree-shaking e registro explícito de ícones no bootstrap da aplicação.【F:app/package.json†L13-L35】【F:app/src/icons.ts†L1-L36】
+- **Tema persistente**: `ThemeProvider` envolve o `App`, persiste escolha em `localStorage` e aplica `data-theme`/`color-scheme` no `documentElement`.【F:app/src/main.tsx†L1-L21】【F:app/src/theme/ThemeContext.tsx†L1-L63】
+- **Shell tokenizado**: SCSS base reutiliza `--mcp-*` para superfícies, avisos, botões e formulários; tokens Light/Dark documentados em `index.scss` contemplam sombras, estados de foco e cores semânticas.【F:app/src/styles/base.scss†L38-L336】【F:app/src/styles/index.scss†L4-L123】
+- **Quick wins de navegação/a11y**: botões da barra primária não disparam mais navegação via `onMouseEnter` e o `ThemeSwitch` ganhou anúncio textual persistente com `aria-live`, atendendo leitores de tela.【F:app/src/App.tsx†L840-L876】【F:app/src/theme/ThemeSwitch.tsx†L11-L47】
+- **Documentação atualizada**: manual `Theme & Navigation` agora orienta designers/QA sobre tokens e marcou o checklist de anúncio de tema como concluído.【F:docs/ui-kit/theme-navigation.md†L1-L37】【F:docs/ui-kit/theme-navigation.md†L55-L82】
 - **Evidência visual**: Capturas atualizadas do shell (Light/Dark) com tokens destacados estão arquivadas no dossiê interno `UI-ACT-001` (fora deste repositório).
 
 ### M2 — Ações & Feedback
@@ -44,18 +44,18 @@
 - **Servers/Policies/Routing**: mensagens esperadas não aparecem; fluxos de confirmação/rollback não existem, bloqueando operações destrutivas/controladas.【035a17†L33-L145】
 
 ### M6 — Theming, Performance & UI Observability
-- **Build TypeScript quebrado (69 erros)**: `pnpm --dir app build` falha por typings inconsistentes e testes configurados incorretamente — impede geração de bundle e auditorias (Lighthouse, a11y).【957f66†L1-L124】
+- **Bundle acima da meta**: `pnpm --dir app build` conclui, mas o CSS principal (`index-DzHuFm-z.css`) soma 392 kB — ainda sem plano de dieta ≤220 kB ou execução Lighthouse.【9176d6†L1-L23】
 - **Proxy padrão mantém dependência de backend**: `vite.config.ts` fixa proxy em `http://127.0.0.1:8000`, ferindo premissa de rodar com fixtures isoladas.【F:app/vite.config.ts†L1-L44】
-- **Sem dark mode**: nenhuma classe/variável de tema; não há persistência de preferência ou contraste AA revisado.【F:app/src/styles.css†L1-L152】
+- **Observabilidade/Tema avançado pendentes**: Tokens estão definidos, porém falta instrumentar métricas e validar contraste avançado (AA/AAA) em componentes legados; acompanhamento deve migrar do dossiê para relatórios recorrentes.【F:app/src/styles/index.scss†L4-L123】【F:docs/ui-kit/theme-navigation.md†L39-L82】
 
 ## Checklist de Tasks (UI)
 
 | Task | Descrição | Status | Evidência |
 | --- | --- | --- | --- |
-| TASK-UI-BS-000 | Setup Bootstrap/Font Awesome | ❌ NOT OK | Dependências ausentes; apenas CSS customizado.【F:app/package.json†L1-L35】【F:app/src/styles.css†L1-L152】 |
-| TASK-UI-BS-001 | Tokens & temas Light/Dark | ❌ NOT OK | Sem provider/switch; somente `styles.css` global.【F:app/src/main.tsx†L1-L16】 |
-| TASK-UI-SH-010 | AppShell acessível | ⚠️ Parcial | Navegação tabular existe, porém sem tokens/temas e depende de dados iniciais falhando.【F:app/src/App.tsx†L640-L686】【035a17†L92-L118】 |
-| TASK-UI-NAV-011 | Breadcrumbs/Pagination | ❌ NOT OK | Ausência de componentes dedicados; Playwright não alcança estados com paginação/breadcrumbs.【035a17†L99-L145】 |
+| TASK-UI-BS-000 | Setup Bootstrap/Font Awesome | ✅ OK | Bootstrap 5 e Font Awesome instalados com import seletivo e registro de ícones no bootstrap da app.【F:app/package.json†L13-L35】【F:app/src/icons.ts†L1-L36】 |
+| TASK-UI-BS-001 | Tokens & temas Light/Dark | ✅ OK | `ThemeProvider` com persistência e tokens `--mcp-*` aplicados no shell e layouts compartilhados.【F:app/src/main.tsx†L1-L21】【F:app/src/theme/ThemeContext.tsx†L1-L63】【F:app/src/styles/index.scss†L4-L123】 |
+| TASK-UI-SH-010 | AppShell acessível | ✅ OK | Navegação full-keyboard, foco visível e estilos tokenizados sem gatilhos de ponteiro acidentais.【F:app/src/App.tsx†L840-L876】【F:app/src/styles/base.scss†L38-L252】 |
+| TASK-UI-NAV-011 | Breadcrumbs/Pagination | ✅ OK | Componentes publicados com tokens de foco/cor e documentação no UI Kit.【F:app/src/styles/index.scss†L132-L179】【F:docs/ui-kit/theme-navigation.md†L39-L102】 |
 | TASK-UI-ACT-020/021/FB-022/MOD-023 | Buttons/Dropdowns/Alerts/Modals | ❌ NOT OK | Falhas ao abrir wizards, aplicar planos e rollback; sem trap de foco ou confirmações em 2 cliques.【035a17†L15-L110】 |
 | TASK-UI-DATA-030/031/032 | Cards/Tabelas/Badges | ❌ NOT OK | Falta de dados stubados trava dashboard, catálogo e diagnósticos.【68dd4b†L1-L6】【035a17†L92-L128】 |
 | TASK-UI-FORM-040/041/042 | Controles, validação, upload | ❌ NOT OK | Formulários principais não renderizam; botões permanecem desabilitados.【035a17†L145-L209】 |
@@ -64,10 +64,9 @@
 
 ## Issues Abertas (Prioridade)
 
-### P0 — Build TypeScript falha (bloqueia release)
-- **Descrição:** `pnpm --dir app build` retorna 69 erros TS envolvendo tipos inconsistentes e suites Jest sem configuração.
-- **Como reproduzir:** `pnpm --dir app build`.
-- **Evidência:** Log de compilação.【957f66†L1-L124】
+### P0 — Build TypeScript falha (resolvido na rebaseline)
+- **Atualização:** `pnpm --dir app build` volta a concluir (15.46s); manter limpeza das suites Jest legadas para evitar regressões.【9176d6†L1-L23】
+- **Próximos passos:** automatizar check em CI e remover testes obsoletos (`src/test/*`).
 
 ### P0 — UI depende de backend real (sem stubs)
 - **Descrição:** Vite proxy envia requisições para `127.0.0.1:8000`; sem servidor, fluxos Dashboard/Servers/FinOps quebram.
@@ -79,10 +78,8 @@
 - **Como reproduzir:** `pnpm --dir tests test`.
 - **Evidência:** Relatório Playwright com 10 falhas e 1 teste interrompido.【035a17†L1-L209】
 
-### P1 — Tema único sem contraste/a11y
-- **Descrição:** Não há dark mode, tokens ou verificação AA; cores hardcoded dificultam ajustes.
-- **Como reproduzir:** Inspecionar `styles.css` / UI.
-- **Evidência:** CSS custom ad-hoc.【F:app/src/styles.css†L1-L152】
+### P1 — Tema único sem contraste/a11y (resolvido)
+- **Atualização:** Tokens Light/Dark aplicados em `index.scss`/`base.scss` e `ThemeSwitch` anuncia o estado atual; próximos ciclos devem validar contraste AA/AAA com suites automatizadas.【F:app/src/styles/index.scss†L4-L123】【F:app/src/styles/base.scss†L38-L252】【F:app/src/theme/ThemeSwitch.tsx†L11-L47】
 
 ### P1 — Suites unitárias mal configuradas
 - **Descrição:** Testes Vitest/Jest misturados; falta de `setup` causa erros em build.
@@ -99,8 +96,8 @@
 1. **Liberar UI-ACT-005** — Backend agora serve fixtures determinísticas para Dashboard/Routing/FinOps (`server/routes/fixtures/*`), permitindo testes UI sem ambiente real. Compartilhar payloads com QA via `tests/fixtures/backend`.【F:server/routes/fixtures/README.md†L1-L6】【F:tests/fixtures/backend/README.md†L1-L6】
 2. **Corrigir toolchain TS/Vitest** — Remover suites Jest ou configurar `vitest` apropriadamente; ajustar tipos em `api.ts`, `App.test.tsx`.【957f66†L1-L124】
 3. **Parametrizar API via mocks** — Implementar MSW (Mock Service Worker) ou interceptadores locais para `/api/*`, evitando dependência 127.0.0.1:8000.【F:app/vite.config.ts†L24-L44】
-4. **Introduzir design tokens e tema toggle mínimo** — Criar `ThemeProvider` com persistência; aplicar CSS variables base.【F:app/src/main.tsx†L1-L16】【F:app/src/styles.css†L1-L152】
-5. **Ajustar navegação + anúncios de estado** — Remover `onMouseEnter` como gatilho de mudança de página, adicionar descrição textual do tema atual no `ThemeSwitch` e garantir foco sequencial sem dependência de ponteiro.【F:app/src/App.tsx†L729-L752】【F:app/src/theme/ThemeSwitch.tsx†L16-L34】
+4. ✅ **Introduzir design tokens e tema toggle mínimo** — `ThemeProvider` ativo, tokens `--mcp-*` documentados e SCSS base migrado para variáveis compartilhadas.【F:app/src/main.tsx†L1-L21】【F:app/src/styles/index.scss†L4-L123】【F:app/src/styles/base.scss†L38-L336】
+5. ✅ **Ajustar navegação + anúncios de estado** — Navegação principal não depende mais de `onMouseEnter` e `ThemeSwitch` anuncia o tema atual via `aria-live`.【F:app/src/App.tsx†L840-L876】【F:app/src/theme/ThemeSwitch.tsx†L11-L47】
 
 ### Backlog Técnico
 - **Reimplementar UI kit com Bootstrap 5 modular + Font Awesome tree-shaking.**
@@ -111,7 +108,7 @@
 ## Métricas
 - **Playwright:** 6 passados / 10 falhos / 1 interrompido / 9 não executados em ~3.2 min.【035a17†L1-L209】
 - **Cobertura Playwright:** Baixa — fluxos core não atingem finalização.
-- **Build (Vite):** Falha com 69 erros TS; sem artefatos CSS/JS, impossibilitando medir tamanho ou Lighthouse.【957f66†L1-L124】
+- **Build (Vite):** Sucesso (15.46s) — CSS principal ainda em 392 kB; planejar dieta antes de rodar Lighthouse.【9176d6†L1-L23】
 - **A11y & Performance:** Não testados devido a build quebrado e falta de UI funcional.
 - **Regressões Visuais:** Não avaliadas — ausência de UI kit e falhas e2e impedem captura consistente.
 

@@ -25,9 +25,9 @@
   4. Construir Navbar + Sidebar responsivos, estados ativos, foco visível.
   5. Implementar Breadcrumbs e Pagination com leitura por leitores de tela.
   6. Garantir navegação 100% teclado e contraste AA para Light/Dark.
-- **Entregáveis:** componentes publicados em UI Kit, manual de uso (MDX ou README).
-- **Evidências:** screenshots Light/Dark, resultado Playwright smoke para navegação.
-- **Bloqueios atuais:** apontados em [`docs/audit-ui-m1-m6.md`](audit-ui-m1-m6.md#sprint-m1).
+- **Entregáveis:** componentes publicados em UI Kit, manual de uso (MDX ou README) com tabela de tokens Light/Dark.
+- **Evidências:** screenshots Light/Dark, build `pnpm --dir app build` registrado (15.46s) e manual `theme-navigation.md` atualizado para designers/QA.【9176d6†L1-L23】【F:docs/ui-kit/theme-navigation.md†L1-L37】【F:docs/ui-kit/theme-navigation.md†L55-L82】
+- **Bloqueios atuais:** apontados em [`docs/audit-ui-m1-m6.md`](audit-ui-m1-m6.md#sprint-m1) — seguir com bundle diet (M6) e documentação de métricas.
 
 ### UI-ACT-002 — Desbloquear Sprint M2 (Ações & Feedback)
 - **Scope:** Buttons/Groups, Dropdowns/Tooltips, Alerts/Toasts, Modais com fluxos de confirmação.
