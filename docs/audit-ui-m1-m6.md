@@ -23,6 +23,9 @@
 - **Bootstrap/FA não instalados**: `package.json` não contém dependências exigidas; UI utiliza CSS ad-hoc.【F:app/package.json†L1-L35】【F:app/src/styles.css†L1-L152】
 - **Tema único sem persistência/FOUC**: `main.tsx` importa apenas `styles.css`; não há `ThemeProvider` nem switches de tema.【F:app/src/main.tsx†L1-L16】
 - **Shell sem tokens**: estilos usam cores hardcoded e não há catálogo SCSS modular para reaproveitamento.【F:app/src/styles.css†L17-L152】
+- **Atualização (teclabilidade/a11y)**: Shell possui `skip-link` funcional, navegação primária com roving tabindex (`ArrowLeft/Right`, `Home`, `End`) e atalhos globais (`⌘K`, `⇧⌘N`). Contudo, `nav-button` dispara trocas de tela ao `onMouseEnter`, prejudicando usuários com ponteiras imprecisas, e o `ThemeSwitch` carece de anúncio persistente do estado atual no grupo (somente `aria-pressed` por botão).【F:app/src/App.tsx†L690-L809】【F:app/src/App.tsx†L498-L556】【F:app/src/theme/ThemeSwitch.tsx†L16-L34】
+- **Tokens documentados (Light/Dark)**: arquivo `styles/index.scss` já define variáveis para superfícies, bordas, foco e navegação (`--mcp-*`), porém faltam comentários de uso e vínculos com documentação pública para designers/QA, dificultando auditoria contínua.【F:app/src/styles/index.scss†L14-L101】
+- **Evidência visual**: Capturas atualizadas do shell (Light/Dark) com tokens destacados estão arquivadas no dossiê interno `UI-ACT-001` (fora deste repositório).
 
 ### M2 — Ações & Feedback
 - **Wizards/modais ausentes**: Seletores esperados pelos testes (`.agent-wizard`, headings “Plano de configuração”) não são renderizados, ocasionando falhas críticas nos fluxos governados.【035a17†L33-L73】
@@ -96,6 +99,7 @@
 1. **Corrigir toolchain TS/Vitest** — Remover suites Jest ou configurar `vitest` apropriadamente; ajustar tipos em `api.ts`, `App.test.tsx`.【957f66†L1-L124】
 2. **Parametrizar API via mocks** — Implementar MSW (Mock Service Worker) ou interceptadores locais para `/api/*`, evitando dependência 127.0.0.1:8000.【F:app/vite.config.ts†L24-L44】
 3. **Introduzir design tokens e tema toggle mínimo** — Criar `ThemeProvider` com persistência; aplicar CSS variables base.【F:app/src/main.tsx†L1-L16】【F:app/src/styles.css†L1-L152】
+4. **Ajustar navegação + anúncios de estado** — Remover `onMouseEnter` como gatilho de mudança de página, adicionar descrição textual do tema atual no `ThemeSwitch` e garantir foco sequencial sem dependência de ponteiro.【F:app/src/App.tsx†L729-L752】【F:app/src/theme/ThemeSwitch.tsx†L16-L34】
 
 ### Backlog Técnico
 - **Reimplementar UI kit com Bootstrap 5 modular + Font Awesome tree-shaking.**
