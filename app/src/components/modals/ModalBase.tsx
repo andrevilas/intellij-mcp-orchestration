@@ -102,7 +102,7 @@ export default function ModalBase({ isOpen, title, description, onClose, footer,
         <header className="mcp-modal__header">
           <h2 id={titleId}>{title}</h2>
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={onClose}
             aria-label="Fechar modal"

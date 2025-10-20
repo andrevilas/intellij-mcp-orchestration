@@ -112,7 +112,13 @@ export function ToastProvider({ children, maxVisible = 3 }: { children: ReactNod
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="mcp-toast-viewport" data-theme={theme} aria-live="polite">
+      <div
+        className="mcp-toast-viewport"
+        data-theme={theme}
+        role="region"
+        aria-live="polite"
+        aria-label="Notificações recentes"
+      >
         {items.map((toast) => (
           <Alert
             key={toast.id}
@@ -121,7 +127,7 @@ export function ToastProvider({ children, maxVisible = 3 }: { children: ReactNod
             variant={toast.variant}
             action={
               toast.dismissible ? (
-                <Button size="sm" variant="ghost" onClick={() => dismissToast(toast.id)}>
+                <Button size="sm" variant="outline" onClick={() => dismissToast(toast.id)}>
                   Dispensar
                 </Button>
               ) : null

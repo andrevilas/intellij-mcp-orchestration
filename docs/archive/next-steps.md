@@ -14,7 +14,7 @@
 - [ ] **M1 — Fundamentos & Shell** · Em progresso — Bootstrap/FA, ThemeProvider e tokens Light/Dark entregues; seguir com dieta de bundle e métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
   - [x] **TASK-UI-SH-010** — Shell com `skip-link`, roving tabindex e atalhos documentados.
   - [x] **TASK-UI-NAV-011** — Breadcrumbs + Pagination com tokens `--mcp-*` e foco visível.
-- [ ] **M2 — Ações & Feedback** · Bloqueado — componentes críticos (wizards/modais) ausentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **M2 — Ações & Feedback** · Concluído — botões, menus, toasts e modais auditados com tokens MCP e testes de acessibilidade (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **M5 — Páginas Core** · Bloqueio removido — fixtures habilitadas (UI-ACT-005) destravam Dashboard/Servers/FinOps/Routing sem backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).

@@ -43,7 +43,7 @@ export default function FormModal({
       >
         <div className="mcp-modal__form-content">{children}</div>
         <div className="mcp-modal__actions">
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel}>
             {cancelLabel}
           </Button>
           <Button variant="primary" type="submit" loading={isSubmitting}>

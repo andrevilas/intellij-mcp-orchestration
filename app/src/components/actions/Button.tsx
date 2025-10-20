@@ -9,13 +9,7 @@ import './button.scss';
 
 type NativeButtonProps = ButtonHTMLAttributes<HTMLButtonElement>;
 
-export type ButtonVariant =
-  | 'primary'
-  | 'secondary'
-  | 'danger'
-  | 'ghost'
-  | 'outline'
-  | 'link';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'outline' | 'link';
 export type ButtonSize = 'md' | 'sm';
 
 export interface ButtonProps extends Omit<NativeButtonProps, 'type'> {
@@ -75,6 +69,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         disabled={isDisabled}
         aria-busy={loading || undefined}
+        data-variant={variant}
       >
         {loading && (
           <span className="mcp-button__spinner" aria-hidden="true" />

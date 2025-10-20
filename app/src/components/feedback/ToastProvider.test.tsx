@@ -38,5 +38,7 @@ describe('ToastProvider', () => {
     await user.click(trigger);
     const toasts = screen.getAllByRole('status');
     expect(toasts).toHaveLength(2);
+    const viewport = screen.getByRole('region', { name: 'Notificações recentes' });
+    expect(viewport).toHaveAttribute('aria-live', 'polite');
   });
 });

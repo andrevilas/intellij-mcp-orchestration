@@ -1,14 +1,10 @@
 .mcp-button {
-  --mcp-button-bg: var(--mcp-interactive);
-  --mcp-button-fg: var(--mcp-text-inverse);
-  --mcp-button-border: transparent;
+  --mcp-button-bg: var(--mcp-action-primary-bg);
+  --mcp-button-fg: var(--mcp-action-primary-fg);
+  --mcp-button-border: var(--mcp-action-primary-border);
   --mcp-button-shadow: var(--mcp-shadow-accent);
-  --mcp-button-hover-bg: color-mix(
-    in srgb,
-    var(--mcp-interactive) 88%,
-    var(--mcp-surface-contrast) 12%
-  );
-  --mcp-button-hover-fg: var(--mcp-text-inverse);
+  --mcp-button-hover-bg: var(--mcp-action-primary-hover-bg);
+  --mcp-button-hover-fg: var(--mcp-action-primary-hover-fg);
   --mcp-button-gap: 0.5rem;
   --mcp-button-radius: 0.75rem;
   --mcp-button-padding-y: 0.55rem;
@@ -57,32 +53,28 @@
   box-shadow: var(--mcp-shadow-accent-intense);
 }
 
-.mcp-button:disabled {
+.mcp-button:disabled,
+.mcp-button[aria-disabled='true'] {
   cursor: not-allowed;
-  opacity: 0.65;
+  opacity: var(--mcp-action-disabled-opacity);
   box-shadow: none;
 }
 
 .mcp-button--secondary {
-  --mcp-button-bg: var(--mcp-surface-subtle);
-  --mcp-button-fg: var(--mcp-surface-contrast);
-  --mcp-button-border: var(--mcp-border-strong);
+  --mcp-button-bg: var(--mcp-action-secondary-bg);
+  --mcp-button-fg: var(--mcp-action-secondary-fg);
+  --mcp-button-border: var(--mcp-action-secondary-border);
   --mcp-button-shadow: inset 0 1px 0 color-mix(in srgb, var(--mcp-surface) 55%, transparent);
-  --mcp-button-hover-bg: color-mix(
-    in srgb,
-    var(--mcp-surface-subtle) 90%,
-    var(--mcp-surface-contrast) 10%
-  );
-  --mcp-button-hover-fg: var(--mcp-surface-contrast);
+  --mcp-button-hover-bg: var(--mcp-action-secondary-hover-bg);
+  --mcp-button-hover-fg: var(--mcp-action-secondary-hover-fg);
 }
 
 .mcp-button--danger {
-  --mcp-button-bg: var(--mcp-danger-strong);
-  --mcp-button-hover-bg: color-mix(
-    in srgb,
-    var(--mcp-danger-strong) 88%,
-    var(--mcp-surface-contrast) 12%
-  );
+  --mcp-button-bg: var(--mcp-action-danger-bg);
+  --mcp-button-fg: var(--mcp-action-danger-fg);
+  --mcp-button-border: var(--mcp-action-danger-border);
+  --mcp-button-hover-bg: var(--mcp-action-danger-hover-bg);
+  --mcp-button-hover-fg: var(--mcp-action-danger-hover-fg);
   --mcp-button-shadow: var(--mcp-shadow-accent-strong);
 }
 
@@ -100,31 +92,22 @@
   --mcp-button-shadow: var(--mcp-shadow-accent-intense);
 }
 
-.mcp-button--ghost {
-  --mcp-button-bg: transparent;
-  --mcp-button-fg: var(--mcp-interactive);
-  --mcp-button-border: transparent;
-  --mcp-button-shadow: none;
-  --mcp-button-hover-bg: var(--mcp-interactive-soft);
-  --mcp-button-hover-fg: var(--mcp-interactive);
-}
-
 .mcp-button--outline {
-  --mcp-button-bg: transparent;
-  --mcp-button-fg: var(--mcp-surface-contrast);
-  --mcp-button-border: color-mix(in srgb, var(--mcp-border-strong) 88%, transparent 12%);
+  --mcp-button-bg: var(--mcp-action-outline-bg);
+  --mcp-button-fg: var(--mcp-action-outline-fg);
+  --mcp-button-border: var(--mcp-action-outline-border);
   --mcp-button-shadow: none;
-  --mcp-button-hover-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
-  --mcp-button-hover-fg: var(--mcp-surface-contrast);
+  --mcp-button-hover-bg: var(--mcp-action-outline-hover-bg);
+  --mcp-button-hover-fg: var(--mcp-action-outline-hover-fg);
 }
 
 .mcp-button--link {
-  --mcp-button-bg: transparent;
-  --mcp-button-fg: var(--mcp-interactive);
-  --mcp-button-border: transparent;
+  --mcp-button-bg: var(--mcp-action-link-bg);
+  --mcp-button-fg: var(--mcp-action-link-fg);
+  --mcp-button-border: var(--mcp-action-link-border);
   --mcp-button-shadow: none;
-  --mcp-button-hover-bg: color-mix(in srgb, var(--mcp-interactive) 12%, transparent 88%);
-  --mcp-button-hover-fg: var(--mcp-interactive);
+  --mcp-button-hover-bg: var(--mcp-action-link-hover-bg);
+  --mcp-button-hover-fg: var(--mcp-action-link-hover-fg);
   --mcp-button-padding-y: 0.25rem;
   --mcp-button-padding-x: 0.35rem;
 }
@@ -158,7 +141,7 @@
 }
 
 .mcp-button--secondary .mcp-button__spinner,
-.mcp-button--ghost .mcp-button__spinner {
+.mcp-button--outline .mcp-button__spinner {
   border-color: color-mix(in srgb, var(--mcp-surface-contrast) 25%, transparent);
   border-top-color: currentColor;
 }

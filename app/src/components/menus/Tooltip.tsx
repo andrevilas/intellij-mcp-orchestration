@@ -2,51 +2,86 @@ import {
   cloneElement,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type ReactElement,
   type ReactNode,
+  type Ref,
 } from 'react';
 
 import './tooltip.scss';
+
+export interface TooltipDelay {
+  open?: number;
+  close?: number;
+}
 
 export interface TooltipProps {
   children: ReactElement;
   content: ReactNode;
   placement?: 'top' | 'right' | 'bottom' | 'left';
-  delay?: number;
+  delay?: number | TooltipDelay;
 }
 
 export default function Tooltip({
   children,
   content,
   placement = 'top',
-  delay = 120,
+  delay,
 }: TooltipProps): JSX.Element {
   const tooltipId = useId();
   const [isVisible, setVisible] = useState(false);
-  const timeoutRef = useRef<number | null>(null);
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
+  const openTimeoutRef = useRef<number | null>(null);
+  const closeTimeoutRef = useRef<number | null>(null);
+
+  const delays = useMemo(() => {
+    if (typeof delay === 'number') {
+      return { open: delay, close: delay };
+    }
+    const parsed = delay ?? {};
+    return {
+      open: parsed.open ?? 120,
+      close: parsed.close ?? 80,
     };
-  }, []);
+  }, [delay]);
+
+  const clearTimers = () => {
+    if (openTimeoutRef.current) {
+      window.clearTimeout(openTimeoutRef.current);
+      openTimeoutRef.current = null;
+    }
+    if (closeTimeoutRef.current) {
+      window.clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => clearTimers, []);
 
   const show = () => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
+    if (closeTimeoutRef.current) {
+      window.clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
     }
-    timeoutRef.current = window.setTimeout(() => setVisible(true), delay);
+    if (openTimeoutRef.current) {
+      window.clearTimeout(openTimeoutRef.current);
+    }
+    openTimeoutRef.current = window.setTimeout(() => setVisible(true), delays.open);
   };
 
   const hide = () => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+    if (openTimeoutRef.current) {
+      window.clearTimeout(openTimeoutRef.current);
+      openTimeoutRef.current = null;
     }
-    setVisible(false);
+    if (closeTimeoutRef.current) {
+      window.clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = window.setTimeout(() => {
+      setVisible(false);
+      closeTimeoutRef.current = null;
+    }, delays.close);
   };
 
   const describedBy = [
@@ -58,7 +93,7 @@ export default function Tooltip({
 
   const triggerProps = {
     ref: (instance: HTMLElement | null) => {
-      const originalRef = (children as { ref?: React.Ref<HTMLElement> }).ref;
+      const originalRef = (children as { ref?: Ref<HTMLElement> }).ref;
       if (typeof originalRef === 'function') {
         originalRef(instance);
       } else if (originalRef && typeof originalRef === 'object') {
@@ -83,7 +118,8 @@ export default function Tooltip({
     },
     onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
       if (event.key === 'Escape') {
-        hide();
+        clearTimers();
+        setVisible(false);
         return;
       }
       children.props.onKeyDown?.(event);
@@ -95,7 +131,13 @@ export default function Tooltip({
     <span className="mcp-tooltip" data-placement={placement}>
       {cloneElement(children, triggerProps)}
       {isVisible ? (
-        <span role="tooltip" id={tooltipId} className="mcp-tooltip__bubble">
+        <span
+          role="tooltip"
+          id={tooltipId}
+          className="mcp-tooltip__bubble"
+          onPointerEnter={show}
+          onPointerLeave={hide}
+        >
           {content}
         </span>
       ) : null}

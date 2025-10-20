@@ -20,8 +20,16 @@ export default function Alert({
   action,
   onDismiss,
 }: AlertProps): JSX.Element {
+  const role = variant === 'error' || variant === 'warning' ? 'alert' : 'status';
+  const liveMode = variant === 'error' || variant === 'warning' ? 'assertive' : 'polite';
+
   return (
-    <div className={clsx('mcp-alert', `mcp-alert--${variant}`)} role="status">
+    <div
+      className={clsx('mcp-alert', `mcp-alert--${variant}`)}
+      role={role}
+      aria-live={liveMode}
+      aria-atomic="true"
+    >
       <div className="mcp-alert__body">
         {title ? <h4 className="mcp-alert__title">{title}</h4> : null}
         <div className="mcp-alert__description">{description}</div>

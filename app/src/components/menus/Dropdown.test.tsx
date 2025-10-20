@@ -44,6 +44,9 @@ describe('Dropdown', () => {
 
     const focused = menu.ownerDocument.activeElement as HTMLElement | null;
     expect(focused?.textContent).toContain('Compartilhar');
+    expect(focused).not.toHaveAttribute('aria-disabled');
+    const disabledOption = within(menu).getByRole('menuitem', { name: 'Arquivar' });
+    expect(disabledOption).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('fecha com tecla Escape e retorna foco ao gatilho', async () => {
@@ -79,5 +82,30 @@ describe('Dropdown', () => {
     const menu = screen.getByRole('menu');
     expect(menu).toBeInTheDocument();
     expect(within(menu).getByTestId('dropdown-icon')).toBeInTheDocument();
+  });
+
+  it('permite abrir pelo ArrowUp e fecha ao tabular para fora', async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Dropdown label="Ferramentas" options={options} />
+        <button type="button">Outro foco</button>
+      </>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Ferramentas' });
+    trigger.focus();
+    await user.keyboard('{ArrowUp}');
+
+    const menu = screen.getByRole('menu');
+    const lastEnabled = within(menu).getByRole('menuitem', { name: 'Compartilhar Cria link público' });
+    expect(lastEnabled).toHaveFocus();
+
+    await user.tab();
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Ferramentas' })).not.toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Outro foco' })).toHaveFocus();
   });
 });
