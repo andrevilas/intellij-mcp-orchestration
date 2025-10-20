@@ -17,6 +17,20 @@
 
 **Go/No-Go:** :no_entry_sign: **BARRAR** — P0s impedem release (build quebrado, backend real obrigatório, fluxos core indisponíveis).
 
+## Atualização 2025-10-20 — Encerramento
+
+### KPIs e métricas
+- North Star permanece alinhado ao plano: lead time -40%, custo por PR -25%, cobertura de testes +15 p.p. e validações humanas restritas ao merge, conforme registro do roadmap macro.【F:docs/archive/next-steps.md†L30-L34】
+- Executamos `pnpm i` e `pnpm -r dev` sem erros imediatos (processos encerrados manualmente), confirmando que a stack Node/Vite continua instalável para o próximo ciclo.【231433†L1-L9】【2b58dd†L1-L5】
+- O backend FastAPI respondeu com sucesso a `/api/v1/healthz`, templates de policies, simulador de routing e relatórios FinOps; export CSV/HTML permanece acessível porém vazio por falta de eventos na base SQLite.【2c5a62†L1-L6】【c5de4c†L1-L18】【4318f3†L1-L9】【0c07a3†L1-L39】【d2ef4c†L1-L17】【c6d23f†L1-L17】【82a64e†L1-L2】【a7a14c†L1-L3】
+
+### Riscos residuais
+- Smoke Playwright das páginas core continua reprovando (cards do Dashboard inexistentes, FinOps travado) apesar do toggle de fixtures (`UI-ACT-005`), mantendo bloqueio crítico na sprint M5.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
+- Ausência de dados em `telemetry_events` impede validar export FinOps/HTML e compromete KPIs de observabilidade até que novas ingestas sejam concluídas.【82a64e†L1-L2】【a7a14c†L1-L3】
+
+### Go/No-Go final
+- Status permanece **No-Go**: somente após repovoar telemetria e estabilizar as suites UI M5/M6 o lançamento pode ser reconsiderado. Recomenda-se seguir o plano de handover descrito em `next-steps.md`/`ui-next-steps.md` para o próximo ciclo.【F:docs/archive/next-steps.md†L23-L28】【F:docs/archive/ui-next-steps.md†L1-L120】
+
 ## Principais Achados por Sprint
 
 ### M1 — Fundamentos & Shell

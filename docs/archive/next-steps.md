@@ -14,11 +14,18 @@
 - [ ] **M1 — Fundamentos & Shell** · Em progresso — Bootstrap/FA, ThemeProvider e tokens Light/Dark entregues; seguir com dieta de bundle e métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
   - [x] **TASK-UI-SH-010** — Shell com `skip-link`, roving tabindex e atalhos documentados.
   - [x] **TASK-UI-NAV-011** — Breadcrumbs + Pagination com tokens `--mcp-*` e foco visível.
-- [x] **M2 — Ações & Feedback** · Concluído — botões, menus, toasts e modais auditados com tokens MCP e testes de acessibilidade (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **M2 — Ações & Feedback** · Concluído — botões, menus, toasts e modais auditados com tokens MCP e testes de acessibilidade (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
 - [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **M5 — Páginas Core** · Bloqueio removido — fixtures habilitadas (UI-ACT-005) destravam Dashboard/Servers/FinOps/Routing sem backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **M6 — Performance & Observabilidade** · Concluído — UI Kit vivo publicado e métricas registradas em `/docs/evidence/TASK-UI-OBS-082/`.
+- [x] **M5 — Páginas Core** · Bloqueio removido — fixtures habilitadas (UI-ACT-005) destravam Dashboard/Servers/FinOps/Routing sem backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
+- [x] **M6 — Performance & Observabilidade** · Concluído — UI Kit vivo publicado e métricas registradas em `/docs/evidence/TASK-UI-OBS-082/`.【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
+
+## Auditoria Final — 2025-10-20
+- `pnpm i` e `pnpm -r dev` executados sem erros imediatos (processos encerrados manualmente após o boot) confirmam que a toolchain continua instalável em modo dev.【231433†L1-L9】【2b58dd†L1-L5】
+- Backend FastAPI validado end-to-end: `/api/v1/healthz` responde 200, templates de policies permanecem disponíveis, o simulador de routing retorna distribuição/custos coerentes e os relatórios FinOps exibem dados determinísticos dos fixtures.【2c5a62†L1-L6】【c5de4c†L1-L18】【4318f3†L1-L9】【0c07a3†L1-L39】【d2ef4c†L1-L17】【c6d23f†L1-L17】【6e0762†L1-L20】
+- Export CSV/HTML permanece acessível (HTTP 200), porém apenas o cabeçalho é gerado enquanto a base SQLite está vazia — risco de ausência de histórico até que novas ingestas/fixtures sejam aplicadas.【82a64e†L1-L2】【a7a14c†L1-L3】
+- Bloqueios críticos seguem concentrados na sprint M5: o smoke Playwright das páginas core ainda falha e o link FinOps permanece congelando a navegação inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+- Recomendação: manter **No-Go** até estabilizar smoke UI/FinOps e restaurar a telemetria; ver detalhamento atualizado no Audit Report.【F:docs/audit-ui-m1-m6.md†L1-L200】
 
 ## North Star & KPIs
 - **Lead time por PR**: -40% (30 dias)
@@ -69,7 +76,7 @@
 - Badges & Progress (TASK-UI-DATA-032)
 
 ### M4 — Formulários & Validação (UI) · 1,0–1,5 semanas
-- Form Controls (TASK-UI-FORM-040) ✅ UI Kit atualizado com controles MCP + docs em `docs/forms/README.md`.
+- Form Controls (TASK-UI-FORM-040) ✅ UI Kit atualizado com controles MCP + docs em `docs/forms/README.md`.【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
 - Validação & Estados (TASK-UI-FORM-041)
 - Upload/Download (TASK-UI-FORM-042)
 
@@ -98,7 +105,7 @@
 ### Sprint BE-2 — Policies & Routing
 - [x] **TASK-BE-201 — Cost Policy CRUD**
 - [x] **TASK-BE-202 — Price Table**
-- [x] **TASK-BE-203 — Routing Simulator**
+- [x] **TASK-BE-203 — Routing Simulator**【F:docs/evidence/TASK-BE-203/README.md†L1-L69】
 
 ### Sprint BE-3 — Observabilidade
 - [x] **TASK-BE-301 — Ingestão JSONL**
@@ -124,7 +131,7 @@
 - [x] **TASK-OPS-207 — CI básico**
 
 ### Sprint OPS-3 — Segurança
-- [x] **TASK-OPS-301 — Segredos**
+- [x] **TASK-OPS-301 — Segredos**【F:docs/evidence/TASK-OPS-301/README.md†L1-L21】
 - [ ] **TASK-OPS-302 — Operações seguras**
 
 ### Sprint OPS-4 — Packaging
@@ -139,6 +146,12 @@
 - Policies aplicáveis e simulador ativo
 - FinOps exportável
 - Zero segredos em git
+
+## Próximo ciclo de auditoria (handover)
+1. Recarregar fixtures ou pipelines de ingestão para que o export CSV/HTML produza linhas reais de telemetria e desbloqueie dashboards/FinOps sem regressões.【a7a14c†L1-L3】【d2ef4c†L1-L17】
+2. Estabilizar as páginas core (TASK-UI-PG-070..075) antes de reexecutar a suíte Playwright e atualizar os evidenciais das rotas de FinOps/Policies.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+3. Automatizar no CI a rotina `pnpm i → pnpm -r dev → healthz/simulate/export` para sinalizar rapidamente futuras regressões de infraestrutura ou políticas.【231433†L1-L9】【2b58dd†L1-L5】【6e0762†L1-L20】
+4. Atualizar o runbook/handbook com o plano de ingestão FinOps e os limites atuais dos endpoints para orientar o próximo time durante o handover.【c6d23f†L1-L17】【82a64e†L1-L2】
 
 ---
 
