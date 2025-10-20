@@ -475,7 +475,11 @@ describe('AdminChat view', () => {
     };
 
     await waitFor(() => expect(postOnboardMock).toHaveBeenNthCalledWith(2, { ...expectedPayload, intent: 'plan' }));
-    await waitFor(() => expect(screen.getByText(onboardResponse.message)).toBeInTheDocument());
+    const successMessage = onboardResponse.message;
+    if (!successMessage) {
+      throw new Error('Mensagem de sucesso do onboarding mock deve estar definida.');
+    }
+    await waitFor(() => expect(screen.getByText(successMessage)).toBeInTheDocument());
     expect(screen.getByRole('heading', { name: 'Resultado da validação' })).toBeInTheDocument();
     expect(screen.getByText(onboardValidation.endpoint)).toBeInTheDocument();
     expect(screen.getByText(onboardValidation.transport)).toBeInTheDocument();

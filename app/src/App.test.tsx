@@ -35,7 +35,7 @@ describe('App provider orchestration flow', () => {
   const originalConsoleError = console.error;
   let fetchMock: Mock;
   let applyDefaultFetchMock: () => void;
-  let defaultFetchImplementation: ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) | null;
+  let defaultFetchImplementation: ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) | null = null;
 
   beforeAll(() => {
     (globalThis as unknown as { ResizeObserver: typeof ResizeObserverMock }).ResizeObserver = ResizeObserverMock;
@@ -893,7 +893,7 @@ describe('App provider orchestration flow', () => {
 
         return createFetchResponse({});
       });
-      defaultFetchImplementation = fetchMock.getMockImplementation();
+      defaultFetchImplementation = fetchMock.getMockImplementation() ?? null;
     };
 
     applyDefaultFetchMock();

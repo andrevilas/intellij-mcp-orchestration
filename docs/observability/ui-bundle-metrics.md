@@ -4,6 +4,8 @@
 
 Command executed: `pnpm --dir app build`
 
+> **Atualização rápida:** execute `pnpm --dir app build:bundle-report` para gerar `dist/` e capturar o snapshot mais recente em `app/metrics/bundle-report.json`. O script `app/scripts/report-bundle.mjs` também imprime um top 10 resumido no terminal, facilitando a revisão durante auditorias UI-ACT-006.
+
 | Asset | Size | Gzip | Notes |
 | --- | ---: | ---: | --- |
 | `dist/assets/index-DyWZ9ss9.css` | 395.45 kB | 58.01 kB | Bootstrap base + Console theming (still exceeds ≤ 220 kB target).

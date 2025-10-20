@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "report:bundle": "node ./scripts/report-bundle.mjs",
+    "build:bundle-report": "pnpm run build && pnpm run report:bundle"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.5.2",
