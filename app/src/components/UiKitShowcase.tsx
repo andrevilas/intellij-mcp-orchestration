@@ -32,6 +32,44 @@ import serverHealthFixture from '#fixtures/server_health.json' with { type: 'jso
 
 import './ui-kit-showcase.scss';
 
+const DOC_BASE_URL =
+  (import.meta.env.VITE_DOCS_BASE_URL as string | undefined) ??
+  'https://github.com/intellij-mcp-orchestration/intellij-mcp-orchestration/blob/main';
+
+interface UsageSnippetProps {
+  title: string;
+  description: string;
+  code: string;
+  docs?: Array<{ label: string; href: string }>;
+}
+
+function UsageSnippet({ title, description, code, docs }: UsageSnippetProps): JSX.Element {
+  return (
+    <article className="ui-kit-showcase__snippet" aria-label={title}>
+      <header className="ui-kit-showcase__snippet-header">
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+        {docs != null && docs.length > 0 ? (
+          <ul className="ui-kit-showcase__links">
+            {docs.map((doc) => (
+              <li key={doc.href}>
+                <a href={doc.href} target="_blank" rel="noreferrer">
+                  {doc.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </header>
+      <pre>
+        <code>{code}</code>
+      </pre>
+    </article>
+  );
+}
+
 type ScenarioState = 'success' | 'loading' | 'empty' | 'error';
 
 interface FormDemoValues {
@@ -80,6 +118,39 @@ interface HealthCheckFixture {
 const telemetryMetrics = telemetryMetricsFixture as TelemetryMetricsFixture;
 const serversData = (serversFixture as { servers: ServerFixture[] }).servers;
 const healthChecks = (serverHealthFixture as { checks: Record<string, HealthCheckFixture[]> }).checks;
+
+const snippetEntries: Array<UsageSnippetProps & { id: string }> = [
+  {
+    id: 'tokens',
+    title: 'Tokens MCP Light/Dark',
+    description:
+      'Declare variáveis globais e sincronize com o `ThemeSwitch` para respeitar contraste AA/AAA.',
+    code: `:root {\n  --mcp-interactive: #3730a3;\n  --mcp-text-inverse: #e2e8f0;\n}\n\n[data-theme='dark'] {\n  --mcp-interactive: #a5b4fc;\n  --mcp-text-inverse: #0b1120;\n}`,
+    docs: [
+      { label: 'Audit UI M1–M6', href: `${DOC_BASE_URL}/docs/audit-ui-m1-m6.md` },
+    ],
+  },
+  {
+    id: 'actions',
+    title: 'Ações com ToastProvider',
+    description:
+      'Envie feedback consistente encapsulando a UI em `ToastProvider` e disparando toasts via hook.',
+    code: `const { pushToast } = useToast();\n\n<Button\n  variant="primary"\n  icon={<FontAwesomeIcon icon="shield-halved" />}\n  onClick={() => pushToast({ title: 'Provisionado', variant: 'success' })}\n>\n  Provisionar\n</Button>;`,
+    docs: [
+      { label: 'Forms & Feedback', href: `${DOC_BASE_URL}/docs/forms/README.md` },
+    ],
+  },
+  {
+    id: 'forms',
+    title: 'Form Controls MCP',
+    description:
+      'Combine `useMcpForm` com campos controlados para validação acessível e estados consistentes.',
+    code: `const form = useMcpForm<FormDemoValues>({ defaultValues });\n\n<McpFormProvider {...form}>\n  <InputGroup name="serviceName" label="Serviço" leftIcon="globe" />\n  <SwitchControl name="alerts" label="Ativar alertas" />\n</McpFormProvider>;`,
+    docs: [
+      { label: 'UI Roadmap', href: `${DOC_BASE_URL}/docs/archive/ui-next-steps.md` },
+    ],
+  },
+];
 
 export default function UiKitShowcase(): JSX.Element {
   const { pushToast } = useToast();
@@ -381,6 +452,12 @@ export default function UiKitShowcase(): JSX.Element {
           Componentes reutilizáveis com tokens MCP. Use o dropdown para explorar ações ou abra os modais para validar acessibilidade.
         </p>
       </header>
+
+      <div className="ui-kit-showcase__snippets" aria-label="Snippets de uso">
+        {snippetEntries.map((snippet) => (
+          <UsageSnippet key={snippet.id} {...snippet} />
+        ))}
+      </div>
 
       <div className="ui-kit-showcase__group">
         <span className="ui-kit-showcase__label">Botões</span>

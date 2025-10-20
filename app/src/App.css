@@ -27,14 +27,14 @@ body {
   top: 1rem;
   padding: 0.75rem 1.25rem;
   background: var(--mcp-interactive);
-  color: #fff;
+  color: var(--mcp-action-primary-fg);
   border-radius: 0.75rem;
   font-weight: 600;
   text-decoration: none;
   transform: translateY(-150%);
   opacity: 0;
   transition: transform 0.2s ease, opacity 0.2s ease;
-  box-shadow: 0 14px 36px rgba(67, 56, 202, 0.28);
+  box-shadow: var(--mcp-shadow-accent-strong);
   z-index: 1000;
 }
 
@@ -158,8 +158,8 @@ body {
 
 .nav-button--active {
   background: var(--mcp-interactive);
-  color: #fff;
-  box-shadow: 0 10px 24px rgba(67, 56, 202, 0.25);
+  color: var(--mcp-action-primary-fg);
+  box-shadow: var(--mcp-shadow-accent);
 }
 
 .nav-button__label {
@@ -626,6 +626,18 @@ body {
   width: 100%;
   margin: -1rem auto 0;
   padding: 0 2rem 2rem;
+}
+
+.ui-kit-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  border: 1px dashed var(--mcp-border-subtle);
+  border-radius: 1rem;
+  color: var(--mcp-text-subtle);
+  font-weight: 500;
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 80%, transparent 20%);
 }
 
 .app-shell__footer {

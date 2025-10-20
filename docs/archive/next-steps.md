@@ -18,7 +18,7 @@
 - [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **M5 — Páginas Core** · Bloqueio removido — fixtures habilitadas (UI-ACT-005) destravam Dashboard/Servers/FinOps/Routing sem backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **M6 — Performance & Observabilidade** · Bloqueado — build quebrado impede métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **M6 — Performance & Observabilidade** · Concluído — UI Kit vivo publicado e métricas registradas em `/docs/evidence/TASK-UI-OBS-082/`.
 
 ## North Star & KPIs
 - **Lead time por PR**: -40% (30 dias)
