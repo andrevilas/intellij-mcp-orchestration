@@ -26,6 +26,7 @@ import type {
 import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
 import Pagination from '../components/navigation/Pagination';
+import { useToastNotification } from '../hooks/useToastNotification';
 
 export interface DashboardProps {
   providers: ProviderSummary[];
@@ -344,6 +345,24 @@ export function Dashboard({
     () => deriveDashboardData(providers, metrics, heatmapBuckets),
     [providers, metrics, heatmapBuckets],
   );
+
+  useToastNotification(initialError, {
+    id: 'dashboard-initial-error',
+    title: 'Falha ao carregar dashboard',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  const feedbackTitle = feedback?.kind === 'error' ? 'Provisionamento falhou' : 'Provisionamento concluído';
+  const feedbackVariant = feedback?.kind === 'error' ? 'error' : 'success';
+  const feedbackAutoDismiss = feedback?.kind === 'error' ? false : undefined;
+
+  useToastNotification(feedback?.text ?? null, {
+    id: 'dashboard-feedback',
+    title: feedback ? feedbackTitle : 'Provisionamento',
+    variant: feedback ? feedbackVariant : 'info',
+    autoDismiss: feedbackAutoDismiss,
+  });
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE));

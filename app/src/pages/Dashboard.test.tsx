@@ -3,6 +3,8 @@ import { render, screen, within } from '@testing-library/react';
 
 import type { ProviderSummary } from '../api';
 import Dashboard from './Dashboard';
+import { ThemeProvider } from '../theme/ThemeContext';
+import { ToastProvider } from '../components/feedback/ToastProvider';
 
 defineResizeObserver();
 
@@ -43,10 +45,12 @@ describe('Dashboard telemetry overview', () => {
 
   it('renders KPIs and alerts using telemetry metrics', () => {
     render(
-      <Dashboard
-        providers={providers}
-        sessions={[]}
-        metrics={{
+      <ThemeProvider>
+        <ToastProvider>
+          <Dashboard
+            providers={providers}
+            sessions={[]}
+            metrics={{
           start: '2024-03-07T12:00:00.000Z',
           end: '2024-03-08T12:00:00.000Z',
           total_runs: 5,
@@ -98,9 +102,11 @@ describe('Dashboard telemetry overview', () => {
         isLoading={false}
         initialError={null}
         feedback={null}
-        provisioningId={null}
-        onProvision={() => {}}
-      />,
+            provisioningId={null}
+            onProvision={() => {}}
+          />
+        </ToastProvider>
+      </ThemeProvider>,
     );
 
     expect(screen.getByText(/R\$\s*12,34/)).toBeInTheDocument();
@@ -123,17 +129,21 @@ describe('Dashboard telemetry overview', () => {
 
   it('shows fallback states when telemetry data is missing', () => {
     render(
-      <Dashboard
-        providers={[]}
-        sessions={[]}
-        metrics={null}
-        heatmapBuckets={[]}
-        isLoading={false}
-        initialError={null}
-        feedback={null}
-        provisioningId={null}
-        onProvision={() => {}}
-      />,
+      <ThemeProvider>
+        <ToastProvider>
+          <Dashboard
+            providers={[]}
+            sessions={[]}
+            metrics={null}
+            heatmapBuckets={[]}
+            isLoading={false}
+            initialError={null}
+            feedback={null}
+            provisioningId={null}
+            onProvision={() => {}}
+          />
+        </ToastProvider>
+      </ThemeProvider>,
     );
 
     expect(screen.getByText(/R\$\s0,00/)).toBeInTheDocument();
