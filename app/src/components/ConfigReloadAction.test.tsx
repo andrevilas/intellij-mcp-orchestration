@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 import ConfigReloadAction from './ConfigReloadAction';
 import {
@@ -20,8 +21,8 @@ vi.mock('../api', async (importOriginal) => {
 });
 
 describe('ConfigReloadAction', () => {
-  const planMock = planGovernedConfigReload as unknown as vi.Mock;
-  const applyMock = applyGovernedConfigReload as unknown as vi.Mock;
+  const planMock = planGovernedConfigReload as unknown as Mock;
+  const applyMock = applyGovernedConfigReload as unknown as Mock;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -89,7 +90,6 @@ describe('ConfigReloadAction', () => {
         ciStatus: 'pending',
         reviewStatus: 'review_required',
         merged: false,
-        lastSyncedAt: '2025-02-10T12:00:00Z',
         reviewers: [],
         ciResults: [],
       },

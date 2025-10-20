@@ -13,8 +13,6 @@ import {
   rotateSecurityApiKey,
 } from '../api';
 
-type Mocked<T> = T extends (...args: infer A) => infer R ? vi.Mock<R, A> : never;
-
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api');
   return {
@@ -37,13 +35,13 @@ vi.mock('../api', async () => {
   };
 });
 
-const mockFetchUsers = fetchSecurityUsers as Mocked<typeof fetchSecurityUsers>;
-const mockFetchRoles = fetchSecurityRoles as Mocked<typeof fetchSecurityRoles>;
-const mockFetchApiKeys = fetchSecurityApiKeys as Mocked<typeof fetchSecurityApiKeys>;
-const mockCreateUser = createSecurityUser as Mocked<typeof createSecurityUser>;
-const mockFetchAudit = fetchSecurityAuditTrail as Mocked<typeof fetchSecurityAuditTrail>;
-const mockFetchAuditLogs = fetchAuditLogs as Mocked<typeof fetchAuditLogs>;
-const mockRotateKey = rotateSecurityApiKey as Mocked<typeof rotateSecurityApiKey>;
+const mockFetchUsers = vi.mocked(fetchSecurityUsers);
+const mockFetchRoles = vi.mocked(fetchSecurityRoles);
+const mockFetchApiKeys = vi.mocked(fetchSecurityApiKeys);
+const mockCreateUser = vi.mocked(createSecurityUser);
+const mockFetchAudit = vi.mocked(fetchSecurityAuditTrail);
+const mockFetchAuditLogs = vi.mocked(fetchAuditLogs);
+const mockRotateKey = vi.mocked(rotateSecurityApiKey);
 
 describe('Security page', () => {
   beforeEach(() => {

@@ -1,0 +1,148 @@
+{
+  "generatedAt": "2025-10-20T11:52:31.442Z",
+  "distDir": "dist",
+  "totals": {
+    "size": 1642941,
+    "gzip": 419949
+  },
+  "assets": [
+    {
+      "file": "assets/index-DyWZ9ss9.css",
+      "size": 395453,
+      "gzip": 58009,
+      "type": "css"
+    },
+    {
+      "file": "assets/generateCategoricalChart-C-YnnVdk.js",
+      "size": 364723,
+      "gzip": 99352,
+      "type": "js"
+    },
+    {
+      "file": "assets/index-Co_Qq_Z0.js",
+      "size": 319082,
+      "gzip": 98218,
+      "type": "js"
+    },
+    {
+      "file": "assets/Flows-BE8RSHvx.js",
+      "size": 151341,
+      "gzip": 48362,
+      "type": "js"
+    },
+    {
+      "file": "assets/FinOps-BQPrGaCv.js",
+      "size": 60032,
+      "gzip": 15214,
+      "type": "js"
+    },
+    {
+      "file": "assets/Dashboard-BKUJ25g0.js",
+      "size": 55641,
+      "gzip": 15014,
+      "type": "js"
+    },
+    {
+      "file": "assets/index-bA_wXgQz.js",
+      "size": 51052,
+      "gzip": 13162,
+      "type": "js"
+    },
+    {
+      "file": "assets/Agents-DyqpEf-k.js",
+      "size": 44091,
+      "gzip": 11974,
+      "type": "js"
+    },
+    {
+      "file": "assets/Security-BGcbYWze.js",
+      "size": 40537,
+      "gzip": 11116,
+      "type": "js"
+    },
+    {
+      "file": "assets/Routing-CKuurdQo.js",
+      "size": 31679,
+      "gzip": 8619,
+      "type": "js"
+    },
+    {
+      "file": "assets/Policies-fs5MAg0m.js",
+      "size": 28064,
+      "gzip": 7934,
+      "type": "js"
+    },
+    {
+      "file": "assets/Servers-Ddbhe7Gw.js",
+      "size": 23013,
+      "gzip": 6438,
+      "type": "js"
+    },
+    {
+      "file": "assets/Observability-BqUZlmFg.js",
+      "size": 21429,
+      "gzip": 6634,
+      "type": "js"
+    },
+    {
+      "file": "assets/AreaChart-BayGdCx2.js",
+      "size": 10978,
+      "gzip": 4062,
+      "type": "js"
+    },
+    {
+      "file": "assets/Keys-BtDzDzjF.js",
+      "size": 8868,
+      "gzip": 2774,
+      "type": "js"
+    },
+    {
+      "file": "assets/string-CFFdVFMV.js",
+      "size": 8376,
+      "gzip": 3582,
+      "type": "js"
+    },
+    {
+      "file": "assets/Flows-B5DZHykP.css",
+      "size": 7322,
+      "gzip": 1603,
+      "type": "css"
+    },
+    {
+      "file": "assets/Marketplace-CQ6XnO0W.js",
+      "size": 6434,
+      "gzip": 2168,
+      "type": "js"
+    },
+    {
+      "file": "assets/PlanSummary-BO9tmlX8.js",
+      "size": 5923,
+      "gzip": 1854,
+      "type": "js"
+    },
+    {
+      "file": "assets/create-Bvo38Dd1.js",
+      "size": 5744,
+      "gzip": 2381,
+      "type": "js"
+    },
+    {
+      "file": "index.html",
+      "size": 1106,
+      "gzip": 523,
+      "type": "html"
+    },
+    {
+      "file": "assets/KpiCard-DhXc0SZq.js",
+      "size": 1094,
+      "gzip": 555,
+      "type": "js"
+    },
+    {
+      "file": "assets/PlanDiffViewer-Ctq82bi-.js",
+      "size": 959,
+      "gzip": 401,
+      "type": "js"
+    }
+  ]
+}

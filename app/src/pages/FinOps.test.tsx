@@ -87,17 +87,25 @@ describe('FinOps page planning workflow', () => {
   const fetchManifestMock = fetchPolicyManifest as unknown as Mock;
   const patchPlanMock = patchConfigPoliciesPlan as unknown as Mock;
   const applyPlanMock = postPolicyPlanApply as unknown as Mock;
+  const fetchTelemetryTimeseriesMock = fetchTelemetryTimeseries as unknown as Mock;
+  const fetchTelemetryRunsMock = fetchTelemetryRuns as unknown as Mock;
+  const fetchTelemetryParetoMock = fetchTelemetryPareto as unknown as Mock;
+  const fetchTelemetryExperimentsMock = fetchTelemetryExperiments as unknown as Mock;
+  const fetchTelemetryLaneCostsMock = fetchTelemetryLaneCosts as unknown as Mock;
+  const fetchMarketplacePerformanceMock = fetchMarketplacePerformance as unknown as Mock;
+  const fetchFinOpsSprintReportsMock = fetchFinOpsSprintReports as unknown as Mock;
+  const fetchFinOpsPullRequestReportsMock = fetchFinOpsPullRequestReports as unknown as Mock;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fetchTelemetryTimeseries.mockResolvedValue({ items: [] });
-    fetchTelemetryRuns.mockResolvedValue({ items: [] });
-    fetchTelemetryPareto.mockResolvedValue({ items: [] });
-    fetchTelemetryExperiments.mockResolvedValue({ items: [] });
-    fetchTelemetryLaneCosts.mockResolvedValue({ items: [] });
-    fetchMarketplacePerformance.mockResolvedValue({ items: [] });
-    fetchFinOpsSprintReports.mockResolvedValue([]);
-    fetchFinOpsPullRequestReports.mockResolvedValue([]);
+    fetchTelemetryTimeseriesMock.mockResolvedValue({ items: [] });
+    fetchTelemetryRunsMock.mockResolvedValue({ items: [] });
+    fetchTelemetryParetoMock.mockResolvedValue({ items: [] });
+    fetchTelemetryExperimentsMock.mockResolvedValue({ items: [] });
+    fetchTelemetryLaneCostsMock.mockResolvedValue({ items: [] });
+    fetchMarketplacePerformanceMock.mockResolvedValue({ items: [] });
+    fetchFinOpsSprintReportsMock.mockResolvedValue([]);
+    fetchFinOpsPullRequestReportsMock.mockResolvedValue([]);
 
     const snapshot: PolicyManifestSnapshot = {
       policies: { confidence: null },
@@ -173,7 +181,7 @@ describe('FinOps page planning workflow', () => {
         risks: [],
         status: 'pending',
         context: [],
-        approval_rules: [],
+        approvalRules: [],
       },
       planPayload: { intent: 'edit_finops', summary: 'Atualizar políticas FinOps', status: 'pending' },
       preview: {
