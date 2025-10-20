@@ -1426,11 +1426,28 @@ export interface RoutingDistributionEntry {
   cost: number;
 }
 
-export interface RoutingSimulationResult {
-  totalCost: number;
-  costPerMillion: number;
-  avgLatency: number;
+export interface RoutingSimulationContext {
+  strategy: RoutingStrategyId;
+  providerIds: string[];
+  providerCount: number;
+  volumeMillions: number;
+  failoverProviderId: string | null;
+}
+
+export interface RoutingCostProjection {
+  totalUsd: number;
+  costPerMillionUsd: number;
+}
+
+export interface RoutingLatencyProjection {
+  avgLatencyMs: number;
   reliabilityScore: number;
+}
+
+export interface RoutingSimulationResult {
+  context: RoutingSimulationContext;
+  cost: RoutingCostProjection;
+  latency: RoutingLatencyProjection;
   distribution: RoutingDistributionEntry[];
   excludedRoute: RoutingRouteProfile | null;
 }
@@ -1461,11 +1478,28 @@ interface RoutingDistributionEntryPayload {
   cost: number;
 }
 
-interface RoutingSimulationResponsePayload {
-  total_cost: number;
-  cost_per_million: number;
-  avg_latency: number;
+interface RoutingSimulationContextPayload {
+  strategy: RoutingStrategyId;
+  provider_ids: string[];
+  provider_count: number;
+  volume_millions: number;
+  failover_provider_id?: string | null;
+}
+
+interface RoutingCostProjectionPayload {
+  total_usd: number;
+  cost_per_million_usd: number;
+}
+
+interface RoutingLatencyProjectionPayload {
+  avg_latency_ms: number;
   reliability_score: number;
+}
+
+interface RoutingSimulationResponsePayload {
+  context: RoutingSimulationContextPayload;
+  cost: RoutingCostProjectionPayload;
+  latency: RoutingLatencyProjectionPayload;
   distribution: RoutingDistributionEntryPayload[];
   excluded_route?: RoutingRouteProfilePayload | null;
 }
@@ -1493,10 +1527,21 @@ function mapRoutingDistributionEntry(payload: RoutingDistributionEntryPayload): 
 
 function mapRoutingSimulation(payload: RoutingSimulationResponsePayload): RoutingSimulationResult {
   return {
-    totalCost: payload.total_cost,
-    costPerMillion: payload.cost_per_million,
-    avgLatency: payload.avg_latency,
-    reliabilityScore: payload.reliability_score,
+    context: {
+      strategy: payload.context.strategy,
+      providerIds: payload.context.provider_ids,
+      providerCount: payload.context.provider_count,
+      volumeMillions: payload.context.volume_millions,
+      failoverProviderId: payload.context.failover_provider_id ?? null,
+    },
+    cost: {
+      totalUsd: payload.cost.total_usd,
+      costPerMillionUsd: payload.cost.cost_per_million_usd,
+    },
+    latency: {
+      avgLatencyMs: payload.latency.avg_latency_ms,
+      reliabilityScore: payload.latency.reliability_score,
+    },
     distribution: payload.distribution.map(mapRoutingDistributionEntry),
     excludedRoute: payload.excluded_route ? mapRoutingRouteProfile(payload.excluded_route) : null,
   };

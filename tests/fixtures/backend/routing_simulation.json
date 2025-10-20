@@ -1,8 +1,24 @@
 {
-  "total_cost": 241.46,
-  "cost_per_million": 24.15,
-  "avg_latency": 1307.45,
-  "reliability_score": 94.47,
+  "context": {
+    "strategy": "balanced",
+    "provider_ids": [
+      "gemini",
+      "codex",
+      "glm46",
+      "claude"
+    ],
+    "provider_count": 4,
+    "volume_millions": 10.0,
+    "failover_provider_id": null
+  },
+  "cost": {
+    "total_usd": 241.46,
+    "cost_per_million_usd": 24.15
+  },
+  "latency": {
+    "avg_latency_ms": 1307.45,
+    "reliability_score": 94.47
+  },
   "distribution": [
     {
       "route": {

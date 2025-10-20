@@ -1591,10 +1591,21 @@ describe('api client', () => {
 
   it('envia intents e regras personalizadas na simulação de roteamento', async () => {
     const simulationResponse = {
-      total_cost: 120,
-      cost_per_million: 10,
-      avg_latency: 820,
-      reliability_score: 96.5,
+      context: {
+        strategy: 'balanced',
+        provider_ids: ['provider-turbo-1'],
+        provider_count: 1,
+        volume_millions: 10,
+        failover_provider_id: null,
+      },
+      cost: {
+        total_usd: 120,
+        cost_per_million_usd: 10,
+      },
+      latency: {
+        avg_latency_ms: 820,
+        reliability_score: 96.5,
+      },
       distribution: [
         {
           route: {
@@ -1651,6 +1662,9 @@ describe('api client', () => {
       ],
     });
 
+    expect(result.context.strategy).toBe('balanced');
+    expect(result.cost.totalUsd).toBe(120);
+    expect(result.latency.avgLatencyMs).toBe(820);
     expect(result.distribution[0].route.provider.name).toBe('Provider Turbo');
     const requestInit = fetchSpy.mock.calls[0][1] as RequestInit;
     const body = JSON.parse((requestInit.body ?? '{}') as string);

@@ -1551,11 +1551,14 @@ def test_routing_simulation_uses_price_table(client: TestClient) -> None:
     assert response.status_code == 200
 
     body = response.json()
+    assert body['context']['strategy'] == 'finops'
+    assert body['context']['provider_ids'] == ['gemini', 'codex']
+    assert body['context']['provider_count'] == 2
     assert body['excluded_route']['id'] == 'codex'
-    assert body['total_cost'] == pytest.approx(100.0)
-    assert body['cost_per_million'] == pytest.approx(10.0)
-    assert body['avg_latency'] > 0
-    assert body['reliability_score'] > 0
+    assert body['cost']['total_usd'] == pytest.approx(100.0)
+    assert body['cost']['cost_per_million_usd'] == pytest.approx(10.0)
+    assert body['latency']['avg_latency_ms'] > 0
+    assert body['latency']['reliability_score'] > 0
 
     distribution = body['distribution']
     assert len(distribution) == 1
@@ -1573,6 +1576,36 @@ def test_routing_simulation_rejects_unknown_provider(client: TestClient) -> None
     )
     assert response.status_code == 404
     assert 'Providers not found' in response.text
+
+
+def test_routing_simulation_rejects_unknown_failover_provider(client: TestClient) -> None:
+    response = client.post(
+        '/api/v1/routing/simulate',
+        json={
+            'provider_ids': ['gemini', 'codex'],
+            'strategy': 'balanced',
+            'failover_provider_id': 'missing-provider',
+            'volume_millions': 5,
+        },
+    )
+
+    assert response.status_code == 404
+    assert 'Failover provider not found' in response.json()['detail']
+
+
+def test_routing_simulation_requires_failover_in_subset(client: TestClient) -> None:
+    response = client.post(
+        '/api/v1/routing/simulate',
+        json={
+            'provider_ids': ['gemini'],
+            'strategy': 'balanced',
+            'failover_provider_id': 'codex',
+            'volume_millions': 5,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()['detail'] == 'Failover provider must be included in provider_ids'
 
 
 def test_mcp_servers_crud_flow(client: TestClient) -> None:
@@ -1656,8 +1689,9 @@ def test_routing_simulation_endpoint_returns_distribution(client: TestClient) ->
     assert response.status_code == 200
     payload = response.json()
 
-    assert payload['total_cost'] >= 0
-    assert payload['cost_per_million'] >= 0
+    assert payload['context']['strategy'] == 'resilience'
+    assert payload['cost']['total_usd'] >= 0
+    assert payload['cost']['cost_per_million_usd'] >= 0
     assert payload['distribution']
     assert all(entry['route']['id'] != 'gemini' for entry in payload['distribution'])
     assert payload['excluded_route']['id'] == 'gemini'

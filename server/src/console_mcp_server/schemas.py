@@ -681,13 +681,38 @@ class RoutingDistributionEntry(BaseModel):
     cost: float
 
 
+class RoutingSimulationContext(BaseModel):
+    """Metadata describing the scenario evaluated by the simulator."""
+
+    strategy: Literal["balanced", "finops", "latency", "resilience"]
+    provider_ids: List[str]
+    provider_count: int = Field(ge=0, description="Number of providers considered in the plan")
+    volume_millions: float = Field(ge=0.0)
+    failover_provider_id: Optional[str] = Field(
+        default=None, description="Provider removed from the distribution to simulate failover"
+    )
+
+
+class RoutingCostProjection(BaseModel):
+    """Aggregated cost metrics returned by the simulator."""
+
+    total_usd: float = Field(ge=0.0)
+    cost_per_million_usd: float = Field(ge=0.0)
+
+
+class RoutingLatencyProjection(BaseModel):
+    """Latency and reliability figures returned by the simulator."""
+
+    avg_latency_ms: float = Field(ge=0.0)
+    reliability_score: float = Field(ge=0.0, le=100.0)
+
+
 class RoutingSimulationResponse(BaseModel):
     """Aggregated outcome returned to the frontend."""
 
-    total_cost: float
-    cost_per_million: float
-    avg_latency: float
-    reliability_score: float
+    context: RoutingSimulationContext
+    cost: RoutingCostProjection
+    latency: RoutingLatencyProjection
     distribution: List[RoutingDistributionEntry]
     excluded_route: Optional[RoutingRouteProfile] = None
 

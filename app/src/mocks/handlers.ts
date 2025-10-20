@@ -5,6 +5,7 @@ import type {
   RoutingLane,
   RoutingRouteProfile,
   RoutingSimulationResult,
+  RoutingStrategyId,
   TelemetryExperimentSummaryEntry,
   TelemetryLaneCostEntry,
   TelemetryRunEntry,
@@ -49,10 +50,21 @@ interface RoutingDistributionEntryFixture {
 }
 
 interface RoutingSimulationFixture {
-  total_cost: number;
-  cost_per_million: number;
-  avg_latency: number;
-  reliability_score: number;
+  context: {
+    strategy: string;
+    provider_ids: string[];
+    provider_count: number;
+    volume_millions: number;
+    failover_provider_id: string | null;
+  };
+  cost: {
+    total_usd: number;
+    cost_per_million_usd: number;
+  };
+  latency: {
+    avg_latency_ms: number;
+    reliability_score: number;
+  };
   distribution: RoutingDistributionEntryFixture[];
   excluded_route: RoutingRouteProfileFixture | null | undefined;
 }
@@ -77,10 +89,21 @@ const mapRoutingRouteProfileFixture = (route: RoutingRouteProfileFixture): Routi
 });
 
 const routingSimulation: RoutingSimulationResult = {
-  totalCost: routingFixture.total_cost,
-  costPerMillion: routingFixture.cost_per_million,
-  avgLatency: routingFixture.avg_latency,
-  reliabilityScore: routingFixture.reliability_score,
+  context: {
+    strategy: routingFixture.context.strategy as RoutingStrategyId,
+    providerIds: [...routingFixture.context.provider_ids],
+    providerCount: routingFixture.context.provider_count,
+    volumeMillions: routingFixture.context.volume_millions,
+    failoverProviderId: routingFixture.context.failover_provider_id,
+  },
+  cost: {
+    totalUsd: routingFixture.cost.total_usd,
+    costPerMillionUsd: routingFixture.cost.cost_per_million_usd,
+  },
+  latency: {
+    avgLatencyMs: routingFixture.latency.avg_latency_ms,
+    reliabilityScore: routingFixture.latency.reliability_score,
+  },
   distribution: routingFixture.distribution.map((entry) => ({
     route: mapRoutingRouteProfileFixture(entry.route),
     share: entry.share,
@@ -103,6 +126,7 @@ interface RoutingSimulateRequestPayload {
   strategy?: string;
   provider_ids?: string[];
   failover_provider_id?: string | null;
+  volume_millions?: number;
 }
 
 const roundTo = (value: number, precision = 2): number => Number(value.toFixed(precision));
@@ -157,12 +181,14 @@ const applyStrategyVariant = (
   });
 
   plan.distribution = normalizeDistribution(plan.distribution);
-  plan.totalCost = roundTo(plan.distribution.reduce((sum, entry) => sum + entry.cost, 0));
-  plan.costPerMillion = totalTokens > 0 ? roundTo(plan.totalCost / totalTokens) : 0;
-  plan.avgLatency = roundTo(base.avgLatency * variant.latency);
-  plan.reliabilityScore = roundTo(
-    Math.min(100, Math.max(0, base.reliabilityScore + variant.reliabilityDelta)),
+  const totalCost = plan.distribution.reduce((sum, entry) => sum + entry.cost, 0);
+  plan.cost.totalUsd = roundTo(totalCost);
+  plan.cost.costPerMillionUsd = totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0;
+  plan.latency.avgLatencyMs = roundTo(base.latency.avgLatencyMs * variant.latency);
+  plan.latency.reliabilityScore = roundTo(
+    Math.min(100, Math.max(0, base.latency.reliabilityScore + variant.reliabilityDelta)),
   );
+  plan.context.strategy = variantKey as RoutingStrategyId;
   plan.excludedRoute = null;
   return plan;
 };
@@ -174,16 +200,15 @@ const applyProviderFilter = (
   if (!providerIds || providerIds.length === 0) {
     return plan;
   }
+  const workingPlan = clonePlan(plan);
   const allowed = new Set(providerIds);
-  const filtered = plan.distribution.filter((entry) => allowed.has(entry.route.id));
+  const filtered = workingPlan.distribution.filter((entry) => allowed.has(entry.route.id));
   if (filtered.length === 0) {
-    return {
-      ...plan,
-      distribution: [],
-      totalCost: 0,
-      costPerMillion: 0,
-      excludedRoute: null,
-    };
+    workingPlan.distribution = [];
+    workingPlan.cost.totalUsd = 0;
+    workingPlan.cost.costPerMillionUsd = 0;
+    workingPlan.excludedRoute = null;
+    return workingPlan;
   }
   const totalTokens = filtered.reduce((sum, entry) => sum + entry.tokensMillions, 0);
   const normalized = normalizeDistribution(filtered).map((entry) => ({
@@ -191,14 +216,14 @@ const applyProviderFilter = (
     cost: roundTo(entry.route.costPerMillion * entry.tokensMillions),
   }));
   const totalCost = roundTo(normalized.reduce((sum, entry) => sum + entry.cost, 0));
-  return {
-    ...plan,
-    distribution: normalized,
-    totalCost,
-    costPerMillion: totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0,
-    excludedRoute:
-      plan.excludedRoute && allowed.has(plan.excludedRoute.id) ? plan.excludedRoute : null,
-  };
+  workingPlan.distribution = normalized;
+  workingPlan.cost.totalUsd = totalCost;
+  workingPlan.cost.costPerMillionUsd = totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0;
+  workingPlan.excludedRoute =
+    workingPlan.excludedRoute && allowed.has(workingPlan.excludedRoute.id)
+      ? workingPlan.excludedRoute
+      : null;
+  return workingPlan;
 };
 
 const applyFailover = (
@@ -206,25 +231,31 @@ const applyFailover = (
   failoverId: string | null | undefined,
 ): RoutingSimulationResult => {
   if (!failoverId || failoverId === 'none') {
-    return { ...plan, excludedRoute: null };
+    const resetPlan = clonePlan(plan);
+    resetPlan.context.failoverProviderId = null;
+    resetPlan.excludedRoute = null;
+    return resetPlan;
   }
   const workingPlan = clonePlan(plan);
   const totalTokens = workingPlan.distribution.reduce((sum, entry) => sum + entry.tokensMillions, 0);
   const excludedIndex = workingPlan.distribution.findIndex((entry) => entry.route.id === failoverId);
   if (excludedIndex === -1) {
-    return { ...plan, excludedRoute: null };
+    workingPlan.context.failoverProviderId = null;
+    workingPlan.excludedRoute = null;
+    return workingPlan;
   }
   const [excluded] = workingPlan.distribution.splice(excludedIndex, 1);
   if (workingPlan.distribution.length === 0) {
-    return {
-      ...workingPlan,
-      distribution: [],
-      totalCost: 0,
-      costPerMillion: 0,
-      avgLatency: roundTo(workingPlan.avgLatency * 1.05),
-      reliabilityScore: roundTo(Math.max(0, workingPlan.reliabilityScore - 1)),
-      excludedRoute: excluded.route,
-    };
+    workingPlan.distribution = [];
+    workingPlan.cost.totalUsd = 0;
+    workingPlan.cost.costPerMillionUsd = 0;
+    workingPlan.latency.avgLatencyMs = roundTo(plan.latency.avgLatencyMs * 1.05);
+    workingPlan.latency.reliabilityScore = roundTo(
+      Math.max(0, plan.latency.reliabilityScore - 1),
+    );
+    workingPlan.excludedRoute = excluded.route;
+    workingPlan.context.failoverProviderId = failoverId;
+    return workingPlan;
   }
 
   const normalized = normalizeDistribution(workingPlan.distribution).map((entry) => {
@@ -237,29 +268,52 @@ const applyFailover = (
   });
   const totalCost = normalized.reduce((sum, entry) => sum + entry.cost, 0);
 
-  return {
-    ...workingPlan,
-    distribution: normalized,
-    totalCost: roundTo(totalCost),
-    costPerMillion: totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0,
-    avgLatency: roundTo(workingPlan.avgLatency * 1.05),
-    reliabilityScore: roundTo(Math.max(0, workingPlan.reliabilityScore - 0.5)),
-    excludedRoute: excluded.route,
-  };
+  workingPlan.distribution = normalized;
+  workingPlan.cost.totalUsd = roundTo(totalCost);
+  workingPlan.cost.costPerMillionUsd = totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0;
+  workingPlan.latency.avgLatencyMs = roundTo(plan.latency.avgLatencyMs * 1.05);
+  workingPlan.latency.reliabilityScore = roundTo(
+    Math.max(0, plan.latency.reliabilityScore - 0.5),
+  );
+  workingPlan.excludedRoute = excluded.route;
+  workingPlan.context.failoverProviderId = failoverId;
+  return workingPlan;
 };
 
 const buildMockRoutingPlan = (payload: RoutingSimulateRequestPayload): RoutingSimulationResult => {
   const strategyKey = payload.strategy ?? 'balanced';
   const basePlan = applyStrategyVariant(routingSimulation, strategyKey);
   const filteredPlan = applyProviderFilter(basePlan, payload.provider_ids);
-  return applyFailover(filteredPlan, payload.failover_provider_id ?? null);
+  const finalPlan = applyFailover(filteredPlan, payload.failover_provider_id ?? null);
+  const providerIds = payload.provider_ids && payload.provider_ids.length > 0
+    ? [...payload.provider_ids]
+    : [...routingSimulation.context.providerIds];
+  finalPlan.context = {
+    strategy: (strategyKey as RoutingStrategyId) ?? routingSimulation.context.strategy,
+    providerIds,
+    providerCount: providerIds.length,
+    volumeMillions: payload.volume_millions ?? routingSimulation.context.volumeMillions,
+    failoverProviderId: finalPlan.context.failoverProviderId,
+  };
+  return finalPlan;
 };
 
 const serializeRoutingPlan = (plan: RoutingSimulationResult) => ({
-  total_cost: plan.totalCost,
-  cost_per_million: plan.costPerMillion,
-  avg_latency: plan.avgLatency,
-  reliability_score: plan.reliabilityScore,
+  context: {
+    strategy: plan.context.strategy,
+    provider_ids: plan.context.providerIds,
+    provider_count: plan.context.providerCount,
+    volume_millions: plan.context.volumeMillions,
+    failover_provider_id: plan.context.failoverProviderId,
+  },
+  cost: {
+    total_usd: plan.cost.totalUsd,
+    cost_per_million_usd: plan.cost.costPerMillionUsd,
+  },
+  latency: {
+    avg_latency_ms: plan.latency.avgLatencyMs,
+    reliability_score: plan.latency.reliabilityScore,
+  },
   distribution: plan.distribution.map((entry) => ({
     route: {
       id: entry.route.id,

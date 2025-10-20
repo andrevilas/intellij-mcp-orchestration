@@ -56,7 +56,13 @@ fixtures em `server/routes/fixtures/*.json`, garantindo respostas determinístic
 
 ### Routing
 
-- `POST /api/v1/routing/simulate` recebe `{ "provider_ids": ["glm46", "codex"], "strategy": "balanced", "failover_provider_id": "claude", "volume_millions": 10 }` e devolve `RoutingSimulationResponse`, incluindo `total_cost`, `cost_per_million`, `avg_latency`, `reliability_score`, `distribution[]` (cada item com `route` → `RoutingRouteProfile` + `share`, `tokens_millions`, `cost`) e `excluded_route` quando aplicável.
+- `POST /api/v1/routing/simulate` recebe `{ "provider_ids": ["glm46", "codex"], "strategy": "balanced", "failover_provider_id": "claude", "volume_millions": 10 }` e devolve `RoutingSimulationResponse` com os blocos abaixo:
+  - `context` — metadados do cenário simulado (`strategy`, `provider_ids`, `provider_count`, `volume_millions`, `failover_provider_id`).
+  - `cost` — projeções agregadas de custo (`total_usd`, `cost_per_million_usd`).
+  - `latency` — métricas derivadas de latência e confiabilidade (`avg_latency_ms`, `reliability_score`).
+  - `distribution[]` — rotas elegíveis com `route` (`RoutingRouteProfile`) + `share`, `tokens_millions`, `cost`.
+  - `excluded_route` — rota removida ao simular failover, quando aplicável.
+  - Validações: `404` caso algum provider (ou `failover_provider_id`) não exista e `400` se o failover não estiver presente no conjunto selecionado.
 
 ### FinOps
 
