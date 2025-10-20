@@ -59,7 +59,7 @@
 | TASK-UI-ACT-020/021/FB-022/MOD-023 | Buttons/Dropdowns/Alerts/Modals | ❌ NOT OK | Falhas ao abrir wizards, aplicar planos e rollback; sem trap de foco ou confirmações em 2 cliques.【035a17†L15-L110】 |
 | TASK-UI-DATA-030/031/032 | Cards/Tabelas/Badges | ❌ NOT OK | Falta de dados stubados trava dashboard, catálogo e diagnósticos.【68dd4b†L1-L6】【035a17†L92-L128】 |
 | TASK-UI-FORM-040/041/042 | Controles, validação, upload | ❌ NOT OK | Formulários principais não renderizam; botões permanecem desabilitados.【035a17†L145-L209】 |
-| TASK-UI-PG-070..075 | Páginas core | ❌ NOT OK | Fluxos Dashboard/Servers/Keys/Policies/Routing/FinOps reprovam ou não executam devido a timeouts/ausência de UI.【035a17†L33-L175】 |
+| TASK-UI-PG-070..075 | Páginas core | ❌ NOT OK | Fluxos Dashboard/Servers/Keys/Policies/Routing/FinOps reprovam ou não executam devido a timeouts/ausência de UI.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】 |
 | TASK-UI-TH-080/081/OBS-082 | Tema dark, dieta de bundle, UI kit | ❌ NOT OK | Build com 69 erros; sem splitting, sem catálogo vivo.【957f66†L1-L124】 |
 
 ## Issues Abertas (Prioridade)

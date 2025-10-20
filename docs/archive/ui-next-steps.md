@@ -27,12 +27,12 @@
 - [x] **TASK-UI-FORM-040** · Controles de formulário migrados para camada MCP (`docs/forms/README.md`).
 - [ ] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-PG-070** · Dashboard sem fluxos funcionais (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-PG-071** · Página Servers depende de backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-PG-072** · Keys sem máscara/validação confiável (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-PG-073** · Policies não aplicam templates/rollback (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-PG-074** · Routing Lab incompleto (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-PG-075** · FinOps sem gráficos exportáveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [ ] **TASK-UI-PG-070** · Dashboard sem fluxos funcionais; smoke Playwright ainda falha com cards ausentes.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L11】
+- [ ] **TASK-UI-PG-071** · Página Servers depende de backend real; indicadores de health retornam contagens erradas.【F:docs/evidence/TASK-UI-PG-070/README.md†L17-L17】
+- [ ] **TASK-UI-PG-072** · Keys sem máscara/validação confiável; grid de usuários/auditoria vazio.【F:docs/evidence/TASK-UI-PG-070/README.md†L16-L16】
+- [ ] **TASK-UI-PG-073** · Policies não aplicam templates/rollback; suite não encontra heading esperado.【F:docs/evidence/TASK-UI-PG-070/README.md†L14-L14】
+- [ ] **TASK-UI-PG-074** · Routing Lab incompleto; selects não aceitam fallback e mensagem de erro não surge.【F:docs/evidence/TASK-UI-PG-070/README.md†L15-L15】
+- [ ] **TASK-UI-PG-075** · FinOps sem gráficos exportáveis; link "FinOps" trava no clique inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L13-L13】
 - [ ] **TASK-UI-OBS-082** · UI Kit vivo não disponível (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 
 ---

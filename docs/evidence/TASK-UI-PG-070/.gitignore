@@ -1,0 +1,3 @@
+# Evite subir artefatos pesados (logs, vídeos, traces) gerados pelo Playwright.
+playwright-artifacts/
+playwright-smoke.log

@@ -74,12 +74,12 @@
 - Upload/Download (TASK-UI-FORM-042)
 
 ### M5 — Páginas Core (UI) · 1,5–2,0 semanas
-- Dashboard (TASK-UI-PG-070)
-- Servers (TASK-UI-PG-071)
-- Keys (TASK-UI-PG-072)
-- Policies (TASK-UI-PG-073)
-- Routing Lab (TASK-UI-PG-074)
-- FinOps (TASK-UI-PG-075)
+- Dashboard (TASK-UI-PG-070) ⚠️ Smoke Playwright segue falhando (cards não aparecem; ver sumário de evidências).【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L11】
+- Servers (TASK-UI-PG-071) ⚠️ Indicadores de health inconsistentes (`['4','0','0','0']`).【F:docs/evidence/TASK-UI-PG-070/README.md†L17-L17】
+- Keys (TASK-UI-PG-072) ⚠️ Console de segurança sem dados para usuários/auditoria.【F:docs/evidence/TASK-UI-PG-070/README.md†L16-L16】
+- Policies (TASK-UI-PG-073) ⚠️ Heading "Runtime, timeouts e tracing" não renderiza.【F:docs/evidence/TASK-UI-PG-070/README.md†L14-L14】
+- Routing Lab (TASK-UI-PG-074) ⚠️ Formulário não aceita seleção nem exibe mensagem de erro.【F:docs/evidence/TASK-UI-PG-070/README.md†L15-L15】
+- FinOps (TASK-UI-PG-075) ⚠️ Link de navegação "FinOps" não responde; suite expira no clique inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L13-L13】
 
 ### M6 — Performance & Observabilidade de UI · 1,0 semana
 - UI Kit vivo (TASK-UI-OBS-082)
