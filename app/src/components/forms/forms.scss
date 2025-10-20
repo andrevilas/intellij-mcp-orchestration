@@ -1,0 +1,322 @@
+.mcp-form-field {
+  --mcp-form-control-bg: var(--mcp-surface);
+  --mcp-form-control-border: color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+  --mcp-form-control-color: var(--mcp-surface-contrast);
+  --mcp-form-control-placeholder: var(--mcp-text-muted);
+  --mcp-form-control-radius: 0.75rem;
+  --mcp-form-control-padding-y: 0.65rem;
+  --mcp-form-control-padding-x: 0.85rem;
+  --mcp-form-control-height: 2.75rem;
+  --mcp-form-control-gap: 0.35rem;
+  --mcp-form-control-shadow-focus: 0 0 0 1px color-mix(in srgb, var(--mcp-interactive) 55%, transparent 45%);
+  --mcp-form-control-shadow-error: 0 0 0 1px color-mix(in srgb, var(--mcp-danger-strong) 45%, transparent 55%);
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--mcp-form-control-gap);
+}
+
+.mcp-form-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--mcp-surface-contrast);
+}
+
+.mcp-form-label__required {
+  color: var(--mcp-danger-strong);
+  font-size: 0.85em;
+}
+
+.mcp-form-helper {
+  font-size: 0.85rem;
+  color: var(--mcp-text-subtle);
+  line-height: 1.4;
+}
+
+.invalid-feedback {
+  font-size: 0.85rem;
+  color: var(--mcp-danger-strong);
+  line-height: 1.4;
+}
+
+.mcp-form-control,
+.mcp-input-group {
+  font: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.mcp-form-control {
+  width: 100%;
+  min-height: var(--mcp-form-control-height);
+  padding: var(--mcp-form-control-padding-y) var(--mcp-form-control-padding-x);
+  border-radius: var(--mcp-form-control-radius);
+  border: 1px solid var(--mcp-form-control-border);
+  background-color: var(--mcp-form-control-bg);
+  color: var(--mcp-form-control-color);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mcp-surface) 60%, transparent 40%);
+}
+
+.mcp-form-control::placeholder {
+  color: var(--mcp-form-control-placeholder);
+  opacity: 0.85;
+}
+
+.mcp-form-control:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  outline-offset: 1px;
+  border-color: color-mix(in srgb, var(--mcp-interactive) 60%, transparent 40%);
+  box-shadow: var(--mcp-form-control-shadow-focus);
+}
+
+.mcp-form-field--invalid .mcp-form-control {
+  border-color: color-mix(in srgb, var(--mcp-danger-strong) 65%, transparent 35%);
+  box-shadow: var(--mcp-form-control-shadow-error);
+}
+
+.mcp-form-field--disabled .mcp-form-control {
+  background: color-mix(in srgb, var(--mcp-overlay-soft) 45%, transparent 55%);
+  color: var(--mcp-text-muted);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.mcp-select {
+  appearance: none;
+  padding-right: 2.5rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, color-mix(in srgb, var(--mcp-text-muted) 78%, transparent 22%) 50%),
+    linear-gradient(135deg, color-mix(in srgb, var(--mcp-text-muted) 78%, transparent 22%) 50%, transparent 50%),
+    linear-gradient(to right, color-mix(in srgb, var(--mcp-border-subtle, var(--mcp-border-strong)) 60%, transparent 40%), color-mix(in srgb, var(--mcp-border-subtle, var(--mcp-border-strong)) 60%, transparent 40%));
+  background-position:
+    calc(100% - 1.4rem) 50%,
+    calc(100% - 1rem) 50%,
+    calc(100% - 2.4rem) 50%;
+  background-size:
+    0.55rem 0.55rem,
+    0.55rem 0.55rem,
+    1px 65%;
+  background-repeat: no-repeat;
+}
+
+.mcp-select:focus-visible {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--mcp-interactive) 50%),
+    linear-gradient(135deg, var(--mcp-interactive) 50%, transparent 50%),
+    linear-gradient(to right, color-mix(in srgb, var(--mcp-interactive) 55%, transparent 45%), color-mix(in srgb, var(--mcp-interactive) 55%, transparent 45%));
+}
+
+.mcp-textarea {
+  min-height: 140px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.mcp-input-group {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--mcp-form-control-radius);
+  border: 1px solid var(--mcp-form-control-border);
+  background-color: var(--mcp-form-control-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mcp-surface) 60%, transparent 40%);
+}
+
+.mcp-input-group__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--mcp-form-control-padding-x);
+  color: var(--mcp-text-muted);
+}
+
+.mcp-input-group__control {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--mcp-form-control-color);
+  padding: var(--mcp-form-control-padding-y) var(--mcp-form-control-padding-x);
+  font: inherit;
+  min-height: var(--mcp-form-control-height);
+}
+
+.mcp-input-group__control:focus-visible {
+  outline: none;
+}
+
+.mcp-input-group:focus-within {
+  border-color: color-mix(in srgb, var(--mcp-interactive) 60%, transparent 40%);
+  box-shadow: var(--mcp-form-control-shadow-focus);
+}
+
+.mcp-input-group--invalid {
+  border-color: color-mix(in srgb, var(--mcp-danger-strong) 65%, transparent 35%);
+  box-shadow: var(--mcp-form-control-shadow-error);
+}
+
+.mcp-switch {
+  display: grid;
+  gap: 0.35rem;
+  align-items: flex-start;
+  color: var(--mcp-form-control-color);
+}
+
+.mcp-switch__body {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mcp-switch__control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 1.5rem;
+}
+
+.mcp-switch__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mcp-switch__track {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--mcp-border-strong) 60%, transparent 40%);
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 70%, transparent 30%);
+  display: flex;
+  align-items: center;
+  padding: 0 0.2rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mcp-switch__thumb {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--mcp-form-control-bg);
+  box-shadow: var(--mcp-shadow-soft);
+  transform: translateX(0);
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.mcp-switch__input:checked + .mcp-switch__track {
+  background: color-mix(in srgb, var(--mcp-interactive-soft) 70%, transparent 30%);
+  border-color: color-mix(in srgb, var(--mcp-interactive) 55%, transparent 45%);
+}
+
+.mcp-switch__input:checked + .mcp-switch__track .mcp-switch__thumb {
+  transform: translateX(1.2rem);
+  background: var(--mcp-interactive);
+}
+
+.mcp-switch__input:focus-visible + .mcp-switch__track {
+  box-shadow: 0 0 0 3px var(--mcp-focus-ring);
+}
+
+.mcp-switch--invalid .mcp-switch__track {
+  border-color: color-mix(in srgb, var(--mcp-danger-strong) 65%, transparent 35%);
+  box-shadow: var(--mcp-form-control-shadow-error);
+}
+
+.mcp-switch__hint {
+  font-size: 0.85rem;
+  color: var(--mcp-text-subtle);
+  line-height: 1.4;
+}
+
+.mcp-switch.mcp-form-field--disabled {
+  opacity: 0.65;
+}
+
+.mcp-switch.mcp-form-field--disabled .mcp-switch__input {
+  cursor: not-allowed;
+}
+
+.mcp-form-error-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mcp-form-error-summary__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mcp-form-error-summary__link {
+  appearance: none;
+  border: none;
+  padding: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 75%, transparent 25%);
+}
+
+.mcp-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.mcp-file-transfer {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px dashed color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 78%, transparent 22%);
+}
+
+.mcp-file-transfer__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mcp-file-transfer__title {
+  font-weight: 600;
+  color: var(--mcp-surface-contrast);
+}
+
+.mcp-file-transfer__description {
+  font-size: 0.9rem;
+  color: var(--mcp-text-subtle);
+  margin: 0;
+}
+
+.mcp-file-transfer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.mcp-file-transfer__meta {
+  font-size: 0.8rem;
+  color: var(--mcp-text-muted);
+}
+
+.mcp-file-transfer__progress {
+  margin-top: 0.25rem;
+}

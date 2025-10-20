@@ -5,6 +5,7 @@ Utilize este diretório para armazenar os comprovantes (prints, logs, exportaç�
 ## Convenção de pastas
 - Crie uma pasta para cada identificador de tarefa no formato `/docs/evidence/<ID>/`.
 - Inclua dentro dela todos os artefatos relevantes (imagens, arquivos Markdown complementares, relatórios).
+- Exemplos recentes: `TASK-UI-ACT-020`, `TASK-UI-FORM-040` (controles MCP + tab order Playwright).
 
 ## Checklist ao concluir um ID
 1. Atualize `docs/archive/next-steps.md`, marcando o item correspondente como concluído e registrando observações relevantes.

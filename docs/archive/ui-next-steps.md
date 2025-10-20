@@ -24,7 +24,7 @@
 - [ ] **TASK-UI-DATA-030** · Cards KPI/lista/detalhe incompletos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-031** · Tabela + EmptyState sem comportamento esperado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-032** · Badges/progress não padronizados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-FORM-040** · Controles de formulário fora do padrão Bootstrap (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-FORM-040** · Controles de formulário migrados para camada MCP (`docs/forms/README.md`).
 - [ ] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-PG-070** · Dashboard sem fluxos funcionais (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
@@ -97,9 +97,9 @@
 # Sprint M4 — Formulários & Validação (1,0–1,5 semanas)
 **North Star:** coleta de dados robusta e a prova de erro.
 
-### TASK-UI-FORM-040 · Form Controls
-- Inputs texto/número/select/textarea/switch; input-group com FA; máscaras leves opt-in.
-- **DoD**: exemplos documentados; tema consistente.
+### TASK-UI-FORM-040 · Form Controls (✅ entregue)
+- Inputs MCP (`Input`, `Select`, `TextArea`, `Switch`, `InputGroup`) com tokens `--mcp-form-*`, resumo de erros e integrações `react-hook-form` (`useMcpForm`/`useMcpField`).【F:app/src/components/forms/index.ts†L1-L16】【F:app/src/hooks/useMcpForm.ts†L18-L111】
+- **DoD**: showcase atualizado (`FormControlsSection`), documentação em `docs/forms/README.md` e testes (Vitest + Playwright) garantindo foco/tab order.【F:app/src/components/UiKitShowcase.tsx†L209-L321】【F:app/src/test/FormControls.test.tsx†L1-L83】【F:tests/e2e/forms-controls.spec.ts†L1-L83】
 
 ### TASK-UI-FORM-041 · Validação & Estados
 - `react-hook-form` + feedback Bootstrap (`is-invalid`/`invalid-feedback`); `aria-*` correto; error summary.

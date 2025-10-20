@@ -14,14 +14,41 @@ import ResourceDetailCard, { type ResourceDetailStatus } from './ResourceDetailC
 import StatusBadge from './indicators/StatusBadge';
 import ProgressIndicator from './indicators/ProgressIndicator';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  FileDownloadControl,
+  FileUploadControl,
+  FormErrorSummary,
+  Input,
+  InputGroup,
+  Select,
+  Switch as SwitchControl,
+  TextArea,
+} from './forms';
+import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../hooks/useMcpForm';
 
-import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' assert { type: 'json' };
-import serversFixture from '#fixtures/servers.json' assert { type: 'json' };
-import serverHealthFixture from '#fixtures/server_health.json' assert { type: 'json' };
+import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' with { type: 'json' };
+import serversFixture from '#fixtures/servers.json' with { type: 'json' };
+import serverHealthFixture from '#fixtures/server_health.json' with { type: 'json' };
 
 import './ui-kit-showcase.scss';
 
 type ScenarioState = 'success' | 'loading' | 'empty' | 'error';
+
+interface FormDemoValues {
+  serviceName: string;
+  environment: '' | 'development' | 'staging' | 'production';
+  description: string;
+  alerts: boolean;
+  gateway: string;
+}
+
+const FORM_DEFAULT_VALUES: FormDemoValues = {
+  serviceName: '',
+  environment: 'staging',
+  description: '',
+  alerts: true,
+  gateway: 'https://mcp.internal.gateway',
+};
 
 interface TelemetryMetricsFixture {
   total_runs: number;
@@ -64,6 +91,8 @@ export default function UiKitShowcase(): JSX.Element {
   const [kpiScenario, setKpiScenario] = useState<ScenarioState>('success');
   const [tableScenario, setTableScenario] = useState<ScenarioState>('success');
   const [detailScenario, setDetailScenario] = useState<ScenarioState>('success');
+  const formMethods = useMcpForm<FormDemoValues>({ defaultValues: { ...FORM_DEFAULT_VALUES } });
+  const [lastFormSubmission, setLastFormSubmission] = useState<string | null>(null);
 
   const dropdownOptions = useMemo(
     () => [
@@ -335,6 +364,15 @@ export default function UiKitShowcase(): JSX.Element {
     window.setTimeout(() => setDetailScenario('success'), 650);
   }
 
+  function handleFormSuccess(values: FormDemoValues): void {
+    setLastFormSubmission(new Date().toISOString());
+    pushToast({
+      title: 'Formulário enviado',
+      description: `Configuração de ${values.serviceName || 'serviço'} salva com sucesso.`,
+      variant: 'success',
+    });
+  }
+
   return (
     <section className="ui-kit-showcase" data-testid="ui-kit-showcase" aria-label="UI Kit">
       <header className="ui-kit-showcase__header">
@@ -394,6 +432,63 @@ export default function UiKitShowcase(): JSX.Element {
         <p className="ui-kit-showcase__note">
           Dropdowns e tooltips compartilham tokens de overlay (<code>--mcp-z-dropdown</code> &lt; <code>--mcp-z-tooltip</code>)
           e prendem foco via teclado, com fechamento via <kbd>ESC</kbd> e delays configuráveis.
+        </p>
+      </div>
+
+      <div className="ui-kit-showcase__group">
+        <span className="ui-kit-showcase__label">Formulários</span>
+        <div className="ui-kit-showcase__column ui-kit-showcase__column--wide">
+          <McpFormProvider {...formMethods}>
+            <FormControlsSection
+              lastSubmission={lastFormSubmission}
+              onSuccess={(values) => {
+                handleFormSuccess(values);
+                formMethods.reset({ ...FORM_DEFAULT_VALUES });
+              }}
+            />
+          </McpFormProvider>
+          <div className="ui-kit-showcase__row ui-kit-showcase__row--wrap ui-kit-showcase__row--stretch">
+            <FileUploadControl
+              maxSizeBytes={8 * 1024 * 1024}
+              onUpload={async (_file, update) => {
+                update(35);
+                await new Promise((resolve) => window.setTimeout(resolve, 420));
+                update(68);
+                await new Promise((resolve) => window.setTimeout(resolve, 360));
+              }}
+              onComplete={(file) =>
+                pushToast({
+                  title: 'Upload registrado',
+                  description: `${file.name} pronto para comparação com os agentes.`,
+                  variant: 'info',
+                })
+              }
+            />
+            <FileDownloadControl
+              onDownload={async (update) => {
+                update(25);
+                await new Promise((resolve) => window.setTimeout(resolve, 310));
+                update(78);
+                await new Promise((resolve) => window.setTimeout(resolve, 340));
+                return new Blob([
+                  JSON.stringify(
+                    {
+                      generatedAt: new Date().toISOString(),
+                      environments: ['development', 'staging', 'production'],
+                    },
+                    null,
+                    2,
+                  ),
+                ], {
+                  type: 'application/json',
+                });
+              }}
+            />
+          </div>
+        </div>
+        <p className="ui-kit-showcase__note">
+          Controles aplicam tokens <code>--mcp-form-*</code>, propagam <code>aria-invalid</code> via <code>react-hook-form</code>{' '}
+          e exibem resumo de erros integrado ao <code>Alert</code>.
         </p>
       </div>
 
@@ -726,5 +821,107 @@ export default function UiKitShowcase(): JSX.Element {
         </label>
       </FormModal>
     </section>
+  );
+}
+
+interface FormControlsSectionProps {
+  onSuccess: (values: FormDemoValues) => void;
+  lastSubmission: string | null;
+}
+
+function FormControlsSection({ onSuccess, lastSubmission }: FormControlsSectionProps): JSX.Element {
+  const { handleSubmit, reset, formState } = useMcpFormContext<FormDemoValues>();
+  const serviceName = useMcpField<FormDemoValues>('serviceName', {
+    rules: { required: 'Informe o nome do serviço.' },
+  });
+  const environment = useMcpField<FormDemoValues>('environment', {
+    rules: { required: 'Selecione o ambiente de destino.' },
+  });
+  const descriptionField = useMcpField<FormDemoValues>('description', {
+    rules: {
+      required: 'Descreva o objetivo do fluxo.',
+      minLength: { value: 20, message: 'Descreva com pelo menos 20 caracteres.' },
+    },
+  });
+  const alertsField = useMcpField<FormDemoValues>('alerts');
+  const gatewayField = useMcpField<FormDemoValues>('gateway', {
+    rules: {
+      required: 'Informe o endpoint do gateway.',
+      pattern: {
+        value: /^https?:\/\//i,
+        message: 'Informe uma URL iniciando com http:// ou https://.',
+      },
+    },
+  });
+
+  const submit = handleSubmit((values) => {
+    onSuccess(values);
+  });
+
+  const lastSubmissionLabel = lastSubmission
+    ? `Último envio em ${new Date(lastSubmission).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+    : 'Preencha os campos para testar validações e o resumo de erros.';
+
+  return (
+    <form className="ui-kit-showcase__form" onSubmit={submit} data-testid="form-controls-demo" noValidate>
+      <FormErrorSummary />
+      <Input
+        {...serviceName.inputProps}
+        label="Nome do serviço"
+        placeholder="Ex.: mcp-orchestrator"
+        helperText="Use letras minúsculas e hífens para evitar conflitos."
+        required
+        autoComplete="off"
+        error={serviceName.error}
+      />
+      <Select
+        {...environment.inputProps}
+        label="Ambiente"
+        helperText="Tokens de foco e erro são propagados automaticamente."
+        required
+        error={environment.error}
+      >
+        <option value="">Selecione…</option>
+        <option value="development">Desenvolvimento</option>
+        <option value="staging">Staging</option>
+        <option value="production">Produção</option>
+      </Select>
+      <TextArea
+        {...descriptionField.inputProps}
+        label="Descrição"
+        placeholder="Inclua objetivo, owners e janelas de execução."
+        helperText="Validação exige mínimo de 20 caracteres."
+        required
+        rows={4}
+        error={descriptionField.error}
+      />
+      <SwitchControl
+        {...alertsField.inputProps}
+        label="Ativar alertas proativos"
+        description="Receba toasts quando a latência exceder 20% do baseline."
+        error={alertsField.error}
+      />
+      <InputGroup
+        {...gatewayField.inputProps}
+        label="Gateway de provisionamento"
+        placeholder="https://"
+        helperText="Exemplo: https://mcp.internal.gateway"
+        leftIcon="globe"
+        rightIcon="lock"
+        required
+        error={gatewayField.error}
+      />
+      <p className="mcp-form-helper" aria-live="polite">
+        {lastSubmissionLabel}
+      </p>
+      <div className="mcp-form-actions">
+        <Button type="button" variant="outline" onClick={() => reset({ ...FORM_DEFAULT_VALUES })}>
+          Limpar
+        </Button>
+        <Button type="submit" variant="primary" loading={formState.isSubmitting}>
+          Salvar formulário
+        </Button>
+      </div>
+    </form>
   );
 }

@@ -2,7 +2,19 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from './fixtures';
-import type { default as TelemetryMetricsFixture } from '../fixtures/backend/telemetry_metrics.json';
+
+type TelemetryMetricsFixture = {
+  total_tokens_in: number;
+  total_tokens_out: number;
+  extended: {
+    cache_hit_rate: number;
+    cached_tokens: number;
+    latency_p95_ms: number;
+    latency_p99_ms: number;
+    error_rate: number;
+    error_breakdown: { category: string; count: number }[];
+  };
+};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const telemetryMetrics = JSON.parse(

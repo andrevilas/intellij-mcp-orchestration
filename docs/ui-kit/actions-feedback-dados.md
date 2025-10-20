@@ -20,6 +20,11 @@ Este resumo consolida os componentes utilizados para desbloquear as histórias U
 - `ModalBase` aplica trap de foco, retorno ao gatilho e usa `--mcp-surface-elevated`, `--mcp-backdrop` e `--mcp-shadow-modal`.
 - `ConfirmationModal` disponibiliza confirmação em dois cliques com mensagens vivas e `FormModal` cobre envios de dados com validação nativa.
 
+## Formulários
+- `Input`, `Select`, `TextArea`, `Switch` e `InputGroup` compartilham `forms.scss`, respeitando tokens `--mcp-form-*`, foco MCP e feedback invalidado via `react-hook-form` (`useMcpForm`/`useMcpField`).【F:app/src/components/forms/forms.scss†L1-L210】【F:app/src/hooks/useMcpForm.ts†L18-L111】
+- `FormErrorSummary` reutiliza `Alert` para listar erros navegáveis e o UI Kit demonstra o fluxo completo (`FormControlsSection`) com reset, helper dinâmico e integração aos novos controles.【F:app/src/components/forms/FormErrorSummary.tsx†L1-L67】【F:app/src/components/UiKitShowcase.tsx†L209-L321】
+- `FileUploadControl`/`FileDownloadControl` adicionam progresso, limites e toasts/alerts consistentes, mantendo tokens de superfície e feedback MCP.【F:app/src/components/forms/FileUploadControl.tsx†L1-L161】【F:app/src/components/forms/FileDownloadControl.tsx†L1-L147】
+
 ## Testes e exemplos
 - Showcase (`UiKitShowcase`) demonstra todas as combinações acima, com notas de uso e exemplos de overlay/z-index.
 - Cobertura automatizada:
