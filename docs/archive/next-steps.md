@@ -17,7 +17,7 @@
 - [ ] **M2 — Ações & Feedback** · Bloqueado — componentes críticos (wizards/modais) ausentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **M5 — Páginas Core** · Bloqueado — fluxos Dashboard/Servers/FinOps/Policies/Routing falhando (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **M5 — Páginas Core** · Bloqueio removido — fixtures habilitadas (UI-ACT-005) destravam Dashboard/Servers/FinOps/Routing sem backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **M6 — Performance & Observabilidade** · Bloqueado — build quebrado impede métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 
 ## North Star & KPIs

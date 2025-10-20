@@ -79,6 +79,16 @@ hub.
 - Backend: `source server/.venv/bin/activate && console-mcp-server-dev`
 - Agents Hub: `cd agents-hub && make dev`
 
+### Modo offline com fixtures compartilhadas
+
+- Exporte `CONSOLE_MCP_USE_FIXTURES=true` para forçar o frontend a usar os handlers locais (`app/src/mocks/*`) em vez do proxy
+  `/api`. Quando a flag não é definida, o Vite tenta conectar no backend configurado e faz **fallback automático** para as fixtures
+  quando não encontra o serviço real.
+- O toggle injeta `import.meta.env.VITE_CONSOLE_USE_FIXTURES`, permitindo que componentes e suites de teste detectem se o modo
+  offline está ativo. O `main.tsx` inicializa o service worker do MSW apenas quando este valor é `true`.
+- Os payloads retornados pelos mocks reaproveitam os JSONs em `tests/fixtures/backend/` e possuem equivalentes servidos pelo
+  backend em `server/routes/fixtures/` para manter paridade entre ambientes.
+
 ### Consumindo no IntelliJ
 
 1. Com o Console MCP rodando, abra o IntelliJ IDEA (2024.1+).

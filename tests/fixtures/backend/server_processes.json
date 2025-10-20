@@ -1,0 +1,104 @@
+{
+  "processes": [
+    {
+      "server_id": "gemini",
+      "status": "running",
+      "command": "~/.local/bin/gemini-mcp",
+      "pid": 4200,
+      "started_at": "2025-03-07T08:30:00Z",
+      "stopped_at": null,
+      "return_code": null,
+      "last_error": null,
+      "logs": [
+        {
+          "id": "gemini-log-1",
+          "timestamp": "2025-03-07T08:00:00Z",
+          "level": "info",
+          "message": "Boot sequence completed."
+        },
+        {
+          "id": "gemini-log-2",
+          "timestamp": "2025-03-07T08:05:00Z",
+          "level": "info",
+          "message": "Health check succeeded."
+        }
+      ],
+      "cursor": "gemini-cursor"
+    },
+    {
+      "server_id": "codex",
+      "status": "error",
+      "command": "~/.local/bin/codex-mcp",
+      "pid": null,
+      "started_at": null,
+      "stopped_at": null,
+      "return_code": 137,
+      "last_error": "Process exited after repeated health check failures.",
+      "logs": [
+        {
+          "id": "codex-log-1",
+          "timestamp": "2025-03-07T08:00:00Z",
+          "level": "info",
+          "message": "Boot sequence completed."
+        },
+        {
+          "id": "codex-log-2",
+          "timestamp": "2025-03-07T08:05:00Z",
+          "level": "error",
+          "message": "Heartbeat latency above threshold."
+        }
+      ],
+      "cursor": "codex-cursor"
+    },
+    {
+      "server_id": "claude",
+      "status": "stopped",
+      "command": "~/.local/bin/claude-mcp",
+      "pid": null,
+      "started_at": null,
+      "stopped_at": "2025-03-06T21:45:00Z",
+      "return_code": 0,
+      "last_error": null,
+      "logs": [
+        {
+          "id": "claude-log-1",
+          "timestamp": "2025-03-07T08:00:00Z",
+          "level": "info",
+          "message": "Boot sequence completed."
+        },
+        {
+          "id": "claude-log-2",
+          "timestamp": "2025-03-07T08:05:00Z",
+          "level": "info",
+          "message": "Health check succeeded."
+        }
+      ],
+      "cursor": "claude-cursor"
+    },
+    {
+      "server_id": "glm46",
+      "status": "stopped",
+      "command": "~/.local/bin/glm46-mcp",
+      "pid": null,
+      "started_at": null,
+      "stopped_at": "2025-03-06T21:45:00Z",
+      "return_code": 0,
+      "last_error": null,
+      "logs": [
+        {
+          "id": "glm46-log-1",
+          "timestamp": "2025-03-07T08:00:00Z",
+          "level": "info",
+          "message": "Boot sequence completed."
+        },
+        {
+          "id": "glm46-log-2",
+          "timestamp": "2025-03-07T08:05:00Z",
+          "level": "info",
+          "message": "Health check succeeded."
+        }
+      ],
+      "cursor": "glm46-cursor"
+    }
+  ]
+}

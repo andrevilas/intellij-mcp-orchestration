@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
+import type { Page } from '@playwright/test';
 
 async function registerBaseRoutes(page: Page) {
   await page.route('**/api/v1/servers', (route) =>

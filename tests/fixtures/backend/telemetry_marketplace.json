@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "entry_id": "gemini:balanced",
+      "name": "Gemini MCP · balanced",
+      "origin": "internal",
+      "rating": 4.7,
+      "cost": 0.021,
+      "run_count": 32,
+      "success_rate": 0.93,
+      "avg_latency_ms": 880,
+      "total_cost_usd": 58.82,
+      "total_tokens_in": 1890000,
+      "total_tokens_out": 1180000,
+      "cohorts": ["march-rollout"],
+      "adoption_score": 82
+    },
+    {
+      "entry_id": "codex:balanced",
+      "name": "Codex CLI · balanced",
+      "origin": "marketplace",
+      "rating": 4.4,
+      "cost": 0.019,
+      "run_count": 28,
+      "success_rate": 0.9,
+      "avg_latency_ms": 840,
+      "total_cost_usd": 44.67,
+      "total_tokens_in": 1760000,
+      "total_tokens_out": 980000,
+      "cohorts": ["march-rollout"],
+      "adoption_score": 76
+    },
+    {
+      "entry_id": "claude:balanced",
+      "name": "Claude MCP · balanced",
+      "origin": "marketplace",
+      "rating": 4.1,
+      "cost": 0.018,
+      "run_count": 24,
+      "success_rate": 0.91,
+      "avg_latency_ms": 820,
+      "total_cost_usd": 32.83,
+      "total_tokens_in": 1430000,
+      "total_tokens_out": 880000,
+      "cohorts": ["march-rollout"],
+      "adoption_score": 70
+    },
+    {
+      "entry_id": "glm46:turbo",
+      "name": "GLM-4.6 · turbo",
+      "origin": "marketplace",
+      "rating": 3.8,
+      "cost": 0.037,
+      "run_count": 30,
+      "success_rate": 0.87,
+      "avg_latency_ms": 690,
+      "total_cost_usd": 105.14,
+      "total_tokens_in": 2010000,
+      "total_tokens_out": 1400000,
+      "cohorts": ["march-rollout"],
+      "adoption_score": 64
+    }
+  ]
+}

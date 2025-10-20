@@ -35,6 +35,9 @@ Variáveis de ambiente úteis:
 - `CONSOLE_MCP_API_PROXY`: redefine o destino do proxy HTTP utilizado pelo dev server do Vite (por padrão usa os valores
   de `CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`).
 - `CONSOLE_MCP_AGENTS_PROXY`: sobrescreve apenas o alvo do proxy `/agents` quando o hub de agentes roda em host/porta separados.
+- `CONSOLE_MCP_USE_FIXTURES`: quando `true` (ou quando o backend está indisponível), desativa o proxy e ativa os handlers do
+  MSW alimentados por `tests/fixtures/backend`. Define automaticamente `import.meta.env.VITE_CONSOLE_USE_FIXTURES` para que a UI e
+  os testes saibam que o modo offline está ativo.
 
 ## Estrutura
 
@@ -43,7 +46,7 @@ Variáveis de ambiente úteis:
 - `src/App.tsx` – tela principal com listagem de provedores e ações de provisionamento.
 - `src/api.ts` – cliente HTTP tipado para `/api/v1` (providers/sessions).
 - `src/hooks/useAgent.ts` – hook reutilizável para acionar agentes via `/agents/{name}/invoke`, com tratamento de fallback.
-- `vite.config.ts` – configuração incluindo proxy `/api` durante o desenvolvimento.
+- `vite.config.ts` – configuração incluindo proxy `/api` durante o desenvolvimento e toggle de fixtures (`CONSOLE_MCP_USE_FIXTURES`).
 - `tsconfig*.json` – regras de compilação TypeScript compartilhadas.
 
 Os próximos incrementos expandirão a experiência (ex.: logs em tempo real, estados de conexão e telemetria por sessão).

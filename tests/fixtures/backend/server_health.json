@@ -1,0 +1,108 @@
+{
+  "checks": {
+    "gemini": [
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:00:00Z",
+        "latency_ms": 420,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:15:00Z",
+        "latency_ms": 415,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:30:00Z",
+        "latency_ms": 430,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:45:00Z",
+        "latency_ms": 410,
+        "message": "Health check passed."
+      }
+    ],
+    "codex": [
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:00:00Z",
+        "latency_ms": 520,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:15:00Z",
+        "latency_ms": 540,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:30:00Z",
+        "latency_ms": 560,
+        "message": "Health check passed."
+      },
+      {
+        "status": "error",
+        "checked_at": "2025-03-07T07:45:00Z",
+        "latency_ms": null,
+        "message": "No response from server process."
+      }
+    ],
+    "claude": [
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:00:00Z",
+        "latency_ms": 480,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:15:00Z",
+        "latency_ms": 470,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:30:00Z",
+        "latency_ms": 465,
+        "message": "Health check passed."
+      },
+      {
+        "status": "degraded",
+        "checked_at": "2025-03-07T07:45:00Z",
+        "latency_ms": 980,
+        "message": "Latency above 900ms threshold."
+      }
+    ],
+    "glm46": [
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:00:00Z",
+        "latency_ms": 360,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:15:00Z",
+        "latency_ms": 355,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:30:00Z",
+        "latency_ms": 350,
+        "message": "Health check passed."
+      },
+      {
+        "status": "healthy",
+        "checked_at": "2025-03-07T07:45:00Z",
+        "latency_ms": 345,
+        "message": "Health check passed."
+      }
+    ]
+  }
+}
