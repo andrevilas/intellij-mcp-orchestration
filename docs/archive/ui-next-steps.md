@@ -33,7 +33,7 @@
 - [ ] **TASK-UI-PG-073** · Policies não aplicam templates/rollback; suite não encontra heading esperado.【F:docs/evidence/TASK-UI-PG-070/README.md†L14-L14】
 - [ ] **TASK-UI-PG-074** · Routing Lab incompleto; selects não aceitam fallback e mensagem de erro não surge.【F:docs/evidence/TASK-UI-PG-070/README.md†L15-L15】
 - [ ] **TASK-UI-PG-075** · FinOps sem gráficos exportáveis; link "FinOps" trava no clique inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L13-L13】
-- [ ] **TASK-UI-OBS-082** · UI Kit vivo não disponível (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-OBS-082** · UI Kit vivo ativo com snippets, métricas publicadas em `/docs/evidence/TASK-UI-OBS-082/`.
 
 ---
 

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'node:path';
 import net from 'node:net';
 
@@ -140,8 +141,22 @@ export default defineConfig(async () => {
     });
   }
 
+  const shouldAnalyze = process.env.ANALYZE_BUNDLE === '1';
+
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      ...(shouldAnalyze
+        ? [
+            visualizer({
+              filename: path.resolve(__dirname, 'metrics', 'bundle-visualizer.html'),
+              template: 'treemap',
+              gzipSize: true,
+              brotliSize: true,
+            }),
+          ]
+        : []),
+    ],
     resolve: {
       alias: {
         '#fixtures': path.resolve(__dirname, '../tests/fixtures/backend'),
@@ -150,6 +165,24 @@ export default defineConfig(async () => {
     server: serverConfig,
     define: {
       'import.meta.env.VITE_CONSOLE_USE_FIXTURES': JSON.stringify(useFixtures),
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes(`${path.sep}pages${path.sep}Dashboard`)) {
+              return 'view-dashboard';
+            }
+            if (id.includes(`${path.sep}pages${path.sep}Servers`)) {
+              return 'view-servers';
+            }
+            if (id.includes(`${path.sep}pages${path.sep}FinOps`)) {
+              return 'view-finops';
+            }
+            return undefined;
+          },
+        },
+      },
     },
     test: {
       environment: 'jsdom',

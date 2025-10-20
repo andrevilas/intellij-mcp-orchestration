@@ -33,7 +33,6 @@ import {
 import CommandPalette from './components/CommandPalette';
 import NotificationCenter, { type NotificationItem } from './components/NotificationCenter';
 import ProvisioningDialog, { type ProvisioningSubmission } from './components/ProvisioningDialog';
-import UiKitShowcase from './components/UiKitShowcase';
 import { ToastProvider } from './components/feedback/ToastProvider';
 import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import type { AppFixtureSnapshot } from './utils/appFixtures';
@@ -50,6 +49,7 @@ const Flows = lazy(() => import('./pages/Flows'));
 const FinOps = lazy(() => import('./pages/FinOps'));
 const Marketplace = lazy(() => import('./pages/Marketplace'));
 const AdminChat = lazy(() => import('./pages/AdminChat'));
+const UiKitShowcase = lazy(() => import('./components/UiKitShowcase'));
 import ThemeSwitch from './theme/ThemeSwitch';
 
 export interface Feedback {
@@ -899,7 +899,7 @@ function App() {
   return (
     <ToastProvider>
       <div className="app-shell">
-      <a
+        <a
         href="#main-content"
         className="skip-link"
         onClick={(event) => {
@@ -908,8 +908,8 @@ function App() {
         }}
       >
         Ir para o conteúdo principal
-      </a>
-      <header className="app-shell__header">
+        </a>
+        <header className="app-shell__header">
         <div className="app-shell__branding">
           <button
             type="button"
@@ -1025,7 +1025,15 @@ function App() {
         </Suspense>
       </main>
       <aside className="app-shell__ui-kit" aria-label="Mostruário UI Kit">
-        <UiKitShowcase />
+        <Suspense
+          fallback={
+            <div className="ui-kit-loading" role="status" aria-live="polite">
+              Carregando catálogo de componentes…
+            </div>
+          }
+        >
+          <UiKitShowcase />
+        </Suspense>
       </aside>
       <footer className="app-shell__footer">
         © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
