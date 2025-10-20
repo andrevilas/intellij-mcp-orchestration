@@ -1,0 +1,7 @@
+# SOPS configuration for MCP secrets management.
+creation_rules:
+  - path_regex: config/secrets\.enc\.ya?ml
+    encrypted_regex: '^(data|stringData|secrets)$'
+    key_groups:
+      - age:
+          - age1rxakdpyzucls2kahxrdtd2uy2sv9vt0wjwfsm4j80mq8a357h3eqpav98j

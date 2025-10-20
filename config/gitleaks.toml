@@ -1,0 +1,12 @@
+title = "MCP Orchestration gitleaks config"
+
+description = "Extends the default rule set with repository-specific allows."
+
+[extend]
+  useDefault = true
+
+[allowlist]
+  description = "Documented placeholders that should not fail the scan"
+  regexes = [
+    '''REPLACE_WITH_[A-Z_]+'''
+  ]
