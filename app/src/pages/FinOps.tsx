@@ -30,6 +30,7 @@ import {
   fetchTelemetryPareto,
   fetchTelemetryRuns,
   fetchTelemetryTimeseries,
+  fetchTelemetryExportDocument,
   fetchTelemetryExperiments,
   fetchTelemetryLaneCosts,
   fetchMarketplacePerformance,
@@ -759,14 +760,18 @@ const REPORT_STATUS_LABEL: Record<ReportStatus, string> = {
   regression: 'Regressão',
 };
 
-function triggerDownload(filename: string, mimeType: string, contents: string): void {
-  const blob = new Blob([contents], { type: mimeType });
+function triggerDownloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.setAttribute('download', filename);
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function triggerDownload(filename: string, mimeType: string, contents: string): void {
+  const blob = new Blob([contents], { type: mimeType });
+  triggerDownloadBlob(filename, blob);
 }
 
 function exportDatasetAsCsv(filename: string, header: string[], rows: string[][]): void {
@@ -776,17 +781,6 @@ function exportDatasetAsCsv(filename: string, header: string[], rows: string[][]
 
 function exportDatasetAsJson(filename: string, payload: unknown): void {
   triggerDownload(filename, 'application/json;charset=utf-8;', JSON.stringify(payload, null, 2));
-}
-
-function exportCsv(data: TimeSeriesPoint[]): void {
-  const header = ['data', 'custo_usd', 'tokens_milhoes', 'latencia_ms'];
-  const rows = data.map((point) => [
-    point.date,
-    point.costUsd.toFixed(2),
-    point.tokensMillions.toFixed(2),
-    point.avgLatencyMs.toString(),
-  ]);
-  exportDatasetAsCsv(`finops-${Date.now()}.csv`, header, rows);
 }
 
 export default function FinOps({ providers, isLoading, initialError }: FinOpsProps) {
@@ -800,6 +794,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [providerSeriesMap, setProviderSeriesMap] = useState<Record<string, TimeSeriesPoint[]>>({});
   const [isTelemetryLoading, setIsTelemetryLoading] = useState(false);
   const [timeseriesError, setTimeseriesError] = useState<string | null>(null);
+  const [isTelemetryExporting, setIsTelemetryExporting] = useState(false);
+  const [telemetryExportError, setTelemetryExportError] = useState<string | null>(null);
   const [routeBreakdownEntries, setRouteBreakdownEntries] = useState<RouteCostBreakdown[]>([]);
   const [runEntries, setRunEntries] = useState<RunDrilldownEntry[]>([]);
   const [sprintReports, setSprintReports] = useState<SprintReport[]>([]);
@@ -874,6 +870,13 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   useToastNotification(timeseriesError, {
     id: 'finops-timeseries-error',
     title: 'Telemetria FinOps',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(telemetryExportError, {
+    id: 'finops-export-error',
+    title: 'Exportação de telemetria',
     variant: 'error',
     autoDismiss: false,
   });
@@ -1439,6 +1442,38 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     resetPendingPlan();
     setPlanStatusMessage('Plano descartado. Ajuste a política e gere novamente.');
   }, [resetPendingPlan]);
+
+  const handleTelemetryExport = useCallback(
+    async (format: 'csv' | 'html') => {
+      if (availableSeries.length === 0) {
+        return;
+      }
+
+      const days = RANGE_TO_DAYS[selectedRange];
+      const { start, end } = computeWindowBounds(days);
+      const providerId = selectedProvider === 'all' ? undefined : selectedProvider;
+
+      setTelemetryExportError(null);
+      setIsTelemetryExporting(true);
+
+      try {
+        const timestamp = new Date().toISOString().slice(0, 10);
+        const { blob } = await fetchTelemetryExportDocument(format, {
+          start,
+          end,
+          providerId,
+        });
+        const extension = format === 'html' ? 'html' : 'csv';
+        triggerDownloadBlob(`finops-telemetry-${timestamp}.${extension}`, blob);
+      } catch (error) {
+        console.error('Failed to export FinOps telemetry', error);
+        setTelemetryExportError('Falha ao exportar telemetria FinOps. Tente novamente.');
+      } finally {
+        setIsTelemetryExporting(false);
+      }
+    },
+    [availableSeries, selectedProvider, selectedRange],
+  );
 
   useEffect(() => {
     if (!hasProviders) {
@@ -2445,14 +2480,26 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               ))}
             </div>
           </div>
-          <button
-            type="button"
-            className="finops__export"
-            onClick={() => exportCsv(availableSeries)}
-            disabled={availableSeries.length === 0}
-          >
-            Exportar CSV
-          </button>
+          <div className="finops__export-group">
+            <button
+              type="button"
+              data-testid="finops-export-csv"
+              className="finops__export"
+              onClick={() => handleTelemetryExport('csv')}
+              disabled={isTelemetryExporting || availableSeries.length === 0}
+            >
+              {isTelemetryExporting ? 'Gerando…' : 'Exportar CSV'}
+            </button>
+            <button
+              type="button"
+              data-testid="finops-export-html"
+              className="finops__export"
+              onClick={() => handleTelemetryExport('html')}
+              disabled={isTelemetryExporting || availableSeries.length === 0}
+            >
+              {isTelemetryExporting ? 'Gerando…' : 'Exportar HTML'}
+            </button>
+          </div>
         </div>
       </header>
 

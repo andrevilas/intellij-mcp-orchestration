@@ -1725,6 +1725,13 @@ export interface TelemetryLaneCostFilters extends TelemetryMetricsFilters {
 
 export interface MarketplacePerformanceFilters extends TelemetryMetricsFilters {}
 
+export type TelemetryExportFormat = 'csv' | 'html';
+
+export interface TelemetryExportResult {
+  blob: Blob;
+  mediaType: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: string;
@@ -3760,6 +3767,41 @@ export async function fetchMarketplacePerformance(
   return request<MarketplacePerformanceResponsePayload>(`/telemetry/marketplace/performance${query}`, {
     signal,
   });
+}
+
+export async function fetchTelemetryExportDocument(
+  format: TelemetryExportFormat,
+  filters?: TelemetryMetricsFilters,
+  signal?: AbortSignal,
+): Promise<TelemetryExportResult> {
+  const query = buildQuery({
+    format,
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    route: filters?.route,
+  });
+
+  const response = await fetchFromApi(`/telemetry/export${query}`, {
+    method: 'GET',
+    headers: {
+      Accept: format === 'html' ? 'text/html' : 'text/csv',
+    },
+    signal,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const message = body || `Request failed with status ${response.status}`;
+    throw new ApiError(message, response.status, body);
+  }
+
+  const mediaType =
+    response.headers.get('Content-Type') || (format === 'html' ? 'text/html' : 'text/csv');
+  const blob = await response.blob();
+  const typedBlob = mediaType && blob.type !== mediaType ? blob.slice(0, blob.size, mediaType) : blob;
+
+  return { blob: typedBlob, mediaType };
 }
 
 export interface FinOpsReportsFilters {
