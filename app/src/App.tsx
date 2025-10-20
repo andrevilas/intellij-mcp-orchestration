@@ -36,6 +36,8 @@ import ProvisioningDialog, { type ProvisioningSubmission } from './components/Pr
 import UiKitShowcase from './components/UiKitShowcase';
 import { ToastProvider } from './components/feedback/ToastProvider';
 import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
+import type { AppFixtureSnapshot } from './utils/appFixtures';
+import { createAppFixtureSnapshot } from './utils/appFixtures';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Observability = lazy(() => import('./pages/Observability'));
 const Servers = lazy(() => import('./pages/Servers'));
@@ -100,6 +102,66 @@ function persistNotificationReadState(map: Record<string, boolean>): void {
     console.error('Falha ao persistir estado de notificações no armazenamento local', error);
   }
 }
+
+type FixtureStatus = 'ready' | 'error' | 'disabled';
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __CONSOLE_MCP_FIXTURES__: FixtureStatus | undefined;
+}
+
+function resolveInitialFixtureSnapshot(): AppFixtureSnapshot | null {
+  try {
+    if (typeof globalThis === 'undefined') {
+      return null;
+    }
+
+    const status = globalThis.__CONSOLE_MCP_FIXTURES__;
+    if (status !== 'ready') {
+      return null;
+    }
+
+    return createAppFixtureSnapshot();
+  } catch (error) {
+    console.warn('Falha ao construir snapshot de fixtures iniciais', error);
+    return null;
+  }
+}
+
+function buildInitialNotificationState(
+  snapshot: AppFixtureSnapshot | null,
+): { readState: Record<string, boolean>; items: NotificationItem[] } {
+  const baseState = loadNotificationReadState();
+
+  if (!snapshot) {
+    return { readState: baseState, items: [] };
+  }
+
+  const nextState: Record<string, boolean> = { ...baseState };
+  let changed = false;
+
+  for (const notification of snapshot.notifications) {
+    if (!(notification.id in nextState)) {
+      nextState[notification.id] = false;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    persistNotificationReadState(nextState);
+  }
+
+  const items: NotificationItem[] = snapshot.notifications
+    .map((notification) => ({
+      ...notification,
+      isRead: nextState[notification.id] ?? false,
+    }))
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return { readState: nextState, items };
+}
+
+const INITIAL_FIXTURE_SNAPSHOT = resolveInitialFixtureSnapshot();
 
 function buildFallbackNotifications(): NotificationSummary[] {
   return [
@@ -209,23 +271,48 @@ const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
 };
 
 function App() {
-  const [providers, setProviders] = useState<ProviderSummary[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [secrets, setSecrets] = useState<SecretMetadata[]>([]);
-  const [telemetryMetrics, setTelemetryMetrics] = useState<TelemetryMetrics | null>(null);
-  const [telemetryHeatmap, setTelemetryHeatmap] = useState<TelemetryHeatmapBucket[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const fixtureSnapshot = INITIAL_FIXTURE_SNAPSHOT;
+  const hasFixtureBootstrap = fixtureSnapshot !== null;
+  const initialNotificationState = useMemo(
+    () => buildInitialNotificationState(fixtureSnapshot),
+    [fixtureSnapshot],
+  );
+
+  const [providers, setProviders] = useState<ProviderSummary[]>(
+    () => fixtureSnapshot?.providers ?? [],
+  );
+  const [sessions, setSessions] = useState<Session[]>(() => {
+    const snapshotSessions = fixtureSnapshot?.sessions ?? [];
+    return snapshotSessions
+      .slice()
+      .sort(
+        (a: Session, b: Session) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+  });
+  const [secrets, setSecrets] = useState<SecretMetadata[]>(() => fixtureSnapshot?.secrets ?? []);
+  const [telemetryMetrics, setTelemetryMetrics] = useState<TelemetryMetrics | null>(
+    () => fixtureSnapshot?.telemetryMetrics ?? null,
+  );
+  const [telemetryHeatmap, setTelemetryHeatmap] = useState<TelemetryHeatmapBucket[]>(
+    () => fixtureSnapshot?.telemetryHeatmap ?? [],
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(() => !hasFixtureBootstrap);
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ViewId>('dashboard');
   const [isPaletteOpen, setPaletteOpen] = useState(false);
-  const [, setNotificationReadState] = useState<Record<string, boolean>>(() =>
-    loadNotificationReadState(),
+  const [, setNotificationReadState] = useState<Record<string, boolean>>(
+    () => initialNotificationState.readState,
   );
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(
+    () => initialNotificationState.items,
+  );
   const [isNotificationOpen, setNotificationOpen] = useState(false);
-  const [complianceSummary, setComplianceSummary] = useState<PolicyComplianceSummary | null>(null);
+  const [complianceSummary, setComplianceSummary] = useState<PolicyComplianceSummary | null>(
+    () => fixtureSnapshot?.compliance ?? null,
+  );
   const [pendingProvider, setPendingProvider] = useState<ProviderSummary | null>(null);
   const [isProvisionDialogOpen, setProvisionDialogOpen] = useState(false);
   const [isProvisionSubmitting, setProvisionSubmitting] = useState(false);
@@ -270,7 +357,9 @@ function App() {
 
     async function bootstrap() {
       try {
-        setIsLoading(true);
+        if (!hasFixtureBootstrap) {
+          setIsLoading(true);
+        }
         const now = new Date();
         const metricsStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const heatmapStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
@@ -380,7 +469,7 @@ function App() {
     void bootstrap();
 
     return () => controller.abort();
-  }, [applyNotifications]);
+  }, [applyNotifications, hasFixtureBootstrap]);
 
   const handleProvisionRequest = useCallback((provider: ProviderSummary) => {
     setPendingProvider(provider);
