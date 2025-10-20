@@ -1,0 +1,140 @@
+{
+  "policies": {
+    "confidence": {
+      "approval": 0.82,
+      "rejection": 0.18
+    }
+  },
+  "routing": {
+    "max_iters": 4,
+    "max_attempts": 2,
+    "request_timeout_seconds": 30,
+    "total_timeout_seconds": 120,
+    "default_tier": "balanced",
+    "allowed_tiers": ["economy", "balanced", "turbo"],
+    "fallback_tier": "economy",
+    "intents": [
+      {
+        "intent": "churn-playbook",
+        "description": "Playbook de retenção com prompts compostos.",
+        "tags": ["sales", "retention"],
+        "default_tier": "balanced",
+        "fallback_provider_id": "claude"
+      },
+      {
+        "intent": "code-generation",
+        "description": "Assistente de refatoração com geração de patches.",
+        "tags": ["devex"],
+        "default_tier": "turbo",
+        "fallback_provider_id": "codex"
+      }
+    ],
+    "rules": [
+      {
+        "id": "rule-high-priority",
+        "description": "Desvia intent churn quando turbo estiver degradado.",
+        "intent": "churn-playbook",
+        "matcher": "latency_ms > 900",
+        "target_tier": "economy",
+        "provider_id": "codex",
+        "weight": 1
+      }
+    ]
+  },
+  "finops": {
+    "cost_center": "finops-core",
+    "budgets": [
+      {
+        "tier": "economy",
+        "amount": 1200,
+        "currency": "USD",
+        "period": "monthly",
+        "adaptive": {
+          "enabled": true,
+          "target_utilization": 0.78,
+          "lookback_days": 30,
+          "max_increase_pct": 0.25,
+          "max_decrease_pct": 0.2,
+          "cost_weight": 0.6,
+          "latency_weight": 0.4,
+          "latency_threshold_ms": 900,
+          "min_amount": 800,
+          "max_amount": 1500
+        }
+      },
+      {
+        "tier": "balanced",
+        "amount": 3400,
+        "currency": "USD",
+        "period": "monthly"
+      },
+      {
+        "tier": "turbo",
+        "amount": 4200,
+        "currency": "USD",
+        "period": "monthly"
+      }
+    ],
+    "alerts": [
+      { "threshold": 0.75, "channel": "slack" },
+      { "threshold": 0.9, "channel": "email" }
+    ],
+    "ab_history": [
+      {
+        "id": "ab-finops-2025w09",
+        "lane": "balanced",
+        "started_at": "2025-02-24T12:00:00Z",
+        "completed_at": "2025-03-01T16:30:00Z",
+        "summary": "Testou cache agressivo vs baseline.",
+        "variants": [
+          {
+            "name": "baseline",
+            "traffic_percentage": 50,
+            "cost_per_request": 0.012,
+            "latency_p95_ms": 820,
+            "is_winner": false
+          },
+          {
+            "name": "cache-boost",
+            "traffic_percentage": 50,
+            "cost_per_request": 0.009,
+            "latency_p95_ms": 840,
+            "is_winner": true
+          }
+        ]
+      }
+    ],
+    "cache": { "ttl_seconds": 900 },
+    "rate_limit": { "requests_per_minute": 240 },
+    "graceful_degradation": {
+      "strategy": "fallback",
+      "message": "Habilitar rotas economy quando turbo degradar."
+    }
+  },
+  "hitl": {
+    "enabled": true,
+    "checkpoints": [
+      {
+        "name": "critical-incidents",
+        "description": "Aprovação humana para alterações críticas.",
+        "required": true,
+        "escalation_channel": "pagerduty"
+      }
+    ],
+    "pending_approvals": 1,
+    "updated_at": "2025-03-06T15:20:00Z"
+  },
+  "runtime": {
+    "max_iters": 4,
+    "timeouts": { "per_iteration": 45, "total": 180 },
+    "retry": {
+      "max_attempts": 3,
+      "initial_delay": 1,
+      "backoff_factor": 2,
+      "max_delay": 6
+    },
+    "tracing": { "enabled": true, "sample_rate": 0.25, "exporter": "otlp" }
+  },
+  "overrides": null,
+  "updated_at": "2025-03-07T09:30:00Z"
+}

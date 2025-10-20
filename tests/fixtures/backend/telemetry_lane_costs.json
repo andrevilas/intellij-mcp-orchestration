@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "lane": "economy",
+      "run_count": 24,
+      "total_cost_usd": 84.12,
+      "total_tokens_in": 1820000,
+      "total_tokens_out": 940000,
+      "avg_latency_ms": 1040
+    },
+    {
+      "lane": "balanced",
+      "run_count": 36,
+      "total_cost_usd": 112.67,
+      "total_tokens_in": 2440000,
+      "total_tokens_out": 1480000,
+      "avg_latency_ms": 890
+    },
+    {
+      "lane": "turbo",
+      "run_count": 28,
+      "total_cost_usd": 144.21,
+      "total_tokens_in": 1985000,
+      "total_tokens_out": 1284000,
+      "avg_latency_ms": 720
+    }
+  ]
+}

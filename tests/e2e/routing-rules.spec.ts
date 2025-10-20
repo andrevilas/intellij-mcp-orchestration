@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('gera e aplica plano de roteamento com intents customizadas', async ({ page }) => {
   const providersResponse = {

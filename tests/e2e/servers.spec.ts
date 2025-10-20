@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('permite editar e remover servidores MCP via interface', async ({ page }) => {
   const provider = {

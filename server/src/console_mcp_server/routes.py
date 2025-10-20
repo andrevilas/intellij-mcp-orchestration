@@ -3855,7 +3855,12 @@ def create_session(provider_id: str, payload: SessionCreateRequest | None = None
 def list_sessions() -> SessionsResponse:
     """Return all in-memory sessions provisioned during the process lifetime."""
 
-    return SessionsResponse(sessions=session_registry.list())
+    sessions = session_registry.list()
+    if not sessions:
+        fixture = load_response_fixture(SessionsResponse, "sessions")
+        if fixture is not None:
+            return fixture
+    return SessionsResponse(sessions=sessions)
 
 
 @router.get("/secrets", response_model=SecretsResponse)
@@ -3939,6 +3944,10 @@ def list_mcp_servers() -> MCPServersResponse:
     """Return the MCP servers registered with the console."""
 
     records = [MCPServerResponse(**record.to_dict()) for record in list_servers()]
+    if not records:
+        fixture = load_response_fixture(MCPServersResponse, "servers")
+        if fixture is not None:
+            return fixture
     return MCPServersResponse(servers=records)
 
 
@@ -3947,6 +3956,10 @@ def list_server_processes() -> ServerProcessesResponse:
     """Return snapshots for all supervised MCP server processes."""
 
     snapshots = process_supervisor.list()
+    if not snapshots:
+        fixture = load_response_fixture(ServerProcessesResponse, "server_processes")
+        if fixture is not None:
+            return fixture
     return ServerProcessesResponse(
         processes=[_process_state_from_snapshot(snapshot) for snapshot in snapshots]
     )
@@ -4147,6 +4160,25 @@ def read_server_process_logs(
 
     entries = process_supervisor.logs(server_id, cursor=numeric_cursor)
     if not entries:
+        fixture = load_response_fixture(ServerProcessesResponse, "server_processes")
+        if fixture is not None:
+            process = next(
+                (proc for proc in fixture.processes if proc.server_id == server_id),
+                None,
+            )
+            if process is not None:
+                return ServerProcessLogsResponse(
+                    logs=[
+                        ServerProcessLogEntry(
+                            id=log.id,
+                            timestamp=log.timestamp,
+                            level=log.level,
+                            message=log.message,
+                        )
+                        for log in process.logs
+                    ],
+                    cursor=process.cursor,
+                )
         return ServerProcessLogsResponse(logs=[], cursor=cursor)
 
     serialized = [_serialize_log(entry) for entry in entries]
@@ -4304,6 +4336,11 @@ def read_notifications() -> NotificationsResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+
+    if not notifications:
+        fixture = load_response_fixture(NotificationsResponse, "notifications")
+        if fixture is not None:
+            return fixture
 
     return NotificationsResponse(
         notifications=[

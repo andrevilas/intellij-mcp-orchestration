@@ -41,5 +41,10 @@
   "engines": {
     "node": ">=18.18.0",
     "pnpm": ">=10.5.2"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

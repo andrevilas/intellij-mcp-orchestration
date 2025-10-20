@@ -1,0 +1,31 @@
+{
+  "notifications": [
+    {
+      "id": "notif-routing-latency",
+      "severity": "warning",
+      "title": "Routing turbo degradado",
+      "message": "O lane turbo apresentou latência p95 acima de 900ms nas últimas execuções.",
+      "timestamp": "2025-03-07T09:05:00Z",
+      "category": "operations",
+      "tags": ["routing", "latency"]
+    },
+    {
+      "id": "notif-finops-budget",
+      "severity": "critical",
+      "title": "FinOps — orçamento turbo",
+      "message": "Consumo projetado excederá 92% do orçamento turbo em 48h.",
+      "timestamp": "2025-03-07T08:55:00Z",
+      "category": "finops",
+      "tags": ["finops", "budget"]
+    },
+    {
+      "id": "notif-servers-restart",
+      "severity": "info",
+      "title": "Codex reiniciado",
+      "message": "O processo codex foi reiniciado automaticamente após falha de health check.",
+      "timestamp": "2025-03-07T08:45:00Z",
+      "category": "operations",
+      "tags": ["servers", "codex"]
+    }
+  ]
+}

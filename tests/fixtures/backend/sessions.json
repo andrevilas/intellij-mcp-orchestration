@@ -1,0 +1,28 @@
+{
+  "sessions": [
+    {
+      "id": "session-gemini-7421",
+      "provider_id": "gemini",
+      "created_at": "2025-03-07T09:20:00Z",
+      "status": "success",
+      "reason": null,
+      "client": "console-web"
+    },
+    {
+      "id": "session-codex-1910",
+      "provider_id": "codex",
+      "created_at": "2025-03-07T09:18:00Z",
+      "status": "error",
+      "reason": "Process exited after repeated health check failures.",
+      "client": "console-web"
+    },
+    {
+      "id": "session-claude-2550",
+      "provider_id": "claude",
+      "created_at": "2025-03-07T09:15:00Z",
+      "status": "success",
+      "reason": null,
+      "client": "console-web"
+    }
+  ]
+}

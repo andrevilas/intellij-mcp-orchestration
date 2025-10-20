@@ -1,0 +1,30 @@
+{
+  "status": "pass",
+  "updated_at": "2025-03-07T09:00:00Z",
+  "items": [
+    {
+      "id": "logging",
+      "label": "Logging centralizado",
+      "description": "Exportação OTLP configurada via observabilidade.",
+      "required": true,
+      "configured": true,
+      "active": true
+    },
+    {
+      "id": "hitl",
+      "label": "Revisão humana",
+      "description": "Fluxo HITL ativo para intents críticas.",
+      "required": true,
+      "configured": true,
+      "active": true
+    },
+    {
+      "id": "pii",
+      "label": "Anonimização PII",
+      "description": "Filtros de PII aplicados antes da ingestão.",
+      "required": false,
+      "configured": false,
+      "active": false
+    }
+  ]
+}

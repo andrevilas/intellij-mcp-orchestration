@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect } from '@playwright/test';
+import { expect, test } from './fixtures';
 import type { default as TelemetryMetricsFixture } from '../fixtures/backend/telemetry_metrics.json';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
