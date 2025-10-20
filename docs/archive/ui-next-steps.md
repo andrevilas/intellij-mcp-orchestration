@@ -2,6 +2,11 @@
 **Última atualização:** 2025-10-15 08:29
 **Objetivo:** acelerar o time-to-value da UI com **Bootstrap 5 (SCSS seletivo)** + **Font Awesome** e **suporte completo a temas (Light/Dark)**, garantindo **a11y AA**, **performance ≥90** e **consistência visual**.
 
+## Governança e follow-up
+- Registre cada ID concluído atualizando os checklists deste arquivo e do `next-steps.md`, mantendo a sincronização entre roadmap macro e detalhado.
+- Publique as evidências correspondentes em `/docs/evidence/<ID>/` (prints, gravações, relatórios técnicos, etc.).
+- Sempre que uma sprint UI for desbloqueada, reavalie `docs/audit-ui-m1-m6.md` e documente novos riscos ou pendências.
+
 ## Premissas de implementação
 - Sem Tailwind/shadcn nesta camada (evitar conflito de design systems).
 - Importar **somente** módulos SCSS do Bootstrap que serão usados.
