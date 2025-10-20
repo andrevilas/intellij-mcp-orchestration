@@ -17,14 +17,15 @@
 ## Status auditado (2025-10-18)
 - [x] **TASK-UI-SH-010** · Shell auditado com `skip-link`, atalhos (`⌘K`/`⇧⌘N`) e roving tabindex; ainda requer mocks para dados dinâmicos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **TASK-UI-NAV-011** · Breadcrumbs + Pagination ativos, tokens documentados e foco visível nas interações (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **TASK-UI-ACT-020** · Catálogo de botões revisado com variantes MCP e toolbar segmentada (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-ACT-020** · Catálogo de botões revisado com variantes MCP e toolbar segmentada (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
 - [x] **TASK-UI-ACT-021** · Dropdowns/tooltips com foco gerenciado, ESC e delays configuráveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **TASK-UI-FB-022** · Alerts/toasts alinhados aos tokens e anúncios ARIA (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **TASK-UI-MOD-023** · Modais confirm/form com trap de foco e double confirm (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **UI-ACT-005** · Toggle de fixtures habilitado liberando sprint M5 em modo offline, com vitest e playwright ajustados para aguardar MSW.【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
 - [ ] **TASK-UI-DATA-030** · Cards KPI/lista/detalhe incompletos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-031** · Tabela + EmptyState sem comportamento esperado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-032** · Badges/progress não padronizados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **TASK-UI-FORM-040** · Controles de formulário migrados para camada MCP (`docs/forms/README.md`).
+- [x] **TASK-UI-FORM-040** · Controles de formulário migrados para camada MCP (`docs/forms/README.md`).【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
 - [ ] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-PG-070** · Dashboard sem fluxos funcionais; smoke Playwright ainda falha com cards ausentes.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L11】
@@ -33,7 +34,19 @@
 - [ ] **TASK-UI-PG-073** · Policies não aplicam templates/rollback; suite não encontra heading esperado.【F:docs/evidence/TASK-UI-PG-070/README.md†L14-L14】
 - [ ] **TASK-UI-PG-074** · Routing Lab incompleto; selects não aceitam fallback e mensagem de erro não surge.【F:docs/evidence/TASK-UI-PG-070/README.md†L15-L15】
 - [ ] **TASK-UI-PG-075** · FinOps sem gráficos exportáveis; link "FinOps" trava no clique inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L13-L13】
-- [x] **TASK-UI-OBS-082** · UI Kit vivo ativo com snippets, métricas publicadas em `/docs/evidence/TASK-UI-OBS-082/`.
+- [x] **TASK-UI-OBS-082** · UI Kit vivo ativo com snippets, métricas publicadas em `/docs/evidence/TASK-UI-OBS-082/`.【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
+
+## Auditoria Final UI — 2025-10-20
+- `pnpm -r dev` inicializa o shell Vite e permanece em execução até ser encerrado manualmente, confirmando que o toolkit React continua pronto para desenvolvimento local.【2b58dd†L1-L5】
+- Fixtures ativados (`UI-ACT-005`) e backend simulador entregam respostas de FinOps/Routing consistentes, mas o export CSV segue sem eventos — apenas cabeçalho — até que a base SQLite receba ingestão real ou fixtures atualizados.【F:docs/evidence/UI-ACT-005/README.md†L1-L17】【d2ef4c†L1-L17】【a7a14c†L1-L3】
+- Fluxos das páginas core permanecem bloqueados: smoke Playwright reprova cards do Dashboard, navegação FinOps congela e policies não renderizam heading crítico.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+- Mantemos recomendação **No-Go** para UI até restabelecer dados de telemetria e fechar as lacunas da sprint M5/M6 (vide atualização em `docs/audit-ui-m1-m6.md`).【F:docs/audit-ui-m1-m6.md†L1-L200】
+
+## Plano UI — Próximo ciclo (handover)
+1. Completar componentes de dados (TASK-UI-DATA-030..032) e estabilizar smoke Playwright das páginas core antes de retestar FinOps e Policies.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+2. Restaurar ingestão ou fixtures de telemetria para que `GET /telemetry/finops/*` e o export CSV entreguem séries completas — pré-requisito para gráficos e drill-down da sprint M5.【d2ef4c†L1-L17】【a7a14c†L1-L3】【c6d23f†L1-L17】
+3. Automatizar no CI os checks de boot (`pnpm -r dev`), healthz e simulador para evitar regressões silenciosas em ambientes sem backend real.【2b58dd†L1-L5】【6e0762†L1-L20】
+4. Documentar claramente no runbook quando ativar `CONSOLE_MCP_USE_FIXTURES` vs. backend real, garantindo que QA siga o mesmo fluxo de toggles descrito em `UI-ACT-005`.【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
 
 ---
 
