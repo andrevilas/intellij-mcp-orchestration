@@ -51,6 +51,7 @@ import {
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PlanSummary from './AdminChat/PlanSummary';
+import { useToastNotification } from '../hooks/useToastNotification';
 
 export interface FinOpsProps {
   providers: ProviderSummary[];
@@ -836,6 +837,82 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [costCenterError, setCostCenterError] = useState<string | null>(null);
 
   const isFormDisabled = isManifestLoading || isPlanGenerating || isPlanApplying;
+
+  useToastNotification(initialError, {
+    id: 'finops-initial-error',
+    title: 'Falha ao carregar FinOps',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(manifestError, {
+    id: 'finops-manifest-error',
+    title: 'Manifesto FinOps',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(planError, {
+    id: 'finops-plan-error',
+    title: 'Plano FinOps',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  const planStatusVariant = planStatusMessage
+    ? planStatusMessage.toLowerCase().includes('descartado')
+      ? 'warning'
+      : 'success'
+    : 'info';
+
+  useToastNotification(planStatusMessage, {
+    id: 'finops-plan-status',
+    title: 'Plano FinOps',
+    variant: planStatusVariant,
+  });
+
+  useToastNotification(timeseriesError, {
+    id: 'finops-timeseries-error',
+    title: 'Telemetria FinOps',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(sprintReportsError, {
+    id: 'finops-sprint-error',
+    title: 'Relatórios de sprint',
+    variant: 'warning',
+  });
+
+  useToastNotification(pullRequestReportsError, {
+    id: 'finops-pr-error',
+    title: 'Relatórios de PR',
+    variant: 'warning',
+  });
+
+  useToastNotification(drilldownError, {
+    id: 'finops-drilldown-error',
+    title: 'Drill-down de execuções',
+    variant: 'warning',
+  });
+
+  useToastNotification(experimentError, {
+    id: 'finops-experiments-error',
+    title: 'Experimentos A/B',
+    variant: 'warning',
+  });
+
+  useToastNotification(laneCostError, {
+    id: 'finops-lane-error',
+    title: 'Custos por tier',
+    variant: 'warning',
+  });
+
+  useToastNotification(marketplaceError, {
+    id: 'finops-marketplace-error',
+    title: 'Marketplace',
+    variant: 'warning',
+  });
 
   const resetPendingPlan = useCallback(() => {
     setPendingPlan(null);

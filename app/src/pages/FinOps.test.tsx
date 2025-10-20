@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import FinOps from './FinOps';
@@ -24,6 +24,8 @@ import {
   patchConfigPoliciesPlan,
   postPolicyPlanApply,
 } from '../api';
+import { ThemeProvider } from '../theme/ThemeContext';
+import { ToastProvider } from '../components/feedback/ToastProvider';
 
 type ApiModule = typeof import('../api');
 
@@ -235,7 +237,13 @@ describe('FinOps page planning workflow', () => {
   });
 
   it('gera e aplica plano FinOps com TTL e rate limit', async () => {
-    render(<FinOps providers={providers} isLoading={false} initialError={null} />);
+    render(
+      <ThemeProvider>
+        <ToastProvider>
+          <FinOps providers={providers} isLoading={false} initialError={null} />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
 
     await waitFor(() => expect(fetchManifestMock).toHaveBeenCalled());
 
@@ -261,7 +269,12 @@ describe('FinOps page planning workflow', () => {
     await userEvent.click(applyButton);
 
     await waitFor(() => expect(applyPlanMock).toHaveBeenCalled());
-    expect(await screen.findByText(/Plano aplicado com sucesso/)).toBeInTheDocument();
+    const policyHeading = screen.getByRole('heading', { name: 'Budgets e alertas determinísticos' });
+    const policySection = policyHeading.closest('section');
+    expect(policySection).not.toBeNull();
+    if (policySection) {
+      expect(within(policySection).getByText(/Plano aplicado com sucesso/)).toBeInTheDocument();
+    }
     expect(screen.getByText('Aplicado')).toBeInTheDocument();
   });
 });
