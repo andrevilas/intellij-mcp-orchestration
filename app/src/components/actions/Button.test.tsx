@@ -14,8 +14,8 @@ describe('Button', () => {
   it('suporta variantes e tamanhos customizados', () => {
     render(
       <>
-        <Button variant="ghost" size="sm">
-          Ghost
+        <Button variant="secondary" size="sm">
+          Secundário compacto
         </Button>
         <Button variant="outline">Outline</Button>
         <Button variant="link" icon={<span data-testid="icon" />}>
@@ -23,13 +23,14 @@ describe('Button', () => {
         </Button>
       </>,
     );
-    expect(screen.getByRole('button', { name: 'Ghost' })).toHaveClass(
-      'mcp-button--ghost',
+    expect(screen.getByRole('button', { name: 'Secundário compacto' })).toHaveClass(
+      'mcp-button--secondary',
       'mcp-button--sm',
     );
     expect(screen.getByRole('button', { name: 'Outline' })).toHaveClass('mcp-button--outline');
     const linkButton = screen.getByRole('button', { name: 'Link' });
     expect(linkButton).toHaveClass('mcp-button--link');
+    expect(linkButton).toHaveAttribute('data-variant', 'link');
     expect(within(linkButton).getByTestId('icon')).toBeInTheDocument();
   });
 

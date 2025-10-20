@@ -77,7 +77,7 @@ export default function ConfirmationModal({
       footer={
         <>
           <div className="mcp-modal__actions">
-            <Button variant="ghost" onClick={handleCancel}>
+            <Button variant="outline" onClick={handleCancel}>
               {cancelLabel}
             </Button>
             <Button

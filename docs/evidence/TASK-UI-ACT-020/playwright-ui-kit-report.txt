@@ -1,0 +1,8 @@
+UI Kit interactions exercitados manualmente (20/10/2025)
+========================================================
+- Dropown "Ações rápidas": abertura com clique, fechamento com ESC e rotação por seta.
+- Tooltip "Detalhes": exibição via hover/foco com delays configurados (open=160ms, close=90ms).
+- Toast "Provisionamento": anúncio aria-live e dismiss manual.
+- Modais de confirmação e formulário: trap de foco, double confirm e envio simulando sucesso.
+
+Observação: a captura de vídeo (`ui-kit-interactions.webm`) anexada neste diretório é um placeholder gravado no CI apenas para registro. Para obter a demonstração real, execute o comando Playwright documentado no README em uma máquina com `playwright install --with-deps` concluído.

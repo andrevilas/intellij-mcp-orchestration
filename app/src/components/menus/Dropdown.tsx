@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
@@ -44,6 +45,7 @@ export default function Dropdown({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const pendingFocus = useRef<'first' | 'last' | null>(null);
 
   const focusOption = useCallback((index: number) => {
     const target = optionRefs.current[index];
@@ -57,8 +59,13 @@ export default function Dropdown({
       return;
     }
 
-    const firstEnabled = options.findIndex((option) => !option.disabled);
-    const initialIndex = firstEnabled === -1 ? 0 : firstEnabled;
+    const enabled = options
+      .map((option, index) => ({ option, index }))
+      .filter(({ option }) => !option.disabled);
+    const firstEnabled = enabled[0]?.index ?? 0;
+    const lastEnabled = enabled[enabled.length - 1]?.index ?? firstEnabled;
+    const initialIndex = pendingFocus.current === 'last' ? lastEnabled : firstEnabled;
+    pendingFocus.current = null;
     focusOption(initialIndex);
 
     function handleGlobalClick(event: MouseEvent) {
@@ -88,12 +95,30 @@ export default function Dropdown({
       }
     }
 
+    function handleFocusOut(event: FocusEvent) {
+      const menu = menuRef.current;
+      const trigger = triggerRef.current;
+      if (!menu || !trigger) {
+        return;
+      }
+      const related = event.relatedTarget as Node | null;
+      if (related && (menu.contains(related) || trigger.contains(related))) {
+        return;
+      }
+      setOpen(false);
+      requestAnimationFrame(() => {
+        triggerRef.current?.focus({ preventScroll: true });
+      });
+    }
+
     document.addEventListener('mousedown', handleGlobalClick);
     window.addEventListener('keydown', handleGlobalKeyDown as unknown as EventListener);
+    menuRef.current?.addEventListener('focusout', handleFocusOut);
 
     return () => {
       document.removeEventListener('mousedown', handleGlobalClick);
       window.removeEventListener('keydown', handleGlobalKeyDown as unknown as EventListener);
+      menuRef.current?.removeEventListener('focusout', handleFocusOut);
     };
   }, [focusOption, isOpen, options]);
 
@@ -150,8 +175,9 @@ export default function Dropdown({
 
   const handleTriggerKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
-      if (event.key === 'ArrowDown') {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
+        pendingFocus.current = event.key === 'ArrowUp' ? 'last' : 'first';
         setOpen(true);
       }
     },
@@ -182,6 +208,7 @@ export default function Dropdown({
           className={clsx('mcp-dropdown__option', option.disabled && 'mcp-dropdown__option--disabled')}
           onClick={() => handleOptionClick(option)}
           disabled={option.disabled}
+          aria-disabled={option.disabled || undefined}
           ref={(element) => {
             optionRefs.current[index] = element;
           }}
@@ -195,6 +222,10 @@ export default function Dropdown({
       )),
     [handleOptionClick, options],
   );
+
+  useEffect(() => {
+    optionRefs.current.length = options.length;
+  }, [options.length]);
 
   return (
     <div className={clsx('mcp-dropdown', className)} data-open={isOpen}>
@@ -223,7 +254,7 @@ export default function Dropdown({
         >
           {renderedOptions.length > 0 ? renderedOptions : (
             <Fragment>
-              <span className="mcp-dropdown__empty" role="status">
+              <span className="mcp-dropdown__empty" role="status" aria-live="polite">
                 Nenhuma ação disponível
               </span>
             </Fragment>

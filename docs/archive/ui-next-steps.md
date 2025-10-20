@@ -17,10 +17,10 @@
 ## Status auditado (2025-10-18)
 - [x] **TASK-UI-SH-010** · Shell auditado com `skip-link`, atalhos (`⌘K`/`⇧⌘N`) e roving tabindex; ainda requer mocks para dados dinâmicos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **TASK-UI-NAV-011** · Breadcrumbs + Pagination ativos, tokens documentados e foco visível nas interações (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-ACT-020** · Catálogo de botões/instrumentos incompleto (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-ACT-021** · Dropdowns/tooltips sem cobertura (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-FB-022** · Alerts/toasts inconsistentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-MOD-023** · Modais críticos não presentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-ACT-020** · Catálogo de botões revisado com variantes MCP e toolbar segmentada (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-ACT-021** · Dropdowns/tooltips com foco gerenciado, ESC e delays configuráveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-FB-022** · Alerts/toasts alinhados aos tokens e anúncios ARIA (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-MOD-023** · Modais confirm/form com trap de foco e double confirm (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-030** · Cards KPI/lista/detalhe incompletos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-031** · Tabela + EmptyState sem comportamento esperado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-032** · Badges/progress não padronizados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).

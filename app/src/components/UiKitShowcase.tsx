@@ -58,6 +58,7 @@ export default function UiKitShowcase(): JSX.Element {
         id: 'run',
         icon: <FontAwesomeIcon icon="play" fixedWidth aria-hidden="true" />,
         label: 'Executar blueprint',
+        variant: 'primary' as const,
         onClick: () =>
           pushToast({
             title: 'Execução iniciada',
@@ -69,6 +70,7 @@ export default function UiKitShowcase(): JSX.Element {
         id: 'restart',
         icon: <FontAwesomeIcon icon="rotate-right" fixedWidth aria-hidden="true" />,
         label: 'Reexecutar última etapa',
+        variant: 'secondary' as const,
         onClick: () =>
           pushToast({
             title: 'Reprocessamento agendado',
@@ -122,11 +124,11 @@ export default function UiKitShowcase(): JSX.Element {
         <div className="ui-kit-showcase__row">
           <Button variant="primary">Primário</Button>
           <Button variant="secondary">Secundário</Button>
+          <Button variant="danger">Crítico</Button>
           <Button variant="outline">Outline</Button>
-          <Button variant="ghost">Fantasma</Button>
           <Button variant="link">Link</Button>
-          <Button variant="danger" loading>
-            Remover
+          <Button variant="primary" loading>
+            Sincronizando
           </Button>
           <Button
             variant="secondary"
@@ -137,8 +139,8 @@ export default function UiKitShowcase(): JSX.Element {
           </Button>
         </div>
         <p className="ui-kit-showcase__note">
-          Estados de <strong>loading</strong> e <strong>disabled</strong> bloqueiam o clique e mantêm o anel de foco via
-          tokens MCP.
+          Variantes utilizam tokens dedicados (<code>--mcp-action-*</code>) para luz e tema escuro; estados de
+          <strong> loading</strong> e <strong>disabled</strong> preservam foco acessível.
         </p>
         <div className="ui-kit-showcase__toolbar" role="presentation">
           <ButtonGroup segmented label="Rotinas de execução">
@@ -160,13 +162,13 @@ export default function UiKitShowcase(): JSX.Element {
         <span className="ui-kit-showcase__label">Menus</span>
         <div className="ui-kit-showcase__row">
           <Dropdown label="Ações rápidas" options={dropdownOptions} />
-          <Tooltip content="Executa fluxo automatizado" placement="bottom">
-            <Button variant="ghost">Detalhes</Button>
+          <Tooltip content="Executa fluxo automatizado" placement="bottom" delay={{ open: 160, close: 90 }}>
+            <Button variant="outline">Detalhes</Button>
           </Tooltip>
         </div>
         <p className="ui-kit-showcase__note">
           Dropdowns e tooltips compartilham tokens de overlay (<code>--mcp-z-dropdown</code> &lt; <code>--mcp-z-tooltip</code>)
-          e prendem foco via teclado.
+          e prendem foco via teclado, com fechamento via <kbd>ESC</kbd> e delays configuráveis.
         </p>
       </div>
 
@@ -178,19 +180,19 @@ export default function UiKitShowcase(): JSX.Element {
               title="Execução em andamento"
               description="O runbook noturno está sendo executado com 3 etapas restantes."
               action={
-                <Button size="sm" variant="ghost" onClick={() => setAlertVisible(false)}>
+                <Button size="sm" variant="outline" onClick={() => setAlertVisible(false)}>
                   Dispensar
                 </Button>
               }
             />
           ) : (
-            <Button size="sm" variant="ghost" onClick={() => setAlertVisible(true)}>
+            <Button size="sm" variant="outline" onClick={() => setAlertVisible(true)}>
               Reexibir alerta
             </Button>
           )}
         </div>
         <p className="ui-kit-showcase__note">
-          Toasts respeitam <code>--mcp-z-toast</code> e herdam o tema atual, garantindo contraste no dark mode.
+          Toasts respeitam <code>--mcp-z-toast</code>, anunciam via <code>aria-live</code> e herdam o tema atual para contraste.
         </p>
       </div>
 

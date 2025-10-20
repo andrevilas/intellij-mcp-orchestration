@@ -8,7 +8,7 @@ describe('Tooltip', () => {
   it('associa aria-describedby ao elemento alvo', async () => {
     const user = userEvent.setup();
     render(
-      <Tooltip content="Informações complementares">
+      <Tooltip content="Informações complementares" delay={{ open: 0, close: 0 }}>
         <button type="button">Ajuda</button>
       </Tooltip>,
     );
@@ -22,7 +22,7 @@ describe('Tooltip', () => {
   it('esconde tooltip ao perder foco ou pressionar ESC', async () => {
     const user = userEvent.setup();
     render(
-      <Tooltip content="Atalho: ⌘K">
+      <Tooltip content="Atalho: ⌘K" delay={{ open: 0, close: 0 }}>
         <button type="button">Paleta</button>
       </Tooltip>,
     );

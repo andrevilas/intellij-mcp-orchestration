@@ -13,8 +13,8 @@
   gap: 0;
   border-radius: 0.75rem;
   overflow: hidden;
-  background: color-mix(in srgb, var(--mcp-surface-subtle) 70%, transparent 30%);
-  border: 1px solid color-mix(in srgb, var(--mcp-border-strong) 85%, transparent 15%);
+  background: var(--mcp-action-toolbar-bg);
+  border: 1px solid var(--mcp-action-toolbar-border);
 }
 
 .mcp-button-group--segmented > .mcp-button,
@@ -40,6 +40,3 @@
   border-top: 1px solid color-mix(in srgb, var(--mcp-border-strong) 75%, transparent 25%);
 }
 
-[data-theme='dark'] .mcp-button-group--segmented {
-  background: color-mix(in srgb, var(--mcp-surface-subtle) 40%, transparent 60%);
-}
