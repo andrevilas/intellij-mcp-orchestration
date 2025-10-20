@@ -8,7 +8,12 @@ from typing import Iterable, Mapping, MutableMapping, TYPE_CHECKING
 from .bandit import BanditStrategy, compute_lane_bandit_weights
 
 from ..prices import list_price_entries
-from ..schemas import ProviderSummary
+from ..schemas import (
+    ProviderSummary,
+    RoutingDistributionEntry,
+    RoutingRouteProfile,
+    RoutingSimulationResponse,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - type checking helper
     from ..prices import PriceEntryRecord
@@ -272,3 +277,58 @@ def compute_plan(
         distribution=tuple(distribution),
         excluded_route=excluded,
     )
+
+
+def _route_profile_to_schema(route: RouteProfile) -> RoutingRouteProfile:
+    return RoutingRouteProfile(
+        id=route.id,
+        provider=route.provider,
+        lane=route.lane,
+        cost_per_million=route.cost_per_million,
+        latency_p95=route.latency_p95,
+        reliability=route.reliability,
+        capacity_score=route.capacity_score,
+    )
+
+
+def render_plan_result(plan: PlanResult) -> RoutingSimulationResponse:
+    """Convert a computed plan into the API response schema."""
+
+    distribution = [
+        RoutingDistributionEntry(
+            route=_route_profile_to_schema(entry.route),
+            share=entry.share,
+            tokens_millions=entry.tokens_millions,
+            cost=entry.cost,
+        )
+        for entry in plan.distribution
+    ]
+
+    excluded = (
+        _route_profile_to_schema(plan.excluded_route)
+        if plan.excluded_route is not None
+        else None
+    )
+
+    return RoutingSimulationResponse(
+        total_cost=plan.total_cost,
+        cost_per_million=plan.cost_per_million,
+        avg_latency=plan.avg_latency,
+        reliability_score=plan.reliability_score,
+        distribution=distribution,
+        excluded_route=excluded,
+    )
+
+
+def build_simulation_response(
+    providers: Iterable[ProviderSummary],
+    *,
+    strategy_id: str,
+    failover_id: str | None,
+    volume_millions: float,
+) -> RoutingSimulationResponse:
+    """Execute the simulator for the given providers and serialize the response."""
+
+    routes = build_routes(providers)
+    plan = compute_plan(routes, strategy_id, failover_id, volume_millions)
+    return render_plan_result(plan)

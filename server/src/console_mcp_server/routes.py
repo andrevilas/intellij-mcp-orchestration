@@ -78,7 +78,13 @@ from .prices import (
     update_price_entry,
 )
 from .registry import provider_registry, session_registry
-from .routing import DistributionEntry, RouteProfile, build_routes, compute_plan
+from .routing import (
+    DistributionEntry,
+    RouteProfile,
+    build_routes,
+    compute_plan,
+    render_plan_result,
+)
 from .fixtures import load_response_fixture
 from .config_assistant.intents import AssistantIntent
 from .config_assistant.artifacts import generate_artifact
@@ -156,8 +162,6 @@ from .schemas import (
     DiagnosticsResponse,
     PlanPullRequestDetails,
     PullRequestDetails,
-    RoutingDistributionEntry,
-    RoutingRouteProfile,
     RoutingSimulationRequest,
     RoutingSimulationResponse,
     TelemetryHeatmapBucket,
@@ -4150,27 +4154,6 @@ def read_server_process_logs(
     return ServerProcessLogsResponse(logs=serialized, cursor=latest_cursor)
 
 
-def _serialize_route(route: RouteProfile) -> RoutingRouteProfile:
-    return RoutingRouteProfile(
-        id=route.id,
-        provider=route.provider,
-        lane=route.lane,
-        cost_per_million=route.cost_per_million,
-        latency_p95=route.latency_p95,
-        reliability=route.reliability,
-        capacity_score=route.capacity_score,
-    )
-
-
-def _serialize_distribution(entry: DistributionEntry) -> RoutingDistributionEntry:
-    return RoutingDistributionEntry(
-        route=_serialize_route(entry.route),
-        share=entry.share,
-        tokens_millions=entry.tokens_millions,
-        cost=entry.cost,
-    )
-
-
 def _estimate_entry_cost(entry: "PriceEntryRecord", tokens_in: int, tokens_out: int) -> float:
     input_cost = (entry.input_cost_per_1k or 0.0) * (tokens_in / 1000.0)
     output_cost = (entry.output_cost_per_1k or 0.0) * (tokens_out / 1000.0)
@@ -4233,14 +4216,7 @@ def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResp
         if fixture is not None:
             return fixture
 
-    return RoutingSimulationResponse(
-        total_cost=plan.total_cost,
-        cost_per_million=plan.cost_per_million,
-        avg_latency=plan.avg_latency,
-        reliability_score=plan.reliability_score,
-        distribution=[_serialize_distribution(entry) for entry in plan.distribution],
-        excluded_route=_serialize_route(plan.excluded_route) if plan.excluded_route else None,
-    )
+    return render_plan_result(plan)
 
 
 @router.post("/policies/dry-run", response_model=CostDryRunResponse)
