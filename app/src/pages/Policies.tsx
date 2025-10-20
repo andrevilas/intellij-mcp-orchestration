@@ -28,6 +28,7 @@ import {
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
+import ConfirmationModal from '../components/modals/ConfirmationModal';
 
 export interface PoliciesProps {
   providers: ProviderSummary[];
@@ -817,8 +818,10 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   const selectedTemplate = templateMap.get(selectedTemplateId) ?? fallbackTemplate;
   const disableActions = isMutating || isTemplatesLoading || isHistoryLoading;
   const canRollback = Boolean(previousDeployment) && !disableActions;
+  const [policyConfirmation, setPolicyConfirmation] = useState<{ action: 'apply' | 'rollback' } | null>(null);
+  const [isPolicyConfirming, setIsPolicyConfirming] = useState(false);
 
-  async function handleApply() {
+  const executeApply = useCallback(async () => {
     if (disableActions) {
       return;
     }
@@ -831,14 +834,12 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     setIsMutating(true);
     setBanner(null);
     try {
-      const deployment = await createPolicyDeployment(
-        {
-          templateId: selectedTemplateId,
-          author: 'Console MCP',
-          window: 'Rollout monitorado',
-          note: `Rollout manual: ${selectedTemplate.name}.`,
-        },
-      );
+      const deployment = await createPolicyDeployment({
+        templateId: selectedTemplateId,
+        author: 'Console MCP',
+        window: 'Rollout monitorado',
+        note: `Rollout manual: ${selectedTemplate.name}.`,
+      });
       setDeployments((current) => [...current, deployment]);
       setActiveDeploymentId(deployment.id);
       setBanner({ kind: 'success', message: `${selectedTemplate.name} ativado para toda a frota.` });
@@ -849,9 +850,17 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     } finally {
       setIsMutating(false);
     }
-  }
+  }, [
+    disableActions,
+    activeDeployment,
+    selectedTemplateId,
+    selectedTemplate.name,
+    setBanner,
+    setDeployments,
+    setActiveDeploymentId,
+  ]);
 
-  async function handleRollback() {
+  const executeRollback = useCallback(async () => {
     if (!previousDeployment || !previousTemplate || !activeDeployment || disableActions) {
       return;
     }
@@ -871,7 +880,79 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     } finally {
       setIsMutating(false);
     }
-  }
+  }, [
+    previousDeployment,
+    previousTemplate,
+    activeDeployment,
+    disableActions,
+    setDeployments,
+    setActiveDeploymentId,
+  ]);
+
+  const handleApplyClick = useCallback(() => {
+    if (disableActions) {
+      return;
+    }
+    if (activeDeployment && selectedTemplateId === (activeDeployment.templateId as PolicyTemplateId)) {
+      setBanner({ kind: 'info', message: 'O template selecionado já está ativo na frota MCP.' });
+      return;
+    }
+    setPolicyConfirmation({ action: 'apply' });
+  }, [disableActions, activeDeployment, selectedTemplateId]);
+
+  const handleRollbackClick = useCallback(() => {
+    if (!previousDeployment || !previousTemplate || !activeDeployment || disableActions) {
+      return;
+    }
+    setPolicyConfirmation({ action: 'rollback' });
+  }, [previousDeployment, previousTemplate, activeDeployment, disableActions]);
+
+  const closePolicyConfirmation = useCallback(() => {
+    if (isPolicyConfirming) {
+      return;
+    }
+    setPolicyConfirmation(null);
+  }, [isPolicyConfirming]);
+
+  const confirmPolicyAction = useCallback(() => {
+    if (!policyConfirmation) {
+      return;
+    }
+    setIsPolicyConfirming(true);
+    const runner = policyConfirmation.action === 'apply' ? executeApply() : executeRollback();
+    void runner.finally(() => {
+      setIsPolicyConfirming(false);
+      setPolicyConfirmation(null);
+    });
+  }, [policyConfirmation, executeApply, executeRollback]);
+
+  const policyModalContent = useMemo(() => {
+    if (!policyConfirmation) {
+      return null;
+    }
+    if (policyConfirmation.action === 'apply') {
+      return {
+        title: `Aplicar template · ${selectedTemplate.name}`,
+        description: `Ativar ${selectedTemplate.name} inicia rollout monitorado em toda a frota MCP.`,
+        confirmLabel: 'Aplicar template',
+        confirmArmedLabel: 'Aplicar agora',
+      } as const;
+    }
+    if (policyConfirmation.action === 'rollback' && previousTemplate) {
+      return {
+        title: `Rollback imediato · ${previousTemplate.name}`,
+        description: `Reverterá o rollout atual e restaurará ${previousTemplate.name} como template ativo.`,
+        confirmLabel: 'Confirmar rollback',
+        confirmArmedLabel: 'Rollback agora',
+      } as const;
+    }
+    return {
+      title: 'Confirmar ação',
+      description: undefined,
+      confirmLabel: 'Confirmar',
+      confirmArmedLabel: 'Confirmar agora',
+    } as const;
+  }, [policyConfirmation, previousTemplate, selectedTemplate.name]);
 
   return (
     <>
@@ -952,6 +1033,16 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           </div>
         </div>
       ) : null}
+      <ConfirmationModal
+        isOpen={Boolean(policyConfirmation)}
+        title={policyModalContent?.title ?? 'Confirmar ação'}
+        description={policyModalContent?.description}
+        confirmLabel={policyModalContent?.confirmLabel ?? 'Confirmar'}
+        confirmArmedLabel={policyModalContent?.confirmArmedLabel ?? 'Confirmar agora'}
+        onConfirm={confirmPolicyAction}
+        onCancel={closePolicyConfirmation}
+        isLoading={isPolicyConfirming}
+      />
       <main className="policies">
       <section className="policies__hero">
         <h1>Políticas MCP · roteamento inteligente</h1>
@@ -1055,7 +1146,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         <button
           type="button"
           className="policy-action policy-action--primary"
-          onClick={handleApply}
+          onClick={handleApplyClick}
           disabled={disableActions}
         >
           Aplicar template
@@ -1063,7 +1154,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         <button
           type="button"
           className="policy-action policy-action--ghost"
-          onClick={handleRollback}
+          onClick={handleRollbackClick}
           disabled={!canRollback}
         >
           Rollback imediato

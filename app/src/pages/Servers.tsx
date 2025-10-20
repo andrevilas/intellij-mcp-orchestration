@@ -24,6 +24,7 @@ import {
   updateServerDefinition,
 } from '../api';
 import ServerActions, { type ServerAction } from '../components/ServerActions';
+import ConfirmationModal from '../components/modals/ConfirmationModal';
 
 export interface ServersProps {
   providers: ProviderSummary[];
@@ -60,6 +61,40 @@ interface DeleteDialogProps {
   onCancel: () => void;
   onConfirm: () => void;
 }
+
+interface ServerActionConfirmation {
+  provider: ProviderSummary;
+  action: ServerAction;
+}
+
+const SERVER_ACTION_COPY: Record<ServerAction, {
+  title: string;
+  confirm: string;
+  armed: string;
+  description: (name: string) => string;
+}> = {
+  start: {
+    title: 'Iniciar servidor',
+    confirm: 'Iniciar servidor',
+    armed: 'Iniciar agora',
+    description: (name: string) =>
+      `Confirme para iniciar ${name}. O supervisor executará o comando configurado para esse servidor MCP.`,
+  },
+  stop: {
+    title: 'Parar servidor',
+    confirm: 'Parar servidor',
+    armed: 'Parar agora',
+    description: (name: string) =>
+      `Confirme para encerrar ${name}. O processo supervisionado será finalizado e novos requests serão bloqueados.`,
+  },
+  restart: {
+    title: 'Reiniciar servidor',
+    confirm: 'Reiniciar servidor',
+    armed: 'Reiniciar agora',
+    description: (name: string) =>
+      `Confirme para reiniciar ${name}. O supervisor encerrará o processo atual antes de iniciar uma nova instância.`,
+  },
+};
 
 interface PingStatus {
   isLoading: boolean;
@@ -472,6 +507,8 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     isSubmitting: false,
     error: null,
   });
+  const [actionConfirmation, setActionConfirmation] = useState<ServerActionConfirmation | null>(null);
+  const [isActionConfirming, setIsActionConfirming] = useState(false);
   const [diagnosticsAgent, setDiagnosticsAgent] = useState('catalog-search');
   const [diagnosticsState, setDiagnosticsState] = useState<DiagnosticsState>({
     isRunning: false,
@@ -661,52 +698,70 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     return () => controller.abort();
   }, [visibleProviders]);
 
-  const handleAction = useCallback(
-    (providerId: string, action: ServerAction) => {
-      const previousController = actionControllers.current.get(providerId);
-      previousController?.abort();
+  const runServerAction = useCallback((providerId: string, action: ServerAction) => {
+    const previousController = actionControllers.current.get(providerId);
+    previousController?.abort();
 
-      const controller = new AbortController();
-      actionControllers.current.set(providerId, controller);
+    const controller = new AbortController();
+    actionControllers.current.set(providerId, controller);
 
-      const runner =
-        action === 'start' ? startServerProcess : action === 'stop' ? stopServerProcess : restartServerProcess;
+    const runner =
+      action === 'start' ? startServerProcess : action === 'stop' ? stopServerProcess : restartServerProcess;
 
-      setPendingAction({ providerId, action });
-      setActionErrors((current) => ({ ...current, [providerId]: null }));
+    setPendingAction({ providerId, action });
+    setActionErrors((current) => ({ ...current, [providerId]: null }));
 
-      runner(providerId, controller.signal)
-        .then((snapshot) => {
-          if (!isMountedRef.current || controller.signal.aborted) {
-            return;
-          }
-          setProcessStates((current) => ({
-            ...current,
-            [providerId]: mergeSnapshots(current[providerId], snapshot),
-          }));
-        })
-        .catch((error) => {
-          if (!isMountedRef.current || controller.signal.aborted) {
-            return;
-          }
-          const message =
-            error instanceof ApiError ? error.message : 'Falha ao executar ação no servidor supervisionado.';
-          setActionErrors((current) => ({ ...current, [providerId]: message }));
-        })
-        .finally(() => {
-          if (!controller.signal.aborted && isMountedRef.current) {
-            setPendingAction((current) => {
-              if (current && current.providerId === providerId) {
-                return null;
-              }
-              return current;
-            });
-            actionControllers.current.delete(providerId);
-          }
-        });
-    },
-    [],
-  );
+    return runner(providerId, controller.signal)
+      .then((snapshot) => {
+        if (!isMountedRef.current || controller.signal.aborted) {
+          return;
+        }
+        setProcessStates((current) => ({
+          ...current,
+          [providerId]: mergeSnapshots(current[providerId], snapshot),
+        }));
+      })
+      .catch((error) => {
+        if (!isMountedRef.current || controller.signal.aborted) {
+          return;
+        }
+        const message = error instanceof ApiError ? error.message : 'Falha ao executar ação no servidor supervisionado.';
+        setActionErrors((current) => ({ ...current, [providerId]: message }));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted && isMountedRef.current) {
+          setPendingAction((current) => {
+            if (current && current.providerId === providerId) {
+              return null;
+            }
+            return current;
+          });
+          actionControllers.current.delete(providerId);
+        }
+      });
+  }, []);
+
+  const openActionConfirmation = useCallback((provider: ProviderSummary, action: ServerAction) => {
+    setActionConfirmation({ provider, action });
+  }, []);
+
+  const closeActionConfirmation = useCallback(() => {
+    if (isActionConfirming) {
+      return;
+    }
+    setActionConfirmation(null);
+  }, [isActionConfirming]);
+
+  const confirmServerAction = useCallback(() => {
+    if (!actionConfirmation) {
+      return;
+    }
+    setIsActionConfirming(true);
+    void runServerAction(actionConfirmation.provider.id, actionConfirmation.action).finally(() => {
+      setIsActionConfirming(false);
+      setActionConfirmation(null);
+    });
+  }, [actionConfirmation, runServerAction]);
 
   const handlePing = useCallback((providerId: string) => {
     const previous = pingControllers.current.get(providerId);
@@ -1127,9 +1182,9 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
               <ServerActions
                 status={state.status}
                 pendingAction={pendingForProvider}
-                onStart={() => handleAction(provider.id, 'start')}
-                onStop={() => handleAction(provider.id, 'stop')}
-                onRestart={() => handleAction(provider.id, 'restart')}
+                onStart={() => openActionConfirmation(provider, 'start')}
+                onStop={() => openActionConfirmation(provider, 'stop')}
+                onRestart={() => openActionConfirmation(provider, 'restart')}
               >
                 {actionMessage && <p className="server-actions__feedback">{actionMessage}</p>}
               </ServerActions>
@@ -1237,6 +1292,28 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         error={deleteState.error}
         onCancel={closeDeleteDialog}
         onConfirm={confirmDelete}
+      />
+      <ConfirmationModal
+        isOpen={Boolean(actionConfirmation)}
+        title={
+          actionConfirmation
+            ? `${SERVER_ACTION_COPY[actionConfirmation.action].title} · ${actionConfirmation.provider.name}`
+            : 'Confirmar ação'
+        }
+        description={
+          actionConfirmation
+            ? SERVER_ACTION_COPY[actionConfirmation.action].description(actionConfirmation.provider.name)
+            : undefined
+        }
+        confirmLabel={
+          actionConfirmation ? SERVER_ACTION_COPY[actionConfirmation.action].confirm : 'Confirmar'
+        }
+        confirmArmedLabel={
+          actionConfirmation ? SERVER_ACTION_COPY[actionConfirmation.action].armed : 'Confirmar agora'
+        }
+        onConfirm={confirmServerAction}
+        onCancel={closeActionConfirmation}
+        isLoading={isActionConfirming}
       />
     </main>
   );
