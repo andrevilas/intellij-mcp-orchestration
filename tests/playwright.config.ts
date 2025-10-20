@@ -1,12 +1,27 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const traceSetting = process.env.PLAYWRIGHT_TRACE as
+  | 'on'
+  | 'retain-on-failure'
+  | 'on-first-retry'
+  | 'off'
+  | undefined;
+
+const videoSetting = process.env.PLAYWRIGHT_VIDEO as
+  | 'on'
+  | 'off'
+  | 'retain-on-failure'
+  | 'retry-with-video'
+  | undefined;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   reporter: 'list',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173',
-    trace: 'on-first-retry',
+    trace: traceSetting ?? 'on-first-retry',
+    video: videoSetting ?? 'off',
     headless: true,
   },
   projects: [

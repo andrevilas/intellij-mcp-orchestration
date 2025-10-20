@@ -22,7 +22,8 @@ const setFixtureStatus = (status: FixtureStatus): void => {
 };
 
 async function enableMocks(): Promise<void> {
-  const isFixtureMode = import.meta.env.VITE_CONSOLE_USE_FIXTURES === 'true';
+  const isFixtureEnv = import.meta.env.VITE_CONSOLE_USE_FIXTURES;
+  const isFixtureMode = isFixtureEnv === true || isFixtureEnv === 'true';
   if (!isFixtureMode) {
     setFixtureStatus('disabled');
     return;
