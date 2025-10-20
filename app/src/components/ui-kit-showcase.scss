@@ -38,6 +38,10 @@
   gap: 0.75rem;
 }
 
+.ui-kit-showcase__row--wrap {
+  flex-wrap: wrap;
+}
+
 .ui-kit-showcase__toolbar {
   display: flex;
   justify-content: flex-start;
@@ -47,6 +51,36 @@
 .ui-kit-showcase__column {
   display: grid;
   gap: 0.75rem;
+}
+
+.ui-kit-showcase__kpi-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+}
+
+.ui-kit-showcase__resource {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ui-kit-showcase__muted {
+  color: var(--mcp-text-subtle);
+  font-size: 0.85rem;
+}
+
+.ui-kit-showcase__badge-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ui-kit-showcase__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
 }
 
 .ui-kit-showcase__field {
