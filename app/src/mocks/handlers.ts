@@ -2,6 +2,8 @@ import { http, HttpResponse } from 'msw';
 import type {
   MarketplacePerformanceEntry,
   ProviderSummary,
+  RoutingLane,
+  RoutingRouteProfile,
   RoutingSimulationResult,
   TelemetryExperimentSummaryEntry,
   TelemetryLaneCostEntry,
@@ -18,35 +20,64 @@ import finopsPullRequestsFixture from '#fixtures/finops_pull_requests.json';
 
 const API_PREFIX = '*/api/v1';
 
+interface RoutingRouteProfileFixture {
+  id: string;
+  provider: ProviderSummary;
+  lane: string;
+  cost_per_million: number;
+  latency_p95: number;
+  reliability: number;
+  capacity_score: number;
+}
+
+interface RoutingDistributionEntryFixture {
+  route: RoutingRouteProfileFixture;
+  share: number;
+  tokens_millions: number;
+  cost: number;
+}
+
+interface RoutingSimulationFixture {
+  total_cost: number;
+  cost_per_million: number;
+  avg_latency: number;
+  reliability_score: number;
+  distribution: RoutingDistributionEntryFixture[];
+  excluded_route: RoutingRouteProfileFixture | null | undefined;
+}
+
+const routingFixture = routingSimulationFixture as RoutingSimulationFixture;
+
+const toRoutingLane = (value: string): RoutingLane => {
+  if (value === 'economy' || value === 'balanced' || value === 'turbo') {
+    return value;
+  }
+  return 'balanced';
+};
+
+const mapRoutingRouteProfileFixture = (route: RoutingRouteProfileFixture): RoutingRouteProfile => ({
+  id: route.id,
+  provider: route.provider,
+  lane: toRoutingLane(route.lane),
+  costPerMillion: route.cost_per_million,
+  latencyP95: route.latency_p95,
+  reliability: route.reliability,
+  capacityScore: route.capacity_score,
+});
+
 const routingSimulation: RoutingSimulationResult = {
-  totalCost: routingSimulationFixture.total_cost,
-  costPerMillion: routingSimulationFixture.cost_per_million,
-  avgLatency: routingSimulationFixture.avg_latency,
-  reliabilityScore: routingSimulationFixture.reliability_score,
-  distribution: routingSimulationFixture.distribution.map((entry) => ({
-    route: {
-      id: entry.route.id,
-      provider: entry.route.provider,
-      lane: entry.route.lane,
-      costPerMillion: entry.route.cost_per_million,
-      latencyP95: entry.route.latency_p95,
-      reliability: entry.route.reliability,
-      capacityScore: entry.route.capacity_score,
-    },
+  totalCost: routingFixture.total_cost,
+  costPerMillion: routingFixture.cost_per_million,
+  avgLatency: routingFixture.avg_latency,
+  reliabilityScore: routingFixture.reliability_score,
+  distribution: routingFixture.distribution.map((entry) => ({
+    route: mapRoutingRouteProfileFixture(entry.route),
     share: entry.share,
     tokensMillions: entry.tokens_millions,
     cost: entry.cost,
   })),
-  excludedRoute: routingSimulationFixture.excluded_route
-    ? {
-        id: routingSimulationFixture.excluded_route.id,
-        provider: routingSimulationFixture.excluded_route.provider,
-        lane: routingSimulationFixture.excluded_route.lane,
-        costPerMillion: routingSimulationFixture.excluded_route.cost_per_million,
-        latencyP95: routingSimulationFixture.excluded_route.latency_p95,
-        reliability: routingSimulationFixture.excluded_route.reliability,
-        capacityScore: routingSimulationFixture.excluded_route.capacity_score,
-      }
+  excludedRoute: routingFixture.excluded_route
+    ? mapRoutingRouteProfileFixture(routingFixture.excluded_route)
     : null,
 };
 
@@ -74,8 +105,27 @@ const serverCatalogPayload = Array.from(providersById.values()).map((provider, i
   };
 });
 
-const telemetryRuns: TelemetryRunEntry[] = telemetryRunsFixture.items.map((run) => ({
+type TelemetryRunFixtureEntry = Omit<TelemetryRunEntry, 'lane' | 'metadata'> & {
+  lane: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+type TelemetryRunsFixture = {
+  items: TelemetryRunFixtureEntry[];
+};
+
+const telemetryRunsRaw = telemetryRunsFixture as TelemetryRunsFixture;
+
+const toNullableRoutingLane = (value: string | null): RoutingLane | null => {
+  if (value === null) {
+    return null;
+  }
+  return toRoutingLane(value);
+};
+
+const telemetryRuns: TelemetryRunEntry[] = telemetryRunsRaw.items.map((run) => ({
   ...run,
+  lane: toNullableRoutingLane(run.lane),
   metadata: run.metadata ?? {},
 }));
 
