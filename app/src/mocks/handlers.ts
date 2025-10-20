@@ -9,25 +9,25 @@ import type {
   TelemetryLaneCostEntry,
   TelemetryRunEntry,
 } from '../api';
-import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json';
-import telemetryHeatmapFixture from '#fixtures/telemetry_heatmap.json';
-import telemetryTimeseriesFixture from '#fixtures/telemetry_timeseries.json';
-import telemetryParetoFixture from '#fixtures/telemetry_pareto.json';
-import telemetryRunsFixture from '#fixtures/telemetry_runs.json';
-import routingSimulationFixture from '#fixtures/routing_simulation.json';
-import finopsSprintsFixture from '#fixtures/finops_sprints.json';
-import finopsPullRequestsFixture from '#fixtures/finops_pull_requests.json';
-import serversFixture from '#fixtures/servers.json';
-import serverProcessesFixture from '#fixtures/server_processes.json';
-import serverHealthFixture from '#fixtures/server_health.json';
-import sessionsFixture from '#fixtures/sessions.json';
-import notificationsFixture from '#fixtures/notifications.json';
-import policiesComplianceFixture from '#fixtures/policies_compliance.json';
-import policyManifestFixture from '#fixtures/policy_manifest.json';
-import telemetryExperimentsFixture from '#fixtures/telemetry_experiments.json';
-import telemetryLaneCostsFixture from '#fixtures/telemetry_lane_costs.json';
-import telemetryMarketplaceFixture from '#fixtures/telemetry_marketplace.json';
-import providersFixture from '#fixtures/providers.json';
+import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' with { type: 'json' };
+import telemetryHeatmapFixture from '#fixtures/telemetry_heatmap.json' with { type: 'json' };
+import telemetryTimeseriesFixture from '#fixtures/telemetry_timeseries.json' with { type: 'json' };
+import telemetryParetoFixture from '#fixtures/telemetry_pareto.json' with { type: 'json' };
+import telemetryRunsFixture from '#fixtures/telemetry_runs.json' with { type: 'json' };
+import routingSimulationFixture from '#fixtures/routing_simulation.json' with { type: 'json' };
+import finopsSprintsFixture from '#fixtures/finops_sprints.json' with { type: 'json' };
+import finopsPullRequestsFixture from '#fixtures/finops_pull_requests.json' with { type: 'json' };
+import serversFixture from '#fixtures/servers.json' with { type: 'json' };
+import serverProcessesFixture from '#fixtures/server_processes.json' with { type: 'json' };
+import serverHealthFixture from '#fixtures/server_health.json' with { type: 'json' };
+import sessionsFixture from '#fixtures/sessions.json' with { type: 'json' };
+import notificationsFixture from '#fixtures/notifications.json' with { type: 'json' };
+import policiesComplianceFixture from '#fixtures/policies_compliance.json' with { type: 'json' };
+import policyManifestFixture from '#fixtures/policy_manifest.json' with { type: 'json' };
+import telemetryExperimentsFixture from '#fixtures/telemetry_experiments.json' with { type: 'json' };
+import telemetryLaneCostsFixture from '#fixtures/telemetry_lane_costs.json' with { type: 'json' };
+import telemetryMarketplaceFixture from '#fixtures/telemetry_marketplace.json' with { type: 'json' };
+import providersFixture from '#fixtures/providers.json' with { type: 'json' };
 
 const API_PREFIX = '*/api/v1';
 

@@ -1,0 +1,11 @@
+{
+  "order": [
+    "Nome do serviço",
+    "Ambiente",
+    "Descrição",
+    "Ativar alertas proativos",
+    "Gateway de provisionamento",
+    "Limpar",
+    "Salvar formulário"
+  ]
+}

@@ -69,7 +69,7 @@
 - Badges & Progress (TASK-UI-DATA-032)
 
 ### M4 — Formulários & Validação (UI) · 1,0–1,5 semanas
-- Form Controls (TASK-UI-FORM-040)
+- Form Controls (TASK-UI-FORM-040) ✅ UI Kit atualizado com controles MCP + docs em `docs/forms/README.md`.
 - Validação & Estados (TASK-UI-FORM-041)
 - Upload/Download (TASK-UI-FORM-042)
 
