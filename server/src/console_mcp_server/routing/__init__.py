@@ -10,8 +10,11 @@ from .bandit import BanditStrategy, compute_lane_bandit_weights
 from ..prices import list_price_entries
 from ..schemas import (
     ProviderSummary,
+    RoutingCostProjection,
     RoutingDistributionEntry,
+    RoutingLatencyProjection,
     RoutingRouteProfile,
+    RoutingSimulationContext,
     RoutingSimulationResponse,
 )
 
@@ -67,12 +70,37 @@ class DistributionEntry:
 class PlanResult:
     """Aggregated metrics computed for a simulation."""
 
-    total_cost: float
-    cost_per_million: float
-    avg_latency: float
-    reliability_score: float
+    context: "SimulationContext"
+    cost: "CostProjection"
+    latency: "LatencyProjection"
     distribution: tuple[DistributionEntry, ...]
     excluded_route: RouteProfile | None
+
+
+@dataclass(frozen=True)
+class SimulationContext:
+    """Describes the scenario evaluated by the simulator."""
+
+    strategy_id: str
+    provider_ids: tuple[str, ...]
+    volume_millions: float
+    failover_id: str | None
+
+
+@dataclass(frozen=True)
+class CostProjection:
+    """Cost figures estimated for the simulated scenario."""
+
+    total: float
+    per_million: float
+
+
+@dataclass(frozen=True)
+class LatencyProjection:
+    """Latency and reliability estimates for the simulated scenario."""
+
+    avg_latency: float
+    reliability_score: float
 
 
 def _hash_string(value: str) -> int:
@@ -174,12 +202,23 @@ def compute_plan(
     strategy = STRATEGY_WEIGHTS.get(strategy_id, STRATEGY_WEIGHTS[DEFAULT_STRATEGY])
 
     routes_seq = tuple(routes)
+    provider_ids = tuple(route.provider.id for route in routes_seq)
+    normalized_failover = failover_id if failover_id and failover_id != "none" else None
+
+    context = SimulationContext(
+        strategy_id=strategy_id,
+        provider_ids=provider_ids,
+        volume_millions=volume_millions,
+        failover_id=normalized_failover,
+    )
+
     if not routes_seq:
+        empty_cost = CostProjection(total=0.0, per_million=0.0)
+        empty_latency = LatencyProjection(avg_latency=0.0, reliability_score=0.0)
         return PlanResult(
-            total_cost=0.0,
-            cost_per_million=0.0,
-            avg_latency=0.0,
-            reliability_score=0.0,
+            context=context,
+            cost=empty_cost,
+            latency=empty_latency,
             distribution=tuple(),
             excluded_route=None,
         )
@@ -193,11 +232,12 @@ def compute_plan(
         active_routes.append(route)
 
     if not active_routes:
+        empty_cost = CostProjection(total=0.0, per_million=0.0)
+        empty_latency = LatencyProjection(avg_latency=0.0, reliability_score=0.0)
         return PlanResult(
-            total_cost=0.0,
-            cost_per_million=0.0,
-            avg_latency=0.0,
-            reliability_score=0.0,
+            context=context,
+            cost=empty_cost,
+            latency=empty_latency,
             distribution=tuple(),
             excluded_route=excluded,
         )
@@ -269,11 +309,19 @@ def compute_plan(
         avg_latency += entry.route.latency_p95 * entry.share
         reliability_score += entry.route.reliability * entry.share
 
-    return PlanResult(
-        total_cost=round(total_cost, 2),
-        cost_per_million=round(cost_per_million, 2),
+    cost_projection = CostProjection(
+        total=round(total_cost, 2),
+        per_million=round(cost_per_million, 2),
+    )
+    latency_projection = LatencyProjection(
         avg_latency=round(avg_latency, 2),
         reliability_score=round(reliability_score, 2),
+    )
+
+    return PlanResult(
+        context=context,
+        cost=cost_projection,
+        latency=latency_projection,
         distribution=tuple(distribution),
         excluded_route=excluded,
     )
@@ -311,10 +359,21 @@ def render_plan_result(plan: PlanResult) -> RoutingSimulationResponse:
     )
 
     return RoutingSimulationResponse(
-        total_cost=plan.total_cost,
-        cost_per_million=plan.cost_per_million,
-        avg_latency=plan.avg_latency,
-        reliability_score=plan.reliability_score,
+        context=RoutingSimulationContext(
+            strategy=plan.context.strategy_id,
+            provider_ids=list(plan.context.provider_ids),
+            provider_count=len(plan.context.provider_ids),
+            volume_millions=plan.context.volume_millions,
+            failover_provider_id=plan.context.failover_id,
+        ),
+        cost=RoutingCostProjection(
+            total_usd=plan.cost.total,
+            cost_per_million_usd=plan.cost.per_million,
+        ),
+        latency=RoutingLatencyProjection(
+            avg_latency_ms=plan.latency.avg_latency,
+            reliability_score=plan.latency.reliability_score,
+        ),
         distribution=distribution,
         excluded_route=excluded,
     )

@@ -4222,6 +4222,15 @@ def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResp
     providers = provider_registry.providers
     provider_map = {provider.id: provider for provider in providers}
 
+    failover_id = payload.failover_provider_id
+    normalized_failover = None if failover_id in (None, "none") else failover_id
+    if normalized_failover:
+        if normalized_failover not in provider_map:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Failover provider not found: {normalized_failover}",
+            )
+
     if payload.provider_ids:
         requested_ids = set(payload.provider_ids)
         missing = requested_ids - provider_map.keys()
@@ -4234,6 +4243,14 @@ def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResp
         selected_providers = [provider_map[provider_id] for provider_id in payload.provider_ids]
     else:
         selected_providers = providers
+
+    if normalized_failover:
+        selected_ids = {provider.id for provider in selected_providers}
+        if normalized_failover not in selected_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failover provider must be included in provider_ids",
+            )
 
     routes = build_routes(selected_providers)
     plan = compute_plan(

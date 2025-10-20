@@ -42,10 +42,21 @@ describe('Routing page remote simulation', () => {
   ];
 
   const baselinePlan: RoutingSimulationResult = {
-    totalCost: 240,
-    costPerMillion: 20,
-    avgLatency: 940,
-    reliabilityScore: 94.2,
+    context: {
+      strategy: 'balanced',
+      providerIds: providers.map((provider) => provider.id),
+      providerCount: providers.length,
+      volumeMillions: 12,
+      failoverProviderId: null,
+    },
+    cost: {
+      totalUsd: 240,
+      costPerMillionUsd: 20,
+    },
+    latency: {
+      avgLatencyMs: 940,
+      reliabilityScore: 94.2,
+    },
     distribution: [
       {
         route: {
@@ -80,10 +91,21 @@ describe('Routing page remote simulation', () => {
   };
 
   const planResult: RoutingSimulationResult = {
-    totalCost: 210,
-    costPerMillion: 17.5,
-    avgLatency: 880,
-    reliabilityScore: 95.3,
+    context: {
+      strategy: 'finops',
+      providerIds: providers.map((provider) => provider.id),
+      providerCount: providers.length,
+      volumeMillions: 12,
+      failoverProviderId: 'claude',
+    },
+    cost: {
+      totalUsd: 210,
+      costPerMillionUsd: 17.5,
+    },
+    latency: {
+      avgLatencyMs: 880,
+      reliabilityScore: 95.3,
+    },
     distribution: [
       {
         route: {

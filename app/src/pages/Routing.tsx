@@ -778,10 +778,16 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
 
   const selectedStrategy = STRATEGY_MAP.get(strategyId) ?? STRATEGIES[0];
   const planReady = baselinePlan !== null && plan !== null;
-  const savings = planReady ? Number((baselinePlan.totalCost - plan.totalCost).toFixed(2)) : 0;
-  const latencyDelta = planReady ? Number((plan.avgLatency - baselinePlan.avgLatency).toFixed(0)) : 0;
+  const savings =
+    planReady ? Number((baselinePlan.cost.totalUsd - plan.cost.totalUsd).toFixed(2)) : 0;
+  const latencyDelta =
+    planReady
+      ? Number((plan.latency.avgLatencyMs - baselinePlan.latency.avgLatencyMs).toFixed(0))
+      : 0;
   const reliabilityDelta = planReady
-    ? Number((plan.reliabilityScore - baselinePlan.reliabilityScore).toFixed(1))
+    ? Number(
+        (plan.latency.reliabilityScore - baselinePlan.latency.reliabilityScore).toFixed(1),
+      )
     : 0;
   const latencyDeltaLabel = planReady
     ? latencyDelta === 0
@@ -1500,24 +1506,24 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
               <dl className="routing-lab__summary-grid">
                 <div className="routing-lab__summary-card">
                   <dt>Projeção de custo</dt>
-                  <dd data-testid="routing-total-cost">{formatCurrency(plan.totalCost)}</dd>
+                  <dd data-testid="routing-total-cost">{formatCurrency(plan.cost.totalUsd)}</dd>
                   <small>Custo mensal estimado para {volumeMillions.toFixed(0)} mi tokens</small>
                 </div>
                 <div className="routing-lab__summary-card">
                   <dt>Economia vs baseline</dt>
                   <dd data-testid="routing-savings">{formatDeltaCurrency(savings)}</dd>
                   <small>
-                    Baseline: {baselinePlan ? formatCurrency(baselinePlan.totalCost) : '—'}
+                    Baseline: {baselinePlan ? formatCurrency(baselinePlan.cost.totalUsd) : '—'}
                   </small>
                 </div>
                 <div className="routing-lab__summary-card">
                   <dt>Latência P95 projetada</dt>
-                  <dd data-testid="routing-latency">{formatLatency(plan.avgLatency)}</dd>
+                  <dd data-testid="routing-latency">{formatLatency(plan.latency.avgLatencyMs)}</dd>
                   <small>Delta: {latencyDeltaLabel} vs baseline</small>
                 </div>
                 <div className="routing-lab__summary-card">
                   <dt>Confiabilidade ponderada</dt>
-                  <dd data-testid="routing-reliability">{plan.reliabilityScore.toFixed(1)}%</dd>
+                  <dd data-testid="routing-reliability">{plan.latency.reliabilityScore.toFixed(1)}%</dd>
                   <small>
                     {`${reliabilityDelta >= 0 ? '+' : ''}${reliabilityDelta.toFixed(1)} p.p. em relação ao baseline`}
                   </small>
@@ -1613,12 +1619,12 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
               {savings >= 0 ? 'em economia potencial.' : 'em investimento adicional.'}
             </li>
             <li>
-              Cobertura de {distribution.length} provedores garante {plan.reliabilityScore.toFixed(1)}% de
+              Cobertura de {distribution.length} provedores garante {plan.latency.reliabilityScore.toFixed(1)}% de
               confiabilidade ponderada.
             </li>
             <li>
               Tokens mensais distribuídos entre {distribution.length} rotas com custo médio de {formatCurrency(
-                plan.costPerMillion,
+                plan.cost.costPerMillionUsd,
               )}{' '}
               por 1M tokens.
             </li>
