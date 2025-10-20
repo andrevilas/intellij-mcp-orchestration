@@ -124,7 +124,7 @@
 - [x] **TASK-OPS-207 — CI básico**
 
 ### Sprint OPS-3 — Segurança
-- [ ] **TASK-OPS-301 — Segredos**
+- [x] **TASK-OPS-301 — Segredos**
 - [ ] **TASK-OPS-302 — Operações seguras**
 
 ### Sprint OPS-4 — Packaging

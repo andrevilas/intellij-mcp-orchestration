@@ -9,7 +9,7 @@ A console MCP permite cadastrar, atualizar e remover chaves de acesso diretament
 3. Ao editar, a console carrega o valor atual sob demanda e permite salvar alterações em tempo real. Também é possível remover a credencial sem sair da página.
 4. Utilize **Testar conectividade** para executar um handshake rápido com o agente e verificar latência e mensagens de retorno.
 
-As chaves permanecem armazenadas em `~/.mcp/console-secrets.json` (ou no caminho definido por `CONSOLE_MCP_SECRETS_PATH`) e são sincronizadas automaticamente com a UI. Caso prefira um fluxo em linha de comando, o script `scripts/get-keys.sh` continua disponível.
+As chaves agora são provisionadas a partir do bundle `config/secrets.enc.yaml`, cifrado com SOPS. Use `make secrets-sync` (ou `scripts/secrets-sync.sh`) para gerar `~/.mcp/.env` e `~/.mcp/console-secrets.json` com permissões `600`. O script `scripts/get-keys.sh` mantém um modo interativo apenas para contingências, exibindo aviso sempre que o cofre seguro estiver indisponível.
 
 ## Boas práticas
 
