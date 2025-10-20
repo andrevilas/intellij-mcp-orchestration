@@ -1,5 +1,14 @@
 import { expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const repoRoot = resolve(__dirname, '..', '..');
+const evidenceDir = resolve(repoRoot, 'docs', 'evidence', 'TASK-UI-DATA-030');
 
 async function registerBaseRoutes(page: Page) {
   await page.route('**/api/v1/servers', (route) =>
@@ -96,4 +105,38 @@ test('interage com o showcase do UI Kit', async ({ page }) => {
   expect(Number(modalZIndex)).toBeGreaterThan(Number(toastZIndex));
   expect(Number(tooltipZIndex)).toBeGreaterThan(Number(dropdownZIndex));
   expect(Number(toastZIndex)).toBeGreaterThan(Number(tooltipZIndex));
+
+  const indicatorsGroup = showcase.locator('.ui-kit-showcase__group').filter({ hasText: 'Indicadores' });
+  await indicatorsGroup.getByRole('button', { name: 'Carregando' }).click();
+  await expect(indicatorsGroup.getByText('Sincronizando métricas do fixture…')).toBeVisible();
+  await indicatorsGroup.getByRole('button', { name: 'Erro' }).click();
+  await expect(indicatorsGroup.getByText('Não foi possível ler telemetry_metrics.json.')).toBeVisible();
+  await indicatorsGroup.getByRole('button', { name: 'Dados' }).click();
+  await expect(indicatorsGroup.getByText('Custo semanal')).toBeVisible();
+
+  const tableGroup = showcase.locator('.ui-kit-showcase__group').filter({ hasText: 'Listas e tabelas' });
+  await tableGroup.getByRole('button', { name: 'Vazio' }).click();
+  await expect(tableGroup.getByText('Nenhum servidor provisionado')).toBeVisible();
+  await tableGroup.getByRole('button', { name: 'Erro' }).click();
+  await expect(tableGroup.getByText('Falha ao sincronizar com fixture de servidores.')).toBeVisible();
+  await tableGroup.getByRole('button', { name: 'Dados' }).click();
+  const firstRow = tableGroup.locator('tbody tr').first();
+  await firstRow.focus();
+  await expect(firstRow).toHaveAttribute('data-clickable', 'true');
+  await expect(firstRow).toHaveAttribute('tabindex', '0');
+
+  const detailGroup = showcase.locator('.ui-kit-showcase__group').filter({ hasText: 'Detalhes' });
+  await detailGroup.getByRole('button', { name: 'Vazio' }).click();
+  await expect(detailGroup.getByText('Selecione um servidor')).toBeVisible();
+  await detailGroup.getByRole('button', { name: 'Erro' }).click();
+  await expect(detailGroup.getByText('Fixture de health-check indisponível.')).toBeVisible();
+  await detailGroup.getByRole('button', { name: 'Dados' }).click();
+  await expect(detailGroup.getByText('Saudável')).toBeVisible();
+
+  const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(
+    resolve(evidenceDir, 'axe-ui-kit.json'),
+    JSON.stringify(accessibilityScanResults, null, 2),
+  );
 });

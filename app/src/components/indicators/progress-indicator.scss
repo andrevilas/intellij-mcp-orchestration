@@ -1,0 +1,77 @@
+.progress-indicator {
+  --progress-track-bg: color-mix(in srgb, var(--mcp-overlay-soft) 45%, transparent 55%);
+  --progress-bar-bg: var(--mcp-info-strong);
+  --progress-label: var(--mcp-text-subtle);
+  --progress-value: var(--mcp-surface-contrast);
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--mcp-border-strong) 55%, transparent 45%);
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 75%, transparent 25%);
+  padding: 1rem 1.25rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.progress-indicator__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-indicator__label {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--progress-label);
+  font-weight: 600;
+}
+
+.progress-indicator__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--progress-value);
+}
+
+.progress-indicator__track {
+  position: relative;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background: var(--progress-track-bg);
+  overflow: hidden;
+}
+
+.progress-indicator__bar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--progress-bar-bg) 88%, transparent 12%), var(--progress-bar-bg));
+  transition: width 0.3s ease;
+}
+
+.progress-indicator__description {
+  margin: 0;
+  color: var(--progress-label);
+  font-size: 0.9rem;
+}
+
+.progress-indicator--success {
+  --progress-bar-bg: var(--mcp-success-strong);
+}
+
+.progress-indicator--warning {
+  --progress-bar-bg: var(--mcp-warning-strong);
+}
+
+.progress-indicator--danger {
+  --progress-bar-bg: var(--mcp-danger-strong);
+}
+
+.progress-indicator--neutral {
+  --progress-bar-bg: var(--mcp-text-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  .progress-indicator {
+    --progress-track-bg: color-mix(in srgb, var(--mcp-overlay-soft) 65%, transparent 35%);
+    --progress-label: var(--mcp-text-muted);
+  }
+}
