@@ -92,6 +92,201 @@ const routingSimulation: RoutingSimulationResult = {
     : null,
 };
 
+const STRATEGY_VARIANTS: Record<string, { cost: number; latency: number; reliabilityDelta: number }> = {
+  balanced: { cost: 1, latency: 1, reliabilityDelta: 0 },
+  finops: { cost: 0.85, latency: 1.05, reliabilityDelta: -2 },
+  latency: { cost: 1.12, latency: 0.82, reliabilityDelta: -0.5 },
+  resilience: { cost: 1.06, latency: 0.95, reliabilityDelta: 1.5 },
+};
+
+interface RoutingSimulateRequestPayload {
+  strategy?: string;
+  provider_ids?: string[];
+  failover_provider_id?: string | null;
+}
+
+const roundTo = (value: number, precision = 2): number => Number(value.toFixed(precision));
+
+const clonePlan = (source: RoutingSimulationResult = routingSimulation): RoutingSimulationResult =>
+  JSON.parse(JSON.stringify(source)) as RoutingSimulationResult;
+
+const normalizeDistribution = (
+  distribution: RoutingSimulationResult['distribution'],
+): RoutingSimulationResult['distribution'] => {
+  const totalShare = distribution.reduce((sum, entry) => sum + entry.share, 0);
+  const totalTokens = distribution.reduce((sum, entry) => sum + entry.tokensMillions, 0);
+  if (distribution.length === 0 || totalTokens === 0 || totalShare === 0) {
+    return distribution.map((entry) => ({
+      ...entry,
+      share: distribution.length > 0 ? roundTo(1 / distribution.length, 4) : 0,
+      tokensMillions: distribution.length > 0 ? roundTo(1 / distribution.length, 4) : 0,
+      cost: roundTo(entry.route.costPerMillion * entry.tokensMillions),
+    }));
+  }
+  return distribution.map((entry) => {
+    const normalizedShare = entry.share / totalShare;
+    const tokens = totalTokens * normalizedShare;
+    return {
+      ...entry,
+      share: roundTo(normalizedShare, 4),
+      tokensMillions: roundTo(tokens, 4),
+      cost: roundTo(entry.route.costPerMillion * tokens),
+    };
+  });
+};
+
+const applyStrategyVariant = (
+  base: RoutingSimulationResult,
+  variantKey: string,
+): RoutingSimulationResult => {
+  const plan = clonePlan(base);
+  const variant = STRATEGY_VARIANTS[variantKey] ?? STRATEGY_VARIANTS.balanced;
+  const totalTokens = plan.distribution.reduce((sum, entry) => sum + entry.tokensMillions, 0);
+
+  plan.distribution = plan.distribution.map((entry) => {
+    const adjustedCostPerMillion = roundTo(entry.route.costPerMillion * variant.cost);
+    const cost = roundTo(adjustedCostPerMillion * entry.tokensMillions);
+    return {
+      ...entry,
+      route: {
+        ...entry.route,
+        costPerMillion: adjustedCostPerMillion,
+      },
+      cost,
+    };
+  });
+
+  plan.distribution = normalizeDistribution(plan.distribution);
+  plan.totalCost = roundTo(plan.distribution.reduce((sum, entry) => sum + entry.cost, 0));
+  plan.costPerMillion = totalTokens > 0 ? roundTo(plan.totalCost / totalTokens) : 0;
+  plan.avgLatency = roundTo(base.avgLatency * variant.latency);
+  plan.reliabilityScore = roundTo(
+    Math.min(100, Math.max(0, base.reliabilityScore + variant.reliabilityDelta)),
+  );
+  plan.excludedRoute = null;
+  return plan;
+};
+
+const applyProviderFilter = (
+  plan: RoutingSimulationResult,
+  providerIds: string[] | undefined,
+): RoutingSimulationResult => {
+  if (!providerIds || providerIds.length === 0) {
+    return plan;
+  }
+  const allowed = new Set(providerIds);
+  const filtered = plan.distribution.filter((entry) => allowed.has(entry.route.id));
+  if (filtered.length === 0) {
+    return {
+      ...plan,
+      distribution: [],
+      totalCost: 0,
+      costPerMillion: 0,
+      excludedRoute: null,
+    };
+  }
+  const totalTokens = filtered.reduce((sum, entry) => sum + entry.tokensMillions, 0);
+  const normalized = normalizeDistribution(filtered).map((entry) => ({
+    ...entry,
+    cost: roundTo(entry.route.costPerMillion * entry.tokensMillions),
+  }));
+  const totalCost = roundTo(normalized.reduce((sum, entry) => sum + entry.cost, 0));
+  return {
+    ...plan,
+    distribution: normalized,
+    totalCost,
+    costPerMillion: totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0,
+    excludedRoute:
+      plan.excludedRoute && allowed.has(plan.excludedRoute.id) ? plan.excludedRoute : null,
+  };
+};
+
+const applyFailover = (
+  plan: RoutingSimulationResult,
+  failoverId: string | null | undefined,
+): RoutingSimulationResult => {
+  if (!failoverId || failoverId === 'none') {
+    return { ...plan, excludedRoute: null };
+  }
+  const workingPlan = clonePlan(plan);
+  const totalTokens = workingPlan.distribution.reduce((sum, entry) => sum + entry.tokensMillions, 0);
+  const excludedIndex = workingPlan.distribution.findIndex((entry) => entry.route.id === failoverId);
+  if (excludedIndex === -1) {
+    return { ...plan, excludedRoute: null };
+  }
+  const [excluded] = workingPlan.distribution.splice(excludedIndex, 1);
+  if (workingPlan.distribution.length === 0) {
+    return {
+      ...workingPlan,
+      distribution: [],
+      totalCost: 0,
+      costPerMillion: 0,
+      avgLatency: roundTo(workingPlan.avgLatency * 1.05),
+      reliabilityScore: roundTo(Math.max(0, workingPlan.reliabilityScore - 1)),
+      excludedRoute: excluded.route,
+    };
+  }
+
+  const normalized = normalizeDistribution(workingPlan.distribution).map((entry) => {
+    const tokens = totalTokens * entry.share;
+    return {
+      ...entry,
+      tokensMillions: roundTo(tokens, 4),
+      cost: roundTo(entry.route.costPerMillion * tokens),
+    };
+  });
+  const totalCost = normalized.reduce((sum, entry) => sum + entry.cost, 0);
+
+  return {
+    ...workingPlan,
+    distribution: normalized,
+    totalCost: roundTo(totalCost),
+    costPerMillion: totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0,
+    avgLatency: roundTo(workingPlan.avgLatency * 1.05),
+    reliabilityScore: roundTo(Math.max(0, workingPlan.reliabilityScore - 0.5)),
+    excludedRoute: excluded.route,
+  };
+};
+
+const buildMockRoutingPlan = (payload: RoutingSimulateRequestPayload): RoutingSimulationResult => {
+  const strategyKey = payload.strategy ?? 'balanced';
+  const basePlan = applyStrategyVariant(routingSimulation, strategyKey);
+  const filteredPlan = applyProviderFilter(basePlan, payload.provider_ids);
+  return applyFailover(filteredPlan, payload.failover_provider_id ?? null);
+};
+
+const serializeRoutingPlan = (plan: RoutingSimulationResult) => ({
+  total_cost: plan.totalCost,
+  cost_per_million: plan.costPerMillion,
+  avg_latency: plan.avgLatency,
+  reliability_score: plan.reliabilityScore,
+  distribution: plan.distribution.map((entry) => ({
+    route: {
+      id: entry.route.id,
+      provider: entry.route.provider,
+      lane: entry.route.lane,
+      cost_per_million: entry.route.costPerMillion,
+      latency_p95: entry.route.latencyP95,
+      reliability: entry.route.reliability,
+      capacity_score: entry.route.capacityScore,
+    },
+    share: entry.share,
+    tokens_millions: entry.tokensMillions,
+    cost: entry.cost,
+  })),
+  excluded_route: plan.excludedRoute
+    ? {
+        id: plan.excludedRoute.id,
+        provider: plan.excludedRoute.provider,
+        lane: plan.excludedRoute.lane,
+        cost_per_million: plan.excludedRoute.costPerMillion,
+        latency_p95: plan.excludedRoute.latencyP95,
+        reliability: plan.excludedRoute.reliability,
+        capacity_score: plan.excludedRoute.capacityScore,
+      }
+    : null,
+});
+
 const providerCatalog = (providersFixture as { providers: ProviderSummary[] }).providers;
 
 const serverCatalogPayload = (serversFixture as {
@@ -209,6 +404,12 @@ export const handlers = [
   http.get(`${API_PREFIX}/secrets`, () => HttpResponse.json({ secrets: [] })),
   http.get(`${API_PREFIX}/notifications`, () => HttpResponse.json({ notifications })),
   http.get(`${API_PREFIX}/policies/compliance`, () => HttpResponse.json(compliancePayload)),
+  http.get(`${API_PREFIX}/policies/hitl/queue`, () =>
+    HttpResponse.json({
+      requests: [],
+      stats: { pending: 0, completed: 0 },
+    }),
+  ),
   http.get(`${API_PREFIX}/telemetry/metrics`, () => HttpResponse.json(telemetryMetricsFixture)),
   http.get(`${API_PREFIX}/telemetry/heatmap`, () => HttpResponse.json(telemetryHeatmapFixture)),
   http.get(`${API_PREFIX}/telemetry/timeseries`, () => HttpResponse.json(telemetryTimeseriesFixture)),
@@ -223,39 +424,11 @@ export const handlers = [
   http.get(`${API_PREFIX}/telemetry/finops/pull-requests`, () =>
     HttpResponse.json(finopsPullRequestsFixture),
   ),
-  http.post(`${API_PREFIX}/routing/simulate`, () =>
-    HttpResponse.json({
-      total_cost: routingSimulation.totalCost,
-      cost_per_million: routingSimulation.costPerMillion,
-      avg_latency: routingSimulation.avgLatency,
-      reliability_score: routingSimulation.reliabilityScore,
-      distribution: routingSimulation.distribution.map((entry) => ({
-        route: {
-          id: entry.route.id,
-          provider: entry.route.provider,
-          lane: entry.route.lane,
-          cost_per_million: entry.route.costPerMillion,
-          latency_p95: entry.route.latencyP95,
-          reliability: entry.route.reliability,
-          capacity_score: entry.route.capacityScore,
-        },
-        share: entry.share,
-        tokens_millions: entry.tokensMillions,
-        cost: entry.cost,
-      })),
-      excluded_route: routingSimulation.excludedRoute
-        ? {
-            id: routingSimulation.excludedRoute.id,
-            provider: routingSimulation.excludedRoute.provider,
-            lane: routingSimulation.excludedRoute.lane,
-            cost_per_million: routingSimulation.excludedRoute.costPerMillion,
-            latency_p95: routingSimulation.excludedRoute.latencyP95,
-            reliability: routingSimulation.excludedRoute.reliability,
-            capacity_score: routingSimulation.excludedRoute.capacityScore,
-          }
-        : null,
-    }),
-  ),
+  http.post(`${API_PREFIX}/routing/simulate`, async ({ request }) => {
+    const payload = (await request.json()) as RoutingSimulateRequestPayload;
+    const plan = buildMockRoutingPlan(payload);
+    return HttpResponse.json(serializeRoutingPlan(plan));
+  }),
   http.get(`${API_PREFIX}/policies/manifest`, () => HttpResponse.json(policyManifestPayload)),
   http.get(`${API_PREFIX}/providers`, () => HttpResponse.json({ providers: providerCatalog })),
 ];

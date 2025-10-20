@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import Policies from './Policies';
@@ -203,6 +203,12 @@ describe('Policies page integration with policy APIs', () => {
     await userEvent.click(screen.getByLabelText('Template Turbo'));
     await userEvent.click(screen.getByRole('button', { name: 'Aplicar template' }));
 
+    const applyDialog = await screen.findByRole('dialog', { name: 'Aplicar template · Turbo' });
+    const applyConfirm = within(applyDialog).getByRole('button', { name: 'Aplicar template' });
+    await userEvent.click(applyConfirm);
+    const applyArmed = within(applyDialog).getByRole('button', { name: 'Aplicar agora' });
+    await userEvent.click(applyArmed);
+
     await waitFor(() => expect(createDeploymentMock).toHaveBeenCalled());
     expect(createDeploymentMock).toHaveBeenCalledWith({
       templateId: 'turbo',
@@ -214,6 +220,12 @@ describe('Policies page integration with policy APIs', () => {
     await waitFor(() => expect(screen.getByText('Turbo ativado para toda a frota.')).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: 'Rollback imediato' }));
+
+    const rollbackDialog = await screen.findByRole('dialog', { name: 'Rollback imediato · Equilíbrio' });
+    const rollbackConfirm = within(rollbackDialog).getByRole('button', { name: 'Confirmar rollback' });
+    await userEvent.click(rollbackConfirm);
+    const rollbackArmed = within(rollbackDialog).getByRole('button', { name: 'Rollback agora' });
+    await userEvent.click(rollbackArmed);
 
     await waitFor(() => expect(deleteDeploymentMock).toHaveBeenCalledWith('deploy-turbo-20250420'));
     await waitFor(() => expect(screen.getByText('Rollback concluído para Equilíbrio.')).toBeInTheDocument());

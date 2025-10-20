@@ -918,7 +918,8 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { name: provider.name });
+    const [providerSummaryHeading] = await screen.findAllByRole('heading', { name: provider.name });
+    expect(providerSummaryHeading).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByText('Carregando provedores…')).not.toBeInTheDocument();
     });
@@ -985,7 +986,10 @@ describe('App provider orchestration flow', () => {
       ).toBe(true);
     });
 
-    expect(await screen.findByText(`Sessão ${newSession.id} criada para ${provider.name}.`)).toBeInTheDocument();
+    const [provisionSuccess] = await screen.findAllByText(
+      `Sessão ${newSession.id} criada para ${provider.name}.`,
+    );
+    expect(provisionSuccess).toBeInTheDocument();
     expect(screen.getByText(newSession.id)).toBeInTheDocument();
 
     const provisioningCall = fetchMock.mock.calls.find(
@@ -1047,7 +1051,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerServersHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerServersHeading).toBeInTheDocument();
     const serversTab = screen.getByRole('button', { name: 'Servidores' });
     await user.click(serversTab);
 
@@ -1067,7 +1075,18 @@ describe('App provider orchestration flow', () => {
 
     const stopButton = await scoped.findByRole('button', { name: 'Parar' });
     await user.click(stopButton);
-    expect(stopButton).toBeDisabled();
+
+    const stopDialog = await screen.findByRole('dialog', {
+      name: `Parar servidor · ${provider.name}`,
+    });
+    const stopConfirm = within(stopDialog).getByRole('button', { name: 'Parar servidor' });
+    await user.click(stopConfirm);
+    const stopArmed = within(stopDialog).getByRole('button', { name: 'Parar agora' });
+    await user.click(stopArmed);
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: `Parar servidor · ${provider.name}` })).not.toBeInTheDocument(),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1085,6 +1104,18 @@ describe('App provider orchestration flow', () => {
 
     const startButton = scoped.getByRole('button', { name: 'Iniciar' });
     await user.click(startButton);
+
+    const startDialog = await screen.findByRole('dialog', {
+      name: `Iniciar servidor · ${provider.name}`,
+    });
+    const startConfirm = within(startDialog).getByRole('button', { name: 'Iniciar servidor' });
+    await user.click(startConfirm);
+    const startArmed = within(startDialog).getByRole('button', { name: 'Iniciar agora' });
+    await user.click(startArmed);
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: `Iniciar servidor · ${provider.name}` })).not.toBeInTheDocument(),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1109,7 +1140,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerServersHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerServersHeading).toBeInTheDocument();
     const serversTab = screen.getByRole('button', { name: 'Servidores' });
     await user.click(serversTab);
 
@@ -1246,7 +1281,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerKeysHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerKeysHeading).toBeInTheDocument();
     const keysTab = screen.getByRole('button', { name: 'Chaves' });
     await user.click(keysTab);
 
@@ -1292,7 +1331,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerRoutingHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerRoutingHeading).toBeInTheDocument();
     const routingTab = screen.getByRole('button', { name: 'Routing' });
     await user.click(routingTab);
 
@@ -1323,7 +1366,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerPaletteHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerPaletteHeading).toBeInTheDocument();
     const finopsTab = screen.getByRole('button', { name: 'FinOps' });
     await user.click(finopsTab);
 
@@ -1440,7 +1487,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerNotificationHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerNotificationHeading).toBeInTheDocument();
 
     const paletteButton = screen.getByRole('button', { name: /Command palette/i });
     expect(paletteButton).toHaveAttribute('aria-expanded', 'false');
@@ -1475,7 +1526,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerFallbackHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerFallbackHeading).toBeInTheDocument();
 
     const notificationsButton = await screen.findByRole('button', {
       name: /Abrir central de notificações/i,
@@ -1548,7 +1603,11 @@ describe('App provider orchestration flow', () => {
       await Promise.resolve();
     });
 
-    await screen.findByRole('heading', { level: 3, name: provider.name });
+    const [providerPersistenceHeading] = await screen.findAllByRole('heading', {
+      level: 3,
+      name: provider.name,
+    });
+    expect(providerPersistenceHeading).toBeInTheDocument();
     const policiesTab = screen.getByRole('button', { name: 'Políticas' });
     await user.click(policiesTab);
 
@@ -1561,12 +1620,24 @@ describe('App provider orchestration flow', () => {
     const applyButton = screen.getByRole('button', { name: 'Aplicar template' });
     await user.click(applyButton);
 
+    const applyDialog = await screen.findByRole('dialog', { name: 'Aplicar template · Turbo' });
+    const applyConfirm = within(applyDialog).getByRole('button', { name: 'Aplicar template' });
+    await user.click(applyConfirm);
+    const applyArmed = within(applyDialog).getByRole('button', { name: 'Aplicar agora' });
+    await user.click(applyArmed);
+
     await screen.findByText('Turbo ativado para toda a frota.');
     await screen.findByRole('heading', { level: 2, name: 'Turbo' });
 
     const rollbackButton = screen.getByRole('button', { name: 'Rollback imediato' });
     expect(rollbackButton).not.toBeDisabled();
     await user.click(rollbackButton);
+
+    const rollbackDialog = await screen.findByRole('dialog', { name: 'Rollback imediato · Equilíbrio' });
+    const rollbackConfirm = within(rollbackDialog).getByRole('button', { name: 'Confirmar rollback' });
+    await user.click(rollbackConfirm);
+    const rollbackArmed = within(rollbackDialog).getByRole('button', { name: 'Rollback agora' });
+    await user.click(rollbackArmed);
 
     await screen.findByText('Rollback concluído para Equilíbrio.');
     await screen.findByRole('heading', { level: 2, name: 'Equilíbrio' });
@@ -1610,7 +1681,11 @@ describe('App provider orchestration flow', () => {
     });
     await user.click(notificationButton);
 
-    await screen.findByText('Nenhum evento recente');
+    const notificationCenter = await screen.findByRole('dialog', {
+      name: 'Status operacionais e FinOps',
+    });
+
+    await within(notificationCenter).findByText('Nenhum evento recente');
     expect(console.error).toHaveBeenCalledWith(
       'Falha ao carregar notificações remotas',
       expect.any(Error),
@@ -1636,7 +1711,11 @@ describe('App provider orchestration flow', () => {
     });
     await user.click(notificationButton);
 
-    await screen.findByText('Nenhum evento recente');
+    const notificationCenter = await screen.findByRole('dialog', {
+      name: 'Status operacionais e FinOps',
+    });
+
+    await within(notificationCenter).findByText('Nenhum evento recente');
     const storedState = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
     expect(storedState).toContain('platform-placeholder');
   });
@@ -1666,7 +1745,11 @@ describe('App provider orchestration flow', () => {
     });
     await user.click(notificationButton);
 
-    const markAllButton = await screen.findByRole('button', { name: 'Limpar' });
+    const notificationCenter = await screen.findByRole('dialog', {
+      name: 'Status operacionais e FinOps',
+    });
+
+    const markAllButton = within(notificationCenter).getByRole('button', { name: 'Limpar' });
     await user.click(markAllButton);
 
     await waitFor(() => expect(markAllButton).toBeDisabled());
@@ -1688,8 +1771,12 @@ describe('App provider orchestration flow', () => {
     });
     await user.click(notificationButtonAfterReload);
 
+    const notificationCenterAfterReload = await screen.findByRole('dialog', {
+      name: 'Status operacionais e FinOps',
+    });
+
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Limpar' })).toBeDisabled(),
+      expect(within(notificationCenterAfterReload).getByRole('button', { name: 'Limpar' })).toBeDisabled(),
     );
 
     const toggleButtons = await screen.findAllByRole('button', {

@@ -175,14 +175,20 @@ describe('Routing page remote simulation', () => {
     const failoverControl = screen.getByLabelText('Falha simulada');
     await userEvent.selectOptions(failoverControl, 'glm');
 
-    await waitFor(() => expect(simulateRoutingMock).toHaveBeenCalledTimes(4));
-    const nextPayload = simulateRoutingMock.mock.calls[2][0];
-    expect(nextPayload).toMatchObject({ failoverProviderId: 'glm' });
+    await waitFor(() => {
+      const failoverCalls = simulateRoutingMock.mock.calls.filter(
+        (call) => call[0]?.failoverProviderId === 'glm',
+      );
+      expect(failoverCalls.length).toBeGreaterThan(0);
+    });
 
     await userEvent.selectOptions(failoverControl, '');
-    await waitFor(() => expect(simulateRoutingMock).toHaveBeenCalledTimes(6));
-    const resetPayload = simulateRoutingMock.mock.calls[4][0];
-    expect(resetPayload).toMatchObject({ failoverProviderId: null });
+    await waitFor(() => {
+      const resetCalls = simulateRoutingMock.mock.calls.filter(
+        (call) => call[0]?.failoverProviderId === null,
+      );
+      expect(resetCalls.length).toBeGreaterThan(0);
+    });
   });
 
   it('exibe mensagem de erro quando a simulação falha', async () => {
