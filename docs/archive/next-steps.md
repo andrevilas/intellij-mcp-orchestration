@@ -4,6 +4,12 @@
 
 > Atualização 2025-10-15 08:29: roadmap revisado com **sprints explícitas (M1–M6)** e inclusão de **suporte a temas (Light/Dark)** para a UI. Consulte `ui-next-steps.md` para o detalhamento operacional.
 
+## Governança e follow-up
+- Ao concluir qualquer ID listado neste documento ou em `ui-next-steps.md`, registre o progresso marcando o checklist correspondente **neste arquivo** e detalhe ajustes relevantes.
+- Armazene as evidências (prints, logs, anexos) em `/docs/evidence/<ID>/`, garantindo rastreabilidade completa.
+- Atualize `docs/archive/ui-next-steps.md` quando a entrega for de escopo UI, mantendo a paridade entre os planos macro e detalhado.
+- Reavalie `docs/audit-ui-m1-m6.md` a cada sprint desbloqueada, anotando impactos e novos bloqueios.
+
 ## Status auditado (2025-10-18)
 - [ ] **M1 — Fundamentos & Shell** · Em progresso — Bootstrap/FA, ThemeProvider e tokens Light/Dark entregues; seguir com dieta de bundle e métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
   - [x] **TASK-UI-SH-010** — Shell com `skip-link`, roving tabindex e atalhos documentados.
