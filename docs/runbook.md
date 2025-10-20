@@ -37,7 +37,7 @@
 ## Simulador de Routing e Telemetria FinOps
 
 - **Dashboard** — `GET /api/v1/telemetry/metrics|heatmap|timeseries|pareto|runs` oferecem agregações completas; quando a base SQLite está vazia o backend responde usando fixtures em `server/routes/fixtures/telemetry_*.json` (espelhadas em `tests/fixtures/backend/`). 【F:server/README.md†L33-L52】【F:server/src/console_mcp_server/routes.py†L2799-L3084】【F:server/src/console_mcp_server/fixtures.py†L1-L45】
-- **Routing** — `POST /api/v1/routing/simulate` calcula planos determinísticos; caso a distribuição fique vazia o endpoint retorna `routing_simulation.json` como fallback, mantendo previsibilidade para testes manuais/automáticos. 【F:server/src/console_mcp_server/routes.py†L4165-L4201】【F:server/routes/fixtures/routing_simulation.json†L1-L63】
+- **Routing** — `POST /api/v1/routing/simulate` calcula planos determinísticos; caso a distribuição fique vazia o endpoint retorna `routing_simulation.json` como fallback, mantendo previsibilidade para testes manuais/automáticos. Regere o fixture com `python scripts/generate_routing_fixture.py` (atualiza `server/routes/fixtures/` e `tests/fixtures/backend/`) e valide com `pytest server/tests/test_routing_fixtures.py`. 【F:server/src/console_mcp_server/routes.py†L4159-L4243】【F:scripts/generate_routing_fixture.py†L1-L74】【F:server/tests/test_routing_fixtures.py†L1-L43】
 - **FinOps** — `GET /api/v1/telemetry/finops/sprints` e `/telemetry/finops/pull-requests` compartilham fixtures (`finops_sprints.json`, `finops_pull_requests.json`) com o time de QA para desbloquear UI-ACT-005 quando chegar à vez. 【F:server/src/console_mcp_server/routes.py†L3163-L3243】【F:tests/fixtures/backend/README.md†L1-L6】
 
 ## Rollback de planos
