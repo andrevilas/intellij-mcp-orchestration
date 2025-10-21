@@ -8,6 +8,7 @@ import {
   applyConfigMcpUpdate,
   fetchServerCatalog,
   planConfigMcpUpdate,
+  type ConfigMcpUpdateApplyRequest,
   type ConfigMcpUpdateApplyResponse,
   type McpServer,
 } from '../api';
@@ -114,7 +115,7 @@ describe('McpServersList', () => {
     expect(planCall.serverId).toBe('server-1');
     expect(planCall.changes.description).toBe('Servidor MCP com auditoria contínua');
 
-    const applyCall = applyMock.mock.calls[0][0] as Record<string, unknown>;
+    const applyCall = applyMock.mock.calls[0][0] as ConfigMcpUpdateApplyRequest;
     expect(applyCall.planId).toBe('plan-1');
     expect(applyCall.serverId).toBe('server-1');
     expect(applyCall.actor).toBe('Joana MCP');

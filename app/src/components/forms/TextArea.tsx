@@ -33,7 +33,11 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextAre
   const errorId = error ? `${textAreaId}-error` : undefined;
   const invalid = Boolean(error) || ariaInvalid === true || ariaInvalid === 'true';
   const describedBy = mergeIds(typeof ariaDescribedBy === 'string' ? ariaDescribedBy : undefined, helperId, errorId);
-  const normalizedInvalid = invalid ? 'true' : ariaInvalid != null ? String(ariaInvalid) : undefined;
+  const normalizedInvalid: TextareaHTMLAttributes<HTMLTextAreaElement>['aria-invalid'] = invalid
+    ? ariaInvalid && ariaInvalid !== 'false'
+      ? ariaInvalid
+      : true
+    : ariaInvalid ?? undefined;
 
   return (
     <div

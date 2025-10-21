@@ -1,99 +1,123 @@
 {
-  "generatedAt": "2025-10-20T20:00:45.063Z",
+  "generatedAt": "2025-10-21T12:18:30.973Z",
   "distDir": "dist",
   "totals": {
-    "size": 1766310,
-    "gzip": 452229
+    "size": 1748024,
+    "gzip": 450316
   },
   "assets": [
     {
-      "file": "assets/view-dashboard-DQ_9DOaa.js",
-      "size": 591388,
-      "gzip": 167505,
+      "file": "assets/view-dashboard-6l6R-ImQ.js",
+      "size": 591966,
+      "gzip": 167626,
       "type": "js"
     },
     {
-      "file": "assets/index-vvjUfR9K.css",
-      "size": 383659,
-      "gzip": 55922,
+      "file": "assets/index-D6MbciCu.css",
+      "size": 252992,
+      "gzip": 35753,
       "type": "css"
     },
     {
-      "file": "assets/Flows-DXBVzp7f.js",
+      "file": "assets/Flows-BIWkmIU4.js",
       "size": 148895,
-      "gzip": 47341,
+      "gzip": 47344,
       "type": "js"
     },
     {
-      "file": "assets/index-C9CFrbNT.js",
-      "size": 130173,
-      "gzip": 41039,
+      "file": "assets/index-hcHfyW4v.js",
+      "size": 130334,
+      "gzip": 41100,
       "type": "js"
     },
     {
-      "file": "assets/view-finops-CtfLx_ne.js",
-      "size": 120749,
-      "gzip": 30483,
+      "file": "assets/view-finops-Bz_3ZRt4.js",
+      "size": 122096,
+      "gzip": 30829,
       "type": "js"
     },
     {
-      "file": "assets/UiKitShowcase-CBhlNH2r.js",
-      "size": 69505,
-      "gzip": 22453,
+      "file": "assets/UiKitShowcase-Bk4b_D9N.js",
+      "size": 69515,
+      "gzip": 22457,
       "type": "js"
     },
     {
-      "file": "assets/index-BekhK6eT.js",
-      "size": 51019,
-      "gzip": 13143,
+      "file": "assets/index-_irtdDau.js",
+      "size": 51165,
+      "gzip": 13239,
       "type": "js"
     },
     {
-      "file": "assets/Agents-KkX1tM0s.js",
-      "size": 44091,
-      "gzip": 11972,
+      "file": "assets/Agents-D6fSaPXV.js",
+      "size": 45173,
+      "gzip": 12181,
       "type": "js"
     },
     {
-      "file": "assets/Security-Dec3Mn28.js",
-      "size": 38730,
-      "gzip": 10782,
-      "type": "js"
-    },
-    {
-      "file": "assets/Routing-VzdsXAeR.js",
-      "size": 31654,
-      "gzip": 8602,
-      "type": "js"
-    },
-    {
-      "file": "assets/Policies-CeKD9r-f.js",
-      "size": 29459,
-      "gzip": 8314,
-      "type": "js"
-    },
-    {
-      "file": "assets/view-servers-DAy25ISm.js",
-      "size": 27531,
-      "gzip": 7923,
-      "type": "js"
-    },
-    {
-      "file": "assets/UiKitShowcase-uNLrHZqe.css",
-      "size": 23179,
-      "gzip": 4151,
+      "file": "assets/index-D-DABHmK.css",
+      "size": 41296,
+      "gzip": 6590,
       "type": "css"
     },
     {
-      "file": "assets/Observability-CxFUWmPY.js",
-      "size": 21285,
-      "gzip": 6554,
+      "file": "assets/Security-PE9gmpp_.js",
+      "size": 39113,
+      "gzip": 10998,
       "type": "js"
     },
     {
-      "file": "assets/view-dashboard-CsOFILGh.css",
-      "size": 9176,
-      "gzip": 2168,
+      "file": "assets/view-finops-CLiuAyCl.css",
+      "size": 38763,
+      "gzip": 5353,
+      "type": "css"
+    },
+    {
+      "file": "assets/Routing-CmbT6o95.js",
+      "size": 32231,
+      "gzip": 8744,
+      "type": "js"
+    },
+    {
+      "file": "assets/Policies-BQnIMFa3.js",
+      "size": 29924,
+      "gzip": 8409,
+      "type": "js"
+    },
+    {
+      "file": "assets/view-servers-BKUxnyzQ.js",
+      "size": 27986,
+      "gzip": 8003,
+      "type": "js"
+    },
+    {
+      "file": "assets/UiKitShowcase-4PF0ftht.css",
+      "size": 23176,
+      "gzip": 4130,
+      "type": "css"
+    },
+    {
+      "file": "assets/Observability-DJjrNWWE.js",
+      "size": 21285,
+      "gzip": 6557,
+      "type": "js"
+    },
+    {
+      "file": "assets/Routing-CDbb85aP.css",
+      "size": 13129,
+      "gzip": 2365,
+      "type": "css"
+    },
+    {
+      "file": "assets/view-dashboard-CcCO2NQA.css",
+      "size": 12080,
+      "gzip": 2667,
+      "type": "css"
+    },
+    {
+      "file": "assets/Observability-CWQQZJeo.css",
+      "size": 10973,
+      "gzip": 2080,
       "type": "css"
     },
     {
@@ -103,9 +127,9 @@
       "type": "js"
     },
     {
-      "file": "assets/Keys-E0mCMQTD.js",
+      "file": "assets/Keys-BpD3fRVj.js",
       "size": 8877,
-      "gzip": 2781,
+      "gzip": 2782,
       "type": "js"
     },
     {
@@ -115,27 +139,27 @@
       "type": "css"
     },
     {
-      "file": "assets/ResourceTable-BvbcXd0U.css",
-      "size": 6988,
-      "gzip": 1591,
+      "file": "assets/ResourceTable-CS46Z6md.css",
+      "size": 7023,
+      "gzip": 1582,
       "type": "css"
     },
     {
-      "file": "assets/Marketplace-CU2Z66bn.js",
+      "file": "assets/Marketplace-Cq5D2f3E.js",
       "size": 6482,
-      "gzip": 2192,
+      "gzip": 2196,
       "type": "js"
     },
     {
-      "file": "assets/ResourceTable-CCQhLKW2.js",
+      "file": "assets/ResourceTable-Dxm7JO5A.js",
       "size": 4391,
-      "gzip": 1627,
+      "gzip": 1629,
       "type": "js"
     },
     {
       "file": "index.html",
-      "size": 1356,
-      "gzip": 581,
+      "size": 1436,
+      "gzip": 597,
       "type": "html"
     },
     {
