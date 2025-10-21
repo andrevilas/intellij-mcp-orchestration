@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Mock } from 'vitest';
+import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import McpServersList from '../pages/AdminChat/McpServersList';
+import * as api from '../api';
 import {
   applyConfigMcpUpdate,
   fetchServerCatalog,
@@ -12,21 +12,9 @@ import {
   type McpServer,
 } from '../api';
 
-type ApiModule = typeof import('../api');
-
-vi.mock('../api', async () => {
-  const actual = await vi.importActual<ApiModule>('../api');
-  return {
-    ...actual,
-    fetchServerCatalog: vi.fn(),
-    planConfigMcpUpdate: vi.fn(),
-    applyConfigMcpUpdate: vi.fn(),
-  } satisfies Partial<ApiModule>;
-});
-
-const catalogMock = fetchServerCatalog as unknown as Mock;
-const planMock = planConfigMcpUpdate as unknown as Mock;
-const applyMock = applyConfigMcpUpdate as unknown as Mock;
+const catalogMock = vi.spyOn(api, 'fetchServerCatalog');
+const planMock = vi.spyOn(api, 'planConfigMcpUpdate');
+const applyMock = vi.spyOn(api, 'applyConfigMcpUpdate');
 
 const baseServer: McpServer = {
   id: 'server-1',
@@ -56,8 +44,15 @@ const planResponse = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  catalogMock.mockReset();
+  planMock.mockReset();
+  applyMock.mockReset();
   catalogMock.mockResolvedValue([baseServer]);
   planMock.mockResolvedValue(planResponse);
+});
+
+afterAll(() => {
+  vi.restoreAllMocks();
 });
 
 describe('McpServersList', () => {

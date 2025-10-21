@@ -138,7 +138,11 @@ function formatSuccessMessage(response: ConfigMcpUpdateApplyResponse): string {
   return details.join(' ');
 }
 
-export default function McpServersList() {
+export interface McpServersListProps {
+  planButtonAriaLabel?: (server: McpServer) => string | null | undefined;
+}
+
+export default function McpServersList({ planButtonAriaLabel }: McpServersListProps = {}) {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [drafts, setDrafts] = useState<Record<string, ServerDraft>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -428,6 +432,10 @@ export default function McpServersList() {
             const descriptionId = `mcp-server-description-${server.id}`;
             const tagsId = `mcp-server-tags-${server.id}`;
             const capabilitiesId = `mcp-server-capabilities-${server.id}`;
+            const planButtonAria =
+              typeof planButtonAriaLabel === 'function'
+                ? planButtonAriaLabel(server) ?? undefined
+                : undefined;
 
             return (
               <li key={server.id} className="mcp-servers__item">
@@ -495,6 +503,7 @@ export default function McpServersList() {
                         type="submit"
                         className="button button--primary"
                         disabled={!dirty || planning}
+                        aria-label={planButtonAria}
                       >
                         {planning ? 'Gerando…' : 'Gerar plano'}
                       </button>

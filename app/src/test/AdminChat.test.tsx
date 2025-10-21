@@ -408,14 +408,20 @@ describe('AdminChat view', () => {
     });
     expect(screen.getByText('Aplicado')).toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText('Identificador do agente'), 'openai-gpt4o');
-    await userEvent.type(screen.getByLabelText('Nome exibido'), 'OpenAI GPT-4o');
-    await userEvent.type(screen.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
-    await userEvent.type(screen.getByLabelText('Endpoint MCP (ws/wss)'), 'wss://openai.example.com/ws');
-    await userEvent.type(screen.getByLabelText('Owner responsável'), '@squad-mcp');
-    await userEvent.type(screen.getByLabelText('Tags (separadas por vírgula)'), 'openai,prod');
-    await userEvent.type(screen.getByLabelText('Capacidades (separadas por vírgula)'), 'chat');
-    await userEvent.type(screen.getByLabelText('Descrição'), 'Agente com fallback para GPT-4o.');
+    const agentIdInput = screen.getByLabelText('Identificador do agente');
+    await userEvent.type(agentIdInput, 'openai-gpt4o');
+
+    const wizardForm = agentIdInput.closest('form');
+    expect(wizardForm).not.toBeNull();
+    const wizard = within(wizardForm as HTMLFormElement);
+
+    await userEvent.type(wizard.getByLabelText('Nome exibido'), 'OpenAI GPT-4o');
+    await userEvent.type(wizard.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
+    await userEvent.type(wizard.getByLabelText('Endpoint MCP (ws/wss)'), 'wss://openai.example.com/ws');
+    await userEvent.type(wizard.getByLabelText('Owner responsável'), '@squad-mcp');
+    await userEvent.type(wizard.getByLabelText('Tags (separadas por vírgula)'), 'openai,prod');
+    await userEvent.type(wizard.getByLabelText('Capacidades (separadas por vírgula)'), 'chat');
+    await userEvent.type(wizard.getByLabelText('Descrição'), 'Agente com fallback para GPT-4o.');
     await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
     fireEvent.submit(screen.getByLabelText('Identificador do agente').closest('form') as HTMLFormElement);
 

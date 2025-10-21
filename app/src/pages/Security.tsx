@@ -664,8 +664,18 @@ export default function Security() {
         return;
       }
 
-      const trimmedName = userDraft.name.trim();
-      const trimmedEmail = userDraft.email.trim();
+      const formData = new FormData(event.currentTarget);
+      const trimmedName = (formData.get('user-name') ?? '').toString().trim();
+      const trimmedEmail = (formData.get('user-email') ?? '').toString().trim();
+      const selectedRoles = formData
+        .getAll('user-roles')
+        .map((value) => value.toString())
+        .filter((role, index, source) => role.length > 0 && source.indexOf(role) === index);
+      const statusValue = (formData.get('user-status') ?? 'active').toString();
+      const normalizedStatus: SecurityUserStatus =
+        statusValue === 'invited' || statusValue === 'suspended' ? statusValue : 'active';
+      const mfaSelection = (formData.get('user-mfa') ?? 'on').toString();
+      const normalizedMfa = mfaSelection === 'on';
 
       if (!trimmedName) {
         setUserDialogError('Informe o nome completo do usuário.');
@@ -685,18 +695,18 @@ export default function Security() {
           const created = await createSecurityUser({
             name: trimmedName,
             email: trimmedEmail,
-            roles: userDraft.roles,
-            status: userDraft.status,
-            mfaEnabled: userDraft.mfaEnabled,
+            roles: selectedRoles,
+            status: normalizedStatus,
+            mfaEnabled: normalizedMfa,
           });
           setUsers((current) => [...current, created]);
         } else if (userTarget) {
           const updated = await updateSecurityUser(userTarget.id, {
             name: trimmedName,
             email: trimmedEmail,
-            roles: userDraft.roles,
-            status: userDraft.status,
-            mfaEnabled: userDraft.mfaEnabled,
+            roles: selectedRoles,
+            status: normalizedStatus,
+            mfaEnabled: normalizedMfa,
           });
           setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
         }
@@ -708,7 +718,7 @@ export default function Security() {
         setUserDialogSubmitting(false);
       }
     },
-    [userDraft, userDialogMode, userDialogSubmitting, userTarget],
+    [userDialogMode, userDialogSubmitting, userTarget],
   );
 
   const handleDeleteUser = useCallback(async () => {
@@ -1481,6 +1491,7 @@ export default function Security() {
         <label>
           Nome completo
           <input
+            name="user-name"
             value={userDraft.name}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               setUserDraft((draft) => ({ ...draft, name: event.target.value }))
@@ -1492,6 +1503,7 @@ export default function Security() {
           E-mail corporativo
           <input
             type="email"
+            name="user-email"
             value={userDraft.email}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               setUserDraft((draft) => ({ ...draft, email: event.target.value }))
@@ -1503,6 +1515,7 @@ export default function Security() {
           Papéis atribuídos
           <select
             multiple
+            name="user-roles"
             value={userDraft.roles}
             onChange={(event: ChangeEvent<HTMLSelectElement>) =>
               setUserDraft((draft) => ({
@@ -1521,6 +1534,7 @@ export default function Security() {
         <label>
           Status de acesso
           <select
+            name="user-status"
             value={userDraft.status}
             onChange={(event: ChangeEvent<HTMLSelectElement>) =>
               setUserDraft((draft) => ({ ...draft, status: event.target.value as SecurityUserStatus }))
@@ -1534,6 +1548,7 @@ export default function Security() {
         <label>
           <span>Multi-factor authentication (MFA)</span>
           <select
+            name="user-mfa"
             value={userDraft.mfaEnabled ? 'on' : 'off'}
             onChange={(event: ChangeEvent<HTMLSelectElement>) =>
               setUserDraft((draft) => ({ ...draft, mfaEnabled: event.target.value === 'on' }))

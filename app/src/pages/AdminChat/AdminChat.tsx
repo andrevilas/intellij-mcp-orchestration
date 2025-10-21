@@ -708,7 +708,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
           </form>
 
           <McpOnboardingWizard />
-          <McpServersList />
+          <McpServersList planButtonAriaLabel={(server) => `Gerar plano para ${server.name || server.id}`} />
         </section>
 
         <aside className="admin-chat__panel admin-chat__panel--summary">
