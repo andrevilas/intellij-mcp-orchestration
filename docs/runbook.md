@@ -25,6 +25,13 @@
    - Capture telemetria do `glm46-mcp-server` (`~/.mcp/logs/glm46/*.jsonl`) para o relatório de custos.
    - Rotacione credenciais MCP pela aba **Chaves** da console e confirme o handshake em tempo real após cada atualização.
 
+## Operações seguras (OPS-302)
+
+1. Execute `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` antes de solicitar revisão quando houver alterações em segredos, workflows ou runbooks.
+2. Verifique o job **ops_compliance** na CI — ele depende de `security` e bloqueia `lint`/`test`/`smoke` quando permissões de workflows ou evidências obrigatórias estão ausentes.
+3. Siga o [Runbook de Resposta a Incidentes de Segredos](ops/runbooks/secrets-incident-playbook.md) para rotação controlada, coleta de evidências e validação de acesso mínimo.
+4. Armazene relatórios (`gitleaks`, `ops-controls-report.json`) em `/docs/evidence/TASK-OPS-301/` e `/docs/evidence/TASK-OPS-302/` conforme apropriado, atualizando os checklists correspondentes.
+
 ## Uso do Config Assistant
 
 - **Chat inicial** — `POST /api/v1/config/chat` aceita mensagem livre e opcionalmente `intent` (`add_agent`, `edit_policies`, `generate_artifact`). 【F:server/src/console_mcp_server/routes.py†L188-L289】【F:server/src/console_mcp_server/config_assistant/intents.py†L1-L39】
