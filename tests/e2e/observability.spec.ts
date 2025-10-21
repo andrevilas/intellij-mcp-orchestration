@@ -198,6 +198,17 @@ test('painel de observabilidade exibe métricas e aciona evals @observability', 
   await expect(page.getByText(/R\$\s24,68/)).toBeVisible();
   await expect(page.getByText('64%')).toBeVisible();
 
+  const planSection = page.locator('section.plan-summary');
+  await expect(planSection.getByRole('heading', { name: 'Plano de configuração' })).toBeVisible();
+  await expect(planSection.getByText('LangSmith ativo para tracing.')).toBeVisible();
+  await expect(planSection.getByText(/Projeto: Observability/)).toBeVisible();
+  await expect(planSection.getByText('OTLP collector ativo para métricas.')).toBeVisible();
+  await expect(
+    planSection.getByText(/Endpoint: https:\/\/collector\.example\.com\/v1\/traces/),
+  ).toBeVisible();
+  await expect(planSection.getByText('Evals desativado.')).toBeVisible();
+  await expect(planSection.getByText(/Nenhum provider configurado\./)).toBeVisible();
+
   await page.getByRole('tab', { name: /Tracing/ }).click();
   await expect(page.getByRole('table', { name: /Visão agregada dos spans/ })).toBeVisible();
   await expect(page.getByRole('row', { name: /GLM 46/ })).toBeVisible();

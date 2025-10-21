@@ -130,6 +130,21 @@ describe('Observability page', () => {
     expect(screen.getByText(/R\$\s24,68/)).toBeInTheDocument();
     expect(screen.getByText('64%')).toBeInTheDocument();
 
+    const planHeading = screen.getByRole('heading', { name: 'Plano de configuração' });
+    const planSection = planHeading.closest('section');
+    expect(planSection).not.toBeNull();
+    if (planSection) {
+      const scoped = within(planSection);
+      expect(scoped.getByText('LangSmith ativo para tracing.')).toBeInTheDocument();
+      expect(scoped.getByText(/Projeto: Observability/)).toBeInTheDocument();
+      expect(scoped.getByText('OTLP collector ativo para métricas.')).toBeInTheDocument();
+      expect(
+        scoped.getByText(/Endpoint: https:\/\/collector\.exemplo\.com\/v1\/traces/),
+      ).toBeInTheDocument();
+      expect(scoped.getByText('Evals desativado.')).toBeInTheDocument();
+      expect(scoped.getByText(/Nenhum provider configurado\./)).toBeInTheDocument();
+    }
+
     expect(screen.getByLabelText('Latência média por provedor')).toBeInTheDocument();
     expect(screen.getByLabelText('Distribuição de sucesso por provedor')).toBeInTheDocument();
   });

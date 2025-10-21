@@ -10,6 +10,8 @@ import type {
   PolicyManifestUpdateInput,
   PolicyPlanResponse,
   ConfigPlanDiffSummary,
+  TelemetryTimeseriesPoint,
+  TelemetryRouteBreakdownEntry,
 } from '../api';
 import {
   fetchPolicyManifest,
@@ -98,11 +100,83 @@ describe('FinOps page planning workflow', () => {
   const fetchFinOpsSprintReportsMock = fetchFinOpsSprintReports as unknown as Mock;
   const fetchFinOpsPullRequestReportsMock = fetchFinOpsPullRequestReports as unknown as Mock;
 
+  function isoDayFromOffset(offset: number): string {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    base.setDate(base.getDate() - offset);
+    return base.toISOString().slice(0, 10);
+  }
+
+  function buildTimeseriesFixture(): TelemetryTimeseriesPoint[] {
+    return Array.from({ length: 10 }, (_, index) => {
+      const offset = 9 - index;
+      const isBaselineWindow = offset >= 7;
+      const costUsd = isBaselineWindow ? 110 : 240;
+      const tokensIn = isBaselineWindow ? 550_000 : 900_000;
+      const tokensOut = isBaselineWindow ? 450_000 : 900_000;
+      return {
+        day: isoDayFromOffset(offset),
+        provider_id: 'glm',
+        run_count: 12,
+        tokens_in: tokensIn,
+        tokens_out: tokensOut,
+        cost_usd: costUsd,
+        avg_latency_ms: isBaselineWindow ? 980 : 2100,
+        success_count: isBaselineWindow ? 11 : 9,
+      } satisfies TelemetryTimeseriesPoint;
+    });
+  }
+
+  function buildParetoFixture(providers: ProviderSummary[]): TelemetryRouteBreakdownEntry[] {
+    const provider = providers[0];
+    return [
+      {
+        id: `${provider.id}-default`,
+        provider_id: provider.id,
+        provider_name: provider.name,
+        route: null,
+        lane: 'balanced',
+        run_count: 420,
+        tokens_in: 3_200_000,
+        tokens_out: 3_000_000,
+        cost_usd: 1200,
+        avg_latency_ms: 2450,
+        success_rate: 0.82,
+      },
+      {
+        id: `${provider.id}-fallback`,
+        provider_id: provider.id,
+        provider_name: provider.name,
+        route: 'fallback',
+        lane: 'turbo',
+        run_count: 180,
+        tokens_in: 1_000_000,
+        tokens_out: 800_000,
+        cost_usd: 500,
+        avg_latency_ms: 1820,
+        success_rate: 0.88,
+      },
+      {
+        id: `${provider.id}-cache`,
+        provider_id: provider.id,
+        provider_name: provider.name,
+        route: 'cache',
+        lane: 'economy',
+        run_count: 90,
+        tokens_in: 600_000,
+        tokens_out: 400_000,
+        cost_usd: 300,
+        avg_latency_ms: 910,
+        success_rate: 0.97,
+      },
+    ];
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
-    fetchTelemetryTimeseriesMock.mockResolvedValue({ items: [] });
+    fetchTelemetryTimeseriesMock.mockResolvedValue({ items: buildTimeseriesFixture() });
     fetchTelemetryRunsMock.mockResolvedValue({ items: [] });
-    fetchTelemetryParetoMock.mockResolvedValue({ items: [] });
+    fetchTelemetryParetoMock.mockResolvedValue({ items: buildParetoFixture(providers) });
     fetchTelemetryExperimentsMock.mockResolvedValue({ items: [] });
     fetchTelemetryLaneCostsMock.mockResolvedValue({ items: [] });
     fetchMarketplacePerformanceMock.mockResolvedValue({ items: [] });
@@ -246,6 +320,23 @@ describe('FinOps page planning workflow', () => {
     );
 
     await waitFor(() => expect(fetchManifestMock).toHaveBeenCalled());
+    await waitFor(() => expect(fetchTelemetryTimeseriesMock).toHaveBeenCalled());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('finops-alert-cost-surge')).toBeInTheDocument(),
+    );
+
+    expect(screen.getByText('Escalada de custo diário')).toBeInTheDocument();
+    expect(screen.getByText('Pico de tokens consumidos')).toBeInTheDocument();
+    expect(screen.getByText('Custo concentrado em uma rota')).toBeInTheDocument();
+    expect(screen.getByText('Taxa de sucesso abaixo do esperado')).toBeInTheDocument();
+
+    const hotspots = screen.getByTestId('finops-hotspots');
+    expect(within(hotspots).getByTestId('finops-hotspot-cost-glm-default')).toBeInTheDocument();
+    expect(within(hotspots).getByText('Rota domina o custo')).toBeInTheDocument();
+    expect(within(hotspots).getByText('Queda na confiabilidade')).toBeInTheDocument();
+    expect(within(hotspots).getByText('Latência elevada')).toBeInTheDocument();
+    expect(within(hotspots).getByText('Custo por token acima da média')).toBeInTheDocument();
 
     const generateButton = await screen.findByRole('button', { name: 'Gerar plano FinOps' });
     await userEvent.click(generateButton);
