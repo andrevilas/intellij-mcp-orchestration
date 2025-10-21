@@ -7,8 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type FocusEvent,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
 
@@ -112,12 +111,12 @@ export default function Dropdown({
     }
 
     document.addEventListener('mousedown', handleGlobalClick);
-    window.addEventListener('keydown', handleGlobalKeyDown as unknown as EventListener);
+    window.addEventListener('keydown', handleGlobalKeyDown);
     menuRef.current?.addEventListener('focusout', handleFocusOut);
 
     return () => {
       document.removeEventListener('mousedown', handleGlobalClick);
-      window.removeEventListener('keydown', handleGlobalKeyDown as unknown as EventListener);
+      window.removeEventListener('keydown', handleGlobalKeyDown);
       menuRef.current?.removeEventListener('focusout', handleFocusOut);
     };
   }, [focusOption, isOpen, options]);
@@ -132,7 +131,7 @@ export default function Dropdown({
       return;
     }
 
-    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const handleMenuKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         const enabledOptions = options
@@ -169,12 +168,12 @@ export default function Dropdown({
       }
     };
 
-    menu.addEventListener('keydown', handleKeyDown as unknown as EventListener);
-    return () => menu.removeEventListener('keydown', handleKeyDown as unknown as EventListener);
+    menu.addEventListener('keydown', handleMenuKeyDown);
+    return () => menu.removeEventListener('keydown', handleMenuKeyDown);
   }, [focusOption, isOpen, options]);
 
   const handleTriggerKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>) => {
+    (event: ReactKeyboardEvent<HTMLButtonElement>) => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         pendingFocus.current = event.key === 'ArrowUp' ? 'last' : 'first';
