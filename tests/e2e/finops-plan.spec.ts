@@ -1,4 +1,6 @@
 import { expect, test } from './fixtures';
+import manifestFixture from '../fixtures/backend/policy_manifest.json';
+import telemetryParetoFixture from '../fixtures/backend/telemetry_pareto.json';
 
 function resolveEndDate(param: string | null): Date {
   const end = param ? new Date(param) : new Date();
@@ -34,9 +36,20 @@ function buildTimeseriesPayload(param: string | null) {
   return { items };
 }
 
+function slugifyIdentifier(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+}
+
+const paretoSource = telemetryParetoFixture.items ?? [];
 const paretoResponse = {
   items: [
     {
+      ...paretoSource[0],
       id: 'glm-default',
       provider_id: 'glm',
       provider_name: 'GLM 46',
@@ -50,6 +63,7 @@ const paretoResponse = {
       success_rate: 0.82,
     },
     {
+      ...paretoSource[1],
       id: 'glm-fallback',
       provider_id: 'glm',
       provider_name: 'GLM 46',
@@ -63,6 +77,7 @@ const paretoResponse = {
       success_rate: 0.88,
     },
     {
+      ...paretoSource[2],
       id: 'glm-cache',
       provider_id: 'glm',
       provider_name: 'GLM 46',
@@ -79,43 +94,7 @@ const paretoResponse = {
 };
 
 test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
-  const manifestResponse = {
-    policies: { confidence: null },
-    routing: {
-      default_tier: 'balanced',
-      allowed_tiers: ['balanced', 'turbo'],
-      fallback_tier: 'economy',
-      max_attempts: 2,
-      max_iters: 4,
-      request_timeout_seconds: 30,
-      total_timeout_seconds: 120,
-      intents: [],
-      rules: [],
-    },
-    finops: {
-      cost_center: 'finops-core',
-      budgets: [
-        { tier: 'economy', amount: 1200, currency: 'USD', period: 'monthly' },
-        { tier: 'balanced', amount: 3400, currency: 'USD', period: 'monthly' },
-      ],
-      alerts: [
-        { threshold: 0.75, channel: 'slack' },
-        { threshold: 0.9, channel: 'email' },
-      ],
-      cache: { ttl_seconds: 600 },
-      rate_limit: { requests_per_minute: 180 },
-      graceful_degradation: { strategy: 'fallback', message: 'Servindo rotas alternativas' },
-    },
-    hitl: { enabled: false, checkpoints: [], pending_approvals: 0, updated_at: null },
-    runtime: {
-      max_iters: 4,
-      timeouts: { per_iteration: 30, total: 120 },
-      retry: { max_attempts: 2, initial_delay: 1, backoff_factor: 2, max_delay: 4 },
-      tracing: { enabled: true, sample_rate: 0.2, exporter: null },
-    },
-    overrides: null,
-    updated_at: '2025-04-01T12:00:00Z',
-  };
+  const manifestResponse = JSON.parse(JSON.stringify(manifestFixture)) as typeof manifestFixture;
 
   const planRequests: unknown[] = [];
 
@@ -267,7 +246,10 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
   await expect(page.getByText('Pico de tokens consumidos')).toBeVisible();
   await expect(page.getByText('Custo concentrado em uma rota')).toBeVisible();
   await expect(page.getByText('Taxa de sucesso abaixo do esperado')).toBeVisible();
-  await expect(page.getByTestId('finops-hotspot-cost-glm-default')).toBeVisible();
+  const primaryHotspotId = slugifyIdentifier(
+    `${paretoResponse.items[0].provider_id}-${paretoResponse.items[0].route ?? 'default'}`,
+  );
+  await expect(page.getByTestId(`finops-hotspot-cost-${primaryHotspotId}`)).toBeVisible();
   await expect(page.getByText('Rota domina o custo')).toBeVisible();
   await expect(page.getByText('Queda na confiabilidade')).toBeVisible();
   await expect(page.getByText('Latência elevada')).toBeVisible();
@@ -284,13 +266,26 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
   ).toBeVisible();
 
   const planPayload = planRequests[0] as {
-    changes?: { finops?: { cache?: { ttl_seconds: number }; rate_limit?: { requests_per_minute: number }; graceful_degradation?: { strategy: string | null; message: string | null } } };
+    changes?: {
+      finops?: {
+        cache?: { ttl_seconds: number | null };
+        rate_limit?: { requests_per_minute: number | null };
+        graceful_degradation?: { strategy: string | null; message: string | null };
+      };
+    };
   };
-  expect(planPayload.changes?.finops?.cache?.ttl_seconds).toBe(600);
-  expect(planPayload.changes?.finops?.rate_limit?.requests_per_minute).toBe(180);
-  expect(planPayload.changes?.finops?.graceful_degradation?.strategy).toBe('fallback');
+  const manifestFinOps = manifestResponse.finops ?? {};
+  expect(planPayload.changes?.finops?.cache?.ttl_seconds).toBe(
+    manifestFinOps.cache?.ttl_seconds ?? null,
+  );
+  expect(planPayload.changes?.finops?.rate_limit?.requests_per_minute).toBe(
+    manifestFinOps.rate_limit?.requests_per_minute ?? null,
+  );
+  expect(planPayload.changes?.finops?.graceful_degradation?.strategy).toBe(
+    manifestFinOps.graceful_degradation?.strategy ?? null,
+  );
   expect(planPayload.changes?.finops?.graceful_degradation?.message).toBe(
-    'Servindo rotas alternativas',
+    manifestFinOps.graceful_degradation?.message ?? null,
   );
 
   await page.getByRole('button', { name: 'Aplicar plano' }).click();
