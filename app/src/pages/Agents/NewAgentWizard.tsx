@@ -31,6 +31,7 @@ import {
 } from '../../api';
 import PlanSummary from '../AdminChat/PlanSummary';
 import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
+import { NEW_AGENT_WIZARD_TEST_IDS } from '../testIds';
 
 interface NewAgentWizardProps {
   isOpen: boolean;
@@ -535,7 +536,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
       className="agent-wizard"
       role="presentation"
       onClick={handleBackdropClick}
-      data-testid="new-agent-wizard"
+      data-testid={NEW_AGENT_WIZARD_TEST_IDS.root}
     >
       <section
         className="agent-wizard__panel"
@@ -543,7 +544,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
         aria-modal="true"
         aria-labelledby={headingId}
         ref={panelRef}
-        data-testid="new-agent-panel"
+        data-testid={NEW_AGENT_WIZARD_TEST_IDS.panel}
       >
         <header className="mcp-wizard__header">
           <div>
@@ -559,7 +560,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
           <form
             onSubmit={handleGeneratePlan}
             className="mcp-wizard"
-            data-testid="new-agent-plan-form"
+            data-testid={NEW_AGENT_WIZARD_TEST_IDS.planForm}
           >
             <fieldset className="mcp-wizard__fields" disabled={isPlanning}>
               <legend>Dados do agent</legend>
@@ -653,7 +654,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
               type="submit"
               className="mcp-wizard__button mcp-wizard__button--primary"
               disabled={isPlanning}
-              data-testid="new-agent-generate-plan"
+              data-testid={NEW_AGENT_WIZARD_TEST_IDS.generatePlan}
             >
               {isPlanning ? 'Gerando plano…' : 'Gerar plano governado'}
             </button>
@@ -701,7 +702,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
           <form
             onSubmit={handleApplyPlan}
             className="mcp-wizard"
-            data-testid="new-agent-apply-form"
+            data-testid={NEW_AGENT_WIZARD_TEST_IDS.applyForm}
           >
             <fieldset className="mcp-wizard__fields" disabled={isApplying || !pendingPlan}>
               <legend>Aplicar plano</legend>
@@ -719,7 +720,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
               type="submit"
               className="mcp-wizard__button mcp-wizard__button--primary"
               disabled={isApplying || !pendingPlan}
-              data-testid="new-agent-apply-plan"
+              data-testid={NEW_AGENT_WIZARD_TEST_IDS.applyPlan}
             >
               {isApplying ? 'Aplicando plano…' : 'Aplicar plano'}
             </button>

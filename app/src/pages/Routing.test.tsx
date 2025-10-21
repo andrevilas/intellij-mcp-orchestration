@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import Routing from './Routing';
 import type { ProviderSummary, RoutingSimulationResult } from '../api';
 import { simulateRouting } from '../api';
+import { ROUTING_TEST_IDS } from './testIds';
 
 type ApiModule = typeof import('../api');
 
@@ -181,8 +182,10 @@ describe('Routing page remote simulation', () => {
     expect(planPayload.intents).toEqual([]);
     expect(planPayload.rules).toEqual([]);
 
-    await waitFor(() => expect(screen.getByTestId('routing-total-cost')).toHaveTextContent(/US\$/));
-    expect(screen.getByTestId('routing-savings')).toHaveTextContent(/US\$/);
+    await waitFor(() =>
+      expect(screen.getByTestId(ROUTING_TEST_IDS.totalCost)).toHaveTextContent(/US\$/),
+    );
+    expect(screen.getByTestId(ROUTING_TEST_IDS.savings)).toHaveTextContent(/US\$/);
     expect(screen.getAllByText('GLM 46').length).toBeGreaterThan(0);
     expect(screen.getByText(/Claude MCP ficou indisponível/)).toBeInTheDocument();
   });

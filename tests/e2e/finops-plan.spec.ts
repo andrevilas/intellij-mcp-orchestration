@@ -1,13 +1,16 @@
 import { expect, test } from './fixtures';
-import manifestFixture from '../fixtures/backend/policy_manifest.json';
-import telemetryParetoFixture from '../fixtures/backend/telemetry_pareto.json';
+import manifestFixture from '../fixtures/backend/policy_manifest.json' assert { type: 'json' };
+import telemetryParetoFixture from '../fixtures/backend/telemetry_pareto.json' assert { type: 'json' };
+import { FINOPS_TEST_IDS } from '../../app/src/pages/testIds';
+
+const DEFAULT_PLAN_END_ISO = '2025-03-07T00:00:00Z';
 
 function resolveEndDate(param: string | null): Date {
-  const end = param ? new Date(param) : new Date();
+  const end = param ? new Date(param) : new Date(DEFAULT_PLAN_END_ISO);
   if (Number.isNaN(end.getTime())) {
-    return new Date();
+    return new Date(DEFAULT_PLAN_END_ISO);
   }
-  end.setHours(0, 0, 0, 0);
+  end.setUTCHours(0, 0, 0, 0);
   return end;
 }
 
@@ -241,7 +244,7 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'FinOps' }).click();
 
-  await expect(page.getByTestId('finops-alert-cost-surge')).toBeVisible();
+  await expect(page.getByTestId(FINOPS_TEST_IDS.alerts.item('cost-surge'))).toBeVisible();
   await expect(page.getByText('Escalada de custo diário')).toBeVisible();
   await expect(page.getByText('Pico de tokens consumidos')).toBeVisible();
   await expect(page.getByText('Custo concentrado em uma rota')).toBeVisible();
@@ -249,7 +252,7 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
   const primaryHotspotId = slugifyIdentifier(
     `${paretoResponse.items[0].provider_id}-${paretoResponse.items[0].route ?? 'default'}`,
   );
-  await expect(page.getByTestId(`finops-hotspot-cost-${primaryHotspotId}`)).toBeVisible();
+  await expect(page.getByTestId(FINOPS_TEST_IDS.hotspots.item(`cost-${primaryHotspotId}`))).toBeVisible();
   await expect(page.getByText('Rota domina o custo')).toBeVisible();
   await expect(page.getByText('Queda na confiabilidade')).toBeVisible();
   await expect(page.getByText('Latência elevada')).toBeVisible();

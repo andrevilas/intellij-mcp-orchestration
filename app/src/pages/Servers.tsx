@@ -25,6 +25,7 @@ import {
 } from '../api';
 import ServerActions, { type ServerAction } from '../components/ServerActions';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
+import { SERVERS_TEST_IDS } from './testIds';
 
 export interface ServersProps {
   providers: ProviderSummary[];
@@ -1089,21 +1090,21 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
       <section
         className="servers__status"
         aria-label="Resumo dos servidores"
-        data-testid="servers-status-summary"
+        data-testid={SERVERS_TEST_IDS.status.section}
       >
         <div className="status-pill">
           <span className="status-pill__dot status-pill__dot--online" />
-          <strong data-testid="servers-status-online">{statusSummary.running}</strong>
+          <strong data-testid={SERVERS_TEST_IDS.status.online}>{statusSummary.running}</strong>
           <span>online</span>
         </div>
         <div className="status-pill status-pill--offline">
           <span className="status-pill__dot status-pill__dot--offline" />
-          <strong data-testid="servers-status-offline">{statusSummary.offline}</strong>
+          <strong data-testid={SERVERS_TEST_IDS.status.offline}>{statusSummary.offline}</strong>
           <span>offline</span>
         </div>
         <div className="status-pill status-pill--total">
           <span className="status-pill__dot status-pill__dot--total" />
-          <strong data-testid="servers-status-total">{statusSummary.total}</strong>
+          <strong data-testid={SERVERS_TEST_IDS.status.total}>{statusSummary.total}</strong>
           <span>total</span>
         </div>
       </section>
@@ -1111,26 +1112,26 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
       <section
         className="servers__health"
         aria-label="Resumo de health-checks"
-        data-testid="servers-health-summary"
+        data-testid={SERVERS_TEST_IDS.health.section}
       >
         <div className="status-pill status-pill--healthy">
           <span className="status-pill__dot status-pill__dot--healthy" />
-          <strong data-testid="servers-health-healthy">{healthSummary.healthy}</strong>
+          <strong data-testid={SERVERS_TEST_IDS.health.healthy}>{healthSummary.healthy}</strong>
           <span>saudáveis</span>
         </div>
         <div className="status-pill status-pill--degraded">
           <span className="status-pill__dot status-pill__dot--degraded" />
-          <strong data-testid="servers-health-degraded">{healthSummary.degraded}</strong>
+          <strong data-testid={SERVERS_TEST_IDS.health.degraded}>{healthSummary.degraded}</strong>
           <span>instáveis</span>
         </div>
         <div className="status-pill status-pill--error">
           <span className="status-pill__dot status-pill__dot--error" />
-          <strong data-testid="servers-health-error">{healthSummary.error}</strong>
+          <strong data-testid={SERVERS_TEST_IDS.health.error}>{healthSummary.error}</strong>
           <span>falhas</span>
         </div>
         <div className="status-pill status-pill--unknown">
           <span className="status-pill__dot status-pill__dot--unknown" />
-          <strong data-testid="servers-health-unknown">{healthSummary.unchecked}</strong>
+          <strong data-testid={SERVERS_TEST_IDS.health.unknown}>{healthSummary.unchecked}</strong>
           <span>sem ping</span>
         </div>
       </section>
@@ -1143,7 +1144,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         <p className="info">Cadastre servidores MCP para acompanhar ações de start/stop por aqui.</p>
       )}
 
-      <section className="server-grid" aria-live="polite" data-testid="servers-grid">
+      <section className="server-grid" aria-live="polite" data-testid={SERVERS_TEST_IDS.grid}>
         {visibleProviders.map((provider) => {
           const state = processStates[provider.id] ?? createFallbackState(provider);
           const pendingForProvider =
@@ -1155,7 +1156,11 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
           const healthError = healthErrors[provider.id];
 
           return (
-            <article key={provider.id} className="server-card" data-testid={`server-card-${provider.id}`}>
+            <article
+              key={provider.id}
+              className="server-card"
+              data-testid={SERVERS_TEST_IDS.card(provider.id)}
+            >
               <header className="server-card__header">
                 <div>
                   <h2>{provider.name}</h2>
@@ -1209,7 +1214,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                       className="server-card__health-button"
                       onClick={() => handlePing(provider.id)}
                       disabled={pingState?.isLoading}
-                      data-testid={`server-health-ping-${provider.id}`}
+                      data-testid={SERVERS_TEST_IDS.pingButton(provider.id)}
                     >
                       {pingState?.isLoading ? 'Pingando…' : 'Ping agora'}
                     </button>

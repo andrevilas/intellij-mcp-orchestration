@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { createTwoFilesPatch } from 'diff';
 import './Routing.scss';
+import { ROUTING_TEST_IDS } from './testIds';
 
 import {
   fetchPolicyManifest,
@@ -1160,7 +1161,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
                 className="modal__form"
                 role="group"
                 aria-labelledby="routing-plan-modal-title"
-                data-testid="routing-plan-form"
+                data-testid={ROUTING_TEST_IDS.planForm}
               >
                 <div className="modal__field">
                   <label className="modal__label" htmlFor="routing-plan-actor">
@@ -1227,7 +1228,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           </div>
         </div>
       ) : null}
-      <section className="routing-lab" data-testid="routing-lab">
+      <section className="routing-lab" data-testid={ROUTING_TEST_IDS.lab}>
       <header className="routing-lab__intro">
         <div>
           <p className="routing-lab__eyebrow">Routing Lab</p>
@@ -1242,7 +1243,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
       <section
         className="routing-manifest"
         aria-labelledby="routing-manifest-heading"
-        data-testid="routing-manifest"
+        data-testid={ROUTING_TEST_IDS.manifest.section}
       >
         <header className="routing-manifest__header">
           <div>
@@ -1258,7 +1259,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         <form
           className="routing-manifest__form"
           onSubmit={handleRoutingSubmit}
-          data-testid="routing-manifest-form"
+          data-testid={ROUTING_TEST_IDS.manifest.form}
         >
           <div className="routing-manifest__grid">
             <label className="form-field">
@@ -1401,7 +1402,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           <section
             className="routing-manifest__section"
             aria-labelledby="routing-intents-heading"
-            data-testid="routing-intents-section"
+            data-testid={ROUTING_TEST_IDS.intentsSection}
           >
             <header className="routing-manifest__section-header">
               <h4 id="routing-intents-heading">Intents direcionadas</h4>
@@ -1420,7 +1421,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           <section
             className="routing-manifest__section"
             aria-labelledby="routing-rules-heading"
-            data-testid="routing-rules-section"
+            data-testid={ROUTING_TEST_IDS.rulesSection}
           >
             <header className="routing-manifest__section-header">
               <h4 id="routing-rules-heading">Regras customizadas</h4>
@@ -1453,11 +1454,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         <section
           className="routing-lab__panel"
           aria-labelledby="routing-config"
-          data-testid="routing-config-panel"
+          data-testid={ROUTING_TEST_IDS.configPanel}
         >
           <div className="routing-lab__panel-header">
             <h3 id="routing-config">Configuração do cenário</h3>
-            <span className="routing-lab__focus" data-testid="routing-focus">
+            <span className="routing-lab__focus" data-testid={ROUTING_TEST_IDS.focus}>
               {selectedStrategy.focus}
             </span>
           </div>
@@ -1490,7 +1491,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           <div className="routing-lab__control">
             <label htmlFor="routing-volume">
               Volume mensal (milhões de tokens)
-              <span aria-live="polite" data-testid="routing-volume-value">
+              <span aria-live="polite" data-testid={ROUTING_TEST_IDS.volumeValue}>
                 {volumeMillions.toFixed(0)} mi
               </span>
             </label>
@@ -1539,7 +1540,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         <section
           className="routing-lab__panel"
           aria-labelledby="routing-metrics"
-          data-testid="routing-metrics-panel"
+          data-testid={ROUTING_TEST_IDS.metricsPanel}
         >
           <div className="routing-lab__panel-header">
             <h3 id="routing-metrics">Métricas projetadas</h3>
@@ -1551,24 +1552,24 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
               <dl className="routing-lab__summary-grid">
                 <div className="routing-lab__summary-card">
                   <dt>Projeção de custo</dt>
-                  <dd data-testid="routing-total-cost">{formatCurrency(plan.cost.totalUsd)}</dd>
+                  <dd data-testid={ROUTING_TEST_IDS.totalCost}>{formatCurrency(plan.cost.totalUsd)}</dd>
                   <small>Custo mensal estimado para {volumeMillions.toFixed(0)} mi tokens</small>
                 </div>
                 <div className="routing-lab__summary-card">
                   <dt>Economia vs baseline</dt>
-                  <dd data-testid="routing-savings">{formatDeltaCurrency(savings)}</dd>
+                  <dd data-testid={ROUTING_TEST_IDS.savings}>{formatDeltaCurrency(savings)}</dd>
                   <small>
                     Baseline: {baselinePlan ? formatCurrency(baselinePlan.cost.totalUsd) : '—'}
                   </small>
                 </div>
                 <div className="routing-lab__summary-card">
                   <dt>Latência P95 projetada</dt>
-                  <dd data-testid="routing-latency">{formatLatency(plan.latency.avgLatencyMs)}</dd>
+                  <dd data-testid={ROUTING_TEST_IDS.latency}>{formatLatency(plan.latency.avgLatencyMs)}</dd>
                   <small>Delta: {latencyDeltaLabel} vs baseline</small>
                 </div>
                 <div className="routing-lab__summary-card">
                   <dt>Confiabilidade ponderada</dt>
-                  <dd data-testid="routing-reliability">{plan.latency.reliabilityScore.toFixed(1)}%</dd>
+                  <dd data-testid={ROUTING_TEST_IDS.reliability}>{plan.latency.reliabilityScore.toFixed(1)}%</dd>
                   <small>
                     {`${reliabilityDelta >= 0 ? '+' : ''}${reliabilityDelta.toFixed(1)} p.p. em relação ao baseline`}
                   </small>

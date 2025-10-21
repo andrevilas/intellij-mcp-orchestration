@@ -5,6 +5,7 @@ import type { ProviderSummary } from '../api';
 import Dashboard from './Dashboard';
 import { ThemeProvider } from '../theme/ThemeContext';
 import { ToastProvider } from '../components/feedback/ToastProvider';
+import { DASHBOARD_TEST_IDS } from './testIds';
 
 defineResizeObserver();
 
@@ -123,9 +124,9 @@ describe('Dashboard telemetry overview', () => {
     expect(screen.getByText('Taxa de erro')).toBeInTheDocument();
     expect(screen.getByText('12%')).toBeInTheDocument();
 
-    await screen.findByTestId('dashboard-cost-breakdown');
-    await screen.findByTestId('dashboard-error-breakdown');
-    await screen.findByTestId('dashboard-heatmap');
+    await screen.findByTestId(DASHBOARD_TEST_IDS.costBreakdown);
+    await screen.findByTestId(DASHBOARD_TEST_IDS.errorBreakdown);
+    await screen.findByTestId(DASHBOARD_TEST_IDS.sections.heatmap);
 
     expect(screen.queryByText('Sem execuções registradas nos últimos 7 dias.')).not.toBeInTheDocument();
     expect(screen.queryByText('Sem custos computados na janela selecionada.')).not.toBeInTheDocument();
@@ -155,9 +156,9 @@ describe('Dashboard telemetry overview', () => {
     expect(screen.getByText('Nenhum alerta crítico detectado nas últimas 24h.')).toBeInTheDocument();
     expect(screen.getByText('Cadastre provedores para visualizar o uso agregado.')).toBeInTheDocument();
 
-    await screen.findByTestId('dashboard-cost-breakdown');
-    await screen.findByTestId('dashboard-error-breakdown');
-    await screen.findByTestId('dashboard-heatmap');
+    await screen.findByTestId(DASHBOARD_TEST_IDS.costBreakdown);
+    await screen.findByTestId(DASHBOARD_TEST_IDS.errorBreakdown);
+    await screen.findByTestId(DASHBOARD_TEST_IDS.sections.heatmap);
 
     const insightsRegion = screen.getByRole('region', { name: 'Indicadores complementares de telemetria' });
     expect(within(insightsRegion).getAllByText('Sem dados')).toHaveLength(4);
