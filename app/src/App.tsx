@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -37,19 +37,6 @@ import { ToastProvider } from './components/feedback/ToastProvider';
 import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import type { AppFixtureSnapshot } from './utils/appFixtures';
 import { createAppFixtureSnapshot } from './utils/appFixtures';
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Observability = lazy(() => import('./pages/Observability'));
-const Servers = lazy(() => import('./pages/Servers'));
-const Agents = lazy(() => import('./pages/Agents'));
-const Keys = lazy(() => import('./pages/Keys'));
-const Security = lazy(() => import('./pages/Security'));
-const Policies = lazy(() => import('./pages/Policies'));
-const Routing = lazy(() => import('./pages/Routing'));
-const Flows = lazy(() => import('./pages/Flows'));
-const FinOps = lazy(() => import('./pages/FinOps'));
-const Marketplace = lazy(() => import('./pages/Marketplace'));
-const AdminChat = lazy(() => import('./pages/AdminChat'));
-const UiKitShowcase = lazy(() => import('./components/UiKitShowcase'));
 import ThemeSwitch from './theme/ThemeSwitch';
 
 export interface Feedback {
@@ -255,6 +242,53 @@ const VIEW_DEFINITIONS = [
 
 type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
 
+type ViewLoader = () => Promise<{ default: ComponentType<unknown> }>;
+
+const VIEW_COMPONENT_LOADERS: Record<ViewId, ViewLoader> = {
+  dashboard: () => import('./pages/Dashboard'),
+  observability: () => import('./pages/Observability'),
+  servers: () => import('./pages/Servers'),
+  agents: () => import('./pages/Agents'),
+  keys: () => import('./pages/Keys'),
+  security: () => import('./pages/Security'),
+  policies: () => import('./pages/Policies'),
+  routing: () => import('./pages/Routing'),
+  flows: () => import('./pages/Flows'),
+  finops: () => import('./pages/FinOps'),
+  marketplace: () => import('./pages/Marketplace'),
+  'admin-chat': () => import('./pages/AdminChat'),
+};
+
+const Dashboard = lazy(VIEW_COMPONENT_LOADERS.dashboard);
+const Observability = lazy(VIEW_COMPONENT_LOADERS.observability);
+const Servers = lazy(VIEW_COMPONENT_LOADERS.servers);
+const Agents = lazy(VIEW_COMPONENT_LOADERS.agents);
+const Keys = lazy(VIEW_COMPONENT_LOADERS.keys);
+const Security = lazy(VIEW_COMPONENT_LOADERS.security);
+const Policies = lazy(VIEW_COMPONENT_LOADERS.policies);
+const Routing = lazy(VIEW_COMPONENT_LOADERS.routing);
+const Flows = lazy(VIEW_COMPONENT_LOADERS.flows);
+const FinOps = lazy(VIEW_COMPONENT_LOADERS.finops);
+const Marketplace = lazy(VIEW_COMPONENT_LOADERS.marketplace);
+const AdminChat = lazy(VIEW_COMPONENT_LOADERS['admin-chat']);
+const UiKitShowcase = lazy(() => import('./components/UiKitShowcase'));
+
+const preloadedViews = new Set<ViewId>();
+
+function preloadView(view: ViewId): void {
+  if (preloadedViews.has(view)) {
+    return;
+  }
+  const loader = VIEW_COMPONENT_LOADERS[view];
+  if (!loader) {
+    return;
+  }
+  preloadedViews.add(view);
+  void loader();
+}
+
+preloadView('dashboard');
+
 const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
   dashboard: 'gauge-high',
   observability: 'satellite-dish',
@@ -321,6 +355,11 @@ function App() {
   const navRef = useRef<HTMLElement | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const commandButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    preloadView('observability');
+    preloadView('finops');
+  }, []);
 
   const applyNotifications = useCallback(
     (items: NotificationSummary[]) => {
@@ -573,6 +612,7 @@ function App() {
 
   const handleNavigate = useCallback(
     (view: ViewId, options: { focusContent?: boolean } = {}) => {
+      preloadView(view);
       setActiveView(view);
       setPaletteOpen(false);
       setNotificationOpen(false);
@@ -642,6 +682,7 @@ function App() {
 
       const nextView = VIEW_DEFINITIONS[nextIndex];
       if (nextView) {
+        preloadView(nextView.id);
         handleNavigate(nextView.id, { focusContent: false });
       }
     },
@@ -946,8 +987,14 @@ function App() {
                   id={`nav-${view.id}`}
                   tabIndex={activeView === view.id ? 0 : -1}
                   aria-current={activeView === view.id ? 'page' : undefined}
-                  onFocus={() => handleNavigate(view.id, { focusContent: false })}
-                  onClick={() => handleNavigate(view.id)}
+                  onFocus={() => {
+                    preloadView(view.id);
+                    handleNavigate(view.id, { focusContent: false });
+                  }}
+                  onClick={() => {
+                    preloadView(view.id);
+                    handleNavigate(view.id);
+                  }}
                 >
                   <FontAwesomeIcon
                     icon={VIEW_ICON_MAP[view.id]}
