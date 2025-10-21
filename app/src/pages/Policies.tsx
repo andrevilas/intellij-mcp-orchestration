@@ -29,6 +29,7 @@ import {
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
+import { POLICIES_TEST_IDS } from './testIds';
 
 export interface PoliciesProps {
   providers: ProviderSummary[];
@@ -968,14 +969,14 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             <div className="modal__body">
               <PlanDiffViewer
                 diffs={pendingPlan.diffs}
-                testId="policies-plan-diffs"
-                itemTestIdPrefix="policies-plan-diff"
+                testId={POLICIES_TEST_IDS.planDiffs}
+                itemTestIdPrefix={POLICIES_TEST_IDS.planDiffPrefix}
               />
               <div
                 className="modal__form"
                 role="group"
                 aria-labelledby="policy-plan-modal-title"
-                data-testid="policies-plan-form"
+                data-testid={POLICIES_TEST_IDS.planForm}
               >
                 <div className="modal__field">
                   <label className="modal__label" htmlFor="policy-plan-actor">
@@ -1052,8 +1053,8 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         onCancel={closePolicyConfirmation}
         isLoading={isPolicyConfirming}
       />
-      <main className="policies" data-testid="policies-main">
-      <section className="policies__hero" data-testid="policies-hero">
+      <main className="policies" data-testid={POLICIES_TEST_IDS.main}>
+      <section className="policies__hero" data-testid={POLICIES_TEST_IDS.hero}>
         <h1>Políticas MCP · roteamento inteligente</h1>
         <p>
           Modele custos, latência e guardrails de cada rota com templates opinativos. Aplique canários, faça rollback em um
@@ -1064,7 +1065,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
       <section
         className="policies__status"
         aria-label="Resumo do template ativo"
-        data-testid="policies-status"
+        data-testid={POLICIES_TEST_IDS.status}
       >
         <article className="policy-overview">
           <header>
@@ -1137,7 +1138,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
       {isLoading && <p className="info">Calculando políticas recomendadas…</p>}
       {initialError && <p className="error">{initialError}</p>}
 
-      <section className="policies__templates" data-testid="policies-templates">
+      <section className="policies__templates" data-testid={POLICIES_TEST_IDS.templates}>
         <header className="policies__templates-header">
           <h2>Templates opinativos</h2>
           <p>
@@ -1155,7 +1156,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         />
       </section>
 
-      <div className="policies__actions" data-testid="policies-actions">
+      <div className="policies__actions" data-testid={POLICIES_TEST_IDS.actions}>
         <button
           type="button"
           className="policy-action policy-action--primary"
@@ -1174,7 +1175,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         </button>
       </div>
 
-      <section className="policies__plan" data-testid="policies-plan">
+      <section className="policies__plan" data-testid={POLICIES_TEST_IDS.plan}>
         <header>
           <h2>Plano de rollout</h2>
           <p>
@@ -1221,7 +1222,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
       <section
         className="policies__runtime"
         aria-labelledby="runtime-settings-heading"
-        data-testid="policies-runtime"
+        data-testid={POLICIES_TEST_IDS.runtime.section}
       >
         <header>
           <div>
@@ -1234,7 +1235,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         <form
           className="runtime-settings"
           onSubmit={handleRuntimeSubmit}
-          data-testid="policies-runtime-form"
+          data-testid={POLICIES_TEST_IDS.runtime.form}
         >
           <div className="runtime-settings__grid">
             <label className="form-field">
@@ -1315,7 +1316,10 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             </label>
           </div>
 
-          <fieldset className="runtime-settings__hitl" data-testid="policies-hitl-settings">
+          <fieldset
+            className="runtime-settings__hitl"
+            data-testid={POLICIES_TEST_IDS.runtime.hitlSettings}
+          >
             <legend>Checkpoints de aprovação humana (HITL)</legend>
             <label className="form-field form-field--checkbox">
               <input
@@ -1421,7 +1425,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
       <section
         className="policies__hitl"
         aria-labelledby="hitl-queue-heading"
-        data-testid="policies-hitl"
+        data-testid={POLICIES_TEST_IDS.hitlQueue}
       >
         <header>
           <div>
@@ -1491,7 +1495,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
         )}
       </section>
 
-      <section className="policies__history" data-testid="policies-history">
+      <section className="policies__history" data-testid={POLICIES_TEST_IDS.history}>
         <header>
           <h2>Histórico de deploys</h2>
           <p>Acompanhe os templates aplicados na frota e os motivos registrados.</p>

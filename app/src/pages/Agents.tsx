@@ -6,6 +6,7 @@ import AgentDetail from './Agents/AgentDetail';
 import NewAgentWizard from './Agents/NewAgentWizard';
 import SmokeEndpointsPanel from '../components/SmokeEndpointsPanel';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
+import { AGENTS_TEST_IDS } from './testIds';
 
 type StatusFilter = 'all' | AgentStatus;
 
@@ -244,7 +245,7 @@ function Agents(): JSX.Element {
   const renderTable = filteredAgents.length > 0;
 
   return (
-    <section className="agents" data-testid="agents-page">
+    <section className="agents" data-testid={AGENTS_TEST_IDS.page}>
       <header className="agents__header">
         <div>
           <h2>Catálogo de agents</h2>
@@ -255,7 +256,7 @@ function Agents(): JSX.Element {
             className="agents__filters"
             onSubmit={(event) => event.preventDefault()}
             role="search"
-            data-testid="agents-filters"
+            data-testid={AGENTS_TEST_IDS.filters}
           >
             <label className="agents__filter">
               <span>Buscar agente</span>
@@ -264,7 +265,7 @@ function Agents(): JSX.Element {
                 value={query}
                 placeholder="Nome, owner ou capability"
                 onChange={(event) => setQuery(event.target.value)}
-                data-testid="agents-search"
+                data-testid={AGENTS_TEST_IDS.search}
               />
             </label>
             <label className="agents__filter">
@@ -272,7 +273,7 @@ function Agents(): JSX.Element {
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                data-testid="agents-status-filter"
+                data-testid={AGENTS_TEST_IDS.statusFilter}
               >
                 <option value="all">Todos</option>
                 {availableStatuses.map((status) => (
@@ -287,7 +288,7 @@ function Agents(): JSX.Element {
             type="button"
             className="agents__create-button"
             onClick={handleOpenCreate}
-            data-testid="agents-create-button"
+            data-testid={AGENTS_TEST_IDS.createButton}
           >
             + Novo agent
           </button>
@@ -305,7 +306,7 @@ function Agents(): JSX.Element {
           }
           role="status"
           aria-live="polite"
-          data-testid="agents-toast"
+          data-testid={AGENTS_TEST_IDS.toast}
         >
           <div className="agents__toast-content">
             <strong>{toast.title}</strong>
@@ -336,20 +337,20 @@ function Agents(): JSX.Element {
       ) : null}
 
       {error ? (
-        <div className="agents__empty" role="alert" data-testid="agents-error">
+        <div className="agents__empty" role="alert" data-testid={AGENTS_TEST_IDS.error}>
           {error}
         </div>
       ) : isLoading ? (
-        <p className="agents__empty" data-testid="agents-loading">
+        <p className="agents__empty" data-testid={AGENTS_TEST_IDS.loading}>
           Carregando catálogo de agents…
         </p>
       ) : !renderTable ? (
-        <div className="agents__empty" role="status" data-testid="agents-empty">
+        <div className="agents__empty" role="status" data-testid={AGENTS_TEST_IDS.empty}>
           Nenhum agent encontrado com os filtros aplicados.
         </div>
       ) : (
         <>
-          <table className="agents__table" data-testid="agents-table">
+          <table className="agents__table" data-testid={AGENTS_TEST_IDS.table}>
             <thead>
               <tr>
                 <th scope="col">Nome</th>
@@ -362,7 +363,7 @@ function Agents(): JSX.Element {
             </thead>
             <tbody>
               {filteredAgents.map((agent) => (
-                <tr key={agent.name} data-testid={`agent-row-${agent.name}`}>
+                <tr key={agent.name} data-testid={AGENTS_TEST_IDS.row(agent.name)}>
                   <th scope="row">
                     <div className="agents__name">
                       <span className="agents__name-title">{agent.title}</span>
@@ -394,7 +395,7 @@ function Agents(): JSX.Element {
                         className="agents__detail-button"
                         onClick={() => handleDetail(agent)}
                         aria-label={`Abrir detalhes de ${agent.title}`}
-                        data-testid={`agent-detail-${agent.name}`}
+                        data-testid={AGENTS_TEST_IDS.detailButton(agent.name)}
                       >
                         Detalhes
                       </button>
@@ -404,7 +405,7 @@ function Agents(): JSX.Element {
                         onClick={() => handleSmoke(agent)}
                         disabled={pendingSmoke === agent.name}
                         aria-label={`Executar smoke para ${agent.title}`}
-                        data-testid={`agent-smoke-${agent.name}`}
+                        data-testid={AGENTS_TEST_IDS.smokeButton(agent.name)}
                       >
                         {pendingSmoke === agent.name ? 'Executando…' : 'Smoke'}
                       </button>
@@ -415,9 +416,9 @@ function Agents(): JSX.Element {
             </tbody>
           </table>
 
-          <ul className="agents__cards" data-testid="agents-cards">
+          <ul className="agents__cards" data-testid={AGENTS_TEST_IDS.cards}>
             {filteredAgents.map((agent) => (
-              <li key={agent.name} className="agents__card" data-testid={`agent-card-${agent.name}`}>
+              <li key={agent.name} className="agents__card" data-testid={AGENTS_TEST_IDS.card(agent.name)}>
                 <div>
                   <h3>{agent.title}</h3>
                   <p className="agents__card-subtitle">

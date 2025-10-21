@@ -1,7 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useState } from 'react';
 
-import './Dashboard.scss';
-
 import type {
   PolicyComplianceSummary,
   ProviderSummary,
@@ -19,6 +17,9 @@ import {
   numberFormatter,
   percentFormatter,
 } from './dashboard/formatters';
+import { DASHBOARD_TEST_IDS } from './testIds';
+
+import './Dashboard.scss';
 
 let dashboardVisualSectionsPromise:
   | Promise<typeof import('./dashboard/visual-sections')>
@@ -491,7 +492,7 @@ export function Dashboard({
 
   return (
     <main className="dashboard">
-      <section className="dashboard__hero" data-testid="dashboard-hero">
+      <section className="dashboard__hero" data-testid={DASHBOARD_TEST_IDS.hero}>
         <h1>Promenade Agent Hub · Dashboard Executivo</h1>
         <p>
           Monitoramento unificado de custo, tokens e latência para servidores MCP roteados pela console. Dados são agregados dos
@@ -502,7 +503,7 @@ export function Dashboard({
       <section
         className="dashboard__compliance"
         aria-label="Checklist de conformidade"
-        data-testid="dashboard-compliance"
+        data-testid={DASHBOARD_TEST_IDS.compliance}
       >
         <header>
           <h2>Checklist de conformidade</h2>
@@ -557,7 +558,7 @@ export function Dashboard({
       <section
         className="dashboard__kpis"
         aria-label="Indicadores chave de performance"
-        data-testid="dashboard-kpis"
+        data-testid={DASHBOARD_TEST_IDS.sections.kpis}
       >
         {kpis.map((kpi) => (
           <KpiCard
@@ -575,11 +576,18 @@ export function Dashboard({
       <section
         className="dashboard__insights"
         aria-label="Indicadores complementares de telemetria"
-        data-testid="dashboard-insights"
+        data-testid={DASHBOARD_TEST_IDS.sections.insights}
       >
-        <div className="dashboard__insight-cards" data-testid="dashboard-insight-cards">
+        <div
+          className="dashboard__insight-cards"
+          data-testid={DASHBOARD_TEST_IDS.insightCards}
+        >
           {insightCards.map((card) => (
-            <article key={card.id} className="insight-card" data-testid={`dashboard-insight-${card.id}`}>
+            <article
+              key={card.id}
+              className="insight-card"
+              data-testid={DASHBOARD_TEST_IDS.insightCard(card.id)}
+            >
               <header>
                 <h3>{card.title}</h3>
               </header>
@@ -610,7 +618,7 @@ export function Dashboard({
       <section
         className="dashboard__alerts"
         aria-label="Alertas operacionais"
-        data-testid="dashboard-alerts"
+        data-testid={DASHBOARD_TEST_IDS.sections.alerts}
       >
         <h2>Alertas</h2>
         <ul>
@@ -618,7 +626,7 @@ export function Dashboard({
             <li
               key={`${alert.kind}-${index}`}
               className={`alert alert--${alert.kind}`}
-              data-testid={`dashboard-alert-${index}`}
+              data-testid={DASHBOARD_TEST_IDS.alert(index)}
             >
               {alert.message}
             </li>
@@ -628,7 +636,7 @@ export function Dashboard({
 
       <Suspense
         fallback={
-          <section className="dashboard__heatmap" data-testid="dashboard-heatmap">
+          <section className="dashboard__heatmap" data-testid={DASHBOARD_TEST_IDS.sections.heatmap}>
             <header>
               <h2>Uso por modelo · últimos 7 dias</h2>
               <p>Heatmap baseado na distribuição diária de execuções.</p>
@@ -644,7 +652,7 @@ export function Dashboard({
         <DashboardHeatmap derived={derived} />
       </Suspense>
 
-      <section className="providers" data-testid="dashboard-providers">
+      <section className="providers" data-testid={DASHBOARD_TEST_IDS.sections.providers}>
         <header className="section-header">
           <div>
             <h2>Provedores registrados</h2>
@@ -659,9 +667,13 @@ export function Dashboard({
           <p className="info">Nenhum provedor configurado ainda. Ajuste o manifesto e recarregue.</p>
         )}
 
-        <div className="provider-grid" data-testid="dashboard-provider-grid">
+        <div className="provider-grid" data-testid={DASHBOARD_TEST_IDS.providerGrid}>
           {providers.map((provider) => (
-            <article key={provider.id} className="provider-card" data-testid={`dashboard-provider-${provider.id}`}>
+            <article
+              key={provider.id}
+              className="provider-card"
+              data-testid={DASHBOARD_TEST_IDS.providerCard(provider.id)}
+            >
               <header>
                 <div>
                   <h3>{provider.name}</h3>

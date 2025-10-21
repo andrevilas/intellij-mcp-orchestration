@@ -1,0 +1,57 @@
+{
+  "agents": [
+    {
+      "name": "catalog-search",
+      "title": "Catalog Search",
+      "version": "1.2.0",
+      "description": "Busca estruturada em catálogos MCP com filtros dinâmicos.",
+      "capabilities": ["search", "ingest"],
+      "model": {
+        "provider": "openai",
+        "name": "o3-mini",
+        "parameters": {
+          "temperature": 0,
+          "max_output_tokens": 2048
+        }
+      },
+      "status": "healthy",
+      "last_deployed_at": "2025-03-06T12:00:00Z",
+      "owner": "@catalog"
+    },
+    {
+      "name": "inventory-summarizer",
+      "title": "Inventory Summarizer",
+      "version": "0.9.5",
+      "description": "Gera resumos diários de inventário para dashboards executivos.",
+      "capabilities": ["summarize"],
+      "model": {
+        "provider": "anthropic",
+        "name": "claude-3-haiku",
+        "parameters": {
+          "temperature": 0.2,
+          "top_p": 0.9
+        }
+      },
+      "status": "degraded",
+      "last_deployed_at": "2025-02-22T09:30:00Z",
+      "owner": "@finops"
+    },
+    {
+      "name": "cache-tuner",
+      "title": "Cache Tuner",
+      "version": "2.1.0",
+      "description": "Ajusta TTLs e estratégias de cache com base em métricas de FinOps.",
+      "capabilities": ["optimize", "monitor"],
+      "model": {
+        "provider": "vertex",
+        "name": "gemini-1.5-pro",
+        "parameters": {
+          "temperature": 0.1
+        }
+      },
+      "status": "pending",
+      "last_deployed_at": null,
+      "owner": "@platform"
+    }
+  ]
+}

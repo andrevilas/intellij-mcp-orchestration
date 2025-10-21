@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 
 import type { DerivedDashboardData, HeatmapPoint } from '../Dashboard';
+import { DASHBOARD_TEST_IDS } from '../testIds';
 import { currencyFormatter, numberFormatter, percentFormatter } from './formatters';
 
 const INSIGHT_COLORS = ['#2563eb', '#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#06b6d4', '#f43f5e'];
@@ -89,7 +90,7 @@ export function DashboardInsightVisuals({
         className="insight-chart"
         aria-labelledby={costChartTitleId}
         aria-describedby={costChartDescriptionId}
-        data-testid="dashboard-cost-breakdown"
+        data-testid={DASHBOARD_TEST_IDS.costBreakdown}
       >
         <div className="insight-chart__header">
           <h3 id={costChartTitleId}>Distribuição de custo por rota</h3>
@@ -136,7 +137,7 @@ export function DashboardInsightVisuals({
         className="insight-chart"
         aria-labelledby={errorChartTitleId}
         aria-describedby={errorChartDescriptionId}
-        data-testid="dashboard-error-breakdown"
+        data-testid={DASHBOARD_TEST_IDS.errorBreakdown}
       >
         <div className="insight-chart__header">
           <h3 id={errorChartTitleId}>Ocorrências de erro por categoria</h3>
@@ -178,7 +179,7 @@ export function DashboardHeatmap({ derived }: DashboardHeatmapProps) {
   );
 
   return (
-    <section className="dashboard__heatmap" data-testid="dashboard-heatmap">
+    <section className="dashboard__heatmap" data-testid={DASHBOARD_TEST_IDS.sections.heatmap}>
       <header>
         <h2>Uso por modelo · últimos 7 dias</h2>
         <p>Heatmap baseado na distribuição diária de execuções.</p>

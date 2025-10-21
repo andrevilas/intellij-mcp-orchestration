@@ -11,8 +11,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import './FinOps.scss';
-
 import type {
   ProviderSummary,
   TelemetryRouteBreakdownEntry,
@@ -55,6 +53,9 @@ import {
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PlanSummary from './AdminChat/PlanSummary';
 import { useToastNotification } from '../hooks/useToastNotification';
+import { FINOPS_TEST_IDS } from './testIds';
+
+import './FinOps.scss';
 
 export interface FinOpsProps {
   providers: ProviderSummary[];
@@ -604,13 +605,38 @@ function computeWindowBounds(days: number): { start: Date; end: Date } {
   return { start, end };
 }
 
+function resolveSeriesStart(
+  items: TelemetryTimeseriesPoint[],
+  fallbackStart: Date,
+  days: number,
+): Date {
+  const reference = new Date(fallbackStart);
+  reference.setUTCHours(0, 0, 0, 0);
+
+  let latestDay: string | null = null;
+  for (const item of items) {
+    if (!latestDay || item.day > latestDay) {
+      latestDay = item.day;
+    }
+  }
+
+  if (!latestDay) {
+    return reference;
+  }
+
+  const referenceEnd = new Date(`${latestDay}T00:00:00Z`);
+  const start = new Date(referenceEnd);
+  start.setUTCDate(referenceEnd.getUTCDate() - (days - 1));
+  return start;
+}
+
 function buildSeriesFromTelemetry(
   items: TelemetryTimeseriesPoint[],
   start: Date,
   days: number,
 ): TimeSeriesPoint[] {
   const map = new Map(items.map((item) => [item.day, item]));
-  const cursor = new Date(start);
+  const cursor = resolveSeriesStart(items, start, days);
   const series: TimeSeriesPoint[] = [];
 
   for (let index = 0; index < days; index += 1) {
@@ -2503,7 +2529,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           <div className="finops__export-group">
             <button
               type="button"
-              data-testid="finops-export-csv"
+              data-testid={FINOPS_TEST_IDS.exports.csvButton}
               className="finops__export"
               onClick={() => handleTelemetryExport('csv')}
               disabled={isTelemetryExporting || availableSeries.length === 0}
@@ -2512,7 +2538,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             </button>
             <button
               type="button"
-              data-testid="finops-export-html"
+              data-testid={FINOPS_TEST_IDS.exports.htmlButton}
               className="finops__export"
               onClick={() => handleTelemetryExport('html')}
               disabled={isTelemetryExporting || availableSeries.length === 0}
@@ -2526,7 +2552,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       <section
         className="finops__policy"
         aria-labelledby="finops-policy-heading"
-        data-testid="finops-policy-section"
+        data-testid={FINOPS_TEST_IDS.policy.section}
       >
         <header className="finops-policy__header">
           <div>
@@ -2543,7 +2569,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         <form
           className="finops-policy__form"
           onSubmit={handleFinOpsSubmit}
-          data-testid="finops-policy-form"
+          data-testid={FINOPS_TEST_IDS.policy.form}
         >
           <div className="finops-policy__grid">
             <label className="form-field">
@@ -2621,7 +2647,10 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             </label>
           </div>
 
-          <div className="finops-policy__budgets" data-testid="finops-policy-budgets">
+          <div
+            className="finops-policy__budgets"
+            data-testid={FINOPS_TEST_IDS.policy.budgets}
+          >
             <div className="finops-policy__section-header">
               <h4>Budgets por tier</h4>
               <p>Controle limites para cada tier roteado. Valores vazios não serão aplicados.</p>
@@ -2733,7 +2762,10 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               <h4>Alertas automáticos</h4>
               <p>Dispare avisos quando o consumo atingir um percentual do budget.</p>
             </div>
-            <div className="finops-policy__alerts-list" data-testid="finops-policy-alerts">
+            <div
+              className="finops-policy__alerts-list"
+              data-testid={FINOPS_TEST_IDS.policy.alerts}
+            >
               {alertRows.map((row, index) => (
                 <div key={`alert-${index}`} className="finops-policy__alert">
                   <label className="form-field">
@@ -2799,11 +2831,15 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             </button>
           </div>
         </form>
-        <section className="finops-plan" aria-label="Plano FinOps" data-testid="finops-plan-section">
+        <section
+          className="finops-plan"
+          aria-label="Plano FinOps"
+          data-testid={FINOPS_TEST_IDS.plan.section}
+        >
           <PlanSummary
             plan={planSummary}
             isLoading={isPlanGenerating || isPlanApplying}
-            testId="finops-plan-summary"
+            testId={FINOPS_TEST_IDS.plan.summary}
             actions={
               pendingPlan ? (
                 <div className="plan-summary__actions">
@@ -2831,8 +2867,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             diffs={planDiffItems}
             title="Diffs sugeridos"
             emptyMessage="Gere um plano FinOps para visualizar as alterações propostas."
-            testId="finops-plan-diffs"
-            itemTestIdPrefix="finops-plan-diff"
+            testId={FINOPS_TEST_IDS.plan.diffs}
+            itemTestIdPrefix={FINOPS_TEST_IDS.plan.diffPrefix}
           />
         </section>
       </section>
@@ -2841,7 +2877,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         <p className="finops__state" role="status">{timeseriesError}</p>
       )}
 
-      <section className="finops__alerts" aria-label="Alertas de FinOps" data-testid="finops-alerts">
+      <section
+        className="finops__alerts"
+        aria-label="Alertas de FinOps"
+        data-testid={FINOPS_TEST_IDS.alerts.section}
+      >
         <header className="finops__alerts-header">
           <div>
             <h3>Alertas básicos</h3>
@@ -2853,7 +2893,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             <li
               key={alert.id}
               className={`finops__alert finops__alert--${alert.kind}`}
-              data-testid={`finops-alert-${alert.id}`}
+              data-testid={FINOPS_TEST_IDS.alerts.item(alert.id)}
             >
               <strong>{alert.title}</strong>
               <p>{alert.description}</p>
@@ -2865,7 +2905,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       <section
         className="finops__hotspots"
         aria-label="Hotspots de custo e eficiência"
-        data-testid="finops-hotspots"
+        data-testid={FINOPS_TEST_IDS.hotspots.section}
       >
         <header className="finops__hotspots-header">
           <div>
@@ -2875,7 +2915,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         </header>
 
         {finOpsHotspots.length === 0 ? (
-          <p className="finops__state" data-testid="finops-hotspots-empty">
+          <p className="finops__state" data-testid={FINOPS_TEST_IDS.hotspots.empty}>
             Nenhum hotspot identificado para os filtros atuais.
           </p>
         ) : (
@@ -2886,7 +2926,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                 className={`finops__hotspot finops__hotspot--${hotspot.severity}`}
                 role="article"
                 aria-label={`${hotspot.title} (${HOTSPOT_SEVERITY_LABEL[hotspot.severity]})`}
-                data-testid={`finops-hotspot-${hotspot.id}`}
+                data-testid={FINOPS_TEST_IDS.hotspots.item(hotspot.id)}
               >
                 <div className="finops__hotspot-header">
                   <span className={`finops__hotspot-kind finops__hotspot-kind--${hotspot.kind}`}>

@@ -7,6 +7,7 @@ import { getAgentsBaseUrl } from '../../services/httpClient';
 import type { AgentInvokeConfig, AgentInvokeRequest } from '../../types/agent';
 import { createAgentRequestId, mergeAgentConfigs } from '../../utils/agentRequest';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../../utils/agents';
+import { AGENT_DETAIL_TEST_IDS } from '../testIds';
 import JsonEditor from '../../components/JsonEditor';
 import AgentConfigLayerEditor, {
   type AgentConfigLayerEditorHandle,
@@ -319,7 +320,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
       className="agent-detail"
       aria-labelledby="agent-detail-title"
       role="dialog"
-      data-testid="agent-detail"
+      data-testid={AGENT_DETAIL_TEST_IDS.root}
     >
       <header className="agent-detail__header">
         <div>
@@ -364,7 +365,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
         className="agent-detail__tabs"
         role="tablist"
         aria-label={`Detalhes de ${agent.title}`}
-        data-testid="agent-detail-tabs"
+        data-testid={AGENT_DETAIL_TEST_IDS.tabs}
       >
         <button
           type="button"
@@ -460,7 +461,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
         <form
           className="agent-detail__form"
           onSubmit={handleSubmit}
-          data-testid="agent-detail-playground"
+          data-testid={AGENT_DETAIL_TEST_IDS.playground}
         >
           <JsonEditor
             id="agent-detail-payload"
@@ -489,7 +490,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
               type="submit"
               className="agent-detail__run"
               disabled={isLoading}
-              data-testid="agent-detail-run"
+              data-testid={AGENT_DETAIL_TEST_IDS.run}
             >
               {isLoading ? 'Invocando…' : 'Invocar agent'}
             </button>
@@ -498,7 +499,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
               className="agent-detail__reset"
               onClick={handleReset}
               disabled={isLoading}
-              data-testid="agent-detail-reset"
+              data-testid={AGENT_DETAIL_TEST_IDS.reset}
             >
               Limpar
             </button>
@@ -518,7 +519,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
         ) : null}
 
         {data ? (
-          <div className="agent-detail__results" data-testid="agent-detail-results">
+          <div className="agent-detail__results" data-testid={AGENT_DETAIL_TEST_IDS.results}>
             <div>
               <h4>Resposta</h4>
               <pre>{formatValue(data.result)}</pre>
@@ -531,7 +532,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
         ) : null}
 
         {curlSnippet ? (
-          <div className="agent-detail__snippet" data-testid="agent-detail-snippet">
+          <div className="agent-detail__snippet" data-testid={AGENT_DETAIL_TEST_IDS.snippet}>
             <div className="agent-detail__snippet-header">
               <h4>Chamada cURL</h4>
               {lastRequest?.config?.metadata?.requestId ? (
@@ -552,7 +553,7 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
         hidden={activeTab !== 'config'}
         className="agent-detail__panel"
       >
-        <div className="agent-detail__summary" data-testid="agent-detail-summary">
+        <div className="agent-detail__summary" data-testid={AGENT_DETAIL_TEST_IDS.summary}>
           {agent.description ? <p className="agent-detail__description">{agent.description}</p> : null}
           <dl className="agent-detail__grid">
             <div>

@@ -28,6 +28,7 @@ import {
 } from '../api';
 import { ThemeProvider } from '../theme/ThemeContext';
 import { ToastProvider } from '../components/feedback/ToastProvider';
+import { FINOPS_TEST_IDS } from './testIds';
 
 type ApiModule = typeof import('../api');
 
@@ -100,10 +101,11 @@ describe('FinOps page planning workflow', () => {
   const fetchFinOpsSprintReportsMock = fetchFinOpsSprintReports as unknown as Mock;
   const fetchFinOpsPullRequestReportsMock = fetchFinOpsPullRequestReports as unknown as Mock;
 
+  const BASELINE_DATE = new Date(Date.UTC(2025, 2, 15));
+
   function isoDayFromOffset(offset: number): string {
-    const base = new Date();
-    base.setHours(0, 0, 0, 0);
-    base.setDate(base.getDate() - offset);
+    const base = new Date(BASELINE_DATE);
+    base.setUTCDate(base.getUTCDate() - offset);
     return base.toISOString().slice(0, 10);
   }
 
@@ -323,7 +325,9 @@ describe('FinOps page planning workflow', () => {
     await waitFor(() => expect(fetchTelemetryTimeseriesMock).toHaveBeenCalled());
 
     await waitFor(() =>
-      expect(screen.getByTestId('finops-alert-cost-surge')).toBeInTheDocument(),
+      expect(
+        screen.getByTestId(FINOPS_TEST_IDS.alerts.item('cost-surge')),
+      ).toBeInTheDocument(),
     );
 
     expect(screen.getByText('Escalada de custo diário')).toBeInTheDocument();
@@ -331,8 +335,10 @@ describe('FinOps page planning workflow', () => {
     expect(screen.getByText('Custo concentrado em uma rota')).toBeInTheDocument();
     expect(screen.getByText('Taxa de sucesso abaixo do esperado')).toBeInTheDocument();
 
-    const hotspots = screen.getByTestId('finops-hotspots');
-    expect(within(hotspots).getByTestId('finops-hotspot-cost-glm-default')).toBeInTheDocument();
+    const hotspots = screen.getByTestId(FINOPS_TEST_IDS.hotspots.section);
+    expect(
+      within(hotspots).getByTestId(FINOPS_TEST_IDS.hotspots.item('cost-glm-default')),
+    ).toBeInTheDocument();
     expect(within(hotspots).getByText('Rota domina o custo')).toBeInTheDocument();
     expect(within(hotspots).getByText('Queda na confiabilidade')).toBeInTheDocument();
     expect(within(hotspots).getByText('Latência elevada')).toBeInTheDocument();

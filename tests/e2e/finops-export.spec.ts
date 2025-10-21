@@ -1,5 +1,6 @@
 import { expect, test } from './fixtures';
-import manifestFixture from '../fixtures/backend/policy_manifest.json';
+import manifestFixture from '../fixtures/backend/policy_manifest.json' assert { type: 'json' };
+import { FINOPS_TEST_IDS } from '../../app/src/pages/testIds';
 
 const manifestResponse = JSON.parse(JSON.stringify(manifestFixture)) as typeof manifestFixture;
 
@@ -118,7 +119,7 @@ test('@finops-export baixa CSV e HTML via backend', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'FinOps' }).click();
 
-  const csvButton = page.getByTestId('finops-export-csv');
+  const csvButton = page.getByTestId(FINOPS_TEST_IDS.exports.csvButton);
   await expect(csvButton).toBeEnabled();
 
   const csvDownload = page.waitForEvent('download');
@@ -127,7 +128,7 @@ test('@finops-export baixa CSV e HTML via backend', async ({ page }) => {
   await expect(csvButton).toBeEnabled();
   expect(csvFile.suggestedFilename()).toMatch(/finops-telemetry-\d{4}-\d{2}-\d{2}\.csv/);
 
-  const htmlButton = page.getByTestId('finops-export-html');
+  const htmlButton = page.getByTestId(FINOPS_TEST_IDS.exports.htmlButton);
   await expect(htmlButton).toBeEnabled();
 
   const htmlDownload = page.waitForEvent('download');
