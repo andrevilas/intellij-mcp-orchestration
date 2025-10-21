@@ -6,6 +6,10 @@ __pycache__/
 *.egg-info/
 node_modules/
 dist/
+.lighthouseci/
+.cache/
+app/.cache/
+app/.lighthouseci/
 .env
 .mcp/
 .vscode/

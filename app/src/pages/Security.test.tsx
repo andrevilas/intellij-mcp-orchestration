@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import Security from './Security';
@@ -177,13 +177,15 @@ describe('Security page', () => {
     await user.selectOptions(within(dialog).getByLabelText('Papéis atribuídos'), 'role-ops');
     await user.click(within(dialog).getByRole('button', { name: 'Enviar convite' }));
 
-    expect(createSecurityUser).toHaveBeenCalledWith({
-      name: 'Carla Nunes',
-      email: 'carla@empresa.com',
-      roles: ['role-ops'],
-      status: 'active',
-      mfaEnabled: true,
-    });
+    await waitFor(() =>
+      expect(mockCreateUser).toHaveBeenCalledWith({
+        name: 'Carla Nunes',
+        email: 'carla@empresa.com',
+        roles: ['role-ops'],
+        status: 'active',
+        mfaEnabled: true,
+      }),
+    );
     await screen.findByText('Carla Nunes');
   });
 
