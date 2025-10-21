@@ -66,5 +66,6 @@ O script executa as etapas abaixo:
 ## Monitoramento e auditoria
 
 - Logs do job `security` ficam arquivados como artefatos (`gitleaks-report.json`).
+- O job `ops_compliance` executa `python3 scripts/ops_controls.py`, garantindo permissões mínimas nas workflows e cobrindo evidências em `/docs/evidence/TASK-OPS-301/` e `/docs/evidence/TASK-OPS-302/`.
 - Evidências de rotações e auditorias devem ser anexadas em `/docs/evidence/TASK-OPS-301/` com checklist preenchido.
 - Alterações em `.sops.yaml` requerem aprovação da equipe de segurança.

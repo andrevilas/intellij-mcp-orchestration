@@ -69,5 +69,6 @@
 ## Documentação adicional
 
 - [Runbook de Segredos](runbooks/secret-management.md)
+- [Runbook de Resposta a Incidentes de Segredos](runbooks/secrets-incident-playbook.md)
 - [Politica de Segurança](../../SECURITY.md)
 - [Checklists](../checklists)

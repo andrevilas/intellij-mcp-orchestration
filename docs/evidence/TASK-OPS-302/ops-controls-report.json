@@ -1,0 +1,22 @@
+{
+  "generated_at": "2025-10-21T12:47:10.003706+00:00",
+  "status": "pass",
+  "checks": [
+    {
+      "name": "Plaintext secrets not committed",
+      "status": "pass"
+    },
+    {
+      "name": "Workflow permissions limited to read",
+      "status": "pass"
+    },
+    {
+      "name": "Incident runbook sections present",
+      "status": "pass"
+    },
+    {
+      "name": "OPS evidence assets present",
+      "status": "pass"
+    }
+  ]
+}

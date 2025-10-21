@@ -33,8 +33,30 @@ jobs:
           path: gitleaks-report.json
           if-no-files-found: error
 
-  lint:
+  ops_compliance:
     needs: security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate OPS controls
+        run: |
+          python3 scripts/ops_controls.py --output ops-controls-report.json
+
+      - name: Upload OPS controls report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-controls-report
+          path: ops-controls-report.json
+          if-no-files-found: error
+
+  lint:
+    needs:
+      - security
+      - ops_compliance
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -79,7 +101,9 @@ jobs:
         run: make lint
 
   test:
-    needs: security
+    needs:
+      - security
+      - ops_compliance
     runs-on: ubuntu-latest
     env:
       AGENTS_ROOT: agents-hub/app/agents
@@ -137,7 +161,9 @@ jobs:
           if-no-files-found: ignore
 
   smoke:
-    needs: security
+    needs:
+      - security
+      - ops_compliance
     runs-on: ubuntu-latest
     env:
       AGENTS_ROOT: agents-hub/app/agents
