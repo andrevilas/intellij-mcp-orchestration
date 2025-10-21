@@ -24,7 +24,13 @@ registre o status em `window.__CONSOLE_MCP_FIXTURES__`.
 O helper `tests/e2e/fixtures.ts` aguarda o worker do MSW após cada navegação (`page.goto` ou
 `page.reload`), reutilizando `waitForFixtureWorker` com timeout padrão de 10 segundos.
 As respostas servidas provêm dos JSONs versionados em `tests/fixtures/backend`, refletindo os
-datasets compartilhados com o backend (`server/routes/fixtures`).
+datasets compartilhados com o backend (`server/routes/fixtures`). Incluímos catálogos adicionais
+(`agents.json`, `smoke_endpoints.json`) para cobrir os fluxos de Agents e smoke tests usando as
+mesmas estruturas esperadas pela API.
+
+O worker do MSW roda com `onUnhandledRequest: 'error'`, portanto qualquer endpoint ausente irá
+falhar explicitamente durante os testes. O helper também limpa `localStorage`/`sessionStorage`
+antes da primeira navegação para evitar interferências entre cenários.
 
 Caso seja necessário validar contra um backend real, ajuste `CONSOLE_MCP_USE_FIXTURES=off` tanto
 na linha de comando quanto na configuração do Playwright, e remova o override de `page.goto`/`page.reload`

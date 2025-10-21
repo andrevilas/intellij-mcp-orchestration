@@ -1,12 +1,16 @@
 import { http, HttpResponse } from 'msw';
 import type {
   MarketplacePerformanceEntry,
+  AgentSmokeRun,
   ProviderSummary,
   RoutingLane,
   RoutingRouteProfile,
   RoutingSimulationResult,
   RoutingStrategyId,
   Session,
+  SmokeRunLogEntry,
+  SmokeRunStatus,
+  SmokeRunSummary,
   TelemetryExperimentSummaryEntry,
   TelemetryLaneCostEntry,
   TelemetryRunEntry,
@@ -30,6 +34,8 @@ import telemetryExperimentsFixture from '#fixtures/telemetry_experiments.json' w
 import telemetryLaneCostsFixture from '#fixtures/telemetry_lane_costs.json' with { type: 'json' };
 import telemetryMarketplaceFixture from '#fixtures/telemetry_marketplace.json' with { type: 'json' };
 import providersFixture from '#fixtures/providers.json' with { type: 'json' };
+import smokeEndpointsFixture from '#fixtures/smoke_endpoints.json' with { type: 'json' };
+import agentsFixture from '#fixtures/agents.json' with { type: 'json' };
 
 const API_PREFIX = '*/api/v1';
 
@@ -329,12 +335,15 @@ const cloneProcessState = (entry: Record<string, any>): Record<string, any> => (
   logs: (entry.logs ?? []).map((log: Record<string, unknown>) => ({ ...log })),
 });
 
-const processStateByServer = new Map(
-  (serverProcessesFixture as { processes: Array<Record<string, any>> }).processes.map((entry) => [
-    entry.server_id,
-    cloneProcessState(entry),
-  ]),
-);
+const processStateSource = (serverProcessesFixture as { processes: Array<Record<string, any>> }).processes;
+const processStateByServer = new Map<string, Record<string, any>>();
+
+const resetProcessState = () => {
+  processStateByServer.clear();
+  for (const entry of processStateSource) {
+    processStateByServer.set(entry.server_id, cloneProcessState(entry));
+  }
+};
 
 const healthHistoryByServer = new Map(
   Object.entries(
@@ -343,8 +352,13 @@ const healthHistoryByServer = new Map(
 );
 
 const sessionFixtureSource = (sessionsFixture as { sessions: Session[] }).sessions;
-const sessionStore: Session[] = sessionFixtureSource.map((entry) => ({ ...entry }));
-let sessionSequence = sessionStore.length;
+const sessionStore: Session[] = [];
+let sessionSequence = 0;
+
+const resetSessionStore = () => {
+  sessionStore.splice(0, sessionStore.length, ...sessionFixtureSource.map((entry) => ({ ...entry })));
+  sessionSequence = sessionStore.length;
+};
 const SESSION_TIMESTAMP_START = Date.UTC(2025, 2, 7, 10, 0, 0);
 
 const coerceOptionalString = (value: unknown): string | null => {
@@ -377,6 +391,136 @@ const cloneDeep = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const notifications = (notificationsFixture as {
   notifications: Array<Record<string, unknown>>;
 }).notifications;
+
+const agentCatalog = (agentsFixture as { agents: Array<Record<string, unknown>> }).agents.map(
+  (entry) => ({
+    ...(entry as Record<string, unknown>),
+  }),
+);
+
+const defaultAgentSmokeRun: AgentSmokeRun = {
+  runId: 'fixture-smoke-run',
+  status: 'passed',
+  summary: 'Smoke executado com sucesso usando fixtures locais.',
+  reportUrl: 'https://observability.example.com/smoke/report-fixture',
+  startedAt: '2025-03-06T12:00:00Z',
+  finishedAt: '2025-03-06T12:00:05Z',
+};
+
+const agentSmokeRuns = new Map<string, AgentSmokeRun>();
+
+const SMOKE_LOG_LEVELS: SmokeRunLogEntry['level'][] = ['debug', 'info', 'warning', 'error'];
+
+type SmokeRunFixtureLog = {
+  id: string;
+  timestamp: string;
+  level: SmokeRunLogEntry['level'];
+  message: string;
+};
+
+type SmokeRunFixture = {
+  run_id: string;
+  status: SmokeRunStatus;
+  summary?: string | null;
+  triggered_by?: string | null;
+  triggered_at?: string | null;
+  finished_at?: string | null;
+  logs?: SmokeRunFixtureLog[] | null;
+};
+
+type SmokeEndpointFixture = {
+  id: string;
+  name: string;
+  description?: string | null;
+  url: string;
+  last_run?: SmokeRunFixture | null;
+};
+
+const smokeEndpointsSource = (smokeEndpointsFixture as { endpoints: SmokeEndpointFixture[] }).endpoints;
+
+const smokeEndpointStore = new Map<string, SmokeEndpointFixture>();
+
+const resetSmokeEndpointStore = () => {
+  smokeEndpointStore.clear();
+  for (const endpoint of smokeEndpointsSource) {
+    smokeEndpointStore.set(endpoint.id, cloneDeep(endpoint));
+  }
+};
+
+export const resetMockState = () => {
+  resetProcessState();
+  resetSessionStore();
+  resetSmokeEndpointStore();
+  agentSmokeRuns.clear();
+};
+
+resetMockState();
+
+const cloneSmokeRun = (run: SmokeRunSummary): SmokeRunFixture => ({
+  run_id: run.runId,
+  status: run.status,
+  summary: run.summary,
+  triggered_by: run.triggeredBy,
+  triggered_at: run.triggeredAt,
+  finished_at: run.finishedAt,
+  logs: run.logs.map((log) => ({
+    id: log.id,
+    timestamp: log.timestamp,
+    level: log.level,
+    message: log.message,
+  })),
+});
+
+const toSmokeRunPayload = (run: SmokeRunFixture | null | undefined): SmokeRunFixture | null => {
+  if (!run) {
+    return null;
+  }
+  return {
+    run_id: run.run_id,
+    status: run.status,
+    summary: run.summary ?? null,
+    triggered_by: run.triggered_by ?? null,
+    triggered_at: run.triggered_at ?? null,
+    finished_at: run.finished_at ?? null,
+    logs: (run.logs ?? []).map((log) => ({
+      id: log.id,
+      timestamp: log.timestamp,
+      level: SMOKE_LOG_LEVELS.includes(log.level) ? log.level : 'info',
+      message: log.message,
+    })),
+  };
+};
+
+const buildSmokeEndpointPayload = (endpoint: SmokeEndpointFixture) => ({
+  id: endpoint.id,
+  name: endpoint.name,
+  description: endpoint.description ?? null,
+  url: endpoint.url,
+  last_run: toSmokeRunPayload(endpoint.last_run ?? null),
+});
+
+const SMOKE_RUN_SUMMARY: SmokeRunSummary = {
+  runId: 'fixture-smoke',
+  status: 'passed',
+  summary: 'Verificação concluída com sucesso via fixtures.',
+  triggeredBy: 'svc-smoke',
+  triggeredAt: '2025-03-07T08:00:00Z',
+  finishedAt: '2025-03-07T08:00:05Z',
+  logs: [
+    {
+      id: 'log-fixture-1',
+      timestamp: '2025-03-07T08:00:01Z',
+      level: 'info',
+      message: 'GET /health -> 200',
+    },
+    {
+      id: 'log-fixture-2',
+      timestamp: '2025-03-07T08:00:04Z',
+      level: 'warning',
+      message: 'Latência acima do esperado: 210ms',
+    },
+  ],
+};
 
 const policyManifestPayload = policyManifestFixture as Record<string, unknown>;
 const compliancePayload = policiesComplianceFixture as Record<string, unknown>;
@@ -636,6 +780,7 @@ export const handlers = [
   http.get(`${API_PREFIX}/secrets`, () => HttpResponse.json({ secrets: [] })),
   http.get(`${API_PREFIX}/notifications`, () => HttpResponse.json({ notifications })),
   http.get(`${API_PREFIX}/policies/compliance`, () => HttpResponse.json(compliancePayload)),
+  http.get(`${API_PREFIX}/policy/compliance`, () => HttpResponse.json(compliancePayload)),
   http.get(`${API_PREFIX}/policies/hitl/queue`, () =>
     HttpResponse.json({
       requests: [],
@@ -737,6 +882,38 @@ export const handlers = [
   http.get(`${API_PREFIX}/telemetry/finops/pull-requests`, () =>
     HttpResponse.json(finopsPullRequestsFixture),
   ),
+  http.get(`${API_PREFIX}/smoke/endpoints`, () => {
+    const endpoints = Array.from(smokeEndpointStore.values()).map(buildSmokeEndpointPayload);
+    return HttpResponse.json({ endpoints });
+  }),
+  http.post(`${API_PREFIX}/smoke/endpoints/:endpointId/run`, ({ params }) => {
+    const endpointId = params.endpointId as string;
+    const current = smokeEndpointStore.get(endpointId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'Smoke endpoint not found' }, { status: 404 });
+    }
+
+    const now = new Date();
+    const startedAt = now.toISOString();
+    const finishedAt = new Date(now.getTime() + 5_000).toISOString();
+
+    const run: SmokeRunSummary = {
+      ...SMOKE_RUN_SUMMARY,
+      runId: `${endpointId}-run-${now.getTime()}`,
+      triggeredAt: startedAt,
+      finishedAt,
+      summary: `Execução ${endpointId} concluída com sucesso via fixtures.`,
+    };
+
+    const payload = cloneSmokeRun(run);
+
+    smokeEndpointStore.set(endpointId, {
+      ...current,
+      last_run: payload,
+    });
+
+    return HttpResponse.json(toSmokeRunPayload(payload));
+  }),
   http.post(`${API_PREFIX}/routing/simulate`, async ({ request }) => {
     const payload = (await request.json()) as RoutingSimulateRequestPayload;
     const plan = buildMockRoutingPlan(payload);
@@ -777,4 +954,31 @@ export const handlers = [
     return HttpResponse.json(response);
   }),
   http.get(`${API_PREFIX}/providers`, () => HttpResponse.json({ providers: providerCatalog })),
+  http.get('*/agents/agents', () => HttpResponse.json({ agents: agentCatalog })),
+  http.post('*/agents/:agentName/smoke', ({ params }) => {
+    const agentName = params.agentName as string;
+    const existing = agentSmokeRuns.get(agentName) ?? defaultAgentSmokeRun;
+    const now = new Date();
+    const startedAt = now.toISOString();
+    const finishedAt = new Date(now.getTime() + 4_000).toISOString();
+
+    const run: AgentSmokeRun = {
+      ...existing,
+      runId: `${agentName}-smoke-${now.getTime()}`,
+      startedAt,
+      finishedAt,
+      summary: existing.summary ?? 'Smoke executado com sucesso usando fixtures locais.',
+    };
+
+    agentSmokeRuns.set(agentName, run);
+
+    return HttpResponse.json({
+      run_id: run.runId,
+      status: run.status,
+      summary: run.summary,
+      report_url: run.reportUrl,
+      started_at: run.startedAt,
+      finished_at: run.finishedAt,
+    });
+  }),
 ];
