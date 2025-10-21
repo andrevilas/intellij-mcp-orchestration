@@ -1,5 +1,5 @@
 {
-  "generated_at": "2025-10-21T12:47:10.003706+00:00",
+  "generated_at": "2025-10-21T16:37:12.368327+00:00",
   "status": "pass",
   "checks": [
     {
@@ -11,7 +11,7 @@
       "status": "pass"
     },
     {
-      "name": "Incident runbook sections present",
+      "name": "OPS runbooks atualizados",
       "status": "pass"
     },
     {
