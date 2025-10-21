@@ -34,7 +34,11 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
   const errorId = error ? `${selectId}-error` : undefined;
   const invalid = Boolean(error) || ariaInvalid === true || ariaInvalid === 'true';
   const describedBy = mergeIds(typeof ariaDescribedBy === 'string' ? ariaDescribedBy : undefined, helperId, errorId);
-  const normalizedInvalid = invalid ? 'true' : ariaInvalid != null ? String(ariaInvalid) : undefined;
+  const normalizedInvalid: SelectHTMLAttributes<HTMLSelectElement>['aria-invalid'] = invalid
+    ? ariaInvalid && ariaInvalid !== 'false'
+      ? ariaInvalid
+      : true
+    : ariaInvalid ?? undefined;
 
   return (
     <div
