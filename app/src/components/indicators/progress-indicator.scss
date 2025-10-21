@@ -69,9 +69,7 @@
   --progress-bar-bg: var(--mcp-text-muted);
 }
 
-@media (prefers-color-scheme: dark) {
-  .progress-indicator {
-    --progress-track-bg: color-mix(in srgb, var(--mcp-overlay-soft) 65%, transparent 35%);
-    --progress-label: var(--mcp-text-muted);
-  }
+[data-theme='dark'] .progress-indicator {
+  --progress-track-bg: color-mix(in srgb, var(--mcp-overlay-soft) 65%, transparent 35%);
+  --progress-label: var(--mcp-text-muted);
 }

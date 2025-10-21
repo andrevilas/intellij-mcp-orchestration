@@ -176,23 +176,21 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .resource-detail-card {
-    --detail-card-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
-    --detail-card-border: color-mix(in srgb, var(--mcp-border-strong) 55%, transparent 45%);
-    --detail-card-heading: var(--mcp-surface-contrast);
-    --detail-card-description: var(--mcp-text-muted);
-  }
+[data-theme='dark'] .resource-detail-card {
+  --detail-card-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
+  --detail-card-border: color-mix(in srgb, var(--mcp-border-strong) 55%, transparent 45%);
+  --detail-card-heading: var(--mcp-surface-contrast);
+  --detail-card-description: var(--mcp-text-muted);
+}
 
-  .resource-detail-card__item {
-    background: color-mix(in srgb, var(--mcp-surface-subtle) 65%, transparent 35%);
-  }
+[data-theme='dark'] .resource-detail-card__item {
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 65%, transparent 35%);
+}
 
-  .resource-detail-card__status {
-    background: color-mix(in srgb, var(--mcp-overlay-soft) 55%, transparent 45%);
-  }
+[data-theme='dark'] .resource-detail-card__status {
+  background: color-mix(in srgb, var(--mcp-overlay-soft) 55%, transparent 45%);
+}
 
-  .resource-detail-card__empty-illustration {
-    background: color-mix(in srgb, var(--mcp-info-soft) 55%, transparent 45%);
-  }
+[data-theme='dark'] .resource-detail-card__empty-illustration {
+  background: color-mix(in srgb, var(--mcp-info-soft) 55%, transparent 45%);
 }

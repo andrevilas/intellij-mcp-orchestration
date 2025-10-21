@@ -85,8 +85,6 @@
   --status-badge-fg: var(--mcp-surface-contrast);
 }
 
-@media (prefers-color-scheme: dark) {
-  .status-badge--outline.status-badge--neutral {
-    --status-badge-fg: var(--mcp-text-muted);
-  }
+[data-theme='dark'] .status-badge--outline.status-badge--neutral {
+  --status-badge-fg: var(--mcp-text-muted);
 }

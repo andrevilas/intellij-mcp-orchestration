@@ -4,7 +4,7 @@ import { server } from '../mocks/server';
 
 declare global {
   // eslint-disable-next-line no-var
-  var __CONSOLE_MCP_FIXTURES__: string | undefined;
+  var __CONSOLE_MCP_FIXTURES__: 'ready' | 'error' | 'disabled' | undefined;
 }
 
 beforeAll(() => {
