@@ -1,34 +1,49 @@
 {
   "items": [
     {
-      "id": "pr-1298",
+      "id": "glm46:default",
       "provider_id": "glm46",
       "provider_name": "GLM-4.6",
-      "route": "balanced",
-      "lane": "balanced",
-      "title": "Optimize prompt caching for churn playbook",
-      "owner": "joana.santos",
-      "merged_at": "2025-03-01T15:22:04Z",
-      "cost_impact_usd": -42.18,
-      "cost_delta": -0.082,
-      "tokens_impact": -98211,
-      "status": "on_track",
-      "summary": "Reduziu tokens in/out ao reutilizar contexto base; impacto positivo em custos."
+      "route": "default",
+      "lane": "turbo",
+      "title": "GLM-4.6 \u00b7 default",
+      "owner": "atlas",
+      "merged_at": "2025-10-21T14:00:00+00:00",
+      "cost_impact_usd": 7.5,
+      "cost_delta": 0.146199,
+      "tokens_impact": 2060,
+      "status": "regression",
+      "summary": "Alta de 14.6% no custo da rota default (GLM-4.6) em rela\u00e7\u00e3o ao per\u00edodo anterior."
     },
     {
-      "id": "pr-1291",
+      "id": "gemini:balanced",
+      "provider_id": "gemini",
+      "provider_name": "Gemini MCP",
+      "route": "balanced",
+      "lane": "balanced",
+      "title": "Gemini MCP \u00b7 balanced",
+      "owner": "growth-team",
+      "merged_at": "2025-10-21T13:00:00+00:00",
+      "cost_impact_usd": 0.0,
+      "cost_delta": -0.203216,
+      "tokens_impact": -3670,
+      "status": "on_track",
+      "summary": "Queda de 20.3% no custo da rota balanced (Gemini MCP) frente ao per\u00edodo anterior."
+    },
+    {
+      "id": "codex:economy",
       "provider_id": "codex",
       "provider_name": "Codex CLI",
       "route": "economy",
-      "lane": "economy",
-      "title": "Failover para modelo lite em rotas experimentais",
-      "owner": "diego.moreira",
-      "merged_at": "2025-02-27T11:04:44Z",
-      "cost_impact_usd": 18.63,
-      "cost_delta": 0.036,
-      "tokens_impact": 45211,
-      "status": "attention",
-      "summary": "Failover elevou custo por ausência de cache; revisar política de roteamento."
+      "lane": "balanced",
+      "title": "Codex CLI \u00b7 economy",
+      "owner": "cli-core",
+      "merged_at": "2025-10-21T15:00:00+00:00",
+      "cost_impact_usd": 0.0,
+      "cost_delta": -0.112378,
+      "tokens_impact": -1855,
+      "status": "on_track",
+      "summary": "Queda de 11.2% no custo da rota economy (Codex CLI) frente ao per\u00edodo anterior."
     }
   ]
 }
