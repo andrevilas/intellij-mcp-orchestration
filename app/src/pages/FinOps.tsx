@@ -634,6 +634,23 @@ function buildSeriesFromTelemetry(
   return series;
 }
 
+function slugifyIdentifier(value: string): string {
+  const normalized = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  return normalized.length > 0 ? normalized : 'route';
+}
+
+function buildRouteIdentifier(providerId: string, routeLabel: string): string {
+  const baseProvider = providerId.trim() || 'provider';
+  const baseRoute = routeLabel.trim() || 'route';
+  return slugifyIdentifier(`${baseProvider}-${baseRoute}`);
+}
+
 function buildRouteBreakdownFromTelemetry(
   entries: TelemetryRouteBreakdownEntry[],
 ): RouteCostBreakdown[] {
@@ -641,9 +658,10 @@ function buildRouteBreakdownFromTelemetry(
     const tokensTotal = entry.tokens_in + entry.tokens_out;
     const lane = entry.lane as LaneCategory;
     const routeLabel = entry.route ? entry.route : 'default';
+    const identifier = buildRouteIdentifier(entry.provider_id ?? 'provider', routeLabel);
 
     return {
-      id: entry.id,
+      id: identifier,
       providerId: entry.provider_id,
       providerName: entry.provider_name,
       label: `${entry.provider_name} · ${routeLabel}`,
