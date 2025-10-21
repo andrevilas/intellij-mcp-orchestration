@@ -16,6 +16,8 @@ import {
   Legend,
 } from 'recharts';
 
+import './Dashboard.scss';
+
 import type {
   PolicyComplianceSummary,
   ProviderSummary,

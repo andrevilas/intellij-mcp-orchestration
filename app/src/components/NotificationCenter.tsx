@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import type { NotificationCategory, NotificationSeverity } from '../api';
+import './NotificationCenter.scss';
 
 export interface NotificationItem {
   id: string;

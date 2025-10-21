@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { createTwoFilesPatch } from 'diff';
+import './Routing.scss';
 
 import {
   fetchPolicyManifest,
