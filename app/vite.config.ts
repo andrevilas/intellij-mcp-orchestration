@@ -131,6 +131,28 @@ const normalizeBrowserHost = (host: string): string => {
   return host;
 };
 
+const viewManualChunks = [
+  { segments: ['pages', 'Dashboard'], chunk: 'view-dashboard' },
+  { segments: ['pages', 'Observability'], chunk: 'view-observability' },
+  { segments: ['pages', 'Servers'], chunk: 'view-servers' },
+  { segments: ['pages', 'Agents'], chunk: 'view-agents' },
+  { segments: ['pages', 'Keys'], chunk: 'view-keys' },
+  { segments: ['pages', 'Security'], chunk: 'view-security' },
+  { segments: ['pages', 'Policies'], chunk: 'view-policies' },
+  { segments: ['pages', 'Routing'], chunk: 'view-routing' },
+  { segments: ['pages', 'Flows'], chunk: 'view-flows' },
+  { segments: ['pages', 'FinOps'], chunk: 'view-finops' },
+  { segments: ['pages', 'Marketplace'], chunk: 'view-marketplace' },
+  { segments: ['pages', 'AdminChat'], chunk: 'view-admin-chat' },
+  { segments: ['components', 'UiKitShowcase'], chunk: 'view-ui-kit' },
+];
+
+const matchesPathSegments = (id: string, segments: string[]): boolean => {
+  const posixPath = segments.join('/');
+  const windowsPath = segments.join('\\');
+  return id.includes(`/${posixPath}`) || id.includes(`\\${windowsPath}`);
+};
+
 const frontendHost = process.env.CONSOLE_MCP_FRONTEND_HOST ?? '127.0.0.1';
 const frontendPort = parsePort(process.env.CONSOLE_MCP_FRONTEND_PORT, 5173);
 
@@ -251,14 +273,10 @@ export default defineConfig(async () => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes(`${path.sep}pages${path.sep}Dashboard`)) {
-              return 'view-dashboard';
-            }
-            if (id.includes(`${path.sep}pages${path.sep}Servers`)) {
-              return 'view-servers';
-            }
-            if (id.includes(`${path.sep}pages${path.sep}FinOps`)) {
-              return 'view-finops';
+            for (const { segments, chunk } of viewManualChunks) {
+              if (matchesPathSegments(id, segments)) {
+                return chunk;
+              }
             }
             return undefined;
           },

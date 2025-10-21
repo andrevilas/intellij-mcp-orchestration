@@ -1,5 +1,7 @@
 import clsx from 'clsx';
 
+import './pagination.scss';
+
 interface PaginationProps {
   currentPage: number;
   pageCount: number;
@@ -33,12 +35,16 @@ export default function Pagination({
   const pages = Array.from({ length: pageCount }, (_, index) => index + 1);
 
   return (
-    <nav aria-label={ariaLabel}>
-      <ul className="pagination mb-0">
-        <li className={clsx('page-item', { disabled: normalizedCurrent === 1 })}>
+    <nav aria-label={ariaLabel} className="pagination">
+      <ul className="pagination__list">
+        <li
+          className={clsx('pagination__item', {
+            'pagination__item--disabled': normalizedCurrent === 1,
+          })}
+        >
           <button
             type="button"
-            className="page-link"
+            className="pagination__button"
             onClick={() => goTo(normalizedCurrent - 1)}
             aria-label="Página anterior"
             disabled={normalizedCurrent === 1}
@@ -47,10 +53,15 @@ export default function Pagination({
           </button>
         </li>
         {pages.map((page) => (
-          <li key={page} className={clsx('page-item', { active: page === normalizedCurrent })}>
+          <li
+            key={page}
+            className={clsx('pagination__item', {
+              'pagination__item--active': page === normalizedCurrent,
+            })}
+          >
             <button
               type="button"
-              className="page-link"
+              className="pagination__button"
               onClick={() => goTo(page)}
               aria-current={page === normalizedCurrent ? 'page' : undefined}
             >
@@ -58,10 +69,14 @@ export default function Pagination({
             </button>
           </li>
         ))}
-        <li className={clsx('page-item', { disabled: normalizedCurrent === pageCount })}>
+        <li
+          className={clsx('pagination__item', {
+            'pagination__item--disabled': normalizedCurrent === pageCount,
+          })}
+        >
           <button
             type="button"
-            className="page-link"
+            className="pagination__button"
             onClick={() => goTo(normalizedCurrent + 1)}
             aria-label="Próxima página"
             disabled={normalizedCurrent === pageCount}

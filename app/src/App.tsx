@@ -900,115 +900,112 @@ function App() {
     <ToastProvider>
       <div className="app-shell">
         <a
-        href="#main-content"
-        className="skip-link"
-        onClick={(event) => {
-          event.preventDefault();
-          mainRef.current?.focus({ preventScroll: true });
-        }}
-      >
-        Ir para o conteúdo principal
+          href="#main-content"
+          className="skip-link"
+          onClick={(event) => {
+            event.preventDefault();
+            mainRef.current?.focus({ preventScroll: true });
+          }}
+        >
+          Ir para o conteúdo principal
         </a>
         <header className="app-shell__header">
-        <div className="app-shell__branding">
-          <button
-            type="button"
-            className="app-shell__sidebar-toggle btn btn-outline-secondary d-lg-none"
-            aria-expanded={isSidebarOpen}
-            aria-controls="primary-navigation"
-            onClick={handleToggleSidebar}
-          >
-            <FontAwesomeIcon icon="bars" className="me-2" fixedWidth aria-hidden="true" />
-            Menu
-          </button>
-          <div>
-            <span className="app-shell__eyebrow">Promenade Agent Hub</span>
-            <h1>Operações unificadas</h1>
+          <div className="app-shell__branding">
+            <button
+              type="button"
+              className="app-shell__sidebar-toggle app-shell__sidebar-toggle--mobile-only"
+              aria-expanded={isSidebarOpen}
+              aria-controls="primary-navigation"
+              onClick={handleToggleSidebar}
+            >
+              <FontAwesomeIcon icon="bars" className="icon-leading" fixedWidth aria-hidden="true" />
+              Menu
+            </button>
+            <div>
+              <span className="app-shell__eyebrow">Promenade Agent Hub</span>
+              <h1>Operações unificadas</h1>
+            </div>
           </div>
-        </div>
-        <div className="app-shell__actions">
-          <ThemeSwitch className="d-none d-lg-inline-flex" />
-          <nav
-            aria-label="Navegação principal"
-            id="primary-navigation"
-            className={clsx(
-              'app-shell__nav nav flex-column flex-lg-row gap-2',
-              isSidebarOpen && 'app-shell__nav--open',
-            )}
-            data-open={isSidebarOpen}
-            ref={navRef}
-            onKeyDown={handleNavKeyDown}
-          >
-            {VIEW_DEFINITIONS.map((view) => (
+          <div className="app-shell__actions">
+            <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--desktop" />
+            <nav
+              aria-label="Navegação principal"
+              id="primary-navigation"
+              className={clsx('app-shell__nav', isSidebarOpen && 'app-shell__nav--open')}
+              data-open={isSidebarOpen}
+              ref={navRef}
+              onKeyDown={handleNavKeyDown}
+            >
+              {VIEW_DEFINITIONS.map((view) => (
+                <button
+                  key={view.id}
+                  type="button"
+                  className={clsx('nav-button', {
+                    'nav-button--active': activeView === view.id,
+                  })}
+                  id={`nav-${view.id}`}
+                  tabIndex={activeView === view.id ? 0 : -1}
+                  aria-current={activeView === view.id ? 'page' : undefined}
+                  onFocus={() => handleNavigate(view.id, { focusContent: false })}
+                  onClick={() => handleNavigate(view.id)}
+                >
+                  <FontAwesomeIcon
+                    icon={VIEW_ICON_MAP[view.id]}
+                    fixedWidth
+                    className="icon-leading"
+                    aria-hidden="true"
+                  />
+                  <span className="nav-button__label">{view.label}</span>
+                </button>
+              ))}
+              <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--mobile" />
+            </nav>
+            <div className="app-shell__quick-actions">
               <button
-                key={view.id}
                 type="button"
-                className={clsx('nav-button', {
-                  'nav-button--active': activeView === view.id,
-                })}
-                id={`nav-${view.id}`}
-                tabIndex={activeView === view.id ? 0 : -1}
-                aria-current={activeView === view.id ? 'page' : undefined}
-                onFocus={() => handleNavigate(view.id, { focusContent: false })}
-                onClick={() => handleNavigate(view.id)}
+                className="notification-button"
+                aria-haspopup="dialog"
+                aria-expanded={isNotificationOpen}
+                aria-controls="notification-center-panel"
+                onClick={() => {
+                  setNotificationOpen(true);
+                  setPaletteOpen(false);
+                }}
+                aria-label={notificationButtonLabel}
+                ref={notificationButtonRef}
               >
-                <FontAwesomeIcon
-                  icon={VIEW_ICON_MAP[view.id]}
-                  fixedWidth
-                  className="me-2"
-                  aria-hidden="true"
-                />
-                <span className="nav-button__label">{view.label}</span>
+                <FontAwesomeIcon icon="bell" className="icon-leading" fixedWidth aria-hidden="true" />
+                <span className="notification-button__text">Notificações</span>
+                <span
+                  className={
+                    unreadCount > 0
+                      ? 'notification-button__badge'
+                      : 'notification-button__badge notification-button__badge--muted'
+                  }
+                  aria-hidden={unreadCount === 0}
+                >
+                  {unreadCount}
+                </span>
+                <kbd aria-hidden="true">⇧⌘N</kbd>
               </button>
-            ))}
-            <ThemeSwitch className="d-lg-none mt-3" />
-          </nav>
-          <div className="app-shell__quick-actions">
-            <button
-              type="button"
-              className="notification-button"
-              aria-haspopup="dialog"
-              aria-expanded={isNotificationOpen}
-              aria-controls="notification-center-panel"
-              onClick={() => {
-                setNotificationOpen(true);
-                setPaletteOpen(false);
-              }}
-              aria-label={notificationButtonLabel}
-              ref={notificationButtonRef}
-            >
-              <FontAwesomeIcon icon="bell" className="me-2" fixedWidth aria-hidden="true" />
-              <span className="notification-button__text">Notificações</span>
-              <span
-                className={
-                  unreadCount > 0
-                    ? 'notification-button__badge'
-                    : 'notification-button__badge notification-button__badge--muted'
-                }
-                aria-hidden={unreadCount === 0}
+              <button
+                type="button"
+                className="command-button"
+                aria-haspopup="dialog"
+                aria-expanded={isPaletteOpen}
+                onClick={() => {
+                  setPaletteOpen(true);
+                  setNotificationOpen(false);
+                }}
+                ref={commandButtonRef}
               >
-                {unreadCount}
-              </span>
-              <kbd aria-hidden="true">⇧⌘N</kbd>
-            </button>
-            <button
-              type="button"
-              className="command-button"
-              aria-haspopup="dialog"
-              aria-expanded={isPaletteOpen}
-              onClick={() => {
-                setPaletteOpen(true);
-                setNotificationOpen(false);
-              }}
-              ref={commandButtonRef}
-            >
-              <FontAwesomeIcon icon="circle-half-stroke" className="me-2" fixedWidth aria-hidden="true" />
-              <span className="command-button__text">Command palette</span>
-              <kbd aria-hidden="true">⌘K</kbd>
-            </button>
+                <FontAwesomeIcon icon="circle-half-stroke" className="icon-leading" fixedWidth aria-hidden="true" />
+                <span className="command-button__text">Command palette</span>
+                <kbd aria-hidden="true">⌘K</kbd>
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
       <div className="app-shell__breadcrumbs">
         <Breadcrumbs items={breadcrumbs} />
       </div>
