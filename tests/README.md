@@ -28,6 +28,25 @@ datasets compartilhados com o backend (`server/routes/fixtures`). Incluímos cat
 (`agents.json`, `smoke_endpoints.json`) para cobrir os fluxos de Agents e smoke tests usando as
 mesmas estruturas esperadas pela API.
 
+## Modo fixture-only
+
+Quando o backend FastAPI não está acessível localmente, o `vite.config.ts` força automaticamente o
+modo fixtures mesmo que `CONSOLE_MCP_USE_FIXTURES=off`. Durante os testes o Playwright também
+habilita o modo fixtures ao sobrescrever `page.goto`/`page.reload`. Após cada navegação os helpers
+aguardam o `networkidle` para garantir que o service worker do MSW esteja pronto antes das
+asserções.
+
+Para consumir os mesmos dados nos testes, utilize `loadBackendFixture`:
+
+```ts
+import { loadBackendFixture } from './fixtures';
+
+const sessions = await loadBackendFixture<{ sessions: unknown[] }>('sessions.json');
+```
+
+O helper funciona via `import(..., { with: { type: 'json' } })`, possibilitando reuso direto dos
+JSONs versionados em `tests/fixtures/backend`.
+
 O worker do MSW roda com `onUnhandledRequest: 'error'`, portanto qualquer endpoint ausente irá
 falhar explicitamente durante os testes. O helper também limpa `localStorage`/`sessionStorage`
 antes da primeira navegação para evitar interferências entre cenários.

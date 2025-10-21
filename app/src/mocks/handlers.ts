@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import type {
+  AgentConfigLayer,
   MarketplacePerformanceEntry,
   AgentSmokeRun,
   ProviderSummary,
@@ -326,9 +327,19 @@ const serializeRoutingPlan = (plan: RoutingSimulationResult) => ({
 
 const providerCatalog = (providersFixture as { providers: ProviderSummary[] }).providers;
 
-const serverCatalogPayload = (serversFixture as {
+const serverCatalogSource = (serversFixture as {
   servers: Array<Record<string, unknown>>;
 }).servers;
+
+const serverCatalogStore = new Map<string, Record<string, unknown>>();
+
+const resetServerCatalogStore = () => {
+  serverCatalogStore.clear();
+  for (const server of serverCatalogSource) {
+    const id = (server.id as string) ?? `server-${serverCatalogStore.size + 1}`;
+    serverCatalogStore.set(id, createResponse(server));
+  }
+};
 
 const cloneProcessState = (entry: Record<string, any>): Record<string, any> => ({
   ...entry,
@@ -398,6 +409,559 @@ const agentCatalog = (agentsFixture as { agents: Array<Record<string, unknown>> 
   }),
 );
 
+const FIXTURE_CLOCK_START = Date.UTC(2025, 2, 7, 12, 0, 0);
+
+const nextIsoTimestamp = (() => {
+  let step = 0;
+  return () => {
+    step += 1;
+    return new Date(FIXTURE_CLOCK_START + step * 30_000).toISOString();
+  };
+})();
+
+const createResponse = <T>(value: T): T => cloneDeep(value);
+
+interface SecretRecord {
+  provider_id: string;
+  has_secret: boolean;
+  updated_at: string | null;
+  value: string | null;
+}
+
+const secretFixtures: SecretRecord[] = [
+  {
+    provider_id: 'gemini',
+    has_secret: true,
+    updated_at: '2025-03-06T09:00:00Z',
+    value: 'gemini-api-key-fixture',
+  },
+  {
+    provider_id: 'glm46',
+    has_secret: false,
+    updated_at: null,
+    value: null,
+  },
+];
+
+const secretStore = new Map<string, SecretRecord>();
+
+const resetSecretStore = () => {
+  secretStore.clear();
+  for (const record of secretFixtures) {
+    secretStore.set(record.provider_id, createResponse(record));
+  }
+};
+
+interface CostPolicyRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  monthly_spend_limit: number;
+  currency: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+const costPolicyFixtures: CostPolicyRecord[] = [
+  {
+    id: 'finops-core',
+    name: 'FinOps Core',
+    description: 'Protege o orçamento principal de LLMs.',
+    monthly_spend_limit: 42000,
+    currency: 'USD',
+    tags: ['llm', 'priority'],
+    created_at: '2025-02-10T10:00:00Z',
+    updated_at: '2025-03-05T09:30:00Z',
+  },
+  {
+    id: 'experiments',
+    name: 'Experimentos controlados',
+    description: 'Limita rotas experimentais para conter custo.',
+    monthly_spend_limit: 8000,
+    currency: 'USD',
+    tags: ['canary'],
+    created_at: '2025-02-12T11:00:00Z',
+    updated_at: '2025-03-01T16:45:00Z',
+  },
+];
+
+const costPolicyStore = new Map<string, CostPolicyRecord>();
+
+const resetCostPolicyStore = () => {
+  costPolicyStore.clear();
+  for (const policy of costPolicyFixtures) {
+    costPolicyStore.set(policy.id, createResponse(policy));
+  }
+};
+
+const listCostPolicies = (): CostPolicyRecord[] =>
+  Array.from(costPolicyStore.values()).map((policy) => createResponse(policy));
+
+type PolicyOverridesPayloadRecord = NonNullable<PolicyOverridesPayload>;
+
+interface PolicyOverrideRecord extends PolicyOverridePayload {
+  overrides?: PolicyOverridesPayloadRecord | null;
+}
+
+const policyOverrideFixtures: PolicyOverrideRecord[] = [
+  {
+    id: 'override-route-ops',
+    route: 'route-ops',
+    project: 'routing-console',
+    template_id: 'policy-routing-latency',
+    max_latency_ms: 1200,
+    max_cost_usd: 12,
+    require_manual_approval: true,
+    notes: 'Fixture override para desbloquear testes de HITL.',
+    created_at: '2025-03-01T12:00:00Z',
+    updated_at: '2025-03-06T08:30:00Z',
+    overrides: {
+      finops: {
+        budgets: { daily: 950, weekly: 6400, monthly: 28000 },
+      },
+      routing: {
+        intents: [
+          {
+            intent: 'chat.economy',
+            description: 'Fallback econômico para chat.',
+            default_tier: 'economy',
+            tags: ['economy'],
+            fallback_provider_id: 'glm46',
+          },
+        ],
+      },
+    },
+  },
+];
+
+const policyOverrideStore = new Map<string, PolicyOverrideRecord>();
+
+const resetPolicyOverrideStore = () => {
+  policyOverrideStore.clear();
+  for (const override of policyOverrideFixtures) {
+    policyOverrideStore.set(override.id, createResponse(override));
+  }
+};
+
+const listPolicyOverrides = (): PolicyOverrideRecord[] =>
+  Array.from(policyOverrideStore.values()).map((override) => createResponse(override));
+
+const policyTemplateCatalog = {
+  templates: [
+    {
+      id: 'policy-routing-latency',
+      name: 'Routing focado em latência',
+      tagline: 'Diminui P95 usando fallback automático.',
+      description: 'Rebalanceia tráfego priorizando rotas turbo.',
+      price_delta: 1.08,
+      latency_target: 0.82,
+      guardrail_level: 'medium',
+      features: ['prioriza-turbo', 'failover-automático'],
+    },
+    {
+      id: 'policy-finops-burn',
+      name: 'FinOps burn-rate',
+      tagline: 'Ativa alertas de burn-rate agressivos.',
+      description: 'Ajusta budgets e adiciona degradê suave.',
+      price_delta: 0.95,
+      latency_target: 1.05,
+      guardrail_level: 'high',
+      features: ['burn-rate', 'graceful-degradation'],
+    },
+  ],
+  rollout: {
+    generatedAt: '2025-03-06T10:00:00Z',
+    plans: [
+      {
+        templateId: 'policy-routing-latency',
+        generatedAt: '2025-03-06T09:45:00Z',
+        allocations: [
+          {
+            segment: {
+              id: 'canary',
+              name: 'Canary',
+              description: 'Clientes piloto para validação.',
+            },
+            coverage: 0.15,
+            providers: providerCatalog.slice(0, 2),
+          },
+          {
+            segment: {
+              id: 'general',
+              name: 'General availability',
+              description: 'Segmento padrão das rotas.',
+            },
+            coverage: 0.85,
+            providers: providerCatalog.slice(0, 3),
+          },
+        ],
+      },
+    ],
+  },
+};
+
+const observabilityPreferencesState = {
+  tracing: {
+    provider: 'langsmith',
+    endpoint: 'https://observability.example.com/tracing',
+    project: 'console-mcp',
+    dataset: 'production',
+    headers: { Authorization: 'Bearer tracing-fixture' },
+  },
+  metrics: {
+    provider: 'otlp',
+    endpoint: 'https://observability.example.com/metrics',
+    project: null,
+    dataset: null,
+    headers: null,
+  },
+  evals: null,
+  updated_at: '2025-03-05T11:45:00Z',
+  audit: {
+    actor_id: 'user-ops',
+    actor_name: 'Operations Bot',
+    actor_roles: ['observability-admin'],
+  },
+};
+
+interface DiagnosticsComponentFixture {
+  ok: boolean;
+  status_code: number;
+  duration_ms: number;
+  data: Record<string, unknown>;
+  error: string | null;
+}
+
+const diagnosticsFixture = {
+  timestamp: '2025-03-07T12:10:00Z',
+  summary: {
+    total: 3,
+    successes: 3,
+    failures: 0,
+    errors: {},
+  },
+  health: {
+    ok: true,
+    status_code: 200,
+    duration_ms: 15.2,
+    data: { status: 'ok' },
+    error: null,
+  } satisfies DiagnosticsComponentFixture,
+  providers: {
+    ok: true,
+    status_code: 200,
+    duration_ms: 28.4,
+    data: {
+      providers: providerCatalog.map((provider) => ({ id: provider.id, status: 'ok' })),
+    },
+    error: null,
+  } satisfies DiagnosticsComponentFixture,
+  invoke: {
+    ok: true,
+    status_code: 200,
+    duration_ms: 41.9,
+    data: { result: { status: 'ok', duration_ms: 120 } },
+    error: null,
+  } satisfies DiagnosticsComponentFixture,
+};
+
+const marketplaceCatalog = {
+  entries: [
+    {
+      id: 'observability-bundle',
+      name: 'Observability bundle',
+      slug: 'observability-bundle',
+      summary: 'Dashboards e alarmes prontos para servidores MCP.',
+      description: 'Inclui dashboards prontos para Grafana e alertas Prometheus.',
+      origin: 'fixtures',
+      rating: 4.8,
+      cost: 249,
+      tags: ['observability', 'dashboards'],
+      capabilities: ['metrics', 'alerts'],
+      repository_url: 'https://github.com/example/mcp-observability-bundle',
+      package_path: 'packages/observability-bundle',
+      manifest_filename: 'manifest.yaml',
+      entrypoint_filename: 'main.py',
+      target_repository: 'git@github.com:example/console-mcp.git',
+      signature: 'fixture-signature-observability',
+      created_at: '2025-02-01T12:00:00Z',
+      updated_at: '2025-03-05T09:30:00Z',
+    },
+    {
+      id: 'policy-pack',
+      name: 'Policy pack',
+      slug: 'policy-pack',
+      summary: 'Coleção de políticas HITL pré-aprovadas.',
+      description: 'Conjunto de políticas de governança com fluxo HITL integrado.',
+      origin: 'fixtures',
+      rating: 4.6,
+      cost: 149,
+      tags: ['policies', 'hitl'],
+      capabilities: ['governance'],
+      repository_url: 'https://github.com/example/mcp-policy-pack',
+      package_path: 'packages/policy-pack',
+      manifest_filename: 'manifest.yaml',
+      entrypoint_filename: null,
+      target_repository: 'git@github.com:example/console-mcp.git',
+      signature: 'fixture-signature-policy',
+      created_at: '2025-01-20T10:00:00Z',
+      updated_at: '2025-02-28T15:45:00Z',
+    },
+  ],
+};
+
+interface SecurityUserRecord {
+  id: string;
+  name: string;
+  email: string;
+  roles: string[];
+  status: string;
+  created_at: string;
+  last_seen_at: string | null;
+  mfa_enabled: boolean;
+}
+
+const securityUserFixtures: SecurityUserRecord[] = [
+  {
+    id: 'user-ops',
+    name: 'Ops Admin',
+    email: 'ops@example.com',
+    roles: ['approver'],
+    status: 'active',
+    created_at: '2025-02-20T12:00:00Z',
+    last_seen_at: '2025-03-07T09:30:00Z',
+    mfa_enabled: true,
+  },
+  {
+    id: 'user-analyst',
+    name: 'Security Analyst',
+    email: 'security@example.com',
+    roles: ['viewer'],
+    status: 'active',
+    created_at: '2025-02-18T11:00:00Z',
+    last_seen_at: null,
+    mfa_enabled: false,
+  },
+];
+
+const securityUserStore = new Map<string, SecurityUserRecord>();
+
+const resetSecurityUserStore = () => {
+  securityUserStore.clear();
+  for (const user of securityUserFixtures) {
+    securityUserStore.set(user.id, createResponse(user));
+  }
+};
+
+const listSecurityUsers = (): SecurityUserRecord[] =>
+  Array.from(securityUserStore.values()).map((user) => createResponse(user));
+
+interface SecurityRoleRecord {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  members: number;
+  created_at: string;
+  updated_at: string;
+}
+
+const securityRoleFixtures: SecurityRoleRecord[] = [
+  {
+    id: 'approver',
+    name: 'Approver',
+    description: 'Pode aprovar planos governados.',
+    permissions: ['config.plan.approve', 'policies.hitl.review'],
+    members: 2,
+    created_at: '2025-02-15T10:00:00Z',
+    updated_at: '2025-03-02T08:00:00Z',
+  },
+  {
+    id: 'viewer',
+    name: 'Viewer',
+    description: 'Acesso somente leitura às superfícies.',
+    permissions: ['dashboard.view'],
+    members: 4,
+    created_at: '2025-01-20T12:30:00Z',
+    updated_at: '2025-02-01T07:45:00Z',
+  },
+];
+
+const securityRoleStore = new Map<string, SecurityRoleRecord>();
+
+const resetSecurityRoleStore = () => {
+  securityRoleStore.clear();
+  for (const role of securityRoleFixtures) {
+    securityRoleStore.set(role.id, createResponse(role));
+  }
+};
+
+const listSecurityRoles = (): SecurityRoleRecord[] =>
+  Array.from(securityRoleStore.values()).map((role) => createResponse(role));
+
+interface SecurityApiKeyRecord {
+  id: string;
+  name: string;
+  owner: string;
+  scopes: string[];
+  status: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  token_preview: string | null;
+}
+
+const securityApiKeyFixtures: SecurityApiKeyRecord[] = [
+  {
+    id: 'key-admin',
+    name: 'Admin automation',
+    owner: 'Ops Admin',
+    scopes: ['mcp:invoke', 'mcp:manage'],
+    status: 'active',
+    created_at: '2025-01-12T09:00:00Z',
+    last_used_at: '2025-03-06T18:30:00Z',
+    expires_at: null,
+    token_preview: 'adm***',
+  },
+];
+
+const securityApiKeyStore = new Map<string, SecurityApiKeyRecord>();
+
+const resetSecurityApiKeyStore = () => {
+  securityApiKeyStore.clear();
+  for (const key of securityApiKeyFixtures) {
+    securityApiKeyStore.set(key.id, createResponse(key));
+  }
+};
+
+const listSecurityApiKeys = (): SecurityApiKeyRecord[] =>
+  Array.from(securityApiKeyStore.values()).map((key) => createResponse(key));
+
+type AuditTrailStore = Map<string, Array<Record<string, unknown>>>;
+
+const securityAuditTrailFixtures: Array<[string, Array<Record<string, unknown>>]> = [
+  [
+    'user:user-ops',
+    [
+      {
+        id: 'audit-user-1',
+        timestamp: '2025-03-05T09:15:00Z',
+        actor: 'ops@example.com',
+        action: 'role.assigned',
+        target: 'user-ops',
+        description: 'Atribuiu role approver via fixtures.',
+        metadata: { actor: 'fixture' },
+      },
+    ],
+  ],
+];
+
+const securityAuditTrailStore: AuditTrailStore = new Map();
+
+const resetSecurityAuditTrailStore = () => {
+  securityAuditTrailStore.clear();
+  for (const [key, events] of securityAuditTrailFixtures) {
+    securityAuditTrailStore.set(key, createResponse(events));
+  }
+};
+
+const auditLogEntries = [
+  {
+    id: 'audit-log-1',
+    created_at: '2025-03-06T11:00:00Z',
+    actor_id: 'user-ops',
+    actor_name: 'Ops Admin',
+    actor_roles: ['approver'],
+    action: 'config.plan',
+    resource: '/config/plan',
+    status: 'success',
+    plan_id: 'finops-plan-fixture',
+    metadata: { branch: 'chore/finops-plan-fixtures' },
+  },
+  {
+    id: 'audit-log-2',
+    created_at: '2025-03-06T12:30:00Z',
+    actor_id: 'system',
+    actor_name: 'System',
+    actor_roles: ['viewer'],
+    action: 'security.users.list',
+    resource: '/security/users',
+    status: 'success',
+    plan_id: null,
+    metadata: { count: 2 },
+  },
+];
+
+const configChatThreads = new Map<string, Array<Record<string, unknown>>>();
+
+const ensureChatThread = (threadId: string) => {
+  if (!configChatThreads.has(threadId)) {
+    configChatThreads.set(threadId, [
+      {
+        id: `${threadId}-assistant-1`,
+        role: 'assistant',
+        content: 'Olá! Sou o assistente de configuração da Console MCP.',
+        created_at: '2025-03-07T10:00:00Z',
+      },
+    ]);
+  }
+  return configChatThreads.get(threadId)!;
+};
+
+const agentPlanHistoryStore = new Map<string, Array<Record<string, unknown>>>();
+
+const getAgentPlanHistory = (agentId: string) => {
+  if (!agentPlanHistoryStore.has(agentId)) {
+    agentPlanHistoryStore.set(agentId, []);
+  }
+  return agentPlanHistoryStore.get(agentId)!;
+};
+
+const configMcpUpdatePlan = {
+  plan_id: 'mcp-update-plan-fixture',
+  summary: 'Atualizar manifesto MCP via fixtures.',
+  message: 'Plano preparado pelas fixtures locais.',
+  diffs: [
+    {
+      id: 'diff-manifest',
+      title: 'agents/gemini/agent.yaml',
+      summary: 'Atualiza owner e descrição.',
+      diff: '--- a/agent.yaml\n+++ b/agent.yaml\n+owner: platform-team\n+tags:\n+  - fixtures',
+    },
+  ],
+};
+
+const configMcpUpdateApply = {
+  status: 'applied',
+  message: 'Atualização enviada com sucesso via fixtures.',
+  record_id: 'mcp-update-record-fixture',
+  branch: 'feature/fixtures',
+  pull_request: {
+    provider: 'github',
+    id: 'pr-fixture',
+    number: '101',
+    url: 'https://github.com/example/console-mcp/pull/101',
+    title: 'Atualizar manifesto MCP (fixtures)',
+    state: 'open',
+    head_sha: 'f1x7ur3',
+    branch: 'feature/fixtures',
+    merged: false,
+  },
+};
+
+const mcpOnboardingStatus = {
+  recordId: 'onboard-fixture',
+  status: 'completed',
+  branch: 'feature/onboard-fixtures',
+  baseBranch: 'main',
+  commitSha: '0nb04rd123',
+  pullRequest: configMcpUpdateApply.pull_request
+    ? createResponse(configMcpUpdateApply.pull_request)
+    : null,
+  updatedAt: '2025-03-07T11:15:00Z',
+};
+
 const defaultAgentSmokeRun: AgentSmokeRun = {
   runId: 'fixture-smoke-run',
   status: 'passed',
@@ -449,12 +1013,24 @@ const resetSmokeEndpointStore = () => {
 
 export const resetMockState = () => {
   resetProcessState();
+  resetServerCatalogStore();
   resetSessionStore();
   resetSmokeEndpointStore();
   agentSmokeRuns.clear();
+  resetSecretStore();
+  resetCostPolicyStore();
+  resetPolicyOverrideStore();
+  resetSecurityUserStore();
+  resetSecurityRoleStore();
+  resetSecurityApiKeyStore();
+  resetSecurityAuditTrailStore();
+  configChatThreads.clear();
+  agentPlanHistoryStore.clear();
+  appendAgentHistory('catalog-search', {
+    summary: 'Plano inicial aplicado via fixtures.',
+    plan_id: 'catalog-search-plan-inicial',
+  });
 };
-
-resetMockState();
 
 const cloneSmokeRun = (run: SmokeRunSummary): SmokeRunFixture => ({
   run_id: run.runId,
@@ -667,6 +1243,90 @@ const finopsPlanApplyFixture = {
   },
 };
 
+const isAgentLayer = (value: unknown): value is AgentConfigLayer =>
+  value === 'policies' || value === 'routing' || value === 'finops' || value === 'observability';
+
+type AgentHistoryEntryInput = {
+  plan_id?: string;
+  summary?: string;
+  requested_by?: string;
+  created_at?: string;
+  status?: string;
+  status_label?: string;
+  layer?: AgentConfigLayer;
+  plan_payload?: Record<string, unknown> | null;
+  patch?: string | null;
+  pull_request?: Record<string, unknown> | null;
+};
+
+const appendAgentHistory = (agentId: string, entry: AgentHistoryEntryInput) => {
+  const history = getAgentPlanHistory(agentId);
+
+  const planId = entry.plan_id ?? `${agentId}-plan-fixture`;
+  const requestedBy = entry.requested_by ?? 'fixtures@console';
+  const createdAt = entry.created_at ?? new Date().toISOString();
+  const status = (entry.status ?? 'completed').toLowerCase();
+  const statusLabel = entry.status_label ?? 'Concluído';
+  const layer = isAgentLayer(entry.layer) ? entry.layer : 'policies';
+
+  let planPayload: Record<string, unknown> | null;
+  if (entry.plan_payload === undefined) {
+    planPayload = createResponse(finopsPlanResponseFixture.plan);
+  } else if (entry.plan_payload === null) {
+    planPayload = null;
+  } else {
+    planPayload = createResponse(entry.plan_payload);
+  }
+
+  let pullRequest: Record<string, unknown> | null;
+  if (entry.pull_request === undefined) {
+    pullRequest = finopsPlanApplyFixture.pull_request
+      ? createResponse(finopsPlanApplyFixture.pull_request)
+      : null;
+  } else if (entry.pull_request === null) {
+    pullRequest = null;
+  } else {
+    pullRequest = createResponse(entry.pull_request);
+  }
+
+  const record = {
+    id: `${agentId}-history-${history.length + 1}`,
+    layer,
+    status,
+    status_label: statusLabel,
+    requested_by: requestedBy,
+    created_at: createdAt,
+    summary: entry.summary ?? `Plano ${planId} aplicado via fixtures.`,
+    plan_id: planId,
+    plan_payload: planPayload,
+    patch: entry.patch === undefined ? FINOPS_MANIFEST_DIFF : entry.patch,
+    pull_request: pullRequest,
+  };
+
+  history.unshift(record);
+};
+
+resetMockState();
+
+const configReloadPlanFixture = {
+  message: 'Plano de reload gerado via fixtures.',
+  plan: createResponse(finopsPlanResponseFixture.plan),
+  planPayload: createResponse(finopsPlanResponseFixture.plan),
+  patch: FINOPS_MANIFEST_DIFF,
+  planId: 'reload-plan-fixture',
+};
+
+const buildPlanResponse = (summary: string, intent = 'config.update') => {
+  const response = cloneDeep(finopsPlanResponseFixture);
+  response.plan.summary = summary;
+  response.plan.intent = intent;
+  if (response.preview) {
+    response.preview.branch = `fixtures/${intent.replace(/\./g, '-')}`;
+    response.preview.commit_message = `chore: ${summary.toLowerCase()}`;
+  }
+  return response;
+};
+
 const experimentItems = (telemetryExperimentsFixture as {
   items: TelemetryExperimentSummaryEntry[];
 }).items;
@@ -702,7 +1362,9 @@ const telemetryRuns: TelemetryRunEntry[] = telemetryRunsRaw.items.map((run) => (
 }));
 
 export const handlers = [
-  http.get(`${API_PREFIX}/servers`, () => HttpResponse.json({ servers: serverCatalogPayload })),
+  http.get(`${API_PREFIX}/servers`, () =>
+    HttpResponse.json({ servers: Array.from(serverCatalogStore.values()) }),
+  ),
   http.get(`${API_PREFIX}/servers/processes`, () =>
     HttpResponse.json({ processes: Array.from(processStateByServer.values()) }),
   ),
@@ -748,6 +1410,49 @@ export const handlers = [
     processStateByServer.set(serverId, next);
     return HttpResponse.json({ process: next });
   }),
+  http.post(`${API_PREFIX}/servers/:serverId/health/ping`, ({ params }) => {
+    const serverId = params.serverId as string;
+    const checks = healthHistoryByServer.get(serverId) ?? [];
+    const check = {
+      status: 'healthy',
+      checked_at: nextIsoTimestamp(),
+      latency_ms: Math.round(80 + Math.random() * 60),
+      message: 'Ping realizado com sucesso via fixtures.',
+      actor: 'fixtures@console',
+      plan_id: null,
+    };
+    checks.unshift(createResponse(check));
+    healthHistoryByServer.set(serverId, checks);
+    return HttpResponse.json({ check });
+  }),
+  http.put(`${API_PREFIX}/servers/:serverId`, async ({ params, request }) => {
+    const serverId = params.serverId as string;
+    const current = serverCatalogStore.get(serverId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'Server not found' }, { status: 404 });
+    }
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore malformed payloads
+    }
+    const updated = {
+      ...current,
+      ...payload,
+      id: serverId,
+      updated_at: nextIsoTimestamp(),
+    };
+    serverCatalogStore.set(serverId, updated);
+    return HttpResponse.json({ server: updated });
+  }),
+  http.delete(`${API_PREFIX}/servers/:serverId`, ({ params }) => {
+    const serverId = params.serverId as string;
+    serverCatalogStore.delete(serverId);
+    processStateByServer.delete(serverId);
+    healthHistoryByServer.delete(serverId);
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.get(`${API_PREFIX}/sessions`, () => HttpResponse.json({ sessions: sessionStore })),
   http.post(`${API_PREFIX}/providers/:providerId/sessions`, async ({ params, request }) => {
     const providerId = params.providerId as string;
@@ -777,7 +1482,136 @@ export const handlers = [
       { status: 201 },
     );
   }),
-  http.get(`${API_PREFIX}/secrets`, () => HttpResponse.json({ secrets: [] })),
+  http.get(`${API_PREFIX}/secrets`, () =>
+    HttpResponse.json({
+      secrets: Array.from(secretStore.values()).map((secret) => ({
+        provider_id: secret.provider_id,
+        has_secret: secret.has_secret,
+        updated_at: secret.updated_at,
+      })),
+    }),
+  ),
+  http.get(`${API_PREFIX}/secrets/:providerId`, ({ params }) => {
+    const providerId = params.providerId as string;
+    const secret = secretStore.get(providerId);
+    if (!secret) {
+      return HttpResponse.json({ detail: 'Secret not found' }, { status: 404 });
+    }
+    const updatedAt = secret.updated_at ?? nextIsoTimestamp();
+    if (!secret.has_secret || !secret.value) {
+      return HttpResponse.json({
+        provider_id: providerId,
+        value: '',
+        updated_at: updatedAt,
+      });
+    }
+    return HttpResponse.json({
+      provider_id: providerId,
+      value: secret.value,
+      updated_at: updatedAt,
+    });
+  }),
+  http.put(`${API_PREFIX}/secrets/:providerId`, async ({ params, request }) => {
+    const providerId = params.providerId as string;
+    let payload: { value?: unknown } = {};
+    try {
+      payload = (await request.json()) as { value?: unknown };
+    } catch {
+      // ignore malformed payloads and use empty value
+    }
+    const rawValue = typeof payload.value === 'string' ? payload.value : '';
+    const record = secretStore.get(providerId) ?? {
+      provider_id: providerId,
+      has_secret: false,
+      updated_at: null,
+      value: null,
+    };
+    const updatedAt = nextIsoTimestamp();
+    record.value = rawValue;
+    record.has_secret = rawValue.trim().length > 0;
+    record.updated_at = updatedAt;
+    secretStore.set(providerId, record);
+    return HttpResponse.json({
+      provider_id: providerId,
+      value: rawValue,
+      updated_at: updatedAt,
+    });
+  }),
+  http.delete(`${API_PREFIX}/secrets/:providerId`, ({ params }) => {
+    const providerId = params.providerId as string;
+    const record = secretStore.get(providerId);
+    if (!record) {
+      return new HttpResponse(null, { status: 204 });
+    }
+    record.has_secret = false;
+    record.value = null;
+    record.updated_at = nextIsoTimestamp();
+    secretStore.set(providerId, record);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.post(`${API_PREFIX}/secrets/:providerId/test`, ({ params }) => {
+    const providerId = params.providerId as string;
+    const record = secretStore.get(providerId);
+    const status = record?.has_secret ? 'healthy' : 'degraded';
+    return HttpResponse.json({
+      provider_id: providerId,
+      status,
+      latency_ms: status === 'healthy' ? 120 : 420,
+      tested_at: nextIsoTimestamp(),
+      message:
+        status === 'healthy'
+          ? 'Secret validado pelas fixtures locais.'
+          : 'Secret ausente; recomenda-se atualizar via fixtures.',
+    });
+  }),
+  http.post(`${API_PREFIX}/diagnostics/run`, async ({ request }) => {
+    try {
+      await request.json();
+    } catch {
+      // ignore malformed payloads to keep fixtures resilient
+    }
+    return HttpResponse.json(diagnosticsFixture);
+  }),
+  http.get(`${API_PREFIX}/observability/preferences`, () =>
+    HttpResponse.json(createResponse(observabilityPreferencesState)),
+  ),
+  http.put(`${API_PREFIX}/observability/preferences`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore malformed payloads
+    }
+
+    const applySettings = (key: 'tracing' | 'metrics' | 'evals') => {
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        const value = payload[key];
+        if (value === null) {
+          (observabilityPreferencesState as Record<string, unknown>)[key] = null;
+        } else if (typeof value === 'object' && value) {
+          const current =
+            (observabilityPreferencesState as Record<string, unknown>)[key] ?? {};
+          (observabilityPreferencesState as Record<string, unknown>)[key] = {
+            ...(current as Record<string, unknown>),
+            ...(value as Record<string, unknown>),
+          };
+        }
+      }
+    };
+
+    applySettings('tracing');
+    applySettings('metrics');
+    applySettings('evals');
+
+    observabilityPreferencesState.updated_at = nextIsoTimestamp();
+    observabilityPreferencesState.audit = {
+      actor_id: 'user-ops',
+      actor_name: 'Operations Bot',
+      actor_roles: ['observability-admin'],
+    };
+
+    return HttpResponse.json(createResponse(observabilityPreferencesState));
+  }),
   http.get(`${API_PREFIX}/notifications`, () => HttpResponse.json({ notifications })),
   http.get(`${API_PREFIX}/policies/compliance`, () => HttpResponse.json(compliancePayload)),
   http.get(`${API_PREFIX}/policy/compliance`, () => HttpResponse.json(compliancePayload)),
@@ -786,6 +1620,145 @@ export const handlers = [
       requests: [],
       stats: { pending: 0, completed: 0 },
     }),
+  ),
+  http.get(`${API_PREFIX}/policies`, () =>
+    HttpResponse.json({ policies: listCostPolicies() }),
+  ),
+  http.post(`${API_PREFIX}/policies`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const now = nextIsoTimestamp();
+    const rawId = typeof payload.id === 'string' && payload.id.trim().length > 0
+      ? payload.id.trim()
+      : `policy-${costPolicyStore.size + 1}`;
+    const record: CostPolicyRecord = {
+      id: rawId,
+      name: typeof payload.name === 'string' ? payload.name : `Policy ${rawId}`,
+      description:
+        typeof payload.description === 'string' ? payload.description : null,
+      monthly_spend_limit: Number(payload.monthly_spend_limit ?? 0),
+      currency: typeof payload.currency === 'string' ? payload.currency : 'USD',
+      tags: Array.isArray(payload.tags)
+        ? (payload.tags as unknown[]).map((tag) => String(tag))
+        : [],
+      created_at: now,
+      updated_at: now,
+    };
+    costPolicyStore.set(record.id, record);
+    return HttpResponse.json(record, { status: 201 });
+  }),
+  http.put(`${API_PREFIX}/policies/:policyId`, async ({ params, request }) => {
+    const policyId = params.policyId as string;
+    const current = costPolicyStore.get(policyId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'Policy not found' }, { status: 404 });
+    }
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const updated: CostPolicyRecord = {
+      ...current,
+      name: typeof payload.name === 'string' ? payload.name : current.name,
+      description:
+        typeof payload.description === 'string'
+          ? payload.description
+          : current.description,
+      monthly_spend_limit: Number(
+        payload.monthly_spend_limit ?? current.monthly_spend_limit,
+      ),
+      currency: typeof payload.currency === 'string' ? payload.currency : current.currency,
+      tags: Array.isArray(payload.tags)
+        ? (payload.tags as unknown[]).map((tag) => String(tag))
+        : current.tags,
+      updated_at: nextIsoTimestamp(),
+    };
+    costPolicyStore.set(policyId, updated);
+    return HttpResponse.json(updated);
+  }),
+  http.delete(`${API_PREFIX}/policies/:policyId`, ({ params }) => {
+    const policyId = params.policyId as string;
+    costPolicyStore.delete(policyId);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.get(`${API_PREFIX}/policies/overrides`, () =>
+    HttpResponse.json({ overrides: listPolicyOverrides() }),
+  ),
+  http.post(`${API_PREFIX}/policies/overrides`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const now = nextIsoTimestamp();
+    const rawId = typeof payload.id === 'string' && payload.id.trim().length > 0
+      ? payload.id.trim()
+      : `override-${policyOverrideStore.size + 1}`;
+    const record: PolicyOverrideRecord = {
+      id: rawId,
+      route: String(payload.route ?? 'default'),
+      project: String(payload.project ?? 'console'),
+      template_id: String(payload.template_id ?? 'policy-routing-latency'),
+      max_latency_ms: payload.max_latency_ms as number | null | undefined ?? null,
+      max_cost_usd: payload.max_cost_usd as number | null | undefined ?? null,
+      require_manual_approval: Boolean(payload.require_manual_approval),
+      notes: typeof payload.notes === 'string' ? payload.notes : null,
+      created_at: now,
+      updated_at: now,
+      overrides: (payload.overrides as PolicyOverridesPayload | undefined) ?? null,
+    };
+    policyOverrideStore.set(record.id, record);
+    return HttpResponse.json(record, { status: 201 });
+  }),
+  http.put(`${API_PREFIX}/policies/overrides/:overrideId`, async ({ params, request }) => {
+    const overrideId = params.overrideId as string;
+    const current = policyOverrideStore.get(overrideId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'Override not found' }, { status: 404 });
+    }
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const updated: PolicyOverrideRecord = {
+      ...current,
+      route: typeof payload.route === 'string' ? payload.route : current.route,
+      project: typeof payload.project === 'string' ? payload.project : current.project,
+      template_id:
+        typeof payload.template_id === 'string'
+          ? payload.template_id
+          : current.template_id,
+      max_latency_ms:
+        (payload.max_latency_ms as number | null | undefined) ?? current.max_latency_ms,
+      max_cost_usd:
+        (payload.max_cost_usd as number | null | undefined) ?? current.max_cost_usd,
+      require_manual_approval:
+        typeof payload.require_manual_approval === 'boolean'
+          ? payload.require_manual_approval
+          : current.require_manual_approval,
+      notes: typeof payload.notes === 'string' ? payload.notes : current.notes,
+      overrides: (payload.overrides as PolicyOverridesPayload | undefined) ?? current.overrides ?? null,
+      updated_at: nextIsoTimestamp(),
+    };
+    policyOverrideStore.set(overrideId, updated);
+    return HttpResponse.json(updated);
+  }),
+  http.delete(`${API_PREFIX}/policies/overrides/:overrideId`, ({ params }) => {
+    const overrideId = params.overrideId as string;
+    policyOverrideStore.delete(overrideId);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.get(`${API_PREFIX}/policies/templates`, () =>
+    HttpResponse.json(createResponse(policyTemplateCatalog)),
   ),
   http.get(`${API_PREFIX}/telemetry/metrics`, () => HttpResponse.json(telemetryMetricsFixture)),
   http.get(`${API_PREFIX}/telemetry/heatmap`, () => HttpResponse.json(telemetryHeatmapFixture)),
@@ -920,6 +1893,223 @@ export const handlers = [
     return HttpResponse.json(serializeRoutingPlan(plan));
   }),
   http.get(`${API_PREFIX}/policies/manifest`, () => HttpResponse.json(policyManifestPayload)),
+  http.post(`${API_PREFIX}/config/plan`, async ({ request }) => {
+    try {
+      await request.json();
+    } catch {
+      // ignore malformed payloads
+    }
+    return HttpResponse.json(buildPlanResponse('Plano governado via fixtures.', 'config.plan'));
+  }),
+  http.post(`${API_PREFIX}/config/chat`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore malformed payloads
+    }
+    const threadId =
+      typeof payload.threadId === 'string'
+        ? payload.threadId
+        : typeof payload.thread_id === 'string'
+          ? payload.thread_id
+          : 'thread-fixture';
+    const thread = ensureChatThread(threadId);
+    const intent = typeof payload.intent === 'string' ? payload.intent : 'message';
+    if (intent === 'message') {
+      const prompt = typeof payload.prompt === 'string' ? payload.prompt : '';
+      thread.push({
+        id: `${threadId}-user-${thread.length + 1}`,
+        role: 'user',
+        content: prompt,
+        created_at: nextIsoTimestamp(),
+      });
+      thread.push({
+        id: `${threadId}-assistant-${thread.length + 1}`,
+        role: 'assistant',
+        content: 'Plano analisado com sucesso pelas fixtures. Pronto para aplicar.',
+        created_at: nextIsoTimestamp(),
+      });
+    }
+    const limit = typeof payload.limit === 'number' ? payload.limit : undefined;
+    const messages = limit ? thread.slice(-limit) : thread;
+    return HttpResponse.json({ threadId, messages: createResponse(messages) });
+  }),
+  http.post(`${API_PREFIX}/config/reload`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const target = typeof payload.target === 'string' ? payload.target : 'manifests';
+    const planId = typeof payload.plan_id === 'string' ? payload.plan_id : 'reload-plan-fixture';
+    const response = createResponse(configReloadPlanFixture);
+    const summary = `Reload governado de ${target} via fixtures.`;
+    response.message = summary;
+    if (response.plan) {
+      response.plan.summary = summary;
+      response.plan.intent = 'config.reload';
+    }
+    if (response.planPayload) {
+      response.planPayload.summary = summary;
+      response.planPayload.intent = 'config.reload';
+    }
+    response.planId = planId;
+    return HttpResponse.json(response);
+  }),
+  http.post(`${API_PREFIX}/config/agents/plan`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const agent = (payload.agent as Record<string, unknown> | undefined) ?? {};
+    const slug = typeof agent.slug === 'string' ? agent.slug : 'catalog-search';
+    const response = buildPlanResponse(`Atualizar agente ${slug} via fixtures.`, 'agents.plan');
+    return HttpResponse.json(response);
+  }),
+  http.post(`${API_PREFIX}/config/agents`, async ({ request }) => {
+    const url = new URL(request.url);
+    if ((url.searchParams.get('intent') ?? '').toLowerCase() === 'plan') {
+      let payload: Record<string, unknown> = {};
+      try {
+        payload = (await request.json()) as Record<string, unknown>;
+      } catch {
+        // ignore
+      }
+      const agent = (payload.agent as Record<string, unknown> | undefined) ?? {};
+      const slug = typeof agent.slug === 'string' ? agent.slug : 'catalog-search';
+      const response = buildPlanResponse(
+        `Gerar plano governado para ${slug} via fixtures.`,
+        'agents.governed.plan',
+      );
+      return HttpResponse.json(response);
+    }
+    return HttpResponse.json(buildPlanResponse('Plano padrão para agentes via fixtures.', 'agents.plan'));
+  }),
+  http.post(`${API_PREFIX}/config/agents/:agentId/plan`, async ({ params, request }) => {
+    const agentId = params.agentId as string;
+    try {
+      await request.json();
+    } catch {
+      // ignore
+    }
+    const response = buildPlanResponse(
+      `Atualizar camada ${agentId} via fixtures.`,
+      `agents.${agentId}.plan`,
+    );
+    return HttpResponse.json(response);
+  }),
+  http.post(`${API_PREFIX}/config/agents/apply`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const agentId = typeof payload.agent_id === 'string' ? payload.agent_id : 'catalog-search';
+    const planId = typeof payload.plan_id === 'string' ? payload.plan_id : `${agentId}-plan-fixture`;
+    const actor = typeof payload.actor === 'string' ? payload.actor : 'fixtures@console';
+    const response = cloneDeep(finopsPlanApplyFixture);
+    response.plan_id = planId;
+    response.message = `Plano ${planId} aplicado para ${agentId} via fixtures.`;
+    appendAgentHistory(agentId, {
+      plan_id: planId,
+      summary: response.message,
+      requested_by: actor,
+      plan_payload:
+        (payload.plan as Record<string, unknown> | undefined) ??
+        createResponse(finopsPlanResponseFixture.plan),
+      patch: (payload.patch as string | undefined) ?? FINOPS_MANIFEST_DIFF,
+      status: 'completed',
+      status_label: 'Concluído',
+    });
+    return HttpResponse.json(response);
+  }),
+  http.post(`${API_PREFIX}/config/agents/:agentId/apply`, async ({ params, request }) => {
+    const agentId = params.agentId as string;
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const planId = typeof payload.plan_id === 'string' ? payload.plan_id : `${agentId}-plan-fixture`;
+    const response = cloneDeep(finopsPlanApplyFixture);
+    response.plan_id = planId;
+    response.message = `Plano ${planId} aplicado para ${agentId} via fixtures.`;
+    appendAgentHistory(agentId, {
+      plan_id: planId,
+      summary: response.message,
+      requested_by: payload.actor ?? 'fixtures@console',
+      plan_payload:
+        (payload.plan as Record<string, unknown> | undefined) ??
+        createResponse(finopsPlanResponseFixture.plan),
+      patch: (payload.patch as string | undefined) ?? FINOPS_MANIFEST_DIFF,
+      status: 'completed',
+      status_label: 'Concluído',
+    });
+    return HttpResponse.json(response);
+  }),
+  http.get(`${API_PREFIX}/config/agents/:agentId/history`, ({ params }) => {
+    const agentId = params.agentId as string;
+    const history = getAgentPlanHistory(agentId);
+    return HttpResponse.json({ items: createResponse(history) });
+  }),
+  http.post(`${API_PREFIX}/config/mcp/update`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const mode = typeof payload.mode === 'string' ? payload.mode : 'plan';
+    if (mode === 'plan') {
+      return HttpResponse.json(createResponse(configMcpUpdatePlan));
+    }
+    if (mode === 'apply') {
+      return HttpResponse.json(createResponse(configMcpUpdateApply));
+    }
+    return HttpResponse.json({ detail: `Modo ${mode} não suportado nas fixtures.` }, { status: 400 });
+  }),
+  http.post(`${API_PREFIX}/config/mcp/onboard`, async ({ request }) => {
+    try {
+      await request.json();
+    } catch {
+      // ignore
+    }
+    const response = createResponse(configReloadPlanFixture);
+    response.message = 'Onboarding preparado pelas fixtures.';
+    if (response.plan) {
+      response.plan.summary = 'Onboarding de servidores MCP via fixtures.';
+      response.plan.intent = 'config.onboard';
+    }
+    if (response.planPayload) {
+      response.planPayload.summary = 'Onboarding de servidores MCP via fixtures.';
+      response.planPayload.intent = 'config.onboard';
+    }
+    return HttpResponse.json(response);
+  }),
+  http.get(`${API_PREFIX}/config/mcp/onboard/status`, () =>
+    HttpResponse.json(createResponse(mcpOnboardingStatus)),
+  ),
+  http.post(`${API_PREFIX}/config/mcp/smoke`, async ({ request }) => {
+    try {
+      await request.json();
+    } catch {
+      // ignore
+    }
+    const startedAt = nextIsoTimestamp();
+    return HttpResponse.json({
+      runId: `mcp-smoke-${Date.now()}`,
+      status: 'passed',
+      summary: 'Smoke executado com sucesso nas fixtures.',
+      startedAt,
+      finishedAt: nextIsoTimestamp(),
+    });
+  }),
   http.patch(`${API_PREFIX}/config/policies`, async () =>
     HttpResponse.json(cloneDeep(finopsPlanResponseFixture)),
   ),
@@ -953,6 +2143,275 @@ export const handlers = [
 
     return HttpResponse.json(response);
   }),
+  http.get(`${API_PREFIX}/security/users`, () =>
+    HttpResponse.json({ users: listSecurityUsers() }),
+  ),
+  http.post(`${API_PREFIX}/security/users`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const id = `user-${Math.random().toString(36).slice(2, 8)}`;
+    const now = nextIsoTimestamp();
+    const record: SecurityUserRecord = {
+      id,
+      name: typeof payload.name === 'string' ? payload.name : 'New User',
+      email: typeof payload.email === 'string' ? payload.email : `${id}@example.com`,
+      roles: Array.isArray(payload.roles)
+        ? (payload.roles as unknown[]).map((role) => String(role))
+        : [],
+      status: typeof payload.status === 'string' ? payload.status : 'active',
+      created_at: now,
+      last_seen_at: null,
+      mfa_enabled: Boolean(payload.mfa_enabled),
+    };
+    securityUserStore.set(record.id, record);
+    return HttpResponse.json(record, { status: 201 });
+  }),
+  http.put(`${API_PREFIX}/security/users/:userId`, async ({ params, request }) => {
+    const userId = params.userId as string;
+    const current = securityUserStore.get(userId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'User not found' }, { status: 404 });
+    }
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const updated: SecurityUserRecord = {
+      ...current,
+      name: typeof payload.name === 'string' ? payload.name : current.name,
+      email: typeof payload.email === 'string' ? payload.email : current.email,
+      roles: Array.isArray(payload.roles)
+        ? (payload.roles as unknown[]).map((role) => String(role))
+        : current.roles,
+      status: typeof payload.status === 'string' ? payload.status : current.status,
+      mfa_enabled:
+        typeof payload.mfa_enabled === 'boolean' ? payload.mfa_enabled : current.mfa_enabled,
+      last_seen_at: current.last_seen_at,
+    };
+    securityUserStore.set(userId, updated);
+    return HttpResponse.json(updated);
+  }),
+  http.delete(`${API_PREFIX}/security/users/:userId`, ({ params }) => {
+    const userId = params.userId as string;
+    securityUserStore.delete(userId);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.get(`${API_PREFIX}/security/roles`, () =>
+    HttpResponse.json({ roles: listSecurityRoles() }),
+  ),
+  http.post(`${API_PREFIX}/security/roles`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const id = `role-${Math.random().toString(36).slice(2, 8)}`;
+    const now = nextIsoTimestamp();
+    const record: SecurityRoleRecord = {
+      id,
+      name: typeof payload.name === 'string' ? payload.name : `Role ${id}`,
+      description: typeof payload.description === 'string' ? payload.description : '',
+      permissions: Array.isArray(payload.permissions)
+        ? (payload.permissions as unknown[]).map((permission) => String(permission))
+        : [],
+      members: 0,
+      created_at: now,
+      updated_at: now,
+    };
+    securityRoleStore.set(record.id, record);
+    return HttpResponse.json(record, { status: 201 });
+  }),
+  http.put(`${API_PREFIX}/security/roles/:roleId`, async ({ params, request }) => {
+    const roleId = params.roleId as string;
+    const current = securityRoleStore.get(roleId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'Role not found' }, { status: 404 });
+    }
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const updated: SecurityRoleRecord = {
+      ...current,
+      name: typeof payload.name === 'string' ? payload.name : current.name,
+      description:
+        typeof payload.description === 'string' ? payload.description : current.description,
+      permissions: Array.isArray(payload.permissions)
+        ? (payload.permissions as unknown[]).map((permission) => String(permission))
+        : current.permissions,
+      updated_at: nextIsoTimestamp(),
+    };
+    securityRoleStore.set(roleId, updated);
+    return HttpResponse.json(updated);
+  }),
+  http.delete(`${API_PREFIX}/security/roles/:roleId`, ({ params }) => {
+    const roleId = params.roleId as string;
+    securityRoleStore.delete(roleId);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.get(`${API_PREFIX}/security/api-keys`, () =>
+    HttpResponse.json({ keys: listSecurityApiKeys() }),
+  ),
+  http.post(`${API_PREFIX}/security/api-keys`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const id = `key-${Math.random().toString(36).slice(2, 8)}`;
+    const now = nextIsoTimestamp();
+    const record: SecurityApiKeyRecord = {
+      id,
+      name: typeof payload.name === 'string' ? payload.name : `API Key ${id}`,
+      owner: typeof payload.owner === 'string' ? payload.owner : 'fixtures',
+      scopes: Array.isArray(payload.scopes)
+        ? (payload.scopes as unknown[]).map((scope) => String(scope))
+        : ['mcp:invoke'],
+      status: 'active',
+      created_at: now,
+      last_used_at: null,
+      expires_at: (payload.expires_at as string | null | undefined) ?? null,
+      token_preview: `${id.slice(0, 3)}***`,
+    };
+    securityApiKeyStore.set(id, record);
+    return HttpResponse.json({ key: record, secret: `secret-${id}` }, { status: 201 });
+  }),
+  http.put(`${API_PREFIX}/security/api-keys/:apiKeyId`, async ({ params, request }) => {
+    const apiKeyId = params.apiKeyId as string;
+    const current = securityApiKeyStore.get(apiKeyId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'API key not found' }, { status: 404 });
+    }
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore
+    }
+    const updated: SecurityApiKeyRecord = {
+      ...current,
+      name: typeof payload.name === 'string' ? payload.name : current.name,
+      owner: typeof payload.owner === 'string' ? payload.owner : current.owner,
+      scopes: Array.isArray(payload.scopes)
+        ? (payload.scopes as unknown[]).map((scope) => String(scope))
+        : current.scopes,
+      expires_at: (payload.expires_at as string | null | undefined) ?? current.expires_at,
+      status: typeof payload.status === 'string' ? payload.status : current.status,
+    };
+    securityApiKeyStore.set(apiKeyId, updated);
+    return HttpResponse.json(updated);
+  }),
+  http.post(`${API_PREFIX}/security/api-keys/:apiKeyId/rotate`, ({ params }) => {
+    const apiKeyId = params.apiKeyId as string;
+    const current = securityApiKeyStore.get(apiKeyId);
+    if (!current) {
+      return HttpResponse.json({ detail: 'API key not found' }, { status: 404 });
+    }
+    const rotated = {
+      ...current,
+      token_preview: `${apiKeyId.slice(0, 3)}***`,
+      last_used_at: nextIsoTimestamp(),
+    };
+    securityApiKeyStore.set(apiKeyId, rotated);
+    return HttpResponse.json({ key: rotated, secret: `secret-${apiKeyId}-${Date.now()}` });
+  }),
+  http.delete(`${API_PREFIX}/security/api-keys/:apiKeyId`, ({ params }) => {
+    const apiKeyId = params.apiKeyId as string;
+    securityApiKeyStore.delete(apiKeyId);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.get(`${API_PREFIX}/security/audit/:resource/:resourceId`, ({ params }) => {
+    const resource = params.resource as string;
+    const resourceId = params.resourceId as string;
+    const key = `${resource}:${resourceId}`;
+    const events = securityAuditTrailStore.get(key) ?? [];
+    return HttpResponse.json({ events: createResponse(events) });
+  }),
+  http.get(`${API_PREFIX}/audit/logs`, ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
+    const pageSize = Number.parseInt(url.searchParams.get('page_size') ?? '25', 10);
+    const events = createResponse(auditLogEntries);
+    return HttpResponse.json({
+      events,
+      page,
+      page_size: pageSize,
+      total: events.length,
+      total_pages: 1,
+    });
+  }),
+  http.get(`${API_PREFIX}/marketplace`, () =>
+    HttpResponse.json(createResponse(marketplaceCatalog)),
+  ),
+  http.post(`${API_PREFIX}/marketplace/:entryId/import`, async ({ params }) => {
+    const entryId = params.entryId as string;
+    const entry = marketplaceCatalog.entries.find((item) => item.id === entryId);
+    if (!entry) {
+      return HttpResponse.json({ detail: 'Marketplace entry not found' }, { status: 404 });
+    }
+    const plan = {
+      intent: 'marketplace.import',
+      summary: `Importar ${entry.name} via fixtures.`,
+      steps: [
+        {
+          id: 'checkout',
+          title: 'Clonar pacote',
+          description: 'Clona repositório e copia manifesto do pacote selecionado.',
+          dependsOn: [],
+          actions: [
+            {
+              type: 'file.write',
+              path: `${entry.package_path}/manifest.yaml`,
+              contents: '# Manifesto gerado pelas fixtures\n',
+              encoding: 'utf-8',
+              overwrite: true,
+            },
+          ],
+        },
+      ],
+      diffs: [
+        {
+          path: `${entry.package_path}/manifest.yaml`,
+          summary: 'Adicionar manifesto do pacote do marketplace.',
+          changeType: 'add',
+        },
+      ],
+      risks: [
+        {
+          title: 'Validação manual necessária',
+          impact: 'médio',
+          mitigation: 'Executar smoke tests após importação.',
+        },
+      ],
+      status: 'completed',
+      context: [
+        {
+          path: `${entry.package_path}/README.md`,
+          snippet: `Pacote ${entry.name} importado via fixtures.`,
+          score: 0.92,
+          title: entry.name,
+          chunk: 1,
+        },
+      ],
+      approvalRules: ['marketplace-review'],
+    };
+    return HttpResponse.json({
+      entry: createResponse(entry),
+      plan,
+      manifest: `name: ${entry.name}\nsource: fixtures`,
+      agent_code: 'print("Hello from marketplace fixture")',
+    });
+  }),
   http.get(`${API_PREFIX}/providers`, () => HttpResponse.json({ providers: providerCatalog })),
   http.get('*/agents/agents', () => HttpResponse.json({ agents: agentCatalog })),
   http.post('*/agents/:agentName/smoke', ({ params }) => {
@@ -979,6 +2438,32 @@ export const handlers = [
       report_url: run.reportUrl,
       started_at: run.startedAt,
       finished_at: run.finishedAt,
+    });
+  }),
+  http.post('*/agents/:agentName/invoke', async ({ params, request }) => {
+    const agentName = params.agentName as string;
+    try {
+      await request.json();
+    } catch {
+      // ignore payload parsing errors for fixtures
+    }
+    const now = nextIsoTimestamp();
+    return HttpResponse.json({
+      result: {
+        output: `Invocation of ${agentName} concluída com sucesso via fixtures.`,
+        metadata: { runId: `${agentName}-invoke-${Date.now()}` },
+        finished_at: now,
+      },
+      trace: {
+        steps: [
+          {
+            id: 'fixtures-step',
+            status: 'completed',
+            output: 'Resposta simulada pelo ambiente de fixtures.',
+            duration_ms: 120,
+          },
+        ],
+      },
     });
   }),
 ];

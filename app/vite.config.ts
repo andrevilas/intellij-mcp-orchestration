@@ -177,21 +177,23 @@ export default defineConfig(async () => {
   if (fixtureMode === 'force') {
     useFixtures = true;
     fixtureReason = 'forçado via CONSOLE_MCP_USE_FIXTURES';
-  } else if (fixtureMode === 'auto') {
+  } else {
     const probe = await probeBackend(API_PROXY_TARGET);
     if (!probe.reachable) {
       useFixtures = true;
       fixtureReason = probe.reason
         ? `backend indisponível em ${API_PROXY_TARGET} — ${probe.reason}`
         : `backend indisponível em ${API_PROXY_TARGET}`;
-      console.info(
-        'Console MCP backend não detectado em %s — habilitando fixtures (modo auto).',
+      const overrideLabel = fixtureMode === 'off' ? ' (modo off sobrescrito)' : '';
+      console.warn(
+        'Console MCP backend não detectado em %s — habilitando fixtures%s.',
         API_PROXY_TARGET,
+        overrideLabel,
       );
       if (probe.reason) {
         console.warn('Motivo detectado para indisponibilidade do backend: %s.', probe.reason);
       }
-    } else {
+    } else if (fixtureMode === 'auto') {
       console.info(
         'Console MCP backend detectado em %s — mantendo proxy HTTP do Vite.',
         API_PROXY_TARGET,
@@ -199,13 +201,8 @@ export default defineConfig(async () => {
     }
   }
 
-  if (fixtureMode === 'off') {
-    useFixtures = false;
-    fixtureReason = null;
-  }
-
   if (runningVitest) {
-    if (fixtureMode === 'off') {
+    if (!useFixtures && fixtureMode === 'off') {
       console.warn(
         'Vitest detectado com fixtures desativadas — sobrescrevendo para evitar dependência do backend.',
       );
@@ -216,9 +213,9 @@ export default defineConfig(async () => {
 
   if (useFixtures) {
     const reasonSuffix = fixtureReason ? ` (${fixtureReason})` : '';
-    console.info(`Console MCP frontend está rodando em fixture mode${reasonSuffix}.`);
+    console.info(`Console MCP frontend está rodando em modo fixtures${reasonSuffix}.`);
   } else {
-    console.info('Proxying Console MCP API requests to %s', API_PROXY_TARGET);
+    console.info('Console MCP frontend operando em modo proxy. Destino: %s', API_PROXY_TARGET);
   }
 
   const serverConfig: Record<string, unknown> = {
