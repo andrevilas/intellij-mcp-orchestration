@@ -1150,8 +1150,17 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
               <p className="modal__subtitle">{pendingPlan.plan.summary}</p>
             </header>
             <div className="modal__body">
-              <PlanDiffViewer diffs={pendingPlan.diffs} />
-              <div className="modal__form" role="group" aria-labelledby="routing-plan-modal-title">
+              <PlanDiffViewer
+                diffs={pendingPlan.diffs}
+                testId="routing-plan-diffs"
+                itemTestIdPrefix="routing-plan-diff"
+              />
+              <div
+                className="modal__form"
+                role="group"
+                aria-labelledby="routing-plan-modal-title"
+                data-testid="routing-plan-form"
+              >
                 <div className="modal__field">
                   <label className="modal__label" htmlFor="routing-plan-actor">
                     Autor da alteração
@@ -1217,7 +1226,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           </div>
         </div>
       ) : null}
-      <section className="routing-lab">
+      <section className="routing-lab" data-testid="routing-lab">
       <header className="routing-lab__intro">
         <div>
           <p className="routing-lab__eyebrow">Routing Lab</p>
@@ -1229,7 +1238,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         </div>
       </header>
 
-      <section className="routing-manifest" aria-labelledby="routing-manifest-heading">
+      <section
+        className="routing-manifest"
+        aria-labelledby="routing-manifest-heading"
+        data-testid="routing-manifest"
+      >
         <header className="routing-manifest__header">
           <div>
             <h3 id="routing-manifest-heading">Política de roteamento em produção</h3>
@@ -1241,7 +1254,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         </header>
         {manifestError && <p className="error">{manifestError}</p>}
         {routingMessage && <p className="status status--inline">{routingMessage}</p>}
-        <form className="routing-manifest__form" onSubmit={handleRoutingSubmit}>
+        <form
+          className="routing-manifest__form"
+          onSubmit={handleRoutingSubmit}
+          data-testid="routing-manifest-form"
+        >
           <div className="routing-manifest__grid">
             <label className="form-field">
               <span>Máximo de iterações</span>
@@ -1380,7 +1397,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
             </div>
           </div>
 
-          <section className="routing-manifest__section" aria-labelledby="routing-intents-heading">
+          <section
+            className="routing-manifest__section"
+            aria-labelledby="routing-intents-heading"
+            data-testid="routing-intents-section"
+          >
             <header className="routing-manifest__section-header">
               <h4 id="routing-intents-heading">Intents direcionadas</h4>
               <p>Mapeie intents com tiers padrão e fallback dedicados.</p>
@@ -1395,7 +1416,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
             {routingErrors.intents && <p className="form-field__error">{routingErrors.intents}</p>}
           </section>
 
-          <section className="routing-manifest__section" aria-labelledby="routing-rules-heading">
+          <section
+            className="routing-manifest__section"
+            aria-labelledby="routing-rules-heading"
+            data-testid="routing-rules-section"
+          >
             <header className="routing-manifest__section-header">
               <h4 id="routing-rules-heading">Regras customizadas</h4>
               <p>Force tiers, provedores ou pesos quando condições específicas forem atendidas.</p>
@@ -1424,7 +1449,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
       </section>
 
       <div className="routing-lab__layout">
-        <section className="routing-lab__panel" aria-labelledby="routing-config">
+        <section
+          className="routing-lab__panel"
+          aria-labelledby="routing-config"
+          data-testid="routing-config-panel"
+        >
           <div className="routing-lab__panel-header">
             <h3 id="routing-config">Configuração do cenário</h3>
             <span className="routing-lab__focus" data-testid="routing-focus">
@@ -1495,7 +1524,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           </div>
         </section>
 
-        <section className="routing-lab__panel" aria-labelledby="routing-metrics">
+        <section
+          className="routing-lab__panel"
+          aria-labelledby="routing-metrics"
+          data-testid="routing-metrics-panel"
+        >
           <div className="routing-lab__panel-header">
             <h3 id="routing-metrics">Métricas projetadas</h3>
             <span className="routing-lab__focus">Comparativo vs. baseline</span>

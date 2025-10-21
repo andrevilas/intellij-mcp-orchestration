@@ -531,13 +531,19 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
   }, [pendingPlan]);
 
   return (
-    <div className="agent-wizard" role="presentation" onClick={handleBackdropClick}>
+    <div
+      className="agent-wizard"
+      role="presentation"
+      onClick={handleBackdropClick}
+      data-testid="new-agent-wizard"
+    >
       <section
         className="agent-wizard__panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
         ref={panelRef}
+        data-testid="new-agent-panel"
       >
         <header className="mcp-wizard__header">
           <div>
@@ -550,7 +556,11 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
         </header>
 
         <div className="agent-wizard__review">
-          <form onSubmit={handleGeneratePlan} className="mcp-wizard">
+          <form
+            onSubmit={handleGeneratePlan}
+            className="mcp-wizard"
+            data-testid="new-agent-plan-form"
+          >
             <fieldset className="mcp-wizard__fields" disabled={isPlanning}>
               <legend>Dados do agent</legend>
               <div className="mcp-wizard__field">
@@ -639,7 +649,12 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
                 ) : null}
               </div>
             </fieldset>
-            <button type="submit" className="mcp-wizard__button mcp-wizard__button--primary" disabled={isPlanning}>
+            <button
+              type="submit"
+              className="mcp-wizard__button mcp-wizard__button--primary"
+              disabled={isPlanning}
+              data-testid="new-agent-generate-plan"
+            >
               {isPlanning ? 'Gerando plano…' : 'Gerar plano governado'}
             </button>
             {planError ? (
@@ -654,10 +669,17 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
             ) : null}
           </form>
 
-          <PlanSummary plan={planSummary} isLoading={isPlanning} actions={actions} />
+          <PlanSummary
+            plan={planSummary}
+            isLoading={isPlanning}
+            actions={actions}
+            testId="new-agent-plan-summary"
+          />
           <PlanDiffViewer
             diffs={pendingPlan?.diffItems ?? []}
             emptyMessage="Gere um plano para visualizar os arquivos propostos."
+            testId="new-agent-plan-diffs"
+            itemTestIdPrefix="new-agent-diff"
           />
 
           {hasRisks ? (
@@ -676,7 +698,11 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
             </section>
           ) : null}
 
-          <form onSubmit={handleApplyPlan} className="mcp-wizard">
+          <form
+            onSubmit={handleApplyPlan}
+            className="mcp-wizard"
+            data-testid="new-agent-apply-form"
+          >
             <fieldset className="mcp-wizard__fields" disabled={isApplying || !pendingPlan}>
               <legend>Aplicar plano</legend>
               <div className="mcp-wizard__field">
@@ -693,6 +719,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
               type="submit"
               className="mcp-wizard__button mcp-wizard__button--primary"
               disabled={isApplying || !pendingPlan}
+              data-testid="new-agent-apply-plan"
             >
               {isApplying ? 'Aplicando plano…' : 'Aplicar plano'}
             </button>

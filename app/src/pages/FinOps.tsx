@@ -2503,7 +2503,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         </div>
       </header>
 
-      <section className="finops__policy" aria-labelledby="finops-policy-heading">
+      <section
+        className="finops__policy"
+        aria-labelledby="finops-policy-heading"
+        data-testid="finops-policy-section"
+      >
         <header className="finops-policy__header">
           <div>
             <h3 id="finops-policy-heading">Budgets e alertas determinísticos</h3>
@@ -2516,7 +2520,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         {manifestError && <p className="error">{manifestError}</p>}
         {planError && <p className="error">{planError}</p>}
         {planStatusMessage && <p className="status status--inline">{planStatusMessage}</p>}
-        <form className="finops-policy__form" onSubmit={handleFinOpsSubmit}>
+        <form
+          className="finops-policy__form"
+          onSubmit={handleFinOpsSubmit}
+          data-testid="finops-policy-form"
+        >
           <div className="finops-policy__grid">
             <label className="form-field">
               <span>Cost center responsável</span>
@@ -2593,7 +2601,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             </label>
           </div>
 
-          <div className="finops-policy__budgets">
+          <div className="finops-policy__budgets" data-testid="finops-policy-budgets">
             <div className="finops-policy__section-header">
               <h4>Budgets por tier</h4>
               <p>Controle limites para cada tier roteado. Valores vazios não serão aplicados.</p>
@@ -2705,7 +2713,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               <h4>Alertas automáticos</h4>
               <p>Dispare avisos quando o consumo atingir um percentual do budget.</p>
             </div>
-            <div className="finops-policy__alerts-list">
+            <div className="finops-policy__alerts-list" data-testid="finops-policy-alerts">
               {alertRows.map((row, index) => (
                 <div key={`alert-${index}`} className="finops-policy__alert">
                   <label className="form-field">
@@ -2771,10 +2779,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             </button>
           </div>
         </form>
-        <section className="finops-plan" aria-label="Plano FinOps">
+        <section className="finops-plan" aria-label="Plano FinOps" data-testid="finops-plan-section">
           <PlanSummary
             plan={planSummary}
             isLoading={isPlanGenerating || isPlanApplying}
+            testId="finops-plan-summary"
             actions={
               pendingPlan ? (
                 <div className="plan-summary__actions">
@@ -2802,6 +2811,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             diffs={planDiffItems}
             title="Diffs sugeridos"
             emptyMessage="Gere um plano FinOps para visualizar as alterações propostas."
+            testId="finops-plan-diffs"
+            itemTestIdPrefix="finops-plan-diff"
           />
         </section>
       </section>
@@ -2810,7 +2821,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         <p className="finops__state" role="status">{timeseriesError}</p>
       )}
 
-      <section className="finops__alerts" aria-label="Alertas de FinOps">
+      <section className="finops__alerts" aria-label="Alertas de FinOps" data-testid="finops-alerts">
         <header className="finops__alerts-header">
           <div>
             <h3>Alertas básicos</h3>
@@ -2819,7 +2830,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         </header>
         <ul className="finops__alerts-list">
           {finOpsAlerts.map((alert) => (
-            <li key={alert.id} className={`finops__alert finops__alert--${alert.kind}`}>
+            <li
+              key={alert.id}
+              className={`finops__alert finops__alert--${alert.kind}`}
+              data-testid={`finops-alert-${alert.id}`}
+            >
               <strong>{alert.title}</strong>
               <p>{alert.description}</p>
             </li>
@@ -2827,7 +2842,11 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         </ul>
       </section>
 
-      <section className="finops__hotspots" aria-label="Hotspots de custo e eficiência">
+      <section
+        className="finops__hotspots"
+        aria-label="Hotspots de custo e eficiência"
+        data-testid="finops-hotspots"
+      >
         <header className="finops__hotspots-header">
           <div>
             <h3>Hotspots prioritários</h3>
@@ -2836,7 +2855,9 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         </header>
 
         {finOpsHotspots.length === 0 ? (
-          <p className="finops__state">Nenhum hotspot identificado para os filtros atuais.</p>
+          <p className="finops__state" data-testid="finops-hotspots-empty">
+            Nenhum hotspot identificado para os filtros atuais.
+          </p>
         ) : (
           <ul className="finops__hotspots-list">
             {finOpsHotspots.map((hotspot) => (
@@ -2845,6 +2866,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                 className={`finops__hotspot finops__hotspot--${hotspot.severity}`}
                 role="article"
                 aria-label={`${hotspot.title} (${HOTSPOT_SEVERITY_LABEL[hotspot.severity]})`}
+                data-testid={`finops-hotspot-${hotspot.id}`}
               >
                 <div className="finops__hotspot-header">
                   <span className={`finops__hotspot-kind finops__hotspot-kind--${hotspot.kind}`}>

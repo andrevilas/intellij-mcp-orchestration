@@ -544,7 +544,7 @@ export function Dashboard({
 
   return (
     <main className="dashboard">
-      <section className="dashboard__hero">
+      <section className="dashboard__hero" data-testid="dashboard-hero">
         <h1>Promenade Agent Hub · Dashboard Executivo</h1>
         <p>
           Monitoramento unificado de custo, tokens e latência para servidores MCP roteados pela console. Dados são agregados dos
@@ -552,7 +552,11 @@ export function Dashboard({
         </p>
       </section>
 
-      <section className="dashboard__compliance" aria-label="Checklist de conformidade">
+      <section
+        className="dashboard__compliance"
+        aria-label="Checklist de conformidade"
+        data-testid="dashboard-compliance"
+      >
         <header>
           <h2>Checklist de conformidade</h2>
           <span
@@ -603,7 +607,11 @@ export function Dashboard({
         )}
       </section>
 
-      <section className="dashboard__kpis" aria-label="Indicadores chave de performance">
+      <section
+        className="dashboard__kpis"
+        aria-label="Indicadores chave de performance"
+        data-testid="dashboard-kpis"
+      >
         {kpis.map((kpi) => (
           <KpiCard
             key={kpi.id}
@@ -612,14 +620,19 @@ export function Dashboard({
             caption={kpi.caption}
             trend={kpi.trend}
             trendLabel={kpi.trendLabel}
-      />
-    ))}
-  </section>
+            testId={`dashboard-kpi-${kpi.id}`}
+          />
+        ))}
+      </section>
 
-      <section className="dashboard__insights" aria-label="Indicadores complementares de telemetria">
-        <div className="dashboard__insight-cards">
+      <section
+        className="dashboard__insights"
+        aria-label="Indicadores complementares de telemetria"
+        data-testid="dashboard-insights"
+      >
+        <div className="dashboard__insight-cards" data-testid="dashboard-insight-cards">
           {insightCards.map((card) => (
-            <article key={card.id} className="insight-card">
+            <article key={card.id} className="insight-card" data-testid={`dashboard-insight-${card.id}`}>
               <header>
                 <h3>{card.title}</h3>
               </header>
@@ -629,7 +642,12 @@ export function Dashboard({
           ))}
         </div>
         <div className="dashboard__insight-visuals">
-          <figure className="insight-chart" aria-labelledby={costChartTitleId} aria-describedby={costChartDescriptionId}>
+          <figure
+            className="insight-chart"
+            aria-labelledby={costChartTitleId}
+            aria-describedby={costChartDescriptionId}
+            data-testid="dashboard-cost-breakdown"
+          >
             <div className="insight-chart__header">
               <h3 id={costChartTitleId}>Distribuição de custo por rota</h3>
               <p>Participação relativa por lane/rota nas últimas 24h.</p>
@@ -674,7 +692,12 @@ export function Dashboard({
                 : 'Sem dados de custo disponíveis para calcular a distribuição.'}
             </figcaption>
           </figure>
-          <figure className="insight-chart" aria-labelledby={errorChartTitleId} aria-describedby={errorChartDescriptionId}>
+          <figure
+            className="insight-chart"
+            aria-labelledby={errorChartTitleId}
+            aria-describedby={errorChartDescriptionId}
+            data-testid="dashboard-error-breakdown"
+          >
             <div className="insight-chart__header">
               <h3 id={errorChartTitleId}>Ocorrências de erro por categoria</h3>
               <p>Principais motivos de falha registrados.</p>
@@ -707,18 +730,26 @@ export function Dashboard({
         </div>
       </section>
 
-      <section className="dashboard__alerts" aria-label="Alertas operacionais">
+      <section
+        className="dashboard__alerts"
+        aria-label="Alertas operacionais"
+        data-testid="dashboard-alerts"
+      >
         <h2>Alertas</h2>
         <ul>
           {derived.alerts.map((alert, index) => (
-            <li key={`${alert.kind}-${index}`} className={`alert alert--${alert.kind}`}>
+            <li
+              key={`${alert.kind}-${index}`}
+              className={`alert alert--${alert.kind}`}
+              data-testid={`dashboard-alert-${index}`}
+            >
               {alert.message}
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="dashboard__heatmap">
+      <section className="dashboard__heatmap" data-testid="dashboard-heatmap">
         <header>
           <h2>Uso por modelo · últimos 7 dias</h2>
           <p>Heatmap baseado na distribuição diária de execuções.</p>
@@ -746,7 +777,7 @@ export function Dashboard({
         </div>
       </section>
 
-      <section className="providers">
+      <section className="providers" data-testid="dashboard-providers">
         <header className="section-header">
           <div>
             <h2>Provedores registrados</h2>
@@ -761,9 +792,9 @@ export function Dashboard({
           <p className="info">Nenhum provedor configurado ainda. Ajuste o manifesto e recarregue.</p>
         )}
 
-        <div className="provider-grid">
+        <div className="provider-grid" data-testid="dashboard-provider-grid">
           {providers.map((provider) => (
-            <article key={provider.id} className="provider-card">
+            <article key={provider.id} className="provider-card" data-testid={`dashboard-provider-${provider.id}`}>
               <header>
                 <div>
                   <h3>{provider.name}</h3>
