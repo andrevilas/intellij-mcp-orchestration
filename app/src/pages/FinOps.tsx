@@ -11,6 +11,8 @@ import {
   YAxis,
 } from 'recharts';
 
+import './FinOps.scss';
+
 import type {
   ProviderSummary,
   TelemetryRouteBreakdownEntry,

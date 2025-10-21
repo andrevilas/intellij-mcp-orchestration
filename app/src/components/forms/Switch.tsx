@@ -33,7 +33,11 @@ const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch(
   const errorId = error ? `${switchId}-error` : undefined;
   const invalid = Boolean(error) || ariaInvalid === true || ariaInvalid === 'true';
   const describedBy = mergeIds(typeof ariaDescribedBy === 'string' ? ariaDescribedBy : undefined, descriptionId, errorId);
-  const normalizedInvalid = invalid ? 'true' : ariaInvalid != null ? String(ariaInvalid) : undefined;
+  const normalizedInvalid: InputHTMLAttributes<HTMLInputElement>['aria-invalid'] = invalid
+    ? ariaInvalid && ariaInvalid !== 'false'
+      ? ariaInvalid
+      : true
+    : ariaInvalid ?? undefined;
 
   return (
     <div className={clsx('mcp-form-field', { 'mcp-form-field--invalid': invalid })}>

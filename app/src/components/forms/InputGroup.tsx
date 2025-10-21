@@ -39,7 +39,11 @@ const InputGroup = forwardRef<HTMLInputElement, InputGroupProps>(function InputG
   const errorId = error ? `${inputId}-error` : undefined;
   const invalid = Boolean(error) || ariaInvalid === true || ariaInvalid === 'true';
   const describedBy = mergeIds(typeof ariaDescribedBy === 'string' ? ariaDescribedBy : undefined, helperId, errorId);
-  const normalizedInvalid = invalid ? 'true' : ariaInvalid != null ? String(ariaInvalid) : undefined;
+  const normalizedInvalid: InputHTMLAttributes<HTMLInputElement>['aria-invalid'] = invalid
+    ? ariaInvalid && ariaInvalid !== 'false'
+      ? ariaInvalid
+      : true
+    : ariaInvalid ?? undefined;
 
   return (
     <div

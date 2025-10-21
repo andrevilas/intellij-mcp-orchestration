@@ -11,6 +11,8 @@ import {
   YAxis,
 } from 'recharts';
 
+import './Observability.scss';
+
 import {
   ApiError,
   fetchObservabilityPreferences,
