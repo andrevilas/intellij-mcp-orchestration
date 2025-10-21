@@ -129,17 +129,22 @@ def _check_runbook_sections() -> Tuple[bool, List[str]]:
     requirements = {
         runbook_dir / "secret-management.md": [
             "## Rotação programada",
+            "## Rotação emergencial",
             "## Validação pós-rotação",
+            "## Auditoria contínua",
         ],
         runbook_dir / "secrets-incident-playbook.md": [
-            "## Rotação",
-            "## Auditoria",
+            "## Fluxo tático (0–60 min)",
+            "## Rotação emergencial",
+            "## Auditoria pós-incidente",
             "## Acesso mínimo",
             "## Resposta a incidentes",
         ],
         runbook_dir / "auditoria-operacional.md": [
             "## Checklist OPS-302",
             "## Rotina semanal",
+            "## Auditoria sob demanda",
+            "## Indicadores de conformidade",
         ],
     }
 
@@ -194,11 +199,47 @@ def _check_evidence() -> Tuple[bool, List[str]]:
         ),
     }
 
-    if (base_302 / "README.md").exists():
-        readme_content = (base_302 / "README.md").read_text(encoding="utf-8")
+    readme_path = base_302 / "README.md"
+    if readme_path.exists():
+        readme_content = readme_path.read_text(encoding="utf-8")
         for label, pattern in checklist_expectations.items():
             if not pattern.search(readme_content):
-                missing.append(f"Checklist '{label}' não marcado em docs/evidence/TASK-OPS-302/README.md")
+                missing.append(
+                    f"Checklist '{label}' não marcado em docs/evidence/TASK-OPS-302/README.md"
+                )
+
+        readme_expectations = {
+            "Seção de execuções registradas": re.compile(
+                r"## Execuções registradas", re.IGNORECASE
+            ),
+            "Link para ops-controls-report": re.compile(
+                r"\[ops-controls-report\.json\]", re.IGNORECASE
+            ),
+        }
+
+        for label, pattern in readme_expectations.items():
+            if not pattern.search(readme_content):
+                missing.append(
+                    f"docs/evidence/TASK-OPS-302/README.md sem {label.lower()}"
+                )
+
+    activation_path = base_302 / "runbooks-activation.md"
+    if activation_path.exists():
+        activation_content = activation_path.read_text(encoding="utf-8")
+        activation_expectations = {
+            "Seção de links de execução": re.compile(
+                r"## Links de execução", re.IGNORECASE
+            ),
+            "Referência ao ops_controls": re.compile(
+                r"ops_controls", re.IGNORECASE
+            ),
+        }
+
+        for label, pattern in activation_expectations.items():
+            if not pattern.search(activation_content):
+                missing.append(
+                    f"docs/evidence/TASK-OPS-302/runbooks-activation.md sem {label.lower()}"
+                )
 
     return (len(missing) == 0, missing)
 

@@ -18,6 +18,11 @@
 - `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json`
 - `gitleaks detect --no-git --config config/gitleaks.toml --report-format json --report-path docs/evidence/TASK-OPS-302/gitleaks-post-incident.json`
 
+## Links de execução
+
+- **Ops controls** — [ops-controls-report.json](ops-controls-report.json) gerado pelo comando `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json`.
+- **GitHub Actions (CI)** — Jobs `security` e `ops_compliance` executados em 2025-10-21 ([workflow CI](../../.github/workflows/ci.yml)); atualizar com o link direto da *run* (`actions/runs/<id>`).
+
 ## Próximos passos
 
 - Reexecutar o checklist semanalmente (`auditoria-operacional.md`).
