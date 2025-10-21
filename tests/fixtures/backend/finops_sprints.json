@@ -1,32 +1,32 @@
 {
   "items": [
     {
-      "id": "sprint-m2",
-      "name": "Sprint M2",
-      "period_start": "2025-02-24",
-      "period_end": "2025-03-02",
-      "total_cost_usd": 482.37,
-      "total_tokens_in": 932145,
-      "total_tokens_out": 712804,
-      "avg_latency_ms": 842.4,
-      "success_rate": 0.978,
-      "cost_delta": -0.064,
+      "id": "sprint-2025-43-1",
+      "name": "Sprint 2025-43",
+      "period_start": "2025-10-15",
+      "period_end": "2025-10-21",
+      "total_cost_usd": 151.45,
+      "total_tokens_in": 72120,
+      "total_tokens_out": 29680,
+      "avg_latency_ms": 935.476,
+      "success_rate": 0.904762,
+      "cost_delta": -0.069031,
       "status": "on_track",
-      "summary": "Costos mantidos abaixo do budget com melhoria de 6.4% vs. sprint anterior."
+      "summary": "Queda de 6.9% no custo versus sprint anterior e 0.10 mi tokens no per\u00edodo 2025-10-15 \u2013 2025-10-21."
     },
     {
-      "id": "sprint-m1",
-      "name": "Sprint M1",
-      "period_start": "2025-02-17",
-      "period_end": "2025-02-23",
-      "total_cost_usd": 514.93,
-      "total_tokens_in": 921004,
-      "total_tokens_out": 698411,
-      "avg_latency_ms": 896.1,
-      "success_rate": 0.969,
-      "cost_delta": 0.031,
-      "status": "attention",
-      "summary": "Aumento de 3.1% em custo; recomenda-se revisar rotas turbo e cache de embeddings."
+      "id": "sprint-2025-42-2",
+      "name": "Sprint 2025-42",
+      "period_start": "2025-10-08",
+      "period_end": "2025-10-14",
+      "total_cost_usd": 162.68,
+      "total_tokens_in": 74635,
+      "total_tokens_out": 30630,
+      "avg_latency_ms": 928.333,
+      "success_rate": 0.904762,
+      "cost_delta": 0.0,
+      "status": "on_track",
+      "summary": "Custo est\u00e1vel no per\u00edodo 2025-10-08 \u2013 2025-10-14 com 0.11 mi tokens processados."
     }
   ]
 }

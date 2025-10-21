@@ -148,7 +148,7 @@
 - Zero segredos em git
 
 ## Próximo ciclo de auditoria (handover)
-1. Recarregar fixtures ou pipelines de ingestão para que o export CSV/HTML produza linhas reais de telemetria e desbloqueie dashboards/FinOps sem regressões.【a7a14c†L1-L3】【d2ef4c†L1-L17】
+1. Regenerar o dataset FinOps com `python scripts/generate_finops_fixtures.py --seed-db --db-path <caminho/console.db>` (reescreve fixtures + popula `telemetry_events`) e repetir `GET /api/v1/telemetry/finops/sprints|pull-requests`/`GET /api/v1/telemetry/export` com os intervalos 2025-10-08→2025-10-21 para verificar dados reais nos dashboards.【F:scripts/generate_finops_fixtures.py†L1-L391】【2ee6ec†L1-L24】【3ad9cd†L1-L6】
 2. Estabilizar as páginas core (TASK-UI-PG-070..075) antes de reexecutar a suíte Playwright e atualizar os evidenciais das rotas de FinOps/Policies.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
 3. Automatizar no CI a rotina `pnpm i → pnpm -r dev → healthz/simulate/export` para sinalizar rapidamente futuras regressões de infraestrutura ou políticas.【231433†L1-L9】【2b58dd†L1-L5】【6e0762†L1-L20】
 4. Atualizar o runbook/handbook com o plano de ingestão FinOps e os limites atuais dos endpoints para orientar o próximo time durante o handover.【c6d23f†L1-L17】【82a64e†L1-L2】
