@@ -10,3 +10,5 @@ Os JSONs deste diretório são cópias das respostas de referência utilizadas p
 - `telemetry_experiments.json`, `telemetry_lane_costs.json`, `telemetry_marketplace.json`: datasets auxiliares para FinOps e marketplace.
 - `routing_simulation.json`: resposta padrão do simulador determinístico.
 - `finops_*.json`: relatórios de sprint e de pull request exibidos na página **FinOps**.
+- `agents.json`: catálogo dos agents exibidos na UI, incluindo owners, capabilities e modelos configurados.
+- `smoke_endpoints.json`: lista de endpoints monitorados pelo painel de smoke tests.

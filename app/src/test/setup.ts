@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { server } from '../mocks/server';
+import { resetMockState, server } from '../mocks/server';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -12,7 +12,10 @@ beforeAll(() => {
   globalThis.__CONSOLE_MCP_FIXTURES__ = 'ready';
 });
 
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  resetMockState();
+});
 
 afterAll(() => {
   server.close();

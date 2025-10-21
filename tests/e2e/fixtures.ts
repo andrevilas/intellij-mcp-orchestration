@@ -5,6 +5,16 @@ export const test = base.extend({
   page: async ({ page }, use) => {
     const originalGoto = page.goto.bind(page);
     const originalReload = page.reload.bind(page);
+
+    await page.addInitScript(() => {
+      try {
+        window.localStorage?.clear();
+        window.sessionStorage?.clear();
+      } catch (error) {
+        console.warn('Não foi possível limpar storage antes do teste', error);
+      }
+    });
+
     page.goto = (async (...args) => {
       const response = await originalGoto(...args);
       await waitForFixtureWorker(page);

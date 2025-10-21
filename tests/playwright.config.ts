@@ -36,7 +36,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
     env: {
-      CONSOLE_MCP_USE_FIXTURES: process.env.CONSOLE_MCP_USE_FIXTURES ?? 'force',
+      CONSOLE_MCP_USE_FIXTURES: 'force',
     },
   },
 });

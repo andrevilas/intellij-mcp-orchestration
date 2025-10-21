@@ -6,6 +6,10 @@ const FIXTURE_READY_FLAG = '__CONSOLE_MCP_FIXTURES__';
 
 type FixtureStatus = 'ready' | 'disabled' | 'error';
 
+interface WaitForFixtureWorkerOptions {
+  allowDisabled?: boolean;
+}
+
 interface PageLike {
   waitForFunction(
     pageFunction: (...args: unknown[]) => unknown,
@@ -15,7 +19,13 @@ interface PageLike {
   evaluate<R>(pageFunction: (...args: unknown[]) => R, arg?: unknown): Promise<R>;
 }
 
-export async function waitForFixtureWorker(page: PageLike, timeout = 10_000): Promise<void> {
+export async function waitForFixtureWorker(
+  page: PageLike,
+  timeout = 10_000,
+  options?: WaitForFixtureWorkerOptions,
+): Promise<void> {
+  const { allowDisabled = false } = options ?? {};
+
   await page.waitForFunction(
     (flag) => {
       const readyFlag = flag as typeof FIXTURE_READY_FLAG;
@@ -38,6 +48,16 @@ export async function waitForFixtureWorker(page: PageLike, timeout = 10_000): Pr
 
   if (status === 'error') {
     throw new Error('Console MCP fixture worker failed to initialize.');
+  }
+
+  if (status === 'disabled' && !allowDisabled) {
+    throw new Error(
+      'Console MCP fixture worker está desativado. Habilite CONSOLE_MCP_USE_FIXTURES para executar os testes.',
+    );
+  }
+
+  if (!status) {
+    throw new Error('Console MCP fixture worker status indisponível.');
   }
 }
 

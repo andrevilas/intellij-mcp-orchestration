@@ -4,6 +4,9 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'node:path';
 import net from 'node:net';
 
+const HTTP_PROBE_TIMEOUT_MS = 1_500;
+const HTTP_PROBE_PATH = '/api/v1/healthz';
+
 type FixtureMode = 'auto' | 'force' | 'off';
 
 const parseBoolean = (value: string | undefined): boolean | null => {
@@ -48,14 +51,60 @@ const probeTcpPort = async (host: string, port: number): Promise<boolean> => {
   });
 };
 
-const isBackendReachable = async (target: string): Promise<boolean> => {
+interface BackendProbeResult {
+  reachable: boolean;
+  reason: string | null;
+}
+
+const probeBackend = async (target: string): Promise<BackendProbeResult> => {
   try {
-    const url = new URL(target);
-    const port = url.port ? Number.parseInt(url.port, 10) : url.protocol === 'https:' ? 443 : 80;
-    return probeTcpPort(url.hostname, port);
+    const baseUrl = new URL(target);
+    const port = baseUrl.port
+      ? Number.parseInt(baseUrl.port, 10)
+      : baseUrl.protocol === 'https:'
+        ? 443
+        : 80;
+
+    const tcpReachable = await probeTcpPort(baseUrl.hostname, port);
+    if (!tcpReachable) {
+      return {
+        reachable: false,
+        reason: `falha na sonda TCP para ${baseUrl.hostname}:${port}`,
+      };
+    }
+
+    const healthUrl = new URL(HTTP_PROBE_PATH, baseUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), HTTP_PROBE_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(healthUrl, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        return {
+          reachable: false,
+          reason: `resposta HTTP ${response.status} ao consultar ${healthUrl.pathname}`,
+        };
+      }
+
+      return { reachable: true, reason: null };
+    } catch (error) {
+      clearTimeout(timeout);
+      const cause = error instanceof Error ? error.message : String(error);
+      return {
+        reachable: false,
+        reason: `falha HTTP ao consultar ${healthUrl.pathname}: ${cause}`,
+      };
+    }
   } catch (error) {
-    console.warn('Failed to parse backend URL for availability probe:', target, error);
-    return false;
+    return {
+      reachable: false,
+      reason: `URL inválida para probe (${target}): ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 };
 
@@ -107,14 +156,19 @@ export default defineConfig(async () => {
     useFixtures = true;
     fixtureReason = 'forçado via CONSOLE_MCP_USE_FIXTURES';
   } else if (fixtureMode === 'auto') {
-    const reachable = await isBackendReachable(API_PROXY_TARGET);
-    if (!reachable) {
+    const probe = await probeBackend(API_PROXY_TARGET);
+    if (!probe.reachable) {
       useFixtures = true;
-      fixtureReason = `backend indisponível em ${API_PROXY_TARGET}`;
+      fixtureReason = probe.reason
+        ? `backend indisponível em ${API_PROXY_TARGET} — ${probe.reason}`
+        : `backend indisponível em ${API_PROXY_TARGET}`;
       console.info(
         'Console MCP backend não detectado em %s — habilitando fixtures (modo auto).',
         API_PROXY_TARGET,
       );
+      if (probe.reason) {
+        console.warn('Motivo detectado para indisponibilidade do backend: %s.', probe.reason);
+      }
     } else {
       console.info(
         'Console MCP backend detectado em %s — mantendo proxy HTTP do Vite.',
