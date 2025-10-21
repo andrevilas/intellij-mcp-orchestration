@@ -27,10 +27,11 @@
 
 ## Operações seguras (OPS-302)
 
-1. Consulte os runbooks dedicados em `docs/ops/runbooks/` antes de qualquer alteração: [Gestão de Segredos](ops/runbooks/secret-management.md), [Auditoria Operacional](ops/runbooks/auditoria-operacional.md) e [Resposta a Incidentes](ops/runbooks/secrets-incident-playbook.md).
-2. Execute `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` e valide o resultado antes de solicitar revisão quando houver mudanças em segredos, workflows ou runbooks.
-3. Garanta que o job **ops_compliance** na CI (dependente do job `security`) permaneça verde; ele bloqueia `lint`/`test`/`smoke` quando permissões de workflows ou evidências obrigatórias falham.
-4. Atualize `/docs/evidence/TASK-OPS-302/README.md` e `runbooks-activation.md` com os checklists, relatórios (`gitleaks`, `ops-controls-report.json`) e links de PR, mantendo as evidências rastreáveis para auditoria.
+1. Consulte os runbooks dedicados em `docs/ops/runbooks/` antes de qualquer alteração. Confirme que [Gestão de Segredos](ops/runbooks/secret-management.md) cobre rotação programada/emergencial e auditoria contínua, que [Auditoria Operacional](ops/runbooks/auditoria-operacional.md) lista o checklist OPS-302 e indicadores de conformidade, e que [Resposta a Incidentes](ops/runbooks/secrets-incident-playbook.md) detalha o fluxo tático, rotação emergencial e auditoria pós-incidente.
+2. Execute `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` e valide o resultado antes de solicitar revisão quando houver mudanças em segredos, workflows ou runbooks. Replique o comando após incidentes de segredos ou rotações emergenciais.
+3. Garanta que o job **ops_compliance** na CI (dependente do job `security`) permaneça verde; ele bloqueia `lint`/`test`/`smoke` quando permissões de workflows ou evidências obrigatórias falham. Registre o link da execução correspondente em `docs/evidence/TASK-OPS-302/README.md`.
+4. Atualize `/docs/evidence/TASK-OPS-302/README.md` e `runbooks-activation.md` com os checklists, relatórios (`gitleaks`, `ops-controls-report.json`) e links de execução/PR, mantendo as evidências rastreáveis para auditoria.
+5. Quando o playbook de incidentes for acionado, sincronize o resumo com Auditoria Operacional e registre lições aprendidas na seção `Execuções registradas` para preservar o histórico de resposta.
 
 ## Uso do Config Assistant
 

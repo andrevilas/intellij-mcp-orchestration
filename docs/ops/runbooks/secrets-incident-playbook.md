@@ -19,20 +19,21 @@ Centralizar a resposta a incidentes envolvendo segredos MCP, alinhando rotação
 4. **Mitigação inicial** — pausar deploys que dependem dos segredos afetados e isolar tokens (revogar credenciais diretamente nos provedores).
 5. **Comunicação** — alinhar mensagens com Comunicação/Legal quando houver impacto externo.
 
-## Rotação
+## Rotação emergencial
 
 1. Gerar nova chave *age* (`age-keygen > mcp-age-key.txt`) e salvar o segredo em 1Password.
 2. Atualizar `.sops.yaml` com a chave pública, executar `sops config/secrets.enc.yaml` substituindo os tokens comprometidos e incrementando `MCP_SECRETS_VERSION`.
 3. Rodar `make secrets-sync` localmente para validar permissões e sincronização.
 4. Executar `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` antes de abrir o PR de correção.
-5. Preencher `docs/evidence/TASK-OPS-302/runbooks-activation.md` com data, responsáveis e referência do incidente.
+5. Executar `gitleaks detect --no-git --config config/gitleaks.toml --report-format json --report-path docs/evidence/TASK-OPS-302/gitleaks-post-incident.json` para confirmar limpeza imediata.
+6. Preencher `docs/evidence/TASK-OPS-302/runbooks-activation.md` com data, responsáveis, referência do incidente e links de execução registrados.
 
-## Auditoria
+## Auditoria pós-incidente
 
-- Reexecutar `gitleaks detect --no-git --config config/gitleaks.toml --report-format json --report-path docs/evidence/TASK-OPS-302/gitleaks-post-incident.json` para confirmar limpeza do repositório.
-- Validar que `ops-controls-report.json` registra todos os checks como `pass` e anexar o arquivo ao PR.
-- Atualizar os checklists de `/docs/evidence/TASK-OPS-302/README.md` marcando as caixas referentes a runbooks e pipelines.
-- Garantir que a execução da CI publica os artefatos `gitleaks-report` e `ops-controls-report`.
+- Validar que `ops-controls-report.json` registra todos os checks como `pass` e anexar o arquivo ao PR ou issue do incidente.
+- Atualizar os checklists de `/docs/evidence/TASK-OPS-302/README.md` marcando as caixas referentes a runbooks, pipelines e execuções registradas.
+- Garantir que a execução da CI publica os artefatos `gitleaks-report` e `ops-controls-report`, vinculando-os na seção `Execuções registradas`.
+- Compartilhar um resumo com Auditoria Operacional e registrar lições aprendidas no checklist semanal.
 
 ## Acesso mínimo
 
