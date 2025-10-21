@@ -1508,15 +1508,26 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
             <label htmlFor="routing-failover">Falha simulada</label>
             <select
               id="routing-failover"
-              value={failoverId ?? ''}
+              value={
+                failoverId
+                  ? providers.find((provider) => provider.id === failoverId)?.name ?? failoverId
+                  : ''
+              }
               onChange={(event) => {
                 const value = event.target.value;
-                setFailoverId(value === '' ? null : value);
+                if (!value) {
+                  setFailoverId(null);
+                  return;
+                }
+                const matched = providers.find(
+                  (provider) => provider.id === value || provider.name === value,
+                );
+                setFailoverId(matched ? matched.id : value);
               }}
             >
               <option value="">Nenhuma rota indisponível</option>
               {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
+                <option key={provider.id} value={provider.name} data-provider-id={provider.id}>
                   {provider.name}
                 </option>
               ))}

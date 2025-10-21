@@ -810,40 +810,49 @@ describe('App provider orchestration flow', () => {
       }
       if (url === '/api/v1/routing/simulate' && method === 'POST') {
         const body = init?.body ? JSON.parse(init.body.toString()) : {};
+        const failoverProviderId = body.failover_provider_id ?? null;
+        const requestedStrategy: string = body.strategy ?? 'balanced';
+        const volumeMillions: number = body.volume_millions ?? 12;
+
         const commonRoute = {
           id: provider.id,
           provider,
-          lane: 'balanced',
+          lane: 'balanced' as const,
           cost_per_million: 20,
           latency_p95: 940,
           reliability: 95,
           capacity_score: 80,
         };
-        const baseResponse = {
-          total_cost: 210,
-          cost_per_million: 17.5,
-          avg_latency: 880,
-          reliability_score: 95.3,
-          distribution: [
-            {
-              route: commonRoute,
-              share: 0.7,
-              tokens_millions: 8.4,
-              cost: 168,
-            },
-          ],
-          excluded_route: null,
-        };
-        if (body.failover_provider_id) {
-          return createFetchResponse({
-            ...baseResponse,
-            distribution: [],
-            excluded_route: commonRoute,
-          });
-        }
+
+        const distribution = failoverProviderId
+          ? []
+          : [
+              {
+                route: commonRoute,
+                share: 0.7,
+                tokens_millions: 8.4,
+                cost: 168,
+              },
+            ];
+
         return createFetchResponse({
-          ...baseResponse,
-          excluded_route: null,
+          context: {
+            strategy: requestedStrategy,
+            provider_ids: [provider.id],
+            provider_count: 1,
+            volume_millions: volumeMillions,
+            failover_provider_id: failoverProviderId,
+          },
+          cost: {
+            total_usd: 210,
+            cost_per_million_usd: 17.5,
+          },
+          latency: {
+            avg_latency_ms: 880,
+            reliability_score: 95.3,
+          },
+          distribution,
+          excluded_route: failoverProviderId ? commonRoute : null,
         });
       }
       if (url === '/api/v1/policies/deployments' && method === 'GET') {

@@ -195,7 +195,7 @@ describe('Routing page remote simulation', () => {
     await waitFor(() => expect(simulateRoutingMock).toHaveBeenCalledTimes(2));
 
     const failoverControl = screen.getByLabelText('Falha simulada');
-    await userEvent.selectOptions(failoverControl, 'glm');
+    await userEvent.selectOptions(failoverControl, 'GLM 46');
 
     await waitFor(() => {
       const failoverCalls = simulateRoutingMock.mock.calls.filter(

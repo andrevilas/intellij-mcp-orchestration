@@ -3836,17 +3836,34 @@ export async function fetchTelemetryExportDocument(
   });
 
   if (!response.ok) {
-    const body = await response.text();
+    const body = typeof response.text === 'function' ? await response.text() : '';
     const message = body || `Request failed with status ${response.status}`;
     throw new ApiError(message, response.status, body);
   }
 
+  const headerAccessor =
+    typeof response.headers === 'object' && response.headers && 'get' in response.headers
+      ? (response.headers as Headers)
+      : null;
   const mediaType =
-    response.headers.get('Content-Type') || (format === 'html' ? 'text/html' : 'text/csv');
-  const blob = await response.blob();
-  const typedBlob = mediaType && blob.type !== mediaType ? blob.slice(0, blob.size, mediaType) : blob;
+    headerAccessor?.get('Content-Type') || (format === 'html' ? 'text/html' : 'text/csv');
 
-  return { blob: typedBlob, mediaType };
+  let blob: Blob;
+  if (typeof (response as Response).blob === 'function') {
+    const rawBlob = await (response as Response).blob();
+    blob = mediaType && rawBlob.type !== mediaType ? rawBlob.slice(0, rawBlob.size, mediaType) : rawBlob;
+  } else if (typeof (response as Response).text === 'function') {
+    const bodyText = await (response as Response).text();
+    blob = new Blob([bodyText], { type: mediaType });
+  } else if (typeof (response as Response).json === 'function') {
+    const bodyJson = await (response as Response).json();
+    const serialized = typeof bodyJson === 'string' ? bodyJson : JSON.stringify(bodyJson);
+    blob = new Blob([serialized], { type: mediaType });
+  } else {
+    blob = new Blob([], { type: mediaType });
+  }
+
+  return { blob, mediaType };
 }
 
 export interface FinOpsReportsFilters {
