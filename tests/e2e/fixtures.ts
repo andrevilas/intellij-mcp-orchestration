@@ -15,15 +15,25 @@ export const test = base.extend({
       }
     });
 
+    const waitForNetworkIdle = async () => {
+      try {
+        await page.waitForLoadState('networkidle', { timeout: 2_000 });
+      } catch {
+        // ignore timeouts — networkidle nem sempre é atingido em páginas leves
+      }
+    };
+
     page.goto = (async (...args) => {
       const response = await originalGoto(...args);
       await waitForFixtureWorker(page);
+      await waitForNetworkIdle();
       return response;
     }) as typeof page.goto;
 
     page.reload = (async (...args) => {
       const response = await originalReload(...args);
       await waitForFixtureWorker(page);
+      await waitForNetworkIdle();
       return response;
     }) as typeof page.reload;
 
@@ -32,3 +42,8 @@ export const test = base.extend({
 });
 
 export const expect = baseExpect;
+
+export async function loadBackendFixture<T = unknown>(name: string): Promise<T> {
+  const module = await import(`../fixtures/backend/${name}`, { with: { type: 'json' } });
+  return module.default as T;
+}
