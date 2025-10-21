@@ -98,22 +98,49 @@ const AGENTS_PROXY_TARGET =
 export default defineConfig(async () => {
   const fixtureMode = resolveFixtureMode(process.env.CONSOLE_MCP_USE_FIXTURES);
 
-  let useFixtures = fixtureMode === 'force';
+  const runningVitest = Boolean(process.env.VITEST);
 
-  if (fixtureMode === 'auto') {
+  let useFixtures = false;
+  let fixtureReason: string | null = null;
+
+  if (fixtureMode === 'force') {
+    useFixtures = true;
+    fixtureReason = 'forçado via CONSOLE_MCP_USE_FIXTURES';
+  } else if (fixtureMode === 'auto') {
     const reachable = await isBackendReachable(API_PROXY_TARGET);
     if (!reachable) {
-      console.info('Console MCP backend not detected — enabling local fixtures.');
       useFixtures = true;
+      fixtureReason = `backend indisponível em ${API_PROXY_TARGET}`;
+      console.info(
+        'Console MCP backend não detectado em %s — habilitando fixtures (modo auto).',
+        API_PROXY_TARGET,
+      );
+    } else {
+      console.info(
+        'Console MCP backend detectado em %s — mantendo proxy HTTP do Vite.',
+        API_PROXY_TARGET,
+      );
     }
   }
 
   if (fixtureMode === 'off') {
     useFixtures = false;
+    fixtureReason = null;
+  }
+
+  if (runningVitest) {
+    if (fixtureMode === 'off') {
+      console.warn(
+        'Vitest detectado com fixtures desativadas — sobrescrevendo para evitar dependência do backend.',
+      );
+    }
+    useFixtures = true;
+    fixtureReason = 'Vitest em execução';
   }
 
   if (useFixtures) {
-    console.info('Console MCP frontend is running in fixture mode.');
+    const reasonSuffix = fixtureReason ? ` (${fixtureReason})` : '';
+    console.info(`Console MCP frontend está rodando em fixture mode${reasonSuffix}.`);
   } else {
     console.info('Proxying Console MCP API requests to %s', API_PROXY_TARGET);
   }

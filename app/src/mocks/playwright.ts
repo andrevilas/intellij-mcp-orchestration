@@ -13,7 +13,7 @@ interface PageLike {
   evaluate<R>(pageFunction: (...args: unknown[]) => R, arg?: unknown): Promise<R>;
 }
 
-export async function waitForFixtureWorker(page: PageLike, timeout = 5_000): Promise<void> {
+export async function waitForFixtureWorker(page: PageLike, timeout = 10_000): Promise<void> {
   await page.waitForFunction(
     (flag) => {
       const globalObject = window as typeof window & { [key: string]: string | undefined };

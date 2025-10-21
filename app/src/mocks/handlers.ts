@@ -6,6 +6,7 @@ import type {
   RoutingRouteProfile,
   RoutingSimulationResult,
   RoutingStrategyId,
+  Session,
   TelemetryExperimentSummaryEntry,
   TelemetryLaneCostEntry,
   TelemetryRunEntry,
@@ -237,7 +238,6 @@ const applyFailover = (
     return resetPlan;
   }
   const workingPlan = clonePlan(plan);
-  const totalTokens = workingPlan.distribution.reduce((sum, entry) => sum + entry.tokensMillions, 0);
   const excludedIndex = workingPlan.distribution.findIndex((entry) => entry.route.id === failoverId);
   if (excludedIndex === -1) {
     workingPlan.context.failoverProviderId = null;
@@ -245,35 +245,12 @@ const applyFailover = (
     return workingPlan;
   }
   const [excluded] = workingPlan.distribution.splice(excludedIndex, 1);
-  if (workingPlan.distribution.length === 0) {
-    workingPlan.distribution = [];
-    workingPlan.cost.totalUsd = 0;
-    workingPlan.cost.costPerMillionUsd = 0;
-    workingPlan.latency.avgLatencyMs = roundTo(plan.latency.avgLatencyMs * 1.05);
-    workingPlan.latency.reliabilityScore = roundTo(
-      Math.max(0, plan.latency.reliabilityScore - 1),
-    );
-    workingPlan.excludedRoute = excluded.route;
-    workingPlan.context.failoverProviderId = failoverId;
-    return workingPlan;
-  }
-
-  const normalized = normalizeDistribution(workingPlan.distribution).map((entry) => {
-    const tokens = totalTokens * entry.share;
-    return {
-      ...entry,
-      tokensMillions: roundTo(tokens, 4),
-      cost: roundTo(entry.route.costPerMillion * tokens),
-    };
-  });
-  const totalCost = normalized.reduce((sum, entry) => sum + entry.cost, 0);
-
-  workingPlan.distribution = normalized;
-  workingPlan.cost.totalUsd = roundTo(totalCost);
-  workingPlan.cost.costPerMillionUsd = totalTokens > 0 ? roundTo(totalCost / totalTokens) : 0;
-  workingPlan.latency.avgLatencyMs = roundTo(plan.latency.avgLatencyMs * 1.05);
+  workingPlan.distribution = [];
+  workingPlan.cost.totalUsd = 0;
+  workingPlan.cost.costPerMillionUsd = 0;
+  workingPlan.latency.avgLatencyMs = roundTo(plan.latency.avgLatencyMs * 1.08);
   workingPlan.latency.reliabilityScore = roundTo(
-    Math.max(0, plan.latency.reliabilityScore - 0.5),
+    Math.max(0, plan.latency.reliabilityScore - 2),
   );
   workingPlan.excludedRoute = excluded.route;
   workingPlan.context.failoverProviderId = failoverId;
@@ -365,13 +342,186 @@ const healthHistoryByServer = new Map(
   ),
 );
 
-const sessions = (sessionsFixture as { sessions: Array<Record<string, unknown>> }).sessions;
+const sessionFixtureSource = (sessionsFixture as { sessions: Session[] }).sessions;
+const sessionStore: Session[] = sessionFixtureSource.map((entry) => ({ ...entry }));
+let sessionSequence = sessionStore.length;
+const SESSION_TIMESTAMP_START = Date.UTC(2025, 2, 7, 10, 0, 0);
+
+const coerceOptionalString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const createFixtureSessionRecord = (
+  providerId: string,
+  reason: string | null,
+  client: string | null,
+): Session => {
+  sessionSequence += 1;
+  const createdAt = new Date(SESSION_TIMESTAMP_START + sessionSequence * 60_000).toISOString();
+  return {
+    id: `session-${providerId}-${7000 + sessionSequence}`,
+    provider_id: providerId,
+    created_at: createdAt,
+    status: 'success',
+    reason,
+    client,
+  };
+};
+
+const cloneDeep = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
 const notifications = (notificationsFixture as {
   notifications: Array<Record<string, unknown>>;
 }).notifications;
 
 const policyManifestPayload = policyManifestFixture as Record<string, unknown>;
 const compliancePayload = policiesComplianceFixture as Record<string, unknown>;
+
+const FINOPS_POLICY_SNIPPET = JSON.stringify(
+  {
+    finops: {
+      budgets: {
+        daily: 950,
+        weekly: 6400,
+        monthly: 28000,
+      },
+      alerts: ['burn-rate', 'cache-hit'],
+      cache: {
+        ttl_seconds: 360,
+      },
+    },
+  },
+  null,
+  2,
+);
+
+const FINOPS_POLICY_CONTEXT_SNIPPET =
+  '"finops": {\n  "budgets": {\n    "daily": 950,\n    "weekly": 6400,\n    "monthly": 28000\n  },\n  "cache": {\n    "ttl_seconds": 360\n  },\n  "alerts": ["burn-rate", "cache-hit"]\n}';
+
+const FINOPS_MANIFEST_DIFF = [
+  'diff --git a/policies/manifest.json b/policies/manifest.json',
+  '--- a/policies/manifest.json',
+  '+++ b/policies/manifest.json',
+  '@@ -12,7 +12,7 @@ "finops": {',
+  '-    "daily": 1200,',
+  '+    "daily": 950,',
+  '@@ -24,6 +24,8 @@ "finops": {',
+  '-  "cache": {',
+  '-    "ttl_seconds": 600',
+  '-  }',
+  '+  "cache": {',
+  '+    "ttl_seconds": 360',
+  '+  },',
+  '+  "alerts": ["burn-rate", "cache-hit"]',
+  '}',
+].join('\n');
+
+const finopsPlanResponseFixture = {
+  plan: {
+    intent: 'policies.update',
+    summary: 'Atualizar limites e alertas FinOps usando fixtures locais.',
+    status: 'pending',
+    steps: [
+      {
+        id: 'finops-budget-update',
+        title: 'Sincronizar budgets FinOps',
+        description:
+          'Recalibra budgets e alertas de burn rate com base na sprint atual para manter custos sob controle.',
+        depends_on: [],
+        actions: [
+          {
+            type: 'file.update',
+            path: 'policies/manifest.json',
+            contents: FINOPS_POLICY_SNIPPET,
+            encoding: 'utf-8',
+            overwrite: true,
+          },
+        ],
+      },
+    ],
+    diffs: [
+      {
+        path: 'policies/manifest.json',
+        summary: 'Ajustar budgets e alertas FinOps (fixtures)',
+        change_type: 'modify',
+        diff: FINOPS_MANIFEST_DIFF,
+      },
+    ],
+    risks: [
+      {
+        title: 'Aumento de alertas',
+        impact: 'médio',
+        mitigation: 'Monitorar o dashboard de FinOps nas próximas 24 horas.',
+      },
+    ],
+    context: [
+      {
+        path: 'policies/manifest.json',
+        snippet: FINOPS_POLICY_CONTEXT_SNIPPET,
+        score: 0.82,
+        title: 'Manifesto FinOps (trecho)',
+        chunk: 1,
+      },
+    ],
+    approval_rules: ['finops-core'],
+  },
+  preview: {
+    branch: 'chore/finops-plan-fixtures',
+    base_branch: 'main',
+    commit_message: 'chore: atualizar políticas FinOps (fixtures)',
+    pull_request: {
+      provider: 'github',
+      title: 'Atualizar políticas FinOps (fixtures)',
+      body:
+        'Plano gerado a partir das fixtures para revisar budgets, alertas e TTL de cache.',
+    },
+  },
+};
+
+const finopsPlanApplyFixture = {
+  status: 'applied',
+  mode: 'branch_pr',
+  plan_id: 'finops-plan-fixture',
+  record_id: 'finops-plan-record',
+  branch: 'chore/finops-plan-fixtures',
+  base_branch: 'main',
+  commit_sha: 'f1x7ur3d0c',
+  diff: {
+    stat: '1 file changed, 6 insertions(+), 2 deletions(-)',
+    patch: FINOPS_MANIFEST_DIFF,
+  },
+  hitl_required: false,
+  message: 'Plano FinOps aplicado com sucesso nas fixtures.',
+  approval_id: null,
+  pull_request: {
+    provider: 'github',
+    id: 'finops-plan-42',
+    number: '42',
+    url: 'https://github.com/example/console-mcp/pull/42',
+    title: 'Atualizar políticas FinOps (fixtures)',
+    state: 'open',
+    head_sha: 'f1x7ur3d0c',
+    branch: 'chore/finops-plan-fixtures',
+    ci_status: 'success',
+    review_status: 'approved',
+    merged: false,
+    last_synced_at: '2025-03-07T09:45:00Z',
+    reviewers: [
+      { id: 'mcp-bot', name: 'MCP Bot', status: 'approved' },
+    ],
+    ci_results: [
+      {
+        name: 'lint',
+        status: 'passed',
+        details_url: 'https://ci.example.com/runs/finops-plan-fixtures',
+      },
+    ],
+  },
+};
 
 const experimentItems = (telemetryExperimentsFixture as {
   items: TelemetryExperimentSummaryEntry[];
@@ -454,7 +604,35 @@ export const handlers = [
     processStateByServer.set(serverId, next);
     return HttpResponse.json({ process: next });
   }),
-  http.get(`${API_PREFIX}/sessions`, () => HttpResponse.json({ sessions })),
+  http.get(`${API_PREFIX}/sessions`, () => HttpResponse.json({ sessions: sessionStore })),
+  http.post(`${API_PREFIX}/providers/:providerId/sessions`, async ({ params, request }) => {
+    const providerId = params.providerId as string;
+    const provider = providerCatalog.find((entry) => entry.id === providerId);
+    if (!provider) {
+      return HttpResponse.json({ detail: 'Provider not found' }, { status: 404 });
+    }
+
+    let payload: { reason?: unknown; client?: unknown } = {};
+    try {
+      payload = (await request.json()) as { reason?: unknown; client?: unknown };
+    } catch {
+      // ignore malformed bodies and fall back to defaults
+    }
+
+    const reason = coerceOptionalString(payload.reason);
+    const client = coerceOptionalString(payload.client);
+    const session = createFixtureSessionRecord(providerId, reason, client);
+
+    sessionStore.unshift({ ...session });
+
+    return HttpResponse.json(
+      {
+        session,
+        provider,
+      },
+      { status: 201 },
+    );
+  }),
   http.get(`${API_PREFIX}/secrets`, () => HttpResponse.json({ secrets: [] })),
   http.get(`${API_PREFIX}/notifications`, () => HttpResponse.json({ notifications })),
   http.get(`${API_PREFIX}/policies/compliance`, () => HttpResponse.json(compliancePayload)),
@@ -474,6 +652,87 @@ export const handlers = [
   http.get(`${API_PREFIX}/telemetry/marketplace/performance`, () =>
     HttpResponse.json({ items: marketplaceEntries }),
   ),
+  http.get(`${API_PREFIX}/telemetry/export`, ({ request }) => {
+    let format = 'csv';
+    let providerId = 'all';
+    let start = '2025-03-01';
+    let end = '2025-03-07';
+
+    try {
+      const url = new URL(request.url);
+      format = url.searchParams.get('format') ?? format;
+      providerId = url.searchParams.get('provider_id') ?? providerId;
+      start = url.searchParams.get('start') ?? start;
+      end = url.searchParams.get('end') ?? end;
+    } catch (error) {
+      console.warn('Falha ao interpretar parâmetros de export de telemetria', error);
+    }
+
+    const windowLabel = `${start} → ${end}`;
+
+    if (format === 'html') {
+      const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>FinOps Export Fixture</title>
+    <style>
+      body { font-family: system-ui, sans-serif; padding: 1.5rem; }
+      table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+      th, td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: left; }
+      thead { background: #f1f5f9; }
+    </style>
+  </head>
+  <body>
+    <h1>Relatório FinOps — janela ${windowLabel}</h1>
+    <p>Dados gerados pelas fixtures locais para desbloquear export sem backend.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Horário</th>
+          <th>Provider</th>
+          <th>Custo (USD)</th>
+          <th>Tokens (M)</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2025-03-06T12:00:00Z</td>
+          <td>${providerId}</td>
+          <td>128.4</td>
+          <td>3.2</td>
+          <td>success</td>
+        </tr>
+        <tr>
+          <td>2025-03-06T13:00:00Z</td>
+          <td>${providerId}</td>
+          <td>142.1</td>
+          <td>3.9</td>
+          <td>success</td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>`;
+
+      return new HttpResponse(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+    }
+
+    const csvRows = [
+      'timestamp,provider_id,cost_usd,tokens_millions,latency_ms,status',
+      `2025-03-06T12:00:00Z,${providerId},128.4,3.2,820,success`,
+      `2025-03-06T13:00:00Z,${providerId},142.1,3.9,790,success`,
+    ].join('\n');
+
+    return new HttpResponse(csvRows, {
+      status: 200,
+      headers: { 'Content-Type': 'text/csv; charset=utf-8' },
+    });
+  }),
   http.get(`${API_PREFIX}/telemetry/finops/sprints`, () => HttpResponse.json(finopsSprintsFixture)),
   http.get(`${API_PREFIX}/telemetry/finops/pull-requests`, () =>
     HttpResponse.json(finopsPullRequestsFixture),
@@ -484,5 +743,38 @@ export const handlers = [
     return HttpResponse.json(serializeRoutingPlan(plan));
   }),
   http.get(`${API_PREFIX}/policies/manifest`, () => HttpResponse.json(policyManifestPayload)),
+  http.patch(`${API_PREFIX}/config/policies`, async () =>
+    HttpResponse.json(cloneDeep(finopsPlanResponseFixture)),
+  ),
+  http.post(`${API_PREFIX}/config/apply`, async ({ request }) => {
+    let payload: { plan_id?: unknown } = {};
+    try {
+      payload = (await request.json()) as { plan_id?: unknown };
+    } catch {
+      // ignore malformed payloads
+    }
+
+    const rawPlanId =
+      typeof payload.plan_id === 'string' && payload.plan_id.trim().length > 0
+        ? payload.plan_id.trim()
+        : null;
+    const planId = rawPlanId ?? 'finops-plan-fixture';
+
+    const response = cloneDeep(finopsPlanApplyFixture);
+    response.plan_id = planId;
+    response.record_id = `record-${planId}`;
+    response.message = `Plano ${planId} aplicado com sucesso via fixtures.`;
+
+    if (response.pull_request) {
+      response.pull_request.id = `${planId}-pr`;
+      response.pull_request.branch = response.branch;
+      response.pull_request.head_sha = response.commit_sha;
+      const pullNumber = response.pull_request.number ?? '42';
+      response.pull_request.number = pullNumber;
+      response.pull_request.url = `https://github.com/example/console-mcp/pull/${pullNumber}`;
+    }
+
+    return HttpResponse.json(response);
+  }),
   http.get(`${API_PREFIX}/providers`, () => HttpResponse.json({ providers: providerCatalog })),
 ];

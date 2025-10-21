@@ -35,9 +35,22 @@ Variáveis de ambiente úteis:
 - `CONSOLE_MCP_API_PROXY`: redefine o destino do proxy HTTP utilizado pelo dev server do Vite (por padrão usa os valores
   de `CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`).
 - `CONSOLE_MCP_AGENTS_PROXY`: sobrescreve apenas o alvo do proxy `/agents` quando o hub de agentes roda em host/porta separados.
-- `CONSOLE_MCP_USE_FIXTURES`: quando `true` (ou quando o backend está indisponível), desativa o proxy e ativa os handlers do
-  MSW alimentados por `tests/fixtures/backend`. Define automaticamente `import.meta.env.VITE_CONSOLE_USE_FIXTURES` para que a UI e
-  os testes saibam que o modo offline está ativo.
+- `CONSOLE_MCP_USE_FIXTURES`: aceita `auto` (padrão), `force` ou `off`. Em `auto`, o Vite tenta alcançar o backend configurado
+    (`CONSOLE_MCP_API_PROXY` ou `127.0.0.1:8000`). Caso não consiga conectar, registra `Console MCP backend não detectado —
+    habilitando fixtures (modo auto).` e ativa automaticamente o MSW com as respostas de `tests/fixtures/backend`. O modo `force`
+    mantém as fixtures ativas mesmo com backend disponível, enquanto `off` reativa o proxy padrão.
+
+### Modo offline com fixtures
+
+- `import.meta.env.VITE_CONSOLE_USE_FIXTURES` é definido pelo Vite sempre que as fixtures estiverem ativas. O `main.tsx` inicia
+  `app/src/mocks/browser.ts`, expondo o status atual em `window.__CONSOLE_MCP_FIXTURES__` (valores `ready`, `disabled` ou `error`).
+- Em execuções do Vitest (`pnpm --dir app test`), o toggle é forçado automaticamente: o `vite.config.ts` ignora `off` e liga o
+  MSW para que os testes unitários não dependam do backend real. O setup (`app/src/test/setup.ts`) também marca o flag global
+  como `ready` durante a suíte.
+- Os testes Playwright (`pnpm --dir tests exec playwright test`) sobem o Vite em fixture mode (`CONSOLE_MCP_USE_FIXTURES=force`)
+  via `tests/playwright.config.ts`. O helper `tests/e2e/fixtures.ts` aguarda o worker do MSW após cada `page.goto` ou
+  `page.reload`, com timeout padrão de 10s (conforme `app/src/mocks/playwright.ts`), garantindo que as páginas core renderizem
+  usando apenas os JSONs de `tests/fixtures/backend`.
 
 ## Estrutura
 
