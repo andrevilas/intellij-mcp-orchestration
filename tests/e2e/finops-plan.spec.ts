@@ -1,5 +1,83 @@
 import { expect, test } from './fixtures';
 
+function resolveEndDate(param: string | null): Date {
+  const end = param ? new Date(param) : new Date();
+  if (Number.isNaN(end.getTime())) {
+    return new Date();
+  }
+  end.setHours(0, 0, 0, 0);
+  return end;
+}
+
+function buildTimeseriesPayload(param: string | null) {
+  const end = resolveEndDate(param);
+  const items = Array.from({ length: 10 }, (_, index) => {
+    const offset = 9 - index;
+    const cursor = new Date(end);
+    cursor.setDate(end.getDate() - offset);
+    const isoDay = cursor.toISOString().slice(0, 10);
+    const isBaseline = offset >= 7;
+    const costUsd = isBaseline ? 110 : 240;
+    const tokensIn = isBaseline ? 550_000 : 900_000;
+    const tokensOut = isBaseline ? 450_000 : 900_000;
+    return {
+      day: isoDay,
+      provider_id: 'glm',
+      run_count: 12,
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      cost_usd: costUsd,
+      avg_latency_ms: isBaseline ? 980 : 2100,
+      success_count: isBaseline ? 11 : 9,
+    };
+  });
+  return { items };
+}
+
+const paretoResponse = {
+  items: [
+    {
+      id: 'glm-default',
+      provider_id: 'glm',
+      provider_name: 'GLM 46',
+      route: null,
+      lane: 'balanced',
+      run_count: 420,
+      tokens_in: 3_200_000,
+      tokens_out: 3_000_000,
+      cost_usd: 1200,
+      avg_latency_ms: 2450,
+      success_rate: 0.82,
+    },
+    {
+      id: 'glm-fallback',
+      provider_id: 'glm',
+      provider_name: 'GLM 46',
+      route: 'fallback',
+      lane: 'turbo',
+      run_count: 180,
+      tokens_in: 1_000_000,
+      tokens_out: 800_000,
+      cost_usd: 500,
+      avg_latency_ms: 1820,
+      success_rate: 0.88,
+    },
+    {
+      id: 'glm-cache',
+      provider_id: 'glm',
+      provider_name: 'GLM 46',
+      route: 'cache',
+      lane: 'economy',
+      run_count: 90,
+      tokens_in: 600_000,
+      tokens_out: 400_000,
+      cost_usd: 300,
+      avg_latency_ms: 910,
+      success_rate: 0.97,
+    },
+  ],
+};
+
 test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
   const manifestResponse = {
     policies: { confidence: null },
@@ -130,13 +208,15 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
 
   const emptyList = { items: [] };
   await page.route('**/api/v1/telemetry/timeseries**', (route) => {
-    route.fulfill({ status: 200, body: JSON.stringify(emptyList), contentType: 'application/json' });
+    const url = new URL(route.request().url());
+    const payload = buildTimeseriesPayload(url.searchParams.get('end'));
+    route.fulfill({ status: 200, body: JSON.stringify(payload), contentType: 'application/json' });
   });
   await page.route('**/api/v1/telemetry/runs**', (route) => {
     route.fulfill({ status: 200, body: JSON.stringify({ items: [] }), contentType: 'application/json' });
   });
   await page.route('**/api/v1/telemetry/pareto**', (route) => {
-    route.fulfill({ status: 200, body: JSON.stringify({ items: [] }), contentType: 'application/json' });
+    route.fulfill({ status: 200, body: JSON.stringify(paretoResponse), contentType: 'application/json' });
   });
   await page.route('**/api/v1/telemetry/experiments**', (route) => {
     route.fulfill({ status: 200, body: JSON.stringify({ items: [] }), contentType: 'application/json' });
@@ -181,6 +261,17 @@ test('@finops-plan gera e aplica plano FinOps', async ({ page }) => {
 
   await page.goto('/');
   await page.getByRole('link', { name: 'FinOps' }).click();
+
+  await expect(page.getByTestId('finops-alert-cost-surge')).toBeVisible();
+  await expect(page.getByText('Escalada de custo diário')).toBeVisible();
+  await expect(page.getByText('Pico de tokens consumidos')).toBeVisible();
+  await expect(page.getByText('Custo concentrado em uma rota')).toBeVisible();
+  await expect(page.getByText('Taxa de sucesso abaixo do esperado')).toBeVisible();
+  await expect(page.getByTestId('finops-hotspot-cost-glm-default')).toBeVisible();
+  await expect(page.getByText('Rota domina o custo')).toBeVisible();
+  await expect(page.getByText('Queda na confiabilidade')).toBeVisible();
+  await expect(page.getByText('Latência elevada')).toBeVisible();
+  await expect(page.getByText('Custo por token acima da média')).toBeVisible();
 
   await expect(page.getByLabel('Cost center responsável')).toHaveValue('finops-core');
 

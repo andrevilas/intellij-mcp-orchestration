@@ -1443,6 +1443,22 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     setPlanStatusMessage('Plano descartado. Ajuste a política e gere novamente.');
   }, [resetPendingPlan]);
 
+  const availableSeries = useMemo(() => {
+    const days = RANGE_TO_DAYS[selectedRange];
+
+    if (!hasProviders) {
+      return [];
+    }
+
+    if (selectedProvider === 'all') {
+      const seriesCollection = providers.map((provider) => providerSeriesMap[provider.id] ?? []);
+      return combineSeries(seriesCollection.map((series) => series.slice(-days)));
+    }
+
+    const series = providerSeriesMap[selectedProvider];
+    return series ? series.slice(-days) : [];
+  }, [hasProviders, providers, providerSeriesMap, selectedProvider, selectedRange]);
+
   const handleTelemetryExport = useCallback(
     async (format: 'csv' | 'html') => {
       if (availableSeries.length === 0) {
@@ -1669,22 +1685,6 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       controller.abort();
     };
   }, [hasProviders, providers, selectedProvider, selectedRange]);
-
-  const availableSeries = useMemo(() => {
-    const days = RANGE_TO_DAYS[selectedRange];
-
-    if (!hasProviders) {
-      return [];
-    }
-
-    if (selectedProvider === 'all') {
-      const seriesCollection = providers.map((provider) => providerSeriesMap[provider.id] ?? []);
-      return combineSeries(seriesCollection.map((series) => series.slice(-days)));
-    }
-
-    const series = providerSeriesMap[selectedProvider];
-    return series ? series.slice(-days) : [];
-  }, [hasProviders, providers, providerSeriesMap, selectedProvider, selectedRange]);
 
   const aggregatedMetrics = useMemo(() => computeMetrics(availableSeries), [availableSeries]);
 
