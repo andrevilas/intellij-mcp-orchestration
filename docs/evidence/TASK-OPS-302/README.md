@@ -2,15 +2,18 @@
 
 ## Checklists
 
+- [x] Runbooks finais publicados em docs/ops/runbooks (rotação, auditoria, incidentes).
+- [x] Pipelines atualizadas com secret scanning e ops_compliance (gates antes de lint/test/smoke).
+- [x] Evidências registradas em /docs/evidence/TASK-OPS-302 (relatórios e runbooks-activation).
 - [x] Job `ops_compliance` adicionado à pipeline com dependência dos estágios `lint`, `test` e `smoke`.
 - [x] Script `python3 scripts/ops_controls.py` executado localmente gerando `ops-controls-report.json`.
-- [x] Runbook `docs/ops/runbooks/secrets-incident-playbook.md` documenta rotação, auditoria e acesso mínimo.
 
 ## Controles validados
 
 1. `scripts/ops_controls.py` verifica ausência de artefatos sensíveis versionados, garante permissões `read` nas workflows e exige evidências OPS-301/OPS-302.
 2. Job `ops_compliance` publica o artefato `ops-controls-report` para auditoria e bloqueia merges quando algum controle falha.
 3. Novos procedimentos operacionais foram incorporados ao runbook principal (`docs/runbook.md`) e ao playbook de incidentes.
+4. A rotina de auditoria OPS-302 está definida em `docs/ops/runbooks/auditoria-operacional.md` e validada pelo `ops_controls.py`.
 
 ## Execução manual
 

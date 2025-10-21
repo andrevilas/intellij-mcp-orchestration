@@ -1,41 +1,48 @@
 # Runbook — Gestão de Segredos MCP
 
-## Visão geral
+## Objetivo e escopo
 
-- **Cofre padrão:** [SOPS](https://github.com/getsops/sops) com chaves *age* dedicadas à plataforma MCP.
-- **Escopo:** credenciais dos provedores de IA (Gemini, OpenAI/Codex, Anthropic, Zhipu) e tokens operacionais usados pelos pipelines.
-- **Artefatos versionados:**
-  - `config/secrets.enc.yaml` — bundle criptografado com os valores vigentes.
-  - `.sops.yaml` — política de criptografia (recipiente *age* público).
-  - `scripts/secrets-sync.sh` — sincronização local e em CI.
-- **Identidade privada:** mantida no cofre da equipe (1Password > “MCP – SOPS Age key”) e referenciada pelos pipelines via `SOPS_AGE_KEY`.
+- Consolidar o procedimento oficial definido na iniciativa **OPS-ACT-301 / TASK-OPS-302** do plano de próximos passos.
+- Garantir rotação preventiva e emergencial das credenciais MCP, mantendo evidências rastreáveis em `/docs/evidence/TASK-OPS-302/`.
+- Padronizar integrações de pipelines (`security`, `ops_compliance`, `lint`, `test`, `smoke`) com o cofre SOPS e com o script `ops_controls.py`.
 
-## Bootstrapping e rotação
+## Inventário crítico
 
-1. Gere uma nova chave *age* somente quando necessário:
+| Item | Origem | Responsável | Observação |
+| ---- | ------ | ----------- | ---------- |
+| `config/secrets.enc.yaml` | Repositório | SecOps | Bundle cifrado principal, inclui `MCP_SECRETS_VERSION`. |
+| `.sops.yaml` | Repositório | SecOps | Politica de criptografia com chaves públicas *age*. |
+| `scripts/secrets-sync.sh` | Repositório | Plataforma | Distribui segredos para `~/.mcp` com `chmod 600`. |
+| `SOPS_AGE_KEY` | GitHub Secrets / 1Password | Squad Ops | Chave privada efêmera usada em CI/CD e estações locais. |
 
-   ```bash
-   age-keygen > mcp-age-key.txt
-   ```
+## Preparação
 
-   - O bloco `AGE-SECRET-KEY-*` deve ser copiado para o cofre seguro.
-   - A linha `Public key: age1…` é a única parte versionada (atualize `.sops.yaml`).
+1. Verificar acesso ao cofre `1Password › MCP – SOPS Age key` e às seções protegidas de GitHub Actions.
+2. Atualizar a matriz de contato do plantão em `docs/ops/incident-response.md`.
+3. Confirmar que `python3 scripts/ops_controls.py` passa localmente antes de iniciar qualquer rotação.
 
-2. Compartilhe o público com a equipe via pull request e invalide o anterior após validar a rotação.
-3. Atualize `config/secrets.enc.yaml` executando, localmente, `sops config/secrets.enc.yaml`.
-4. Registre a rotação no change log de operações e anexe o diff criptografado em `/docs/evidence/<ticket>/`.
+## Rotação programada
 
-## Como editar o bundle criptografado
+1. **Planejar janela** — alinhar com Incident Commander e comunicar no canal `#mcp-ops` com pelo menos 24 h de antecedência.
+2. **Gerar chave** — executar `age-keygen > mcp-age-key.txt`. Registrar o bloco `AGE-SECRET-KEY` no cofre seguro e versionar apenas a chave pública em `.sops.yaml`.
+3. **Atualizar bundle** — exportar `SOPS_AGE_KEY` via `op read`, rodar `sops config/secrets.enc.yaml` e substituir tokens expirados. Incrementar `MCP_SECRETS_VERSION` e documentar o motivo no cabeçalho do arquivo.
+4. **Validar pipelines** — rodar `make secrets-sync` localmente, confirmar permissões `600` e executar `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json`.
+5. **Abrir PR** — anexar `ops-controls-report.json`, diffs cifrados e checklist atualizado em `/docs/evidence/TASK-OPS-302/`. Solicitar dupla revisão (SecOps + Engenharia) antes do merge.
 
-```bash
-export SOPS_AGE_KEY="$(op read 'op://MCP/SOPS Age key/private')"
-sops config/secrets.enc.yaml
-```
+## Validação pós-rotação
 
-- Alterações são auditadas via git; o conteúdo permanece cifrado.
-- Utilize o campo `MCP_SECRETS_VERSION` para acompanhar incrementos de versão.
+1. Garantir execução verde dos jobs `security` (gitleaks) e `ops_compliance` (ops_controls).
+2. Reexecutar `gitleaks detect --no-git --config config/gitleaks.toml --report-format json --report-path docs/evidence/TASK-OPS-302/gitleaks-post-rotation.json`.
+3. Confirmar que os workflows não retêm o arquivo `~/.config/sops/age/keys.txt` após o step de sincronização.
+4. Atualizar `docs/evidence/TASK-OPS-302/runbooks-activation.md` com data/hora da rotação e responsáveis.
 
-## Sincronização local
+## Comunicação e evidências
+
+- Atualizar `docs/evidence/TASK-OPS-302/README.md` marcando os checklists concluídos e vinculando o PR correspondente.
+- Registrar notas de mudança em `docs/evidence/TASK-OPS-302/runbooks-activation.md`, incluindo ID do alerta ou motivo (auditoria, incidente, requisito legal).
+- Compartilhar resumo no relatório semanal de auditoria (mesmo template usado na trilha OPS-ACT-301).
+
+## Automação de sincronização local
 
 ```bash
 # pré-requisito: sops + age instalados
@@ -43,29 +50,21 @@ export SOPS_AGE_KEY="$(op read 'op://MCP/SOPS Age key/private')"
 make secrets-sync
 ```
 
-O script executa as etapas abaixo:
+Fluxo do script `make secrets-sync`:
 
-1. Descriptografa `config/secrets.enc.yaml` (formato JSON após o `--output-type`).
-2. Publica `~/.mcp/.env` com permissões `600` para os wrappers MCP.
-3. Gera `~/.mcp/console-secrets.json` no formato esperado pela API (`SecretStore`).
-4. Remove o material sensível do diretório temporário.
+1. Descriptografa `config/secrets.enc.yaml` usando SOPS com saída JSON.
+2. Publica `~/.mcp/.env` e `~/.mcp/console-secrets.json` com `chmod 600` e `umask 077`.
+3. Remove diretórios temporários e o arquivo de chave ao término.
 
-## Integração com CI
+## Integração com CI/CD
 
-- O job `security` roda `gitleaks` usando `config/gitleaks.toml` e bloqueia a pipeline em caso de vazamento.
-- Os jobs `lint`, `test` e `smoke` executam `make secrets-sync` somente se `SOPS_AGE_KEY` estiver definido no repositório (branch protegida).
-- As chaves são injetadas de forma efêmera: o arquivo `~/.config/sops/age/keys.txt` é removido ao final de cada step.
+- O job `security` executa gitleaks (secret scanning) usando `config/gitleaks.toml` e bloqueia merges quando encontra vazamentos.
+- O job `ops_compliance` roda `python3 scripts/ops_controls.py` e exige a presença dos runbooks finais e checklists OPS-302.
+- Os jobs `lint`, `test` e `smoke` consomem segredos apenas quando `secrets.SOPS_AGE_KEY` estiver configurado e removem o material sensível ao final do step.
 
-## Resposta a incidentes
+## Referências
 
-1. Acesse o playbook [`docs/ops/incident-response.md`](../incident-response.md) e siga a trilha “Vazamento de segredos MCP”.
-2. Revogue imediatamente os tokens afetados nos provedores correspondentes.
-3. Gere uma nova chave *age*, recriptografe `config/secrets.enc.yaml` e abra PR com validação de dupla revisão.
-4. Execute `gitleaks detect --no-git --source .` para confirmar que o repositório está limpo.
-
-## Monitoramento e auditoria
-
-- Logs do job `security` ficam arquivados como artefatos (`gitleaks-report.json`).
-- O job `ops_compliance` executa `python3 scripts/ops_controls.py`, garantindo permissões mínimas nas workflows e cobrindo evidências em `/docs/evidence/TASK-OPS-301/` e `/docs/evidence/TASK-OPS-302/`.
-- Evidências de rotações e auditorias devem ser anexadas em `/docs/evidence/TASK-OPS-301/` com checklist preenchido.
-- Alterações em `.sops.yaml` requerem aprovação da equipe de segurança.
+- [Plano de Ação — Próximos Passos](../../next-steps-activation.md)
+- [Runbook de Auditoria Operacional](auditoria-operacional.md)
+- [Playbook de Incidentes de Segredos](secrets-incident-playbook.md)
+- [`scripts/ops_controls.py`](../../../scripts/ops_controls.py)

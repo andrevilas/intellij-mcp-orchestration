@@ -27,10 +27,10 @@
 
 ## Operações seguras (OPS-302)
 
-1. Execute `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` antes de solicitar revisão quando houver alterações em segredos, workflows ou runbooks.
-2. Verifique o job **ops_compliance** na CI — ele depende de `security` e bloqueia `lint`/`test`/`smoke` quando permissões de workflows ou evidências obrigatórias estão ausentes.
-3. Siga o [Runbook de Resposta a Incidentes de Segredos](ops/runbooks/secrets-incident-playbook.md) para rotação controlada, coleta de evidências e validação de acesso mínimo.
-4. Armazene relatórios (`gitleaks`, `ops-controls-report.json`) em `/docs/evidence/TASK-OPS-301/` e `/docs/evidence/TASK-OPS-302/` conforme apropriado, atualizando os checklists correspondentes.
+1. Consulte os runbooks dedicados em `docs/ops/runbooks/` antes de qualquer alteração: [Gestão de Segredos](ops/runbooks/secret-management.md), [Auditoria Operacional](ops/runbooks/auditoria-operacional.md) e [Resposta a Incidentes](ops/runbooks/secrets-incident-playbook.md).
+2. Execute `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` e valide o resultado antes de solicitar revisão quando houver mudanças em segredos, workflows ou runbooks.
+3. Garanta que o job **ops_compliance** na CI (dependente do job `security`) permaneça verde; ele bloqueia `lint`/`test`/`smoke` quando permissões de workflows ou evidências obrigatórias falham.
+4. Atualize `/docs/evidence/TASK-OPS-302/README.md` e `runbooks-activation.md` com os checklists, relatórios (`gitleaks`, `ops-controls-report.json`) e links de PR, mantendo as evidências rastreáveis para auditoria.
 
 ## Uso do Config Assistant
 

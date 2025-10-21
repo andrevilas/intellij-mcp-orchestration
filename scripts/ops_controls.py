@@ -123,23 +123,83 @@ def _check_workflows() -> Tuple[bool, List[dict]]:
 
 
 def _check_runbook_sections() -> Tuple[bool, List[str]]:
-    runbook_path = REPO_ROOT / "docs" / "ops" / "runbooks" / "secrets-incident-playbook.md"
-    if not runbook_path.exists():
-        return False, ["Runbook docs/ops/runbooks/secrets-incident-playbook.md ausente"]
+    """Validate that OPS runbooks contain the expected sections."""
 
-    content = runbook_path.read_text(encoding="utf-8")
-    required_sections = ["## Rotação", "## Auditoria", "## Acesso mínimo"]
-    missing = [section for section in required_sections if section not in content]
+    runbook_dir = REPO_ROOT / "docs" / "ops" / "runbooks"
+    requirements = {
+        runbook_dir / "secret-management.md": [
+            "## Rotação programada",
+            "## Validação pós-rotação",
+        ],
+        runbook_dir / "secrets-incident-playbook.md": [
+            "## Rotação",
+            "## Auditoria",
+            "## Acesso mínimo",
+            "## Resposta a incidentes",
+        ],
+        runbook_dir / "auditoria-operacional.md": [
+            "## Checklist OPS-302",
+            "## Rotina semanal",
+        ],
+    }
+
+    missing: List[str] = []
+    for path, sections in requirements.items():
+        if not path.exists():
+            missing.append(f"{path.relative_to(REPO_ROOT)} ausente")
+            continue
+
+        content = path.read_text(encoding="utf-8")
+        for section in sections:
+            if section not in content:
+                missing.append(
+                    f"{path.relative_to(REPO_ROOT)} sem seção {section}"
+                )
+
     return (len(missing) == 0, missing)
 
 
 def _check_evidence() -> Tuple[bool, List[str]]:
+    """Ensure OPS evidence artifacts and checklists are present and filled."""
+
+    base_301 = REPO_ROOT / "docs" / "evidence" / "TASK-OPS-301"
+    base_302 = REPO_ROOT / "docs" / "evidence" / "TASK-OPS-302"
+
     requirements = [
-        REPO_ROOT / "docs" / "evidence" / "TASK-OPS-301" / "README.md",
-        REPO_ROOT / "docs" / "evidence" / "TASK-OPS-301" / "ci-updates.md",
-        REPO_ROOT / "docs" / "evidence" / "TASK-OPS-302" / "README.md",
+        base_301 / "README.md",
+        base_301 / "ci-updates.md",
+        base_302 / "README.md",
+        base_302 / "ops-controls-report.json",
+        base_302 / "runbooks-activation.md",
     ]
-    missing = [str(path.relative_to(REPO_ROOT)) for path in requirements if not path.exists()]
+
+    missing = [
+        str(path.relative_to(REPO_ROOT))
+        for path in requirements
+        if not path.exists()
+    ]
+
+    checklist_expectations = {
+        "Runbooks finais": re.compile(
+            r"- \[x\] Runbooks finais publicados .*",
+            re.IGNORECASE,
+        ),
+        "Pipelines com gates": re.compile(
+            r"- \[x\] Pipelines atualizadas com secret scanning e ops_compliance",
+            re.IGNORECASE,
+        ),
+        "Evidências registradas": re.compile(
+            r"- \[x\] Evidências registradas em /docs/evidence/TASK-OPS-302",
+            re.IGNORECASE,
+        ),
+    }
+
+    if (base_302 / "README.md").exists():
+        readme_content = (base_302 / "README.md").read_text(encoding="utf-8")
+        for label, pattern in checklist_expectations.items():
+            if not pattern.search(readme_content):
+                missing.append(f"Checklist '{label}' não marcado em docs/evidence/TASK-OPS-302/README.md")
+
     return (len(missing) == 0, missing)
 
 
@@ -175,7 +235,7 @@ def build_report() -> Tuple[dict, bool]:
         workflow_findings,
     )
     add_check(
-        "Incident runbook sections present",
+        "OPS runbooks atualizados",
         runbook_ok,
         missing_sections,
     )
