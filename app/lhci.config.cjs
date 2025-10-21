@@ -15,6 +15,8 @@ module.exports = {
           deviceScaleFactor: 1,
           disabled: false,
         },
+        throttlingMethod: 'provided',
+        disableStorageReset: true,
       },
     },
     assert: {

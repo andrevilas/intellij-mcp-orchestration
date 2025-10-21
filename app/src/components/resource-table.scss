@@ -317,23 +317,21 @@ tr[data-clickable='true']:hover {
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .resource-table {
-    --resource-table-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
-    --resource-table-border: color-mix(in srgb, var(--mcp-border-strong) 55%, transparent 45%);
-    --resource-table-heading: var(--mcp-surface-contrast);
-    --resource-table-description: var(--mcp-text-muted);
-  }
+[data-theme='dark'] .resource-table {
+  --resource-table-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
+  --resource-table-border: color-mix(in srgb, var(--mcp-border-strong) 55%, transparent 45%);
+  --resource-table-heading: var(--mcp-surface-contrast);
+  --resource-table-description: var(--mcp-text-muted);
+}
 
-  .resource-table__error {
-    background: color-mix(in srgb, var(--mcp-danger-soft) 65%, transparent 35%);
-  }
+[data-theme='dark'] .resource-table__error {
+  background: color-mix(in srgb, var(--mcp-danger-soft) 65%, transparent 35%);
+}
 
-  .resource-table__empty-card {
-    background: color-mix(in srgb, var(--mcp-surface-subtle) 65%, transparent 35%);
-  }
+[data-theme='dark'] .resource-table__empty-card {
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 65%, transparent 35%);
+}
 
-  .resource-table__empty-illustration {
-    background: color-mix(in srgb, var(--mcp-info-soft) 55%, transparent 45%);
-  }
+[data-theme='dark'] .resource-table__empty-illustration {
+  background: color-mix(in srgb, var(--mcp-info-soft) 55%, transparent 45%);
 }
