@@ -145,8 +145,8 @@ describe('Observability page', () => {
       expect(scoped.getByText(/Nenhum provider configurado\./)).toBeInTheDocument();
     }
 
-    expect(screen.getByLabelText('Latência média por provedor')).toBeInTheDocument();
-    expect(screen.getByLabelText('Distribuição de sucesso por provedor')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Latência média por provedor')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Distribuição de sucesso por provedor')).toBeInTheDocument();
   });
 
   it('permite alternar para a aba de tracing e exibe tabela agregada', async () => {
@@ -197,9 +197,9 @@ describe('Observability page', () => {
         'Nenhum provider configurado. Cadastre chaves em “Chaves” ou importe do marketplace para iniciar o monitoramento.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Sem execuções registradas na janela selecionada.')).toBeInTheDocument();
+    expect(await screen.findByText('Sem execuções registradas na janela selecionada.')).toBeInTheDocument();
     expect(
-      screen.getByText('Cadastre provedores e gere tráfego para visualizar distribuição.'),
+      await screen.findByText('Cadastre provedores e gere tráfego para visualizar distribuição.'),
     ).toBeInTheDocument();
     expect(
       screen.getByText(

@@ -10,9 +10,9 @@
     "preview": "vite preview",
     "test": "vitest --run",
     "report:bundle": "node ./scripts/report-bundle.mjs",
-    "build:bundle-report": "pnpm run build && pnpm run report:bundle",
-    "analyze:bundle": "ANALYZE_BUNDLE=1 pnpm run build",
-    "lighthouse:ci": "lhci autorun --config=./lhci.config.cjs"
+    "build:bundle-report": "node ./scripts/run-performance-build.mjs",
+    "analyze:bundle": "pnpm run build:bundle-report",
+    "lighthouse:ci": "node ./scripts/run-lighthouse-ci.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.5.2",
@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@lhci/cli": "^0.14.0",
+    "@puppeteer/browsers": "^2.10.12",
     "@testing-library/jest-dom": "^6.4.5",
     "@testing-library/react": "^14.2.1",
     "@testing-library/user-event": "^14.5.2",

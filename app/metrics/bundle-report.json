@@ -1,27 +1,27 @@
 {
-  "generatedAt": "2025-10-21T16:25:47.011Z",
+  "generatedAt": "2025-10-21T17:34:12.553Z",
   "distDir": "dist",
   "totals": {
-    "size": 1526802,
-    "gzip": 420196
+    "size": 1531272,
+    "gzip": 422296
   },
   "assets": [
     {
-      "file": "assets/view-dashboard-C8No4K5R.js",
-      "size": 584174,
-      "gzip": 165369,
+      "file": "assets/view-finops-DvA7jXX1.js",
+      "size": 628002,
+      "gzip": 175220,
       "type": "js"
     },
     {
-      "file": "assets/view-flows-BmSeinFN.js",
-      "size": 148895,
-      "gzip": 47348,
+      "file": "assets/view-flows-CCtNvh-X.js",
+      "size": 148929,
+      "gzip": 47357,
       "type": "js"
     },
     {
-      "file": "assets/view-ui-kit-BWw-6HuX.js",
-      "size": 132286,
-      "gzip": 42154,
+      "file": "assets/view-ui-kit-B9Iob9Dx.js",
+      "size": 132325,
+      "gzip": 42174,
       "type": "js"
     },
     {
@@ -31,15 +31,9 @@
       "type": "js"
     },
     {
-      "file": "assets/view-finops-6tfEncE6.js",
-      "size": 68217,
-      "gzip": 18126,
-      "type": "js"
-    },
-    {
-      "file": "assets/index-lbjnnxvc.js",
-      "size": 65361,
-      "gzip": 20384,
+      "file": "assets/index-CR5d5Nza.js",
+      "size": 64382,
+      "gzip": 19952,
       "type": "js"
     },
     {
@@ -49,9 +43,9 @@
       "type": "js"
     },
     {
-      "file": "assets/view-security-DhFYeC0G.js",
+      "file": "assets/view-security-CVFWyXGQ.js",
       "size": 43544,
-      "gzip": 12240,
+      "gzip": 12237,
       "type": "js"
     },
     {
@@ -67,15 +61,15 @@
       "type": "css"
     },
     {
-      "file": "assets/view-policies-CBZZfmPQ.js",
+      "file": "assets/view-policies-D32rq-WX.js",
       "size": 33235,
       "gzip": 9586,
       "type": "js"
     },
     {
-      "file": "assets/view-routing-CCwUXKmU.js",
+      "file": "assets/view-routing-Hq7UrqLw.js",
       "size": 32264,
-      "gzip": 8758,
+      "gzip": 8759,
       "type": "js"
     },
     {
@@ -85,7 +79,7 @@
       "type": "css"
     },
     {
-      "file": "assets/view-servers-wlq5mUqT.js",
+      "file": "assets/view-servers-D9_BPT-H.js",
       "size": 24774,
       "gzip": 6954,
       "type": "js"
@@ -97,9 +91,15 @@
       "type": "css"
     },
     {
-      "file": "assets/view-observability-BDm53UhB.js",
-      "size": 21289,
-      "gzip": 6559,
+      "file": "assets/view-dashboard-BLRXrCZB.js",
+      "size": 23165,
+      "gzip": 8015,
+      "type": "js"
+    },
+    {
+      "file": "assets/view-observability-BfZ1AZbm.js",
+      "size": 20565,
+      "gzip": 6417,
       "type": "js"
     },
     {
@@ -151,9 +151,21 @@
       "type": "js"
     },
     {
+      "file": "assets/visual-sections-B0WUHwH-.js",
+      "size": 4798,
+      "gzip": 1928,
+      "type": "js"
+    },
+    {
+      "file": "assets/metrics-visuals-Cjje5QyW.js",
+      "size": 2526,
+      "gzip": 976,
+      "type": "js"
+    },
+    {
       "file": "index.html",
       "size": 2182,
-      "gzip": 719,
+      "gzip": 722,
       "type": "html"
     },
     {
