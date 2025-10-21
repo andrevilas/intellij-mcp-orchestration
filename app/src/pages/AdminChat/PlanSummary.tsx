@@ -12,6 +12,7 @@ interface PlanSummaryProps {
   plan: AdminPlanSummary | null;
   isLoading: boolean;
   actions?: ReactNode;
+  testId?: string;
 }
 
 const STATUS_LABELS: Record<AdminPlanStatus, string> = {
@@ -126,7 +127,7 @@ function collectReviewers(plan: AdminPlanSummary | null): AdminPlanReviewer[] {
   return unique;
 }
 
-export default function PlanSummary({ plan, isLoading, actions }: PlanSummaryProps) {
+export default function PlanSummary({ plan, isLoading, actions, testId }: PlanSummaryProps) {
   const reviewers = collectReviewers(plan);
   const prStateLabel = plan?.pullRequest
     ? formatStatus(plan.pullRequest.state, PR_STATE_LABELS)
@@ -140,7 +141,12 @@ export default function PlanSummary({ plan, isLoading, actions }: PlanSummaryPro
     plan && (branchName || plan?.baseBranch || plan.pullRequest || reviewers.length > 0 || ciResults.length > 0),
   );
   return (
-    <section className="plan-summary" aria-busy={isLoading} aria-live="polite">
+    <section
+      className="plan-summary"
+      aria-busy={isLoading}
+      aria-live="polite"
+      data-testid={testId}
+    >
       <header className="plan-summary__header">
         <div>
           <h2 className="plan-summary__title">Plano de configuração</h2>

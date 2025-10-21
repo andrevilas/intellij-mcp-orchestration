@@ -19,6 +19,7 @@ export interface KpiCardProps {
   action?: ReactNode;
   onRetry?: () => void;
   footer?: ReactNode;
+  testId?: string;
 }
 
 const TREND_SYMBOL: Record<Trend, string> = {
@@ -45,6 +46,7 @@ export function KpiCard({
   action,
   onRetry,
   footer,
+  testId,
 }: KpiCardProps) {
   const headingId = `${label.replace(/\s+/g, '-').toLowerCase()}-kpi`; // deterministic id
   const message = status !== 'default' ? statusMessage ?? STATUS_LABEL[status] : undefined;
@@ -55,6 +57,7 @@ export function KpiCard({
       aria-labelledby={headingId}
       aria-busy={status === 'loading'}
       aria-live={status === 'loading' ? 'polite' : 'off'}
+      data-testid={testId}
     >
       <header className="kpi-card__header">
         <span id={headingId} className="kpi-card__label">
