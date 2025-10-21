@@ -21,13 +21,13 @@ module.exports = {
     },
     assert: {
       assertions: {
-        'categories:performance': ['warn', { minScore: 0.9 }],
-        'categories:best-practices': ['warn', { minScore: 0.9 }],
+        'categories:performance': ['error', { minScore: 0.9 }],
+        'categories:best-practices': ['error', { minScore: 0.9 }],
       },
     },
     upload: {
       target: 'filesystem',
-      outputDir: 'metrics/lighthouse',
+      outputDir: '../docs/evidence/TASK-UI-OBS-082/lighthouse',
     },
   },
 };
