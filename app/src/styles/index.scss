@@ -1,6 +1,3 @@
-@use 'sass:map';
-@use 'bootstrap/scss/bootstrap' as *;
-
 :root {
   /* Superfícies & bordas */
   --mcp-surface: #ffffff;
@@ -204,57 +201,4 @@ body {
   color: var(--mcp-surface-contrast);
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   min-height: 100vh;
-}
-
-.theme-switch .btn {
-  min-width: 6.5rem;
-}
-
-.theme-switch .btn.active {
-  background-color: var(--mcp-interactive);
-  border-color: var(--mcp-interactive);
-  color: var(--mcp-action-primary-fg);
-}
-
-.theme-switch .btn:focus-visible {
-  outline: 3px solid var(--mcp-focus-ring);
-  outline-offset: 2px;
-}
-
-.breadcrumb-link {
-  color: var(--mcp-interactive);
-  text-decoration: none;
-}
-
-.breadcrumb-link:hover,
-.breadcrumb-link:focus {
-  text-decoration: underline;
-}
-
-.breadcrumb-item.active .breadcrumb-text {
-  color: var(--mcp-surface-contrast);
-  font-weight: 600;
-}
-
-.breadcrumb {
-  --bs-breadcrumb-divider-color: var(--mcp-border-subtle);
-}
-
-.pagination .page-link {
-  color: var(--mcp-interactive);
-}
-
-.pagination .page-link:focus-visible {
-  outline: 3px solid var(--mcp-focus-ring);
-  outline-offset: 2px;
-}
-
-.pagination .page-item.active .page-link {
-  background-color: var(--mcp-interactive);
-  border-color: var(--mcp-interactive);
-  color: var(--mcp-action-primary-fg);
-}
-
-.pagination .page-item.disabled .page-link {
-  color: color-mix(in srgb, var(--mcp-interactive) 65%, transparent);
 }
