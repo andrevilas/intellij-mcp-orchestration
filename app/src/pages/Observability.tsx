@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react';
 
 import './Observability.scss';
 
@@ -28,6 +26,23 @@ import {
 } from '../api';
 import KpiCard from '../components/KpiCard';
 import PlanSummary from './AdminChat/PlanSummary';
+import { formatCurrency, formatLatency, formatPercent, numberFormatter } from './observability/formatters';
+
+let observabilityChartsPromise:
+  | Promise<typeof import('./observability/metrics-visuals')>
+  | null = null;
+
+const loadObservabilityCharts = () => {
+  if (!observabilityChartsPromise) {
+    observabilityChartsPromise = import('./observability/metrics-visuals');
+  }
+  return observabilityChartsPromise;
+};
+
+const ObservabilityCharts = lazy(async () => {
+  const module = await loadObservabilityCharts();
+  return { default: module.ObservabilityCharts };
+});
 
 export interface ObservabilityProps {
   providers: ProviderSummary[];
@@ -38,7 +53,7 @@ export interface ObservabilityProps {
 
 type TabId = 'metrics' | 'tracing' | 'evals';
 
-interface TraceRow {
+export interface TraceRow {
   id: string;
   providerName: string;
   runCount: number;
@@ -67,23 +82,6 @@ const TABS: { id: TabId; label: string; description: string }[] = [
       'Dispare batteries de avaliações orientadas a providers para validar qualidade, custo e latência.',
   },
 ];
-
-const currencyFormatter = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-  maximumFractionDigits: 2,
-});
-
-const percentFormatter = new Intl.NumberFormat('pt-BR', {
-  style: 'percent',
-  maximumFractionDigits: 1,
-});
-
-const latencyFormatter = new Intl.NumberFormat('pt-BR', {
-  maximumFractionDigits: 0,
-});
-
-const numberFormatter = new Intl.NumberFormat('pt-BR');
 
 type PreferenceKey = 'tracing' | 'metrics' | 'evals';
 
@@ -308,27 +306,6 @@ function extractApiErrorMessage(error: ApiError, fallback: string): string {
     // Ignore JSON parse failures and fallback to raw body
   }
   return error.body || fallback;
-}
-
-function formatLatency(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return 'Sem dados';
-  }
-  return `${latencyFormatter.format(value)} ms`;
-}
-
-function formatPercent(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return 'Sem dados';
-  }
-  return percentFormatter.format(value);
-}
-
-function formatCurrency(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return currencyFormatter.format(0);
-  }
-  return currencyFormatter.format(value);
 }
 
 export default function Observability({
@@ -913,81 +890,32 @@ export default function Observability({
           />
         </div>
 
-        <article className="observability__chart" aria-label="Latência média por provedor">
-          <header>
-            <h3>Latência média por provedor</h3>
-            <p>Compare a latência das execuções para identificar outliers rapidamente.</p>
-          </header>
-          <div className="observability__chart-canvas">
-            {traceRows.length === 0 ? (
-              <p>Sem execuções registradas na janela selecionada.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={traceRows} margin={{ top: 16, right: 24, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5f5" />
-                  <XAxis dataKey="providerName" tick={{ fill: '#475569' }} />
-                  <YAxis tick={{ fill: '#475569' }} tickFormatter={(value) => `${value} ms`} />
-                  <Tooltip
-                    formatter={(value: number | string) => {
-                      const numericValue = typeof value === 'number' ? value : Number(value);
-                      return `${latencyFormatter.format(numericValue)} ms`;
-                    }}
-                    labelFormatter={(label: string) => `Provedor: ${label}`}
-                  />
-                  <Area type="monotone" dataKey="avgLatency" stroke="#4338ca" fill="#818cf8" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </article>
-
-        <article className="observability__chart" aria-label="Distribuição de sucesso por provedor">
-          <header>
-            <h3>Distribuição de sucesso por provedor</h3>
-            <p>Relacione volume de execuções, sucesso e custo médio.</p>
-          </header>
-          <div className="observability__chart-canvas">
-            {traceRows.length === 0 ? (
-              <p>Cadastre provedores e gere tráfego para visualizar distribuição.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={traceRows} margin={{ top: 16, right: 24, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="providerName" tick={{ fill: '#475569' }} />
-                  <YAxis
-                    yAxisId="success"
-                    orientation="left"
-                    tickFormatter={(value) => `${value}%`}
-                    tick={{ fill: '#475569' }}
-                  />
-                  <YAxis
-                    yAxisId="cost"
-                    orientation="right"
-                    tickFormatter={(value) => currencyFormatter.format(Number(value))}
-                    tick={{ fill: '#475569' }}
-                  />
-                  <Tooltip
-                    formatter={(value: number | string, _name, item) => {
-                      const numericValue = typeof value === 'number' ? value : Number(value);
-                      if (item && 'dataKey' in item && item.dataKey === 'successRateDisplay') {
-                        return percentFormatter.format(numericValue / 100);
-                      }
-                      return currencyFormatter.format(numericValue);
-                    }}
-                    labelFormatter={(label: string) => `Provedor: ${label}`}
-                  />
-                  <Bar
-                    yAxisId="success"
-                    dataKey="successRateDisplay"
-                    fill="#10b981"
-                    name="Taxa de sucesso"
-                  />
-                  <Bar yAxisId="cost" dataKey="costUsd" fill="#f97316" name="Custo (BRL)" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </article>
+        <Suspense
+          fallback={
+            <>
+              <article className="observability__chart" role="status" aria-live="polite">
+                <header>
+                  <h3>Latência média por provedor</h3>
+                  <p>Compare a latência das execuções para identificar outliers rapidamente.</p>
+                </header>
+                <div className="observability__chart-canvas">
+                  <p>Carregando gráficos de métricas…</p>
+                </div>
+              </article>
+              <article className="observability__chart" role="status" aria-live="polite">
+                <header>
+                  <h3>Distribuição de sucesso por provedor</h3>
+                  <p>Relacione volume de execuções, sucesso e custo médio.</p>
+                </header>
+                <div className="observability__chart-canvas">
+                  <p>Carregando gráficos de métricas…</p>
+                </div>
+              </article>
+            </>
+          }
+        >
+          <ObservabilityCharts traceRows={traceRows} />
+        </Suspense>
       </section>
 
       <section

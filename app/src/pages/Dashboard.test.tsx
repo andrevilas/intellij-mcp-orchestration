@@ -43,7 +43,7 @@ describe('Dashboard telemetry overview', () => {
     },
   ];
 
-  it('renders KPIs and alerts using telemetry metrics', () => {
+  it('renders KPIs and alerts using telemetry metrics', async () => {
     render(
       <ThemeProvider>
         <ToastProvider>
@@ -122,12 +122,17 @@ describe('Dashboard telemetry overview', () => {
     expect(screen.getByText('930 ms')).toBeInTheDocument();
     expect(screen.getByText('Taxa de erro')).toBeInTheDocument();
     expect(screen.getByText('12%')).toBeInTheDocument();
+
+    await screen.findByTestId('dashboard-cost-breakdown');
+    await screen.findByTestId('dashboard-error-breakdown');
+    await screen.findByTestId('dashboard-heatmap');
+
     expect(screen.queryByText('Sem execuções registradas nos últimos 7 dias.')).not.toBeInTheDocument();
     expect(screen.queryByText('Sem custos computados na janela selecionada.')).not.toBeInTheDocument();
     expect(screen.queryByText('Nenhum erro categorizado na janela analisada.')).not.toBeInTheDocument();
   });
 
-  it('shows fallback states when telemetry data is missing', () => {
+  it('shows fallback states when telemetry data is missing', async () => {
     render(
       <ThemeProvider>
         <ToastProvider>
@@ -149,6 +154,11 @@ describe('Dashboard telemetry overview', () => {
     expect(screen.getByText(/R\$\s0,00/)).toBeInTheDocument();
     expect(screen.getByText('Nenhum alerta crítico detectado nas últimas 24h.')).toBeInTheDocument();
     expect(screen.getByText('Cadastre provedores para visualizar o uso agregado.')).toBeInTheDocument();
+
+    await screen.findByTestId('dashboard-cost-breakdown');
+    await screen.findByTestId('dashboard-error-breakdown');
+    await screen.findByTestId('dashboard-heatmap');
+
     const insightsRegion = screen.getByRole('region', { name: 'Indicadores complementares de telemetria' });
     expect(within(insightsRegion).getAllByText('Sem dados')).toHaveLength(4);
     expect(screen.getByText('Sem custos computados na janela selecionada.')).toBeInTheDocument();

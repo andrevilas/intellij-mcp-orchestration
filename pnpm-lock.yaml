@@ -44,6 +44,9 @@ importers:
       '@lhci/cli':
         specifier: ^0.14.0
         version: 0.14.0
+      '@puppeteer/browsers':
+        specifier: ^2.10.12
+        version: 2.10.12
       '@testing-library/jest-dom':
         specifier: ^6.4.5
         version: 6.9.1
@@ -623,6 +626,11 @@ packages:
 
   '@playwright/test@1.56.0':
     resolution: {integrity: sha512-Tzh95Twig7hUwwNe381/K3PggZBZblKUe2wv25oIpzWLr6Z0m4KgV1ZVIjnR6GM9ANEqjZD7XsZEa6JL/7YEgg==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  '@puppeteer/browsers@2.10.12':
+    resolution: {integrity: sha512-mP9iLFZwH+FapKJLeA7/fLqOlSUwYpMwjR1P5J23qd4e7qGJwecJccJqHYrjw33jmIZYV4dtiTHPD/J+1e7cEw==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -4236,6 +4244,21 @@ snapshots:
   '@playwright/test@1.56.0':
     dependencies:
       playwright: 1.56.0
+
+  '@puppeteer/browsers@2.10.12':
+    dependencies:
+      debug: 4.4.3
+      extract-zip: 2.0.1
+      progress: 2.0.3
+      proxy-agent: 6.5.0
+      semver: 7.7.3
+      tar-fs: 3.1.1
+      yargs: 17.7.2
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
 
   '@puppeteer/browsers@2.3.0':
     dependencies:

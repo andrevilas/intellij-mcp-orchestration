@@ -1,20 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import {
-  ResponsiveContainer,
-  ScatterChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ZAxis,
-  Scatter,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  Legend,
-} from 'recharts';
+import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useState } from 'react';
 
 import './Dashboard.scss';
 
@@ -29,6 +13,33 @@ import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
 import Pagination from '../components/navigation/Pagination';
 import { useToastNotification } from '../hooks/useToastNotification';
+import {
+  LATENCY_FORMATTER,
+  currencyFormatter,
+  numberFormatter,
+  percentFormatter,
+} from './dashboard/formatters';
+
+let dashboardVisualSectionsPromise:
+  | Promise<typeof import('./dashboard/visual-sections')>
+  | null = null;
+
+const loadDashboardVisualSections = () => {
+  if (!dashboardVisualSectionsPromise) {
+    dashboardVisualSectionsPromise = import('./dashboard/visual-sections');
+  }
+  return dashboardVisualSectionsPromise;
+};
+
+const DashboardInsightVisuals = lazy(async () => {
+  const module = await loadDashboardVisualSections();
+  return { default: module.DashboardInsightVisuals };
+});
+
+const DashboardHeatmap = lazy(async () => {
+  const module = await loadDashboardVisualSections();
+  return { default: module.DashboardHeatmap };
+});
 
 export interface DashboardProps {
   providers: ProviderSummary[];
@@ -45,13 +56,13 @@ export interface DashboardProps {
 
 const SESSION_PAGE_SIZE = 6;
 
-interface HeatmapPoint {
+export interface HeatmapPoint {
   day: string;
   provider: string;
   value: number;
 }
 
-interface DerivedDashboardData {
+export interface DerivedDashboardData {
   cost24h: number;
   tokensTotal: number;
   latencyAvg: number;
@@ -75,26 +86,7 @@ interface DerivedDashboardData {
   totalErrorCount: number;
 }
 
-const currencyFormatter = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-  maximumFractionDigits: 2,
-});
-
-const numberFormatter = new Intl.NumberFormat('pt-BR');
-
-const percentFormatter = new Intl.NumberFormat('pt-BR', {
-  maximumFractionDigits: 1,
-  minimumFractionDigits: 0,
-});
-
-const LATENCY_FORMATTER = new Intl.NumberFormat('pt-BR', {
-  maximumFractionDigits: 0,
-});
-
 const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
-const INSIGHT_COLORS = ['#2563eb', '#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#06b6d4', '#f43f5e'];
 
 function normalizeDateToLocalDay(date: Date): string {
   return DAY_NAMES[date.getDay()];
@@ -280,53 +272,6 @@ function deriveDashboardData(
     totalCostBreakdown,
     errorBreakdown,
     totalErrorCount,
-  };
-}
-
-function formatHeatmapTooltip(value: number, _name: string | number, entry?: { payload?: HeatmapPoint }): string {
-  const payload = entry?.payload;
-  if (!payload) {
-    return `${value} execução(ões)`;
-  }
-  return `${payload.provider} — ${payload.day}: ${value} execução(ões)`;
-}
-
-function getHeatmapColor(value: number, max: number): string {
-  if (max === 0) {
-    return 'var(--heatmap-neutral)';
-  }
-  const intensity = value / max;
-  if (intensity === 0) {
-    return 'var(--heatmap-neutral)';
-  }
-  const start = { r: 24, g: 90, b: 157 };
-  const end = { r: 122, g: 216, b: 162 };
-  const r = Math.round(start.r + (end.r - start.r) * intensity);
-  const g = Math.round(start.g + (end.g - start.g) * intensity);
-  const b = Math.round(start.b + (end.b - start.b) * intensity);
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-function formatCostTooltip(value: number, name: string | number): [string, string] {
-  const label = typeof name === 'string' ? name : String(name);
-  return [currencyFormatter.format(value), label];
-}
-
-function formatErrorTooltip(value: number, name: string | number): [string, string] {
-  const label = typeof name === 'string' ? name : String(name);
-  return [`${numberFormatter.format(value)} falha(s)`, label];
-}
-
-function createHeatSquareRenderer(max: number) {
-  return (props: unknown) => {
-    const { cx, cy, payload } = props as { cx?: number; cy?: number; payload?: HeatmapPoint };
-    if (typeof cx !== 'number' || typeof cy !== 'number' || !payload) {
-      return <g />;
-    }
-    const size = 36;
-    const x = cx - size / 2;
-    const y = cy - size / 2;
-    return <rect x={x} y={y} width={size} height={size} rx={8} fill={getHeatmapColor(payload.value, max)} />;
   };
 }
 
@@ -643,93 +588,23 @@ export function Dashboard({
             </article>
           ))}
         </div>
-        <div className="dashboard__insight-visuals">
-          <figure
-            className="insight-chart"
-            aria-labelledby={costChartTitleId}
-            aria-describedby={costChartDescriptionId}
-            data-testid="dashboard-cost-breakdown"
-          >
-            <div className="insight-chart__header">
-              <h3 id={costChartTitleId}>Distribuição de custo por rota</h3>
-              <p>Participação relativa por lane/rota nas últimas 24h.</p>
+        <Suspense
+          fallback={
+            <div className="dashboard__insight-visuals">
+              <p className="info" role="status" aria-live="polite">
+                Carregando visualizações…
+              </p>
             </div>
-            <div
-              className="insight-chart__canvas"
-              role="img"
-              aria-labelledby={`${costChartTitleId} ${costChartDescriptionId}`}
-            >
-              {derived.costBreakdown.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Tooltip formatter={(value, name) => formatCostTooltip(value as number, name)} />
-                    <Pie
-                      data={derived.costBreakdown}
-                      dataKey="cost"
-                      nameKey="label"
-                      innerRadius={60}
-                      outerRadius={110}
-                      paddingAngle={4}
-                    >
-                      {derived.costBreakdown.map((entry, index) => (
-                        <Cell key={entry.label} fill={INSIGHT_COLORS[index % INSIGHT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Legend
-                      formatter={(value: string) => {
-                        const entry = derived.costBreakdown.find((item) => item.label === value);
-                        const percent = entry ? percentFormatter.format(entry.percent) : undefined;
-                        return percent ? `${value} — ${percent}%` : value;
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="info">Sem custos computados na janela selecionada.</p>
-              )}
-            </div>
-            <figcaption id={costChartDescriptionId} className="visually-hidden">
-              {derived.costBreakdown.length > 0
-                ? `Distribuição percentual de custo entre ${derived.costBreakdown.length} rota(s).`
-                : 'Sem dados de custo disponíveis para calcular a distribuição.'}
-            </figcaption>
-          </figure>
-          <figure
-            className="insight-chart"
-            aria-labelledby={errorChartTitleId}
-            aria-describedby={errorChartDescriptionId}
-            data-testid="dashboard-error-breakdown"
-          >
-            <div className="insight-chart__header">
-              <h3 id={errorChartTitleId}>Ocorrências de erro por categoria</h3>
-              <p>Principais motivos de falha registrados.</p>
-            </div>
-            <div
-              className="insight-chart__canvas"
-              role="img"
-              aria-labelledby={`${errorChartTitleId} ${errorChartDescriptionId}`}
-            >
-              {derived.errorBreakdown.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={derived.errorBreakdown} margin={{ top: 8, right: 16, left: 0, bottom: 16 }}>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis dataKey="category" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(value, name) => formatErrorTooltip(value as number, name)} />
-                    <Bar dataKey="count" name="Falhas" radius={[8, 8, 0, 0]} fill="#f97316" />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="info">Nenhum erro categorizado na janela analisada.</p>
-              )}
-            </div>
-            <figcaption id={errorChartDescriptionId} className="visually-hidden">
-              {derived.errorBreakdown.length > 0
-                ? `Total de ${numberFormatter.format(derived.totalErrorCount)} falhas distribuídas em ${derived.errorBreakdown.length} categoria(s).`
-                : 'Sem dados categorizados de falhas disponíveis.'}
-            </figcaption>
-          </figure>
-        </div>
+          }
+        >
+          <DashboardInsightVisuals
+            derived={derived}
+            costChartTitleId={costChartTitleId}
+            costChartDescriptionId={costChartDescriptionId}
+            errorChartTitleId={errorChartTitleId}
+            errorChartDescriptionId={errorChartDescriptionId}
+          />
+        </Suspense>
       </section>
 
       <section
@@ -751,33 +626,23 @@ export function Dashboard({
         </ul>
       </section>
 
-      <section className="dashboard__heatmap" data-testid="dashboard-heatmap">
-        <header>
-          <h2>Uso por modelo · últimos 7 dias</h2>
-          <p>Heatmap baseado na distribuição diária de execuções.</p>
-        </header>
-        <div className="heatmap__container">
-          {derived.heatmapProviderCount === 0 ? (
-            <p className="info">Cadastre provedores para visualizar o uso agregado.</p>
-          ) : derived.heatmap.every((entry) => entry.value === 0) ? (
-            <p className="info">Sem execuções registradas nos últimos 7 dias.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <ScatterChart margin={{ top: 16, right: 16, bottom: 24, left: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="category" dataKey="day" />
-                <YAxis type="category" dataKey="provider" width={140} />
-                <ZAxis type="number" dataKey="value" range={[0, derived.maxHeatmapValue || 1]} />
-                <Tooltip
-                  cursor={{ fill: 'rgba(17, 24, 39, 0.06)' }}
-                  formatter={(value, name, entry) => formatHeatmapTooltip(value as number, name, entry)}
-                />
-                <Scatter data={derived.heatmap} shape={createHeatSquareRenderer(derived.maxHeatmapValue)} />
-              </ScatterChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </section>
+      <Suspense
+        fallback={
+          <section className="dashboard__heatmap" data-testid="dashboard-heatmap">
+            <header>
+              <h2>Uso por modelo · últimos 7 dias</h2>
+              <p>Heatmap baseado na distribuição diária de execuções.</p>
+            </header>
+            <div className="heatmap__container">
+              <p className="info" role="status" aria-live="polite">
+                Carregando mapa de calor…
+              </p>
+            </div>
+          </section>
+        }
+      >
+        <DashboardHeatmap derived={derived} />
+      </Suspense>
 
       <section className="providers" data-testid="dashboard-providers">
         <header className="section-header">
