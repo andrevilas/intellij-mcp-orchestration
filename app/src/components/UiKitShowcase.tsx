@@ -25,6 +25,7 @@ import {
   TextArea,
 } from './forms';
 import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../hooks/useMcpForm';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 
 import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' with { type: 'json' };
 import serversFixture from '#fixtures/servers.json' with { type: 'json' };
@@ -164,6 +165,21 @@ export default function UiKitShowcase(): JSX.Element {
   const [detailScenario, setDetailScenario] = useState<ScenarioState>('success');
   const formMethods = useMcpForm<FormDemoValues>({ defaultValues: { ...FORM_DEFAULT_VALUES } });
   const [lastFormSubmission, setLastFormSubmission] = useState<string | null>(null);
+
+  const telemetryRequestMessages = useMemo(() => describeFixtureRequest('telemetria de custo'), []);
+  const telemetryLoadingMessage = telemetryRequestMessages.loading;
+  const telemetryErrorMessage = telemetryRequestMessages.error;
+
+  const serverRequestMessages = useMemo(
+    () =>
+      describeFixtureRequest('informações dos servidores MCP', {
+        action: 'Sincronizando',
+        errorPrefix: 'sincronizar',
+      }),
+    [],
+  );
+  const serverLoadingMessage = serverRequestMessages.loading;
+  const serverErrorMessage = serverRequestMessages.error;
 
   const dropdownOptions = useMemo(
     () => [
@@ -340,7 +356,7 @@ export default function UiKitShowcase(): JSX.Element {
 
   const tableItems =
     tableScenario === 'success' || tableScenario === 'loading' ? displayedServers : [];
-  const tableError = tableScenario === 'error' ? 'Falha ao sincronizar com fixture de servidores.' : null;
+  const tableError = tableScenario === 'error' ? serverErrorMessage : null;
   const tableIsLoading = tableScenario === 'loading';
 
   const geminiChecks = healthChecks.gemini ?? [];
@@ -596,9 +612,9 @@ export default function UiKitShowcase(): JSX.Element {
             icon={<FontAwesomeIcon icon="gauge-high" fixedWidth aria-hidden="true" />}
             status={kpiStatus}
             statusMessages={{
-              loading: 'Sincronizando métricas do fixture…',
+              loading: telemetryLoadingMessage,
               empty: 'Fixture sem movimentação nesta sprint.',
-              error: 'Não foi possível ler telemetry_metrics.json.',
+              error: telemetryErrorMessage,
             }}
             action={
               kpiStatus === 'empty' ? (
@@ -629,15 +645,11 @@ export default function UiKitShowcase(): JSX.Element {
             description="Dados de tests/fixtures/backend/telemetry_metrics.json"
             tone="success"
             status={kpiStatus}
-            statusLabel={
-              kpiStatus === 'loading'
-                ? 'Sincronizando indicador de sucesso…'
-                : kpiStatus === 'empty'
-                  ? 'Sem execuções registradas nesta janela.'
-                  : kpiStatus === 'error'
-                    ? 'Falha ao ler telemetry_metrics.json.'
-                    : undefined
-            }
+            statusMessages={{
+              loading: telemetryLoadingMessage,
+              empty: 'Sem execuções registradas nesta janela.',
+              error: telemetryErrorMessage,
+            }}
             action={
               kpiStatus === 'error' ? (
                 <Button size="sm" variant="outline" onClick={handleKpiRetry}>
@@ -652,21 +664,18 @@ export default function UiKitShowcase(): JSX.Element {
             description={`${telemetryMetrics.total_tokens_out.toLocaleString('pt-BR')} tokens emitidos nesta sprint.`}
             tone={tokensRatio > 80 ? 'warning' : 'info'}
             status={kpiStatus}
-            statusLabel={
-              kpiStatus === 'loading'
-                ? 'Comparando volume de tokens…'
-                : kpiStatus === 'empty'
-                  ? 'Aguardando emissões para calcular a taxa.'
-                  : kpiStatus === 'error'
-                    ? 'Não foi possível consolidar tokens do fixture.'
-                    : undefined
-            }
+            statusMessages={{
+              loading: telemetryLoadingMessage,
+              empty: 'Aguardando emissões para calcular a taxa.',
+              error: telemetryErrorMessage,
+            }}
           />
         </div>
         </div>
         <p className="ui-kit-showcase__note">
-          KPIs e badges utilizam tokens MCP para manter contraste em ambos os temas e cobrem estados <code>loading</code>,
-          <code>empty</code> e <code>error</code> com CTA acessível.
+          KPIs e badges utilizam tokens MCP para manter contraste em ambos os temas, reaproveitando{' '}
+          <code>describeFixtureRequest</code> para exibir mensagens de <code>loading</code> e <code>error</code> iguais às telas
+          reais, além de cobrir CTA acessível.
         </p>
       </div>
 
@@ -740,6 +749,11 @@ export default function UiKitShowcase(): JSX.Element {
             ),
             illustration: <FontAwesomeIcon icon="server" fixedWidth aria-hidden="true" />,
           }}
+          statusMessages={{
+            loading: serverLoadingMessage,
+            empty: 'Nenhum servidor provisionado no momento.',
+            error: serverErrorMessage,
+          }}
           onRetry={tableError ? handleTableRetry : undefined}
           defaultSort={{ columnId: 'name' }}
           onSortChange={({ columnId, direction }) =>
@@ -783,7 +797,9 @@ export default function UiKitShowcase(): JSX.Element {
           }
         />
         <p className="ui-kit-showcase__note">
-          A tabela utiliza <code>aria-describedby</code>, foco visível em linhas clicáveis e ordenação com feedback discreto.
+          A tabela utiliza <code>aria-describedby</code>, foco visível em linhas clicáveis, ordenação com feedback discreto e
+          mensagens de <code>loading</code>/<code>error</code> derivadas de{' '}
+          <code>describeFixtureRequest</code>.
         </p>
       </div>
 
@@ -810,9 +826,11 @@ export default function UiKitShowcase(): JSX.Element {
           ariaLabel="Detalhes do servidor Gemini"
           items={detailItems}
           status={detailStatus}
-          statusMessages={
-            detailScenario === 'error' ? { error: 'Fixture de health-check indisponível.' } : undefined
-          }
+          statusMessages={{
+            loading: serverLoadingMessage,
+            empty: 'Selecione um servidor para visualizar métricas simuladas.',
+            error: serverErrorMessage,
+          }}
           emptyState={detailEmptyState}
           onRetry={detailScenario === 'error' ? handleDetailRetry : undefined}
           actions={
@@ -835,7 +853,8 @@ export default function UiKitShowcase(): JSX.Element {
           footer="Sincronizado em tempo real via fixtures compartilhadas."
         />
         <p className="ui-kit-showcase__note">
-          Cartões de detalhe compartilham tokens MCP e mantêm CTA acessível, refletindo estados negativos para validação de QA.
+          Cartões de detalhe compartilham tokens MCP, reaproveitam{' '}
+          <code>describeFixtureRequest</code> para mensagens de status e mantêm CTA acessível para cenários de QA.
         </p>
       </div>
 

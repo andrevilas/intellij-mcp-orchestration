@@ -1,10 +1,11 @@
 .ui-kit-showcase {
   display: grid;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  border: 1px dashed var(--mcp-border-strong);
+  gap: 1.75rem;
+  padding: 1.75rem;
   border-radius: 1.5rem;
-  background: linear-gradient(180deg, rgba(67, 56, 202, 0.05), transparent);
+  border: 1px solid var(--mcp-border-subtle);
+  background: color-mix(in srgb, var(--mcp-surface-elevated) 88%, transparent 12%);
+  box-shadow: var(--mcp-shadow-soft);
   margin-top: 2rem;
 }
 
@@ -21,17 +22,17 @@
 
 .ui-kit-showcase__snippets {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .ui-kit-showcase__snippet {
   display: grid;
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: 0.9rem;
+  padding: 1.2rem;
   border-radius: 1rem;
-  border: 1px solid var(--mcp-border-subtle);
-  background: color-mix(in srgb, var(--mcp-surface) 85%, transparent 15%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mcp-border-muted) 65%, transparent 35%);
+  border: 1px solid var(--mcp-border-muted);
+  background: color-mix(in srgb, var(--mcp-surface) 94%, transparent 6%);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--mcp-overlay-soft) 45%, transparent 55%);
 }
 
 .ui-kit-showcase__snippet-header {
@@ -77,10 +78,10 @@
 
 .ui-kit-showcase__snippet pre {
   margin: 0;
-  padding: 0.85rem;
+  padding: 1rem;
   border-radius: 0.85rem;
-  background: color-mix(in srgb, var(--mcp-surface-subtle) 90%, transparent 10%);
-  border: 1px solid var(--mcp-border-muted);
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
+  border: 1px solid var(--mcp-border-subtle);
   overflow-x: auto;
   font-size: 0.85rem;
 }
@@ -88,7 +89,7 @@
 .ui-kit-showcase__snippet code {
   font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;
-  color: var(--mcp-surface-contrast);
+  color: var(--mcp-text-secondary);
 }
 
 .ui-kit-showcase__group {
@@ -107,7 +108,7 @@
 .ui-kit-showcase__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .ui-kit-showcase__row--wrap {
@@ -127,6 +128,8 @@
   display: flex;
   justify-content: flex-start;
   align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .ui-kit-showcase__column {
@@ -136,12 +139,12 @@
 
 .ui-kit-showcase__column--wide {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
 .ui-kit-showcase__kpi-grid {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.5rem;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   align-items: start;
 }
@@ -165,23 +168,24 @@
 .ui-kit-showcase__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 1rem;
   align-items: flex-end;
 }
 
 .ui-kit-showcase__field {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.45rem;
   font-size: 0.95rem;
 }
 
 .ui-kit-showcase__field input,
 .ui-kit-showcase__field select {
-  border: 1px solid var(--mcp-border-strong);
+  border: 1px solid var(--mcp-border-subtle);
   border-radius: 0.75rem;
-  padding: 0.55rem 0.75rem;
-  background-color: var(--mcp-surface-subtle);
+  padding: 0.6rem 0.85rem;
+  background-color: var(--mcp-surface);
   color: var(--mcp-surface-contrast);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--mcp-overlay-soft) 35%, transparent 65%);
 }
 
 .ui-kit-showcase__field input:focus-visible,
@@ -193,10 +197,6 @@
   font-size: 0.85rem;
   color: var(--mcp-text-subtle);
   margin: 0;
-}
-
-.ui-kit-showcase__note strong {
-  color: var(--mcp-surface-contrast);
 }
 
 .ui-kit-showcase__form {
