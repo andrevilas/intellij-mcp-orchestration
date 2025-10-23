@@ -9,7 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest --run",
-    "lint": "eslint --ext .ts,.tsx src",
+    "lint": "eslint src",
     "report:bundle": "node ./scripts/report-bundle.mjs",
     "build:bundle-report": "node ./scripts/run-performance-build.mjs",
     "analyze:bundle": "pnpm run build:bundle-report",
@@ -42,6 +42,7 @@
     "sass": "^1.77.5",
     "eslint": "^8.57.1",
     "@typescript-eslint/parser": "^8.46.2",
+    "globals": "^15.9.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
     "vitest": "^1.6.0"
