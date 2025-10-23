@@ -14,6 +14,9 @@
     "build": "bash scripts/build-local.sh",
     "package:electron": "bash scripts/package-electron.sh"
   },
+  "devDependencies": {
+    "@typescript-eslint/parser": "^8.46.2"
+  },
   "engines": {
     "node": ">=18.18.0",
     "pnpm": ">=10.5.2"
