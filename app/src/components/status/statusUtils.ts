@@ -1,5 +1,7 @@
 export type AsyncContentStatus = 'default' | 'loading' | 'empty' | 'error';
 
+export type StatusMessageOverrides = Partial<Record<AsyncContentStatus, string>>;
+
 export interface StatusA11yAttributes {
   readonly message: string;
   readonly role: 'status' | 'alert';

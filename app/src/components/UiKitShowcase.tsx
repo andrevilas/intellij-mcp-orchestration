@@ -595,15 +595,11 @@ export default function UiKitShowcase(): JSX.Element {
             trendLabel={`${formattedSuccessRate}% de sucesso`}
             icon={<FontAwesomeIcon icon="gauge-high" fixedWidth aria-hidden="true" />}
             status={kpiStatus}
-            statusMessage={
-              kpiStatus === 'empty'
-                ? 'Fixture sem movimentação nesta sprint.'
-                : kpiStatus === 'error'
-                  ? 'Não foi possível ler telemetry_metrics.json.'
-                  : kpiStatus === 'loading'
-                    ? 'Sincronizando métricas do fixture…'
-                    : undefined
-            }
+            statusMessages={{
+              loading: 'Sincronizando métricas do fixture…',
+              empty: 'Fixture sem movimentação nesta sprint.',
+              error: 'Não foi possível ler telemetry_metrics.json.',
+            }}
             action={
               kpiStatus === 'empty' ? (
                 <Button size="sm" variant="outline" onClick={() => setKpiScenario('success')}>
@@ -814,7 +810,9 @@ export default function UiKitShowcase(): JSX.Element {
           ariaLabel="Detalhes do servidor Gemini"
           items={detailItems}
           status={detailStatus}
-          error={detailScenario === 'error' ? 'Fixture de health-check indisponível.' : null}
+          statusMessages={
+            detailScenario === 'error' ? { error: 'Fixture de health-check indisponível.' } : undefined
+          }
           emptyState={detailEmptyState}
           onRetry={detailScenario === 'error' ? handleDetailRetry : undefined}
           actions={

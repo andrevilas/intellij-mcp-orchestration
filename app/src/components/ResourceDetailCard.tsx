@@ -5,6 +5,7 @@ import {
   isStatusActive,
   resolveStatusMessage,
   type AsyncContentStatus,
+  type StatusMessageOverrides,
 } from './status/statusUtils';
 
 import './resource-detail-card.scss';
@@ -25,13 +26,13 @@ export interface ResourceDetailCardProps {
   ariaLabel: string;
   items: ResourceDetailItem[];
   status?: ResourceDetailStatus;
+  statusMessages?: StatusMessageOverrides;
   emptyState?: {
     title: string;
     description?: string;
     action?: ReactNode;
     illustration?: ReactNode;
   };
-  error?: string | null;
   onRetry?: () => void;
   actions?: ReactNode;
   footer?: ReactNode;
@@ -43,8 +44,8 @@ export default function ResourceDetailCard({
   ariaLabel,
   items,
   status = 'default',
+  statusMessages,
   emptyState,
-  error,
   onRetry,
   actions,
   footer,
@@ -53,9 +54,7 @@ export default function ResourceDetailCard({
   const descriptionId = description ? `${headingId}-description` : undefined;
   const statusMetadata = getStatusMetadata(status);
   const hasStatus = isStatusActive(status);
-  const message = hasStatus
-    ? resolveStatusMessage(status, status === 'error' ? error : undefined)
-    : undefined;
+  const message = hasStatus ? resolveStatusMessage(status, statusMessages?.[status]) : undefined;
 
   return (
     <section
