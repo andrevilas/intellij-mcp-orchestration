@@ -377,6 +377,43 @@ const resetSessionStore = () => {
 };
 const SESSION_TIMESTAMP_START = Date.UTC(2025, 2, 7, 10, 0, 0);
 
+const nextProcessPid = (() => {
+  let seed = 0;
+  return () => {
+    seed += 1;
+    return 3200 + ((seed * 37) % 1200);
+  };
+})();
+
+const latencySamples = [92, 104, 118, 133, 101, 89];
+const nextLatencySample = (() => {
+  let index = 0;
+  return () => {
+    const value = latencySamples[index % latencySamples.length];
+    index += 1;
+    return value;
+  };
+})();
+
+const createDeterministicIdFactory = (prefix: string) => {
+  let counter = 0;
+  return () => {
+    counter += 1;
+    return `${prefix}-${counter.toString(36).padStart(2, '0')}`;
+  };
+};
+
+const nextUserId = createDeterministicIdFactory('user');
+const nextRoleId = createDeterministicIdFactory('role');
+const nextKeyId = createDeterministicIdFactory('key');
+const nextSecretSequence = (() => {
+  let counter = 0;
+  return () => {
+    counter += 1;
+    return counter;
+  };
+})();
+
 const coerceOptionalString = (value: unknown): string | null => {
   if (typeof value !== 'string') {
     return null;
@@ -1332,7 +1369,7 @@ export const handlers = [
       next.last_error = null;
     } else {
       next.status = 'running';
-      next.pid = Math.floor(Math.random() * 2000) + 3000;
+      next.pid = nextProcessPid();
       next.started_at = now;
       next.stopped_at = null;
       next.return_code = null;
@@ -1348,7 +1385,7 @@ export const handlers = [
     const check = {
       status: 'healthy',
       checked_at: nextIsoTimestamp(),
-      latency_ms: Math.round(80 + Math.random() * 60),
+      latency_ms: nextLatencySample(),
       message: 'Ping realizado com sucesso via fixtures.',
       actor: 'fixtures@console',
       plan_id: null,
@@ -2085,7 +2122,7 @@ export const handlers = [
     } catch {
       // ignore
     }
-    const id = `user-${Math.random().toString(36).slice(2, 8)}`;
+    const id = nextUserId();
     const now = nextIsoTimestamp();
     const record: SecurityUserRecord = {
       id,
@@ -2144,7 +2181,7 @@ export const handlers = [
     } catch {
       // ignore
     }
-    const id = `role-${Math.random().toString(36).slice(2, 8)}`;
+    const id = nextRoleId();
     const now = nextIsoTimestamp();
     const record: SecurityRoleRecord = {
       id,
@@ -2200,7 +2237,7 @@ export const handlers = [
     } catch {
       // ignore
     }
-    const id = `key-${Math.random().toString(36).slice(2, 8)}`;
+    const id = nextKeyId();
     const now = nextIsoTimestamp();
     const record: SecurityApiKeyRecord = {
       id,
@@ -2255,7 +2292,7 @@ export const handlers = [
       last_used_at: nextIsoTimestamp(),
     };
     securityApiKeyStore.set(apiKeyId, rotated);
-    return HttpResponse.json({ key: rotated, secret: `secret-${apiKeyId}-${Date.now()}` });
+    return HttpResponse.json({ key: rotated, secret: `secret-${apiKeyId}-${nextSecretSequence()}` });
   }),
   http.delete(`${API_PREFIX}/security/api-keys/:apiKeyId`, ({ params }) => {
     const apiKeyId = params.apiKeyId as string;

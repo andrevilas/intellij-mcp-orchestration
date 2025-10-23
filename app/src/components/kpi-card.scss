@@ -1,9 +1,11 @@
 .kpi-card {
-  --kpi-card-bg: var(--mcp-surface);
-  --kpi-card-border: color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+  --kpi-card-bg: var(--mcp-state-surface-default);
+  --kpi-card-border: var(--mcp-state-border-default);
   --kpi-card-label: var(--mcp-text-muted);
-  --kpi-card-value: var(--mcp-surface-contrast);
+  --kpi-card-value: var(--mcp-state-fg-default);
   --kpi-card-caption: var(--mcp-text-subtle);
+  --kpi-card-status: var(--mcp-state-fg-default);
+  --kpi-card-status-muted: var(--mcp-state-fg-loading);
   --kpi-card-shadow: var(--mcp-shadow-elevated);
   --kpi-card-radius: 1.25rem;
   --kpi-card-padding: 1.5rem;
@@ -18,6 +20,7 @@
   padding: var(--kpi-card-padding);
   min-height: 11rem;
   position: relative;
+  color: var(--kpi-card-value);
 }
 
 .kpi-card__header {
@@ -77,7 +80,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  color: var(--kpi-card-value);
+  color: var(--kpi-card-status);
   padding-block: 0.5rem;
 }
 
@@ -100,7 +103,7 @@
 .kpi-card__status-message {
   margin: 0;
   font-size: 0.95rem;
-  color: var(--kpi-card-caption);
+  color: var(--kpi-card-status-muted);
 }
 
 .kpi-card__retry {
@@ -129,16 +132,30 @@
   color: var(--kpi-card-caption);
 }
 
-.kpi-card--loading {
-  background: color-mix(in srgb, var(--mcp-surface) 94%, transparent 6%);
+.kpi-card[data-status='loading'] {
+  --kpi-card-bg: var(--mcp-state-surface-loading);
+  --kpi-card-border: var(--mcp-state-border-loading);
+  --kpi-card-value: var(--mcp-state-fg-default);
+  --kpi-card-caption: var(--mcp-state-fg-loading);
+  --kpi-card-status: var(--mcp-state-fg-loading);
+  --kpi-card-status-muted: var(--mcp-state-fg-loading);
 }
 
-.kpi-card--empty {
-  background: color-mix(in srgb, var(--mcp-info-soft) 35%, var(--mcp-surface) 65%);
+.kpi-card[data-status='empty'] {
+  --kpi-card-bg: var(--mcp-state-surface-empty);
+  --kpi-card-border: var(--mcp-state-border-empty);
+  --kpi-card-caption: var(--mcp-state-fg-empty);
+  --kpi-card-status: var(--mcp-state-fg-empty);
+  --kpi-card-status-muted: var(--mcp-state-fg-empty);
 }
 
-.kpi-card--error {
-  background: color-mix(in srgb, var(--mcp-danger-soft) 40%, var(--mcp-surface) 60%);
+.kpi-card[data-status='error'] {
+  --kpi-card-bg: var(--mcp-state-surface-error);
+  --kpi-card-border: var(--mcp-state-border-error);
+  --kpi-card-value: var(--mcp-state-fg-error);
+  --kpi-card-caption: var(--mcp-state-fg-error);
+  --kpi-card-status: var(--mcp-state-fg-error);
+  --kpi-card-status-muted: var(--mcp-state-fg-error);
 }
 
 @keyframes kpi-card-loading {
@@ -153,12 +170,13 @@
   }
 }
 
+
 [data-theme='dark'] .kpi-card {
-  --kpi-card-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
-  --kpi-card-border: color-mix(in srgb, var(--mcp-border-strong) 55%, transparent 45%);
   --kpi-card-label: var(--mcp-text-subtle);
   --kpi-card-value: var(--mcp-surface-contrast);
   --kpi-card-caption: var(--mcp-text-muted);
+  --kpi-card-status: var(--mcp-state-fg-default);
+  --kpi-card-status-muted: var(--mcp-state-fg-loading);
 }
 
 [data-theme='dark'] .kpi-card__retry {

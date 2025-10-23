@@ -627,19 +627,46 @@ export default function UiKitShowcase(): JSX.Element {
                 Fila degradada
               </StatusBadge>
             </div>
-            <ProgressIndicator
-              label="Taxa de sucesso"
-              value={Math.round(successRatePercentage)}
-              description="Dados de tests/fixtures/backend/telemetry_metrics.json"
-              tone="success"
-            />
-            <ProgressIndicator
-              label="Tokens de saída"
-              value={tokensRatio}
-              description={`${telemetryMetrics.total_tokens_out.toLocaleString('pt-BR')} tokens emitidos nesta sprint.`}
-              tone={tokensRatio > 80 ? 'warning' : 'info'}
-            />
-          </div>
+          <ProgressIndicator
+            label="Taxa de sucesso"
+            value={Math.round(successRatePercentage)}
+            description="Dados de tests/fixtures/backend/telemetry_metrics.json"
+            tone="success"
+            status={kpiStatus}
+            statusLabel={
+              kpiStatus === 'loading'
+                ? 'Sincronizando indicador de sucesso…'
+                : kpiStatus === 'empty'
+                  ? 'Sem execuções registradas nesta janela.'
+                  : kpiStatus === 'error'
+                    ? 'Falha ao ler telemetry_metrics.json.'
+                    : undefined
+            }
+            action={
+              kpiStatus === 'error' ? (
+                <Button size="sm" variant="outline" onClick={handleKpiRetry}>
+                  Recarregar indicador
+                </Button>
+              ) : undefined
+            }
+          />
+          <ProgressIndicator
+            label="Tokens de saída"
+            value={tokensRatio}
+            description={`${telemetryMetrics.total_tokens_out.toLocaleString('pt-BR')} tokens emitidos nesta sprint.`}
+            tone={tokensRatio > 80 ? 'warning' : 'info'}
+            status={kpiStatus}
+            statusLabel={
+              kpiStatus === 'loading'
+                ? 'Comparando volume de tokens…'
+                : kpiStatus === 'empty'
+                  ? 'Aguardando emissões para calcular a taxa.'
+                  : kpiStatus === 'error'
+                    ? 'Não foi possível consolidar tokens do fixture.'
+                    : undefined
+            }
+          />
+        </div>
         </div>
         <p className="ui-kit-showcase__note">
           KPIs e badges utilizam tokens MCP para manter contraste em ambos os temas e cobrem estados <code>loading</code>,

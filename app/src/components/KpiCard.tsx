@@ -53,7 +53,8 @@ export function KpiCard({
 
   return (
     <article
-      className={clsx('kpi-card', status !== 'default' && `kpi-card--${status}`)}
+      className="kpi-card"
+      data-status={status !== 'default' ? status : undefined}
       aria-labelledby={headingId}
       aria-busy={status === 'loading'}
       aria-live={status === 'loading' ? 'polite' : 'off'}
