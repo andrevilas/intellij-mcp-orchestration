@@ -2,3 +2,8 @@ packages:
   - app
   - desktop
   - tests
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - electron
+  - esbuild
+  - msw

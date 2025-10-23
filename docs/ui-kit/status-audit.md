@@ -17,6 +17,7 @@
 ### Lacunas e oportunidades
 - Mensagens em estados `loading`/`empty` usam `--mcp-state-fg-loading` e `--mcp-state-fg-empty`, que podem ter contraste insuficiente sobre superfícies tonais; validar WCAG com paletas reais.【F:app/src/components/kpi-card.scss†L135-L150】
 - O botão de nova tentativa repete padrão de pill button visto em outras peças; poderia virar utilitário compartilhado (mesmas propriedades em ResourceTable/Detail).【F:app/src/components/kpi-card.scss†L109-L123】【F:app/src/components/resource-table.scss†L95-L108】【F:app/src/components/resource-detail-card.scss†L112-L126】
+- Medições manuais com `scripts/contrast-check.mjs` confirmaram contraste 5.05:1 para o estado `loading`, 9.3:1 para `empty` e 5.46:1 para `error` sobre as superfícies mistas (`color-mix`). O valor de 5.05:1 fica pouco acima da meta AA (4.5:1); monitorar ajustes de cor para evitar regressões.
 
 ## ResourceTable
 
@@ -35,6 +36,7 @@
 - Texto de status usa `--mcp-state-fg-loading/empty/error`, potencialmente pouco contrastante sobre backgrounds misturados (`color-mix` com 75–85% opacidade). Recomenda-se verificar contraste real, principalmente para o card vazio e as listras alternadas da tabela.【F:app/src/components/resource-table.scss†L83-L170】【F:app/src/components/resource-table.scss†L220-L263】
 - Focos, botões pill e padrões de `color-mix` repetem-se em KpiCard e ResourceDetailCard; um módulo utilitário poderia reduzir divergências e facilitar manutenção.【F:app/src/components/resource-table.scss†L95-L209】【F:app/src/components/resource-detail-card.scss†L112-L126】【F:app/src/components/kpi-card.scss†L109-L123】
 - Linhas clicáveis dependem apenas de `color-mix` com `--mcp-interactive-soft`; garantir contraste mínimo com texto (`--mcp-surface-contrast`) quando selecionadas/hover.【F:app/src/components/resource-table.scss†L168-L297】
+- O mesmo relatório de contraste mostrou 6.92:1 para o texto `status-muted loading` em tema claro e 13.58:1 em tema escuro, indicando folga suficiente mesmo com superfícies translúcidas.
 
 ## ResourceDetailCard
 
@@ -65,6 +67,7 @@
 ### Lacunas e oportunidades
 - O tom `neutral` reutiliza `--mcp-text-muted` como cor da barra; sobre a trilha `color-mix` pode gerar contraste baixo (barra e track próximas). Avaliar aumento de contraste ou uso de token específico para neutro.【F:app/src/components/indicators/progress-indicator.scss†L1-L106】
 - `--progress-status-muted` igual a `--mcp-state-fg-loading` em vários estados pode reduzir legibilidade semelhante às demais peças; possível criar escala de status mais contrastante.【F:app/src/components/indicators/progress-indicator.scss†L108-L128】
+- Em medições dark mode, `--mcp-state-fg-loading` atingiu 13.62:1 contra a superfície `loading`, reforçando que os ajustes de tema escuro garantem contraste AA com margem.
 
 ## StatusBadge
 
@@ -83,3 +86,4 @@
 - Consolidar padrões recorrentes (botões pill de retry, containers de status, focus rings) em mixins ou componentes utilitários reduz manutenção duplicada e garante consistência de acessibilidade.【F:app/src/components/kpi-card.scss†L109-L123】【F:app/src/components/resource-table.scss†L95-L209】【F:app/src/components/resource-detail-card.scss†L112-L126】
 - Revisar contrastes reais das cores derivadas de `color-mix` com tokens de overlay/surface; diversos componentes dependem dessas misturas para estado vazio/hover/loading, o que pode cair abaixo de 4.5:1 dependendo da base.【F:app/src/components/kpi-card.scss†L87-L158】【F:app/src/components/resource-table.scss†L119-L333】【F:app/src/components/resource-detail-card.scss†L53-L181】【F:app/src/components/indicators/progress-indicator.scss†L1-L128】【F:app/src/components/indicators/status-badge.scss†L1-L85】
 - Avaliar criação de uma escala de `--mcp-state-fg-*` com níveis "muted" e "strong" para mensagens secundárias; atualmente múltiplos estados reutilizam `--mcp-state-fg-loading/empty/error`, o que pode limitar contraste e hierarquia visual.【F:app/src/components/kpi-card.scss†L135-L158】【F:app/src/components/resource-table.scss†L312-L333】【F:app/src/components/resource-detail-card.scss†L161-L181】【F:app/src/components/indicators/progress-indicator.scss†L108-L128】
+- Publicar o relatório de contraste (`node scripts/contrast-check.mjs`) ao lado do relatório axe garante rastreabilidade das verificações manuais sem depender do DevTools. Os resultados atuais estão anexados em `docs/evidence/TASK-UI-DATA-030/` junto ao JSON do Axe.
