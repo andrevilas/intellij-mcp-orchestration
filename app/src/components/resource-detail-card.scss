@@ -1,11 +1,23 @@
+@use '../styles/components/status-block' as status;
+
+@include status.status-theme(
+  '.resource-detail-card',
+  (
+    'detail-card-bg': surface,
+    'detail-card-border': border,
+    'detail-card-heading': text,
+    'detail-card-description': muted,
+    'detail-card-status': text,
+    'detail-card-status-muted': muted,
+    'detail-card-status-icon': icon,
+  )
+);
+
+@include status.status-surface('.resource-detail-card', 'detail-card-bg', 'detail-card-border');
+@include status.status-icon-color('.resource-detail-card__spinner', 'detail-card-status-icon');
+
 .resource-detail-card {
-  --detail-card-bg: var(--mcp-state-surface-default);
-  --detail-card-border: var(--mcp-state-border-default);
   --detail-card-shadow: var(--mcp-shadow-elevated);
-  --detail-card-heading: var(--mcp-state-fg-default);
-  --detail-card-description: var(--mcp-text-subtle);
-  --detail-card-status: var(--mcp-state-fg-default);
-  --detail-card-status-muted: var(--mcp-state-fg-loading);
   border-radius: 1.25rem;
   border: 1px solid var(--detail-card-border);
   background: var(--detail-card-bg);
@@ -103,8 +115,8 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 3px solid color-mix(in srgb, var(--mcp-info-soft) 75%, transparent 25%);
-  border-top-color: var(--mcp-info-strong);
+  border: 3px solid color-mix(in srgb, var(--detail-card-status-icon) 65%, transparent 35%);
+  border-top-color: var(--detail-card-status-icon);
   animation: resource-detail-card-spin 0.9s linear infinite;
   justify-self: flex-start;
 }
@@ -112,9 +124,9 @@
 .resource-detail-card__retry {
   justify-self: flex-start;
   border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--mcp-danger-strong) 55%, transparent 45%);
-  background: color-mix(in srgb, var(--mcp-danger-soft) 45%, transparent 55%);
-  color: var(--mcp-danger-strong);
+  border: 1px solid color-mix(in srgb, var(--detail-card-status-icon) 55%, transparent 45%);
+  background: color-mix(in srgb, var(--detail-card-status-icon) 18%, transparent 82%);
+  color: var(--detail-card-status-icon);
   padding: 0.45rem 1.1rem;
   font-weight: 600;
   cursor: pointer;
@@ -149,36 +161,14 @@
   display: grid;
   place-items: center;
   font-size: 1.35rem;
-  background: color-mix(in srgb, var(--mcp-info-soft) 45%, transparent 55%);
+  background: color-mix(in srgb, var(--detail-card-status-icon) 22%, transparent 78%);
+  color: var(--detail-card-status-icon);
 }
 
 .resource-detail-card__footer {
   margin-top: 0.5rem;
   color: var(--detail-card-description);
   font-size: 0.9rem;
-}
-
-.resource-detail-card[data-status='loading'] {
-  --detail-card-bg: var(--mcp-state-surface-loading);
-  --detail-card-border: var(--mcp-state-border-loading);
-  --detail-card-status: var(--mcp-state-fg-loading);
-  --detail-card-status-muted: var(--mcp-state-fg-loading);
-}
-
-.resource-detail-card[data-status='empty'] {
-  --detail-card-bg: var(--mcp-state-surface-empty);
-  --detail-card-border: var(--mcp-state-border-empty);
-  --detail-card-status: var(--mcp-state-fg-empty);
-  --detail-card-status-muted: var(--mcp-state-fg-empty);
-}
-
-.resource-detail-card[data-status='error'] {
-  --detail-card-bg: var(--mcp-state-surface-error);
-  --detail-card-border: var(--mcp-state-border-error);
-  --detail-card-heading: var(--mcp-state-fg-error);
-  --detail-card-description: var(--mcp-state-fg-error);
-  --detail-card-status: var(--mcp-state-fg-error);
-  --detail-card-status-muted: var(--mcp-state-fg-error);
 }
 
 @keyframes resource-detail-card-spin {
@@ -191,10 +181,10 @@
 }
 
 [data-theme='dark'] .resource-detail-card {
-  --detail-card-heading: var(--mcp-surface-contrast);
-  --detail-card-description: var(--mcp-text-muted);
-  --detail-card-status: var(--mcp-state-fg-default);
-  --detail-card-status-muted: var(--mcp-state-fg-loading);
+  --detail-card-heading: var(--mcp-status-fg-default);
+  --detail-card-description: var(--mcp-status-muted-default);
+  --detail-card-status: var(--mcp-status-fg-default);
+  --detail-card-status-muted: var(--mcp-status-muted-loading);
 }
 
 [data-theme='dark'] .resource-detail-card__item {
@@ -206,5 +196,5 @@
 }
 
 [data-theme='dark'] .resource-detail-card__empty-illustration {
-  background: color-mix(in srgb, var(--mcp-info-soft) 65%, transparent 35%);
+  background: color-mix(in srgb, var(--detail-card-status-icon) 32%, transparent 68%);
 }

@@ -1,11 +1,23 @@
+@use '../styles/components/status-block' as status;
+
+@include status.status-theme(
+  '.kpi-card',
+  (
+    'kpi-card-bg': surface,
+    'kpi-card-border': border,
+    'kpi-card-label': muted,
+    'kpi-card-value': text,
+    'kpi-card-caption': muted,
+    'kpi-card-status': text,
+    'kpi-card-status-muted': muted,
+    'kpi-card-icon': icon,
+  )
+);
+
+@include status.status-surface('.kpi-card', 'kpi-card-bg', 'kpi-card-border');
+@include status.status-icon-color('.kpi-card__icon', 'kpi-card-icon');
+
 .kpi-card {
-  --kpi-card-bg: var(--mcp-state-surface-default);
-  --kpi-card-border: var(--mcp-state-border-default);
-  --kpi-card-label: var(--mcp-text-muted);
-  --kpi-card-value: var(--mcp-state-fg-default);
-  --kpi-card-caption: var(--mcp-text-subtle);
-  --kpi-card-status: var(--mcp-state-fg-default);
-  --kpi-card-status-muted: var(--mcp-state-fg-loading);
   --kpi-card-shadow: var(--mcp-shadow-elevated);
   --kpi-card-radius: 1.25rem;
   --kpi-card-padding: 1.5rem;
@@ -53,7 +65,6 @@
 
 .kpi-card__icon {
   font-size: 1.5rem;
-  color: var(--kpi-card-value);
 }
 
 .kpi-card__trend {
@@ -132,32 +143,6 @@
   color: var(--kpi-card-caption);
 }
 
-.kpi-card[data-status='loading'] {
-  --kpi-card-bg: var(--mcp-state-surface-loading);
-  --kpi-card-border: var(--mcp-state-border-loading);
-  --kpi-card-value: var(--mcp-state-fg-default);
-  --kpi-card-caption: var(--mcp-state-fg-loading);
-  --kpi-card-status: var(--mcp-state-fg-loading);
-  --kpi-card-status-muted: var(--mcp-state-fg-loading);
-}
-
-.kpi-card[data-status='empty'] {
-  --kpi-card-bg: var(--mcp-state-surface-empty);
-  --kpi-card-border: var(--mcp-state-border-empty);
-  --kpi-card-caption: var(--mcp-state-fg-empty);
-  --kpi-card-status: var(--mcp-state-fg-empty);
-  --kpi-card-status-muted: var(--mcp-state-fg-empty);
-}
-
-.kpi-card[data-status='error'] {
-  --kpi-card-bg: var(--mcp-state-surface-error);
-  --kpi-card-border: var(--mcp-state-border-error);
-  --kpi-card-value: var(--mcp-state-fg-error);
-  --kpi-card-caption: var(--mcp-state-fg-error);
-  --kpi-card-status: var(--mcp-state-fg-error);
-  --kpi-card-status-muted: var(--mcp-state-fg-error);
-}
-
 @keyframes kpi-card-loading {
   0% {
     background-position: 0% 50%;
@@ -172,11 +157,12 @@
 
 
 [data-theme='dark'] .kpi-card {
-  --kpi-card-label: var(--mcp-text-subtle);
-  --kpi-card-value: var(--mcp-surface-contrast);
-  --kpi-card-caption: var(--mcp-text-muted);
-  --kpi-card-status: var(--mcp-state-fg-default);
-  --kpi-card-status-muted: var(--mcp-state-fg-loading);
+  --kpi-card-label: var(--mcp-status-muted-default);
+  --kpi-card-value: var(--mcp-status-fg-default);
+  --kpi-card-caption: var(--mcp-status-muted-default);
+  --kpi-card-status: var(--mcp-status-fg-default);
+  --kpi-card-status-muted: var(--mcp-status-muted-loading);
+  --kpi-card-icon: var(--mcp-status-icon-default);
 }
 
 [data-theme='dark'] .kpi-card__retry {
