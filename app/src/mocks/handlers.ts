@@ -37,6 +37,11 @@ import telemetryMarketplaceFixture from '#fixtures/telemetry_marketplace.json' w
 import providersFixture from '#fixtures/providers.json' with { type: 'json' };
 import smokeEndpointsFixture from '#fixtures/smoke_endpoints.json' with { type: 'json' };
 import agentsFixture from '#fixtures/agents.json' with { type: 'json' };
+import securityUsersFixture from '#fixtures/security_users.json' with { type: 'json' };
+import securityRolesFixture from '#fixtures/security_roles.json' with { type: 'json' };
+import securityApiKeysFixture from '#fixtures/security_api_keys.json' with { type: 'json' };
+import securityAuditTrailFixture from '#fixtures/security_audit_trail.json' with { type: 'json' };
+import securityAuditLogsFixture from '#fixtures/security_audit_logs.json' with { type: 'json' };
 
 const API_PREFIX = '*/api/v1';
 
@@ -722,28 +727,7 @@ interface SecurityUserRecord {
   mfa_enabled: boolean;
 }
 
-const securityUserFixtures: SecurityUserRecord[] = [
-  {
-    id: 'user-ops',
-    name: 'Ops Admin',
-    email: 'ops@example.com',
-    roles: ['approver'],
-    status: 'active',
-    created_at: '2025-02-20T12:00:00Z',
-    last_seen_at: '2025-03-07T09:30:00Z',
-    mfa_enabled: true,
-  },
-  {
-    id: 'user-analyst',
-    name: 'Security Analyst',
-    email: 'security@example.com',
-    roles: ['viewer'],
-    status: 'active',
-    created_at: '2025-02-18T11:00:00Z',
-    last_seen_at: null,
-    mfa_enabled: false,
-  },
-];
+const securityUserFixtures = (securityUsersFixture as { users: SecurityUserRecord[] }).users;
 
 const securityUserStore = new Map<string, SecurityUserRecord>();
 
@@ -767,26 +751,7 @@ interface SecurityRoleRecord {
   updated_at: string;
 }
 
-const securityRoleFixtures: SecurityRoleRecord[] = [
-  {
-    id: 'approver',
-    name: 'Approver',
-    description: 'Pode aprovar planos governados.',
-    permissions: ['config.plan.approve', 'policies.hitl.review'],
-    members: 2,
-    created_at: '2025-02-15T10:00:00Z',
-    updated_at: '2025-03-02T08:00:00Z',
-  },
-  {
-    id: 'viewer',
-    name: 'Viewer',
-    description: 'Acesso somente leitura às superfícies.',
-    permissions: ['dashboard.view'],
-    members: 4,
-    created_at: '2025-01-20T12:30:00Z',
-    updated_at: '2025-02-01T07:45:00Z',
-  },
-];
+const securityRoleFixtures = (securityRolesFixture as { roles: SecurityRoleRecord[] }).roles;
 
 const securityRoleStore = new Map<string, SecurityRoleRecord>();
 
@@ -812,19 +777,7 @@ interface SecurityApiKeyRecord {
   token_preview: string | null;
 }
 
-const securityApiKeyFixtures: SecurityApiKeyRecord[] = [
-  {
-    id: 'key-admin',
-    name: 'Admin automation',
-    owner: 'Ops Admin',
-    scopes: ['mcp:invoke', 'mcp:manage'],
-    status: 'active',
-    created_at: '2025-01-12T09:00:00Z',
-    last_used_at: '2025-03-06T18:30:00Z',
-    expires_at: null,
-    token_preview: 'adm***',
-  },
-];
+const securityApiKeyFixtures = (securityApiKeysFixture as { keys: SecurityApiKeyRecord[] }).keys;
 
 const securityApiKeyStore = new Map<string, SecurityApiKeyRecord>();
 
@@ -840,58 +793,37 @@ const listSecurityApiKeys = (): SecurityApiKeyRecord[] =>
 
 type AuditTrailStore = Map<string, Array<Record<string, unknown>>>;
 
-const securityAuditTrailFixtures: Array<[string, Array<Record<string, unknown>>]> = [
-  [
-    'user:user-ops',
-    [
-      {
-        id: 'audit-user-1',
-        timestamp: '2025-03-05T09:15:00Z',
-        actor: 'ops@example.com',
-        action: 'role.assigned',
-        target: 'user-ops',
-        description: 'Atribuiu role approver via fixtures.',
-        metadata: { actor: 'fixture' },
-      },
-    ],
-  ],
-];
+type AuditTrailFixtureMap = Record<string, Array<Record<string, unknown>>>;
+
+const securityAuditTrailFixtures = (
+  securityAuditTrailFixture as { events: AuditTrailFixtureMap }
+).events;
 
 const securityAuditTrailStore: AuditTrailStore = new Map();
 
 const resetSecurityAuditTrailStore = () => {
   securityAuditTrailStore.clear();
-  for (const [key, events] of securityAuditTrailFixtures) {
+  for (const [key, events] of Object.entries(securityAuditTrailFixtures)) {
     securityAuditTrailStore.set(key, createResponse(events));
   }
 };
 
-const auditLogEntries = [
-  {
-    id: 'audit-log-1',
-    created_at: '2025-03-06T11:00:00Z',
-    actor_id: 'user-ops',
-    actor_name: 'Ops Admin',
-    actor_roles: ['approver'],
-    action: 'config.plan',
-    resource: '/config/plan',
-    status: 'success',
-    plan_id: 'finops-plan-fixture',
-    metadata: { branch: 'chore/finops-plan-fixtures' },
-  },
-  {
-    id: 'audit-log-2',
-    created_at: '2025-03-06T12:30:00Z',
-    actor_id: 'system',
-    actor_name: 'System',
-    actor_roles: ['viewer'],
-    action: 'security.users.list',
-    resource: '/security/users',
-    status: 'success',
-    plan_id: null,
-    metadata: { count: 2 },
-  },
-];
+interface SecurityAuditLogRecord {
+  id: string;
+  created_at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_roles: string[];
+  action: string;
+  resource: string;
+  status: string;
+  plan_id: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+const securityAuditLogFixtures = (
+  securityAuditLogsFixture as { events: SecurityAuditLogRecord[] }
+).events;
 
 const configChatThreads = new Map<string, Array<Record<string, unknown>>>();
 
@@ -2339,15 +2271,45 @@ export const handlers = [
   }),
   http.get(`${API_PREFIX}/audit/logs`, ({ request }) => {
     const url = new URL(request.url);
-    const page = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
-    const pageSize = Number.parseInt(url.searchParams.get('page_size') ?? '25', 10);
-    const events = createResponse(auditLogEntries);
+    const page = Math.max(Number.parseInt(url.searchParams.get('page') ?? '1', 10), 1);
+    const pageSize = Math.max(Number.parseInt(url.searchParams.get('page_size') ?? '25', 10), 1);
+    const actorQuery = (url.searchParams.get('actor') ?? '').trim().toLowerCase();
+    const actionQuery = (url.searchParams.get('action') ?? '').trim();
+    const startFilter = url.searchParams.get('start');
+    const endFilter = url.searchParams.get('end');
+
+    let events = createResponse(securityAuditLogFixtures).sort((a, b) =>
+      a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0,
+    );
+
+    if (actorQuery) {
+      events = events.filter((entry) => {
+        const composite = `${entry.actor_name ?? ''} ${entry.actor_id ?? ''}`.toLowerCase();
+        return composite.includes(actorQuery);
+      });
+    }
+    if (actionQuery) {
+      events = events.filter((entry) => entry.action.includes(actionQuery));
+    }
+    if (startFilter) {
+      events = events.filter((entry) => entry.created_at >= startFilter);
+    }
+    if (endFilter) {
+      events = events.filter((entry) => entry.created_at <= endFilter);
+    }
+
+    const total = events.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    const safePage = totalPages === 0 ? 1 : Math.min(page, totalPages);
+    const offset = total === 0 ? 0 : (safePage - 1) * pageSize;
+    const pageItems = total === 0 ? [] : events.slice(offset, offset + pageSize);
+
     return HttpResponse.json({
-      events,
-      page,
+      events: pageItems,
+      page: safePage,
       page_size: pageSize,
-      total: events.length,
-      total_pages: 1,
+      total,
+      total_pages: totalPages,
     });
   }),
   http.get(`${API_PREFIX}/marketplace`, () =>

@@ -1,4 +1,7 @@
 import { fetchFromApi, fetchFromAgents, getApiBaseUrl } from './services/httpClient';
+import { isFixtureModeEnabled } from './utils/fixtureStatus';
+
+export { getFixtureStatus, isFixtureModeEnabled as isFixturesEnabled, describeFixtureRequest } from './utils/fixtureStatus';
 
 export type BudgetPeriod = 'daily' | 'weekly' | 'monthly';
 export type RoutingTierId = 'economy' | 'balanced' | 'turbo';
@@ -1790,10 +1793,16 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetchFromApi(path, init);
-
-  if (!response) {
-    throw new Error('Empty response from fetch');
+  let response: Response;
+  try {
+    response = await fetchFromApi(path, init);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+    const message = isFixtureModeEnabled()
+      ? 'Falha ao consultar dados das fixtures locais.'
+      : 'Falha ao executar requisição contra a API do Console MCP.';
+    console.error('Falha ao buscar %s: %s', path, detail);
+    throw new ApiError(message, 0, detail);
   }
 
   if (!response.ok) {
@@ -1814,10 +1823,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function requestAgents<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetchFromAgents(path, init);
-
-  if (!response) {
-    throw new Error('Empty response from fetch');
+  let response: Response;
+  try {
+    response = await fetchFromAgents(path, init);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+    const message = isFixtureModeEnabled()
+      ? 'Falha ao consultar dados das fixtures locais.'
+      : 'Falha ao executar requisição contra o catálogo de agents.';
+    console.error('Falha ao buscar recurso em %s: %s', path, detail);
+    throw new ApiError(message, 0, detail);
   }
 
   if (!response.ok) {

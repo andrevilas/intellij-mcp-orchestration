@@ -1,42 +1,34 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { expect, test } from './fixtures';
-
-type TelemetryMetricsFixture = {
-  total_tokens_in: number;
-  total_tokens_out: number;
-  extended: {
-    cache_hit_rate: number;
-    cached_tokens: number;
-    latency_p95_ms: number;
-    latency_p99_ms: number;
-    error_rate: number;
-    error_breakdown: { category: string; count: number }[];
-  };
-};
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const telemetryMetrics = JSON.parse(
-  readFileSync(resolve(__dirname, '../fixtures/backend/telemetry_metrics.json'), 'utf-8'),
-) as TelemetryMetricsFixture;
-
-const percentFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 0 });
-const numberFormatter = new Intl.NumberFormat('pt-BR');
-
-const cacheHitPercent = `${percentFormatter.format(Math.round(telemetryMetrics.extended.cache_hit_rate * 1000) / 10)}%`;
-const cachedTokensLabel = `${numberFormatter.format(telemetryMetrics.extended.cached_tokens)} tok`;
-const cacheShare = `${percentFormatter.format(
-  (telemetryMetrics.extended.cached_tokens /
-    (telemetryMetrics.total_tokens_in + telemetryMetrics.total_tokens_out)) *
-    100,
-)}%`;
-const latencyP95Label = `${numberFormatter.format(telemetryMetrics.extended.latency_p95_ms)} ms`;
-const latencyP99Label = `${numberFormatter.format(telemetryMetrics.extended.latency_p99_ms)} ms`;
-const errorRatePercent = `${percentFormatter.format(Math.round(telemetryMetrics.extended.error_rate * 1000) / 10)}%`;
-const totalErrors = telemetryMetrics.extended.error_breakdown.reduce((sum, entry) => sum + entry.count, 0);
+import { expect, test, loadBackendFixture } from './fixtures';
 
 test('exibe métricas extendidas no dashboard usando fixtures', async ({ page }) => {
+  const telemetryMetrics = await loadBackendFixture<{
+    total_tokens_in: number;
+    total_tokens_out: number;
+    extended: {
+      cache_hit_rate: number;
+      cached_tokens: number;
+      latency_p95_ms: number;
+      latency_p99_ms: number;
+      error_rate: number;
+      error_breakdown: { category: string; count: number }[];
+    };
+  }>('telemetry_metrics.json');
+
+  const percentFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+  const numberFormatter = new Intl.NumberFormat('pt-BR');
+
+  const cacheHitPercent = `${percentFormatter.format(Math.round(telemetryMetrics.extended.cache_hit_rate * 1000) / 10)}%`;
+  const cachedTokensLabel = `${numberFormatter.format(telemetryMetrics.extended.cached_tokens)} tok`;
+  const cacheShare = `${percentFormatter.format(
+    (telemetryMetrics.extended.cached_tokens /
+      (telemetryMetrics.total_tokens_in + telemetryMetrics.total_tokens_out)) *
+      100,
+  )}%`;
+  const latencyP95Label = `${numberFormatter.format(telemetryMetrics.extended.latency_p95_ms)} ms`;
+  const latencyP99Label = `${numberFormatter.format(telemetryMetrics.extended.latency_p99_ms)} ms`;
+  const errorRatePercent = `${percentFormatter.format(Math.round(telemetryMetrics.extended.error_rate * 1000) / 10)}%`;
+  const totalErrors = telemetryMetrics.extended.error_breakdown.reduce((sum, entry) => sum + entry.count, 0);
+
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: /Dashboard Executivo/ })).toBeVisible();

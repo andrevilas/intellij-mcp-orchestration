@@ -53,6 +53,7 @@ import {
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PlanSummary from './AdminChat/PlanSummary';
 import { useToastNotification } from '../hooks/useToastNotification';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 import { FINOPS_TEST_IDS } from './testIds';
 
 import './FinOps.scss';
@@ -839,6 +840,10 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
 
   const [providerSeriesMap, setProviderSeriesMap] = useState<Record<string, TimeSeriesPoint[]>>({});
   const [isTelemetryLoading, setIsTelemetryLoading] = useState(false);
+  const telemetryMessages = useMemo(
+    () => describeFixtureRequest('telemetria de custo'),
+    [],
+  );
   const [timeseriesError, setTimeseriesError] = useState<string | null>(null);
   const [isTelemetryExporting, setIsTelemetryExporting] = useState(false);
   const [telemetryExportError, setTelemetryExportError] = useState<string | null>(null);
@@ -2435,7 +2440,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
             <h2>Séries temporais</h2>
           </div>
         </header>
-        <p className="finops__state">Carregando telemetria de custo…</p>
+        <p className="finops__state">{telemetryMessages.loading}</p>
       </section>
     );
   }

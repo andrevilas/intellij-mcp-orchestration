@@ -11,6 +11,7 @@ import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
 import Pagination from '../components/navigation/Pagination';
 import { useToastNotification } from '../hooks/useToastNotification';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 import {
   LATENCY_FORMATTER,
   currencyFormatter,
@@ -289,6 +290,10 @@ export function Dashboard({
   onProvision,
 }: DashboardProps) {
   const [currentSessionPage, setCurrentSessionPage] = useState(1);
+  const providerRequestMessages = useMemo(
+    () => describeFixtureRequest('provedores MCP'),
+    [],
+  );
   const derived = useMemo(
     () => deriveDashboardData(providers, metrics, heatmapBuckets),
     [providers, metrics, heatmapBuckets],
@@ -660,7 +665,7 @@ export function Dashboard({
           </div>
         </header>
 
-        {isLoading && <p className="info">Carregando provedores…</p>}
+        {isLoading && <p className="info">{providerRequestMessages.loading}</p>}
         {initialError && <p className="error">{initialError}</p>}
 
         {!isLoading && !initialError && providers.length === 0 && (

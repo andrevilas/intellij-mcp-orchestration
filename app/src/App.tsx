@@ -37,6 +37,7 @@ import { ToastProvider } from './components/feedback/ToastProvider';
 import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import type { AppFixtureSnapshot } from './utils/appFixtures';
 import { createAppFixtureSnapshot } from './utils/appFixtures';
+import { getFixtureStatus } from './utils/fixtureStatus';
 import ThemeSwitch from './theme/ThemeSwitch';
 
 export interface Feedback {
@@ -90,31 +91,6 @@ function persistNotificationReadState(map: Record<string, boolean>): void {
   }
 }
 
-type FixtureStatus = 'ready' | 'error' | 'disabled';
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __CONSOLE_MCP_FIXTURES__: FixtureStatus | undefined;
-}
-
-function resolveInitialFixtureSnapshot(): AppFixtureSnapshot | null {
-  try {
-    if (typeof globalThis === 'undefined') {
-      return null;
-    }
-
-    const status = globalThis.__CONSOLE_MCP_FIXTURES__;
-    if (status !== 'ready') {
-      return null;
-    }
-
-    return createAppFixtureSnapshot();
-  } catch (error) {
-    console.warn('Falha ao construir snapshot de fixtures iniciais', error);
-    return null;
-  }
-}
-
 function buildInitialNotificationState(
   snapshot: AppFixtureSnapshot | null,
 ): { readState: Record<string, boolean>; items: NotificationItem[] } {
@@ -147,8 +123,6 @@ function buildInitialNotificationState(
 
   return { readState: nextState, items };
 }
-
-const INITIAL_FIXTURE_SNAPSHOT = resolveInitialFixtureSnapshot();
 
 function buildFallbackNotifications(): NotificationSummary[] {
   return [
@@ -305,7 +279,18 @@ const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
 };
 
 function App() {
-  const fixtureSnapshot = INITIAL_FIXTURE_SNAPSHOT;
+  const fixtureStatus = getFixtureStatus();
+  const fixtureSnapshot = useMemo(() => {
+    if (fixtureStatus !== 'ready') {
+      return null;
+    }
+    try {
+      return createAppFixtureSnapshot();
+    } catch (error) {
+      console.warn('Falha ao construir snapshot de fixtures iniciais', error);
+      return null;
+    }
+  }, [fixtureStatus]);
   const hasFixtureBootstrap = fixtureSnapshot !== null;
   const initialNotificationState = useMemo(
     () => buildInitialNotificationState(fixtureSnapshot),

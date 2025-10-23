@@ -21,6 +21,7 @@ import {
   type ConfigPlanDiffSummary,
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 
 export interface RoutingProps {
   providers: ProviderSummary[];
@@ -647,6 +648,14 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   const [planCommitMessage, setPlanCommitMessage] = useState(() =>
     loadPlanPreference(ROUTING_PLAN_COMMIT_MESSAGE_STORAGE_KEY, 'chore: atualizar roteamento MCP'),
   );
+  const simulationMessages = useMemo(
+    () => describeFixtureRequest('simulação de roteamento'),
+    [],
+  );
+  const providerMessages = useMemo(
+    () => describeFixtureRequest('dados de provedores'),
+    [],
+  );
   const simulationIntents = useMemo(() => {
     return routingForm.intents
       .map(draftToIntent)
@@ -799,7 +808,8 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
 
   const distribution = plan?.distribution ?? [];
   const excludedRoute = plan?.excludedRoute ?? null;
-  const simulationMessage = simulationError ?? (isSimulating ? 'Carregando simulação…' : 'Simulação indisponível no momento.');
+  const simulationMessage =
+    simulationError ?? (isSimulating ? simulationMessages.loading : 'Simulação indisponível no momento.');
   const statusRole = simulationError ? 'alert' : 'status';
 
   const allowedTiers = useMemo(() => Array.from(routingForm.allowedTiers.values()), [routingForm.allowedTiers]);
@@ -1117,7 +1127,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   if (isLoading) {
     return (
       <section className="routing-lab">
-        <p className="routing-lab__empty">Carregando dados de provedores…</p>
+        <p className="routing-lab__empty">{providerMessages.loading}</p>
       </section>
     );
   }

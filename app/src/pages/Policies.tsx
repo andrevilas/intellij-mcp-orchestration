@@ -30,6 +30,7 @@ import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer'
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { POLICIES_TEST_IDS } from './testIds';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 
 export interface PoliciesProps {
   providers: ProviderSummary[];
@@ -294,6 +295,21 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   const [planCommitMessage, setPlanCommitMessage] = useState(() =>
     loadPlanPreference(PLAN_COMMIT_MESSAGE_STORAGE_KEY, 'chore: atualizar políticas MCP'),
   );
+  const templateMessages = useMemo(
+    () => describeFixtureRequest('templates atualizados'),
+    [],
+  );
+  const hitlMessages = useMemo(
+    () =>
+      describeFixtureRequest('fila de aprovações humanas', {
+        errorPrefix: 'atualizar',
+      }),
+    [],
+  );
+  const historyMessages = useMemo(
+    () => describeFixtureRequest('histórico de deploys'),
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -397,22 +413,25 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     setRuntimeErrors((current) => ({ ...current, checkpoints: undefined }));
   }, []);
 
-  const refreshHitlQueue = useCallback(async (signal?: AbortSignal) => {
-    setHitlLoading(true);
-    setHitlError(null);
-    try {
-      const queue = await fetchHitlQueue(signal);
-      setHitlQueue(queue);
-    } catch (error) {
-      if ((error as { name?: string }).name === 'AbortError') {
-        return;
+  const refreshHitlQueue = useCallback(
+    async (signal?: AbortSignal) => {
+      setHitlLoading(true);
+      setHitlError(null);
+      try {
+        const queue = await fetchHitlQueue(signal);
+        setHitlQueue(queue);
+      } catch (error) {
+        if ((error as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to atualizar fila HITL', error);
+        setHitlError(hitlMessages.error);
+      } finally {
+        setHitlLoading(false);
       }
-      console.error('Failed to atualizar fila HITL', error);
-      setHitlError('Falha ao atualizar fila de aprovações humanas.');
-    } finally {
-      setHitlLoading(false);
-    }
-  }, []);
+    },
+    [hitlMessages.error],
+  );
 
   const handleHitlResolution = useCallback(
     async (request: HitlApprovalRequest, resolution: 'approved' | 'rejected') => {
@@ -1146,7 +1165,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             aplicar.
           </p>
         </header>
-        {isTemplatesLoading && <p className="status">Carregando templates atualizados…</p>}
+        {isTemplatesLoading && <p className="status">{templateMessages.loading}</p>}
         {templatesError && <p className="error">{templatesError}</p>}
         <PolicyTemplatePicker
           templates={templates}
@@ -1445,7 +1464,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           Última atualização: {hitlQueue?.updatedAt ? formatDateTime(hitlQueue.updatedAt) : '—'}
         </span>
         {hitlError && <p className="error">{hitlError}</p>}
-        {isHitlLoading && <p className="status">Carregando fila de aprovações…</p>}
+        {isHitlLoading && <p className="status">{hitlMessages.loading}</p>}
         {!isHitlLoading && hitlQueue && hitlQueue.pending.length === 0 && (
           <p className="info">Nenhuma aprovação pendente no momento.</p>
         )}
@@ -1500,7 +1519,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           <h2>Histórico de deploys</h2>
           <p>Acompanhe os templates aplicados na frota e os motivos registrados.</p>
         </header>
-        {isHistoryLoading && <p className="status">Carregando histórico de deploys…</p>}
+        {isHistoryLoading && <p className="status">{historyMessages.loading}</p>}
         {historyError && <p className="error">{historyError}</p>}
         <ol className="policy-history">
           {deployments
