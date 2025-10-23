@@ -1,10 +1,21 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import { useId, type HTMLAttributes, type ReactNode } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCircleInfo } from '@fortawesome/free-solid-svg-icons/faCircleInfo';
+import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons/faTriangleExclamation';
 import clsx from 'clsx';
+
+import {
+  getStatusMetadata,
+  isStatusActive,
+  resolveStatusMessage,
+  type AsyncContentStatus,
+  type StatusMessageOverrides,
+} from '../status/statusUtils';
 
 import './progress-indicator.scss';
 
 export type ProgressIndicatorTone = 'info' | 'success' | 'warning' | 'danger' | 'neutral';
-export type ProgressIndicatorStatus = 'default' | 'loading' | 'empty' | 'error';
+export type ProgressIndicatorStatus = AsyncContentStatus;
 
 export interface ProgressIndicatorProps extends HTMLAttributes<HTMLDivElement> {
   label: string;
@@ -13,6 +24,7 @@ export interface ProgressIndicatorProps extends HTMLAttributes<HTMLDivElement> {
   description?: string;
   status?: ProgressIndicatorStatus;
   statusLabel?: string;
+  statusMessages?: StatusMessageOverrides;
   action?: ReactNode;
 }
 
@@ -23,22 +35,62 @@ export default function ProgressIndicator({
   description,
   status = 'default',
   statusLabel,
+  statusMessages,
   action,
   className,
+  'aria-label': ariaLabelProp,
+  'aria-labelledby': ariaLabelledByProp,
+  'aria-describedby': ariaDescribedByProp,
   ...props
 }: ProgressIndicatorProps) {
   const normalizedStatus: ProgressIndicatorStatus = status;
   const normalizedValue = typeof value === 'number' ? value : 0;
   const clampedValue = Math.min(100, Math.max(0, normalizedValue));
-  const statusMessage =
-    normalizedStatus === 'default'
-      ? null
-      : statusLabel ??
-        (normalizedStatus === 'loading'
-          ? 'Sincronizando indicador…'
-          : normalizedStatus === 'empty'
-            ? 'Nenhum progresso disponível no período selecionado.'
-            : 'Não foi possível carregar o indicador.');
+  const statusMetadata = getStatusMetadata(normalizedStatus);
+  const hasStatus = isStatusActive(normalizedStatus);
+  const statusMessage = hasStatus
+    ? resolveStatusMessage(normalizedStatus, statusLabel ?? statusMessages?.[normalizedStatus])
+    : undefined;
+  let statusVisual: ReactNode | null = null;
+
+  if (hasStatus) {
+    switch (normalizedStatus) {
+      case 'loading':
+        statusVisual = <span className="progress-indicator__skeleton" aria-hidden="true" />;
+        break;
+      case 'empty':
+        statusVisual = (
+          <span className="progress-indicator__status-icon" aria-hidden="true">
+            <FontAwesomeIcon icon={faCircleInfo} fixedWidth />
+          </span>
+        );
+        break;
+      case 'error':
+        statusVisual = (
+          <span className="progress-indicator__status-icon" aria-hidden="true">
+            <FontAwesomeIcon icon={faTriangleExclamation} fixedWidth />
+          </span>
+        );
+        break;
+      default:
+        statusVisual = null;
+    }
+  }
+
+  const generatedLabelId = useId();
+  const generatedDescriptionId = useId();
+  const generatedStatusMessageId = useId();
+  const descriptionId = description && normalizedStatus === 'default' ? generatedDescriptionId : undefined;
+  const statusMessageId = hasStatus && statusMessage ? generatedStatusMessageId : undefined;
+  const ariaLabelledBy = [ariaLabelledByProp, generatedLabelId].filter(Boolean).join(' ') || undefined;
+  const ariaDescribedBy = [
+    ariaDescribedByProp,
+    descriptionId,
+    statusMessageId,
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined;
+
   return (
     <div
       {...props}
@@ -46,15 +98,19 @@ export default function ProgressIndicator({
         'progress-indicator',
         `progress-indicator--${tone}`,
         className,
-        normalizedStatus !== 'default' && 'progress-indicator--has-status',
       )}
       role="group"
-      aria-label={label}
-      data-status={normalizedStatus !== 'default' ? normalizedStatus : undefined}
-      aria-busy={normalizedStatus === 'loading'}
+      aria-label={ariaLabelProp}
+      aria-labelledby={ariaLabelledBy}
+      aria-describedby={ariaDescribedBy}
+      data-status={hasStatus ? normalizedStatus : undefined}
+      aria-busy={statusMetadata.ariaBusy}
+      aria-live={statusMetadata.ariaLive}
     >
       <div className="progress-indicator__header">
-        <span className="progress-indicator__label">{label}</span>
+        <span id={generatedLabelId} className="progress-indicator__label">
+          {label}
+        </span>
         {normalizedStatus === 'default' ? (
           <span className="progress-indicator__value" aria-live="polite">{clampedValue}%</span>
         ) : null}
@@ -70,19 +126,24 @@ export default function ProgressIndicator({
           >
             <span className="progress-indicator__bar" style={{ width: `${clampedValue}%` }} />
           </div>
-          {description ? <p className="progress-indicator__description">{description}</p> : null}
+          {description ? (
+            <p id={descriptionId} className="progress-indicator__description">
+              {description}
+            </p>
+          ) : null}
         </>
       ) : (
         <div
           className="progress-indicator__status"
-          role={normalizedStatus === 'error' ? 'alert' : 'status'}
-          aria-live="polite"
+          role={statusMetadata.role}
+          aria-live={statusMetadata.ariaLive}
+          aria-busy={statusMetadata.ariaBusy}
         >
-          {normalizedStatus === 'loading' ? (
-            <span className="progress-indicator__spinner" aria-hidden="true" />
-          ) : null}
+          {statusVisual ? <div className="progress-indicator__status-visual">{statusVisual}</div> : null}
           {statusMessage ? (
-            <p className="progress-indicator__status-message">{statusMessage}</p>
+            <p id={statusMessageId} className="progress-indicator__status-message">
+              {statusMessage}
+            </p>
           ) : null}
           {action ? <div className="progress-indicator__action">{action}</div> : null}
         </div>
