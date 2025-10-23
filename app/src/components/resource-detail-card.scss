@@ -1,9 +1,11 @@
 .resource-detail-card {
-  --detail-card-bg: var(--mcp-surface);
-  --detail-card-border: color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+  --detail-card-bg: var(--mcp-state-surface-default);
+  --detail-card-border: var(--mcp-state-border-default);
   --detail-card-shadow: var(--mcp-shadow-elevated);
-  --detail-card-heading: var(--mcp-surface-contrast);
+  --detail-card-heading: var(--mcp-state-fg-default);
   --detail-card-description: var(--mcp-text-subtle);
+  --detail-card-status: var(--mcp-state-fg-default);
+  --detail-card-status-muted: var(--mcp-state-fg-loading);
   border-radius: 1.25rem;
   border: 1px solid var(--detail-card-border);
   background: var(--detail-card-bg);
@@ -12,6 +14,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  color: var(--detail-card-heading);
 }
 
 .resource-detail-card__header {
@@ -83,16 +86,16 @@
 .resource-detail-card__status {
   border-radius: 1rem;
   padding: 1.25rem;
-  background: color-mix(in srgb, var(--mcp-overlay-soft) 45%, transparent 55%);
-  border: 1px solid color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+  background: color-mix(in srgb, var(--detail-card-bg) 82%, transparent 18%);
+  border: 1px solid var(--detail-card-border);
   display: grid;
   gap: 0.75rem;
-  color: var(--detail-card-heading);
+  color: var(--detail-card-status);
 }
 
 .resource-detail-card__status p {
   margin: 0;
-  color: var(--detail-card-description);
+  color: var(--detail-card-status-muted);
   font-size: 0.95rem;
 }
 
@@ -155,16 +158,27 @@
   font-size: 0.9rem;
 }
 
-.resource-detail-card--loading {
-  background: color-mix(in srgb, var(--mcp-overlay-soft) 35%, var(--mcp-surface) 65%);
+.resource-detail-card[data-status='loading'] {
+  --detail-card-bg: var(--mcp-state-surface-loading);
+  --detail-card-border: var(--mcp-state-border-loading);
+  --detail-card-status: var(--mcp-state-fg-loading);
+  --detail-card-status-muted: var(--mcp-state-fg-loading);
 }
 
-.resource-detail-card--empty {
-  background: color-mix(in srgb, var(--mcp-info-soft) 35%, var(--mcp-surface) 65%);
+.resource-detail-card[data-status='empty'] {
+  --detail-card-bg: var(--mcp-state-surface-empty);
+  --detail-card-border: var(--mcp-state-border-empty);
+  --detail-card-status: var(--mcp-state-fg-empty);
+  --detail-card-status-muted: var(--mcp-state-fg-empty);
 }
 
-.resource-detail-card--error {
-  background: color-mix(in srgb, var(--mcp-danger-soft) 35%, var(--mcp-surface) 65%);
+.resource-detail-card[data-status='error'] {
+  --detail-card-bg: var(--mcp-state-surface-error);
+  --detail-card-border: var(--mcp-state-border-error);
+  --detail-card-heading: var(--mcp-state-fg-error);
+  --detail-card-description: var(--mcp-state-fg-error);
+  --detail-card-status: var(--mcp-state-fg-error);
+  --detail-card-status-muted: var(--mcp-state-fg-error);
 }
 
 @keyframes resource-detail-card-spin {
@@ -177,10 +191,10 @@
 }
 
 [data-theme='dark'] .resource-detail-card {
-  --detail-card-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
-  --detail-card-border: color-mix(in srgb, var(--mcp-border-strong) 55%, transparent 45%);
   --detail-card-heading: var(--mcp-surface-contrast);
   --detail-card-description: var(--mcp-text-muted);
+  --detail-card-status: var(--mcp-state-fg-default);
+  --detail-card-status-muted: var(--mcp-state-fg-loading);
 }
 
 [data-theme='dark'] .resource-detail-card__item {
@@ -188,9 +202,9 @@
 }
 
 [data-theme='dark'] .resource-detail-card__status {
-  background: color-mix(in srgb, var(--mcp-overlay-soft) 55%, transparent 45%);
+  background: color-mix(in srgb, var(--detail-card-bg) 78%, transparent 22%);
 }
 
 [data-theme='dark'] .resource-detail-card__empty-illustration {
-  background: color-mix(in srgb, var(--mcp-info-soft) 55%, transparent 45%);
+  background: color-mix(in srgb, var(--mcp-info-soft) 65%, transparent 35%);
 }

@@ -25,6 +25,8 @@ export default function StatusBadge({
     <span
       {...props}
       className={clsx('status-badge', `status-badge--${tone}`, `status-badge--${appearance}`, className)}
+      data-tone={tone}
+      data-appearance={appearance}
     >
       {icon ? (
         <span className="status-badge__icon" aria-hidden="true">

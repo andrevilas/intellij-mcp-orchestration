@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import clsx from 'clsx';
 
 import './resource-detail-card.scss';
 
@@ -54,10 +53,12 @@ export default function ResourceDetailCard({
 
   return (
     <section
-      className={clsx('resource-detail-card', status !== 'default' && `resource-detail-card--${status}`)}
+      className="resource-detail-card"
+      data-status={status !== 'default' ? status : undefined}
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
       aria-label={ariaLabel}
+      aria-busy={status === 'loading'}
     >
       <header className="resource-detail-card__header">
         <div className="resource-detail-card__titles">

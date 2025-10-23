@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import './resource-table.scss';
 
 type SortDirection = 'asc' | 'desc';
+type ResourceTableStatus = 'default' | 'loading' | 'empty' | 'error';
 
 export interface ResourceTableColumn<T> {
   id: string;
@@ -134,6 +135,13 @@ export default function ResourceTable<T>({
   }, [columns, items, sortState]);
 
   const showEmptyState = !isLoading && !error && sortedItems.length === 0;
+  const status: ResourceTableStatus = error
+    ? 'error'
+    : isLoading
+      ? 'loading'
+      : showEmptyState
+        ? 'empty'
+        : 'default';
 
   function handleSort(column: ResourceTableColumn<T>): void {
     if (!column.sortable || !column.sortAccessor) {
@@ -150,7 +158,13 @@ export default function ResourceTable<T>({
   }
 
   return (
-    <section className="resource-table" aria-labelledby={headingId} aria-describedby={descriptionId}>
+    <section
+      className="resource-table"
+      data-status={status !== 'default' ? status : undefined}
+      aria-labelledby={headingId}
+      aria-describedby={descriptionId}
+      aria-busy={status === 'loading'}
+    >
       <header className="resource-table__header">
         <div>
           <h2 id={headingId}>{title}</h2>
@@ -166,7 +180,7 @@ export default function ResourceTable<T>({
       {filters ? <div className="resource-table__filters">{filters}</div> : null}
 
       <div id={statusId} className="resource-table__status" aria-live="polite">
-        {error ? (
+        {status === 'error' ? (
           <div className="resource-table__error" role="alert">
             <span>{error}</span>
             {onRetry ? (
@@ -177,8 +191,8 @@ export default function ResourceTable<T>({
           </div>
         ) : null}
 
-        {isLoading ? (
-          <div className="resource-table__loading" role="status">
+        {status === 'loading' ? (
+          <div className="resource-table__loading" role="status" aria-live="polite">
             <span className="resource-table__loading-bar" aria-hidden="true" />
             Carregando dados…
           </div>
