@@ -24,6 +24,7 @@ import telemetryRunsFixture from '#fixtures/telemetry_runs.json' with { type: 'j
 import routingSimulationFixture from '#fixtures/routing_simulation.json' with { type: 'json' };
 import finopsSprintsFixture from '#fixtures/finops_sprints.json' with { type: 'json' };
 import finopsPullRequestsFixture from '#fixtures/finops_pull_requests.json' with { type: 'json' };
+import finopsEventsFixture from '#fixtures/finops_events.json' with { type: 'json' };
 import serversFixture from '#fixtures/servers.json' with { type: 'json' };
 import serverProcessesFixture from '#fixtures/server_processes.json' with { type: 'json' };
 import serverHealthFixture from '#fixtures/server_health.json' with { type: 'json' };
@@ -460,6 +461,28 @@ const nextIsoTimestamp = (() => {
     return new Date(FIXTURE_CLOCK_START + step * 30_000).toISOString();
   };
 })();
+
+const createDeterministicCounter = () => {
+  let counter = 0;
+  return () => {
+    counter += 1;
+    return counter;
+  };
+};
+
+const formatCounterToken = (value: number, width = 4): string =>
+  value.toString(36).padStart(width, '0');
+
+const nextSmokeRunCounter = createDeterministicCounter();
+const nextAgentSmokeRunCounter = createDeterministicCounter();
+const nextAgentInvokeCounter = createDeterministicCounter();
+const nextMcpSmokeCounter = createDeterministicCounter();
+
+const createFixtureTimeWindow = (durationMs: number) => {
+  const startedAt = nextIsoTimestamp();
+  const finishedAt = new Date(Date.parse(startedAt) + durationMs).toISOString();
+  return { startedAt, finishedAt };
+};
 
 const createResponse = <T>(value: T): T => cloneDeep(value);
 
@@ -1233,7 +1256,7 @@ const appendAgentHistory = (agentId: string, entry: AgentHistoryEntryInput) => {
 
   const planId = entry.plan_id ?? `${agentId}-plan-fixture`;
   const requestedBy = entry.requested_by ?? 'fixtures@console';
-  const createdAt = entry.created_at ?? new Date().toISOString();
+  const createdAt = entry.created_at ?? nextIsoTimestamp();
   const status = (entry.status ?? 'completed').toLowerCase();
   const statusLabel = entry.status_label ?? 'Concluído';
   const layer = isAgentLayer(entry.layer) ? entry.layer : 'policies';
@@ -1306,6 +1329,23 @@ const marketplaceEntries = (telemetryMarketplaceFixture as {
   items: MarketplacePerformanceEntry[];
 }).items;
 
+type FinOpsEventFixture = {
+  provider_id: string;
+  tool: string;
+  route: string | null;
+  tokens_in: number;
+  tokens_out: number;
+  duration_ms: number;
+  status: string;
+  cost_estimated_usd: number | null;
+  ts: string;
+  metadata?: Record<string, unknown>;
+  experiment_cohort?: string | null;
+  experiment_tag?: string | null;
+};
+
+const finopsEventItems = (finopsEventsFixture as { events: FinOpsEventFixture[] }).events;
+
 type TelemetryRunFixtureEntry = Omit<TelemetryRunEntry, 'lane' | 'metadata'> & {
   lane: string | null;
   metadata?: Record<string, unknown> | null;
@@ -1357,7 +1397,7 @@ export const handlers = [
       return HttpResponse.json({ process: null }, { status: 404 });
     }
 
-    const now = new Date().toISOString();
+    const now = nextIsoTimestamp();
     const next = cloneProcessState(current);
 
     if (action === 'stop') {
@@ -1824,6 +1864,9 @@ export const handlers = [
   http.get(`${API_PREFIX}/telemetry/finops/pull-requests`, () =>
     HttpResponse.json(finopsPullRequestsFixture),
   ),
+  http.get(`${API_PREFIX}/telemetry/finops/events`, () =>
+    HttpResponse.json(createResponse({ events: finopsEventItems })),
+  ),
   http.get(`${API_PREFIX}/smoke/endpoints`, () => {
     const endpoints = Array.from(smokeEndpointStore.values()).map(buildSmokeEndpointPayload);
     return HttpResponse.json({ endpoints });
@@ -1835,13 +1878,12 @@ export const handlers = [
       return HttpResponse.json({ detail: 'Smoke endpoint not found' }, { status: 404 });
     }
 
-    const now = new Date();
-    const startedAt = now.toISOString();
-    const finishedAt = new Date(now.getTime() + 5_000).toISOString();
+    const { startedAt, finishedAt } = createFixtureTimeWindow(5_000);
+    const runId = `${endpointId}-run-${formatCounterToken(nextSmokeRunCounter())}`;
 
     const run: SmokeRunSummary = {
       ...SMOKE_RUN_SUMMARY,
-      runId: `${endpointId}-run-${now.getTime()}`,
+      runId,
       triggeredAt: startedAt,
       finishedAt,
       summary: `Execução ${endpointId} concluída com sucesso via fixtures.`,
@@ -2070,13 +2112,13 @@ export const handlers = [
     } catch {
       // ignore
     }
-    const startedAt = nextIsoTimestamp();
+    const { startedAt, finishedAt } = createFixtureTimeWindow(30_000);
     return HttpResponse.json({
-      runId: `mcp-smoke-${Date.now()}`,
+      runId: `mcp-smoke-${formatCounterToken(nextMcpSmokeCounter())}`,
       status: 'passed',
       summary: 'Smoke executado com sucesso nas fixtures.',
       startedAt,
-      finishedAt: nextIsoTimestamp(),
+      finishedAt,
     });
   }),
   http.patch(`${API_PREFIX}/config/policies`, async () =>
@@ -2416,13 +2458,11 @@ export const handlers = [
   http.post('*/agents/:agentName/smoke', ({ params }) => {
     const agentName = params.agentName as string;
     const existing = agentSmokeRuns.get(agentName) ?? defaultAgentSmokeRun;
-    const now = new Date();
-    const startedAt = now.toISOString();
-    const finishedAt = new Date(now.getTime() + 4_000).toISOString();
+    const { startedAt, finishedAt } = createFixtureTimeWindow(4_000);
 
     const run: AgentSmokeRun = {
       ...existing,
-      runId: `${agentName}-smoke-${now.getTime()}`,
+      runId: `${agentName}-smoke-${formatCounterToken(nextAgentSmokeRunCounter())}`,
       startedAt,
       finishedAt,
       summary: existing.summary ?? 'Smoke executado com sucesso usando fixtures locais.',
@@ -2450,7 +2490,7 @@ export const handlers = [
     return HttpResponse.json({
       result: {
         output: `Invocation of ${agentName} concluída com sucesso via fixtures.`,
-        metadata: { runId: `${agentName}-invoke-${Date.now()}` },
+        metadata: { runId: `${agentName}-invoke-${formatCounterToken(nextAgentInvokeCounter())}` },
         finished_at: now,
       },
       trace: {
