@@ -1,0 +1,22 @@
+{
+  "roles": [
+    {
+      "id": "approver",
+      "name": "Approver",
+      "description": "Pode aprovar planos governados.",
+      "permissions": ["config.plan.approve", "policies.hitl.review"],
+      "members": 2,
+      "created_at": "2025-02-15T10:00:00Z",
+      "updated_at": "2025-03-02T08:00:00Z"
+    },
+    {
+      "id": "viewer",
+      "name": "Viewer",
+      "description": "Acesso somente leitura às superfícies.",
+      "permissions": ["dashboard.view"],
+      "members": 4,
+      "created_at": "2025-01-20T12:30:00Z",
+      "updated_at": "2025-02-01T07:45:00Z"
+    }
+  ]
+}

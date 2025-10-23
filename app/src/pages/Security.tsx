@@ -31,6 +31,7 @@ import ResourceTable, { type ResourceTableColumn } from '../components/ResourceT
 import ResourceDialog from '../components/ResourceDialog';
 import AuditTrailPanel from '../components/AuditTrailPanel';
 import ConfigReloadAction from '../components/ConfigReloadAction';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 
 interface UserDraft {
   name: string;
@@ -222,6 +223,26 @@ export default function Security() {
   const [auditFilters, setAuditFilters] = useState({ actor: '', action: '', start: '', end: '' });
   const [auditFilterDraft, setAuditFilterDraft] = useState({ actor: '', action: '', start: '', end: '' });
   const [auditReloadToken, setAuditReloadToken] = useState(0);
+  const userRequestMessages = useMemo(
+    () => describeFixtureRequest('lista de usuários'),
+    [],
+  );
+  const roleRequestMessages = useMemo(
+    () => describeFixtureRequest('lista de papéis'),
+    [],
+  );
+  const apiKeyRequestMessages = useMemo(
+    () => describeFixtureRequest('lista de API keys'),
+    [],
+  );
+  const auditTrailMessages = useMemo(
+    () => describeFixtureRequest('eventos auditáveis'),
+    [],
+  );
+  const auditTableMessages = useMemo(
+    () => describeFixtureRequest('registros de auditoria'),
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -238,7 +259,10 @@ export default function Security() {
         if (controller.signal.aborted) {
           return;
         }
-        const message = error instanceof Error ? error.message : 'Falha ao carregar usuários.';
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : userRequestMessages.error;
         setUsersError(message);
       })
       .finally(() => {
@@ -247,7 +271,7 @@ export default function Security() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [userRequestMessages]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -264,7 +288,10 @@ export default function Security() {
         if (controller.signal.aborted) {
           return;
         }
-        const message = error instanceof Error ? error.message : 'Falha ao carregar papéis.';
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : roleRequestMessages.error;
         setRolesError(message);
       })
       .finally(() => {
@@ -273,7 +300,7 @@ export default function Security() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [roleRequestMessages]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -290,7 +317,10 @@ export default function Security() {
         if (controller.signal.aborted) {
           return;
         }
-        const message = error instanceof Error ? error.message : 'Falha ao carregar API keys.';
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : apiKeyRequestMessages.error;
         setApiKeysError(message);
       })
       .finally(() => {
@@ -299,7 +329,7 @@ export default function Security() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [apiKeyRequestMessages]);
 
   useEffect(() => {
     if (!auditResource) {
@@ -316,7 +346,10 @@ export default function Security() {
       })
       .catch((error) => {
         if (!controller.signal.aborted) {
-          const message = error instanceof Error ? error.message : 'Falha ao carregar eventos auditáveis.';
+          const message =
+            error instanceof Error && error.message
+              ? error.message
+              : auditTrailMessages.error;
           setAuditError(message);
         }
       })
@@ -326,7 +359,7 @@ export default function Security() {
         }
       });
     return () => controller.abort();
-  }, [auditResource]);
+  }, [auditResource, auditTrailMessages]);
 
   useEffect(() => {
     if (activeTab !== 'audit') {
@@ -373,7 +406,10 @@ export default function Security() {
         if (controller.signal.aborted) {
           return;
         }
-        const message = error instanceof Error ? error.message : 'Falha ao carregar auditoria.';
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : auditTableMessages.error;
         setAuditTableError(message);
       })
       .finally(() => {
@@ -392,6 +428,7 @@ export default function Security() {
     auditLogsPage,
     auditLogsPageSize,
     auditReloadToken,
+    auditTableMessages,
   ]);
 
   const filteredUsers = useMemo(() => {
@@ -1130,7 +1167,10 @@ export default function Security() {
                 fetchSecurityUsers()
                   .then((payload) => setUsers(payload))
                   .catch((error) => {
-                    const message = error instanceof Error ? error.message : 'Falha ao carregar usuários.';
+                    const message =
+                      error instanceof Error && error.message
+                        ? error.message
+                        : userRequestMessages.error;
                     setUsersError(message);
                   })
                   .finally(() => setLoadingUsers(false));
@@ -1216,7 +1256,10 @@ export default function Security() {
                 fetchSecurityRoles()
                   .then((payload) => setRoles(payload))
                   .catch((error) => {
-                    const message = error instanceof Error ? error.message : 'Falha ao carregar papéis.';
+                    const message =
+                      error instanceof Error && error.message
+                        ? error.message
+                        : roleRequestMessages.error;
                     setRolesError(message);
                   })
                   .finally(() => setLoadingRoles(false));
@@ -1283,7 +1326,10 @@ export default function Security() {
                 fetchSecurityApiKeys()
                   .then((payload) => setApiKeys(payload))
                   .catch((error) => {
-                    const message = error instanceof Error ? error.message : 'Falha ao carregar API keys.';
+                    const message =
+                      error instanceof Error && error.message
+                        ? error.message
+                        : apiKeyRequestMessages.error;
                     setApiKeysError(message);
                   })
                   .finally(() => setLoadingApiKeys(false));

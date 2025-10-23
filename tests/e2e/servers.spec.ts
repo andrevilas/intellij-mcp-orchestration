@@ -1,204 +1,87 @@
-import { expect, test } from './fixtures';
+import { expect, test, loadBackendFixture } from './fixtures';
+import { SERVERS_TEST_IDS } from '../../app/src/pages/testIds';
 
-test('permite editar e remover servidores MCP via interface', async ({ page }) => {
-  const provider = {
-    id: 'gemini',
-    name: 'Gemini MCP',
-    description: 'Servidor principal',
-    command: '~/.local/bin/gemini',
-    capabilities: ['chat'],
-    tags: ['llm'],
-    transport: 'stdio',
-  };
+test('gerencia servidores MCP usando fixtures locais', async ({ page }) => {
+  const [serversFixture, processFixture, healthFixture] = await Promise.all([
+    loadBackendFixture<{
+      servers: Array<{
+        id: string;
+        name: string;
+      }>;
+    }>('servers.json'),
+    loadBackendFixture<{
+      processes: Array<{
+        server_id: string;
+        status: string;
+      }>;
+    }>('server_processes.json'),
+    loadBackendFixture<{
+      checks: Record<string, Array<{ status: string }>>;
+    }>('server_health.json'),
+  ]);
 
-  let serverRecord: (typeof provider & { created_at: string; updated_at: string }) | null = {
-    id: provider.id,
-    name: provider.name,
-    command: provider.command,
-    description: provider.description,
-    tags: provider.tags,
-    capabilities: provider.capabilities,
-    transport: provider.transport,
-    created_at: '2024-06-01T09:55:00.000Z',
-    updated_at: '2024-06-01T09:55:00.000Z',
-  };
+  const processStatusByServer = new Map(
+    processFixture.processes.map((entry) => [entry.server_id, entry.status]),
+  );
+  const runningCount = serversFixture.servers.reduce((count, server) => {
+    return processStatusByServer.get(server.id) === 'running' ? count + 1 : count;
+  }, 0);
+  const offlineCount = serversFixture.servers.length - runningCount;
 
-  let healthChecks = [
-    {
-      status: 'healthy',
-      checked_at: '2024-06-01T11:00:00.000Z',
-      latency_ms: 245,
-      message: 'Ping automatizado dentro do SLA.',
-      actor: 'console-mcp',
-      plan_id: 'plan-operacoes',
-    },
-    {
-      status: 'degraded',
-      checked_at: '2024-06-01T10:30:00.000Z',
-      latency_ms: 980,
-      message: 'Oscilação detectada durante deploy canário.',
-      actor: 'mcp-telemetry',
-      plan_id: 'plan-operacoes',
-    },
-  ];
-
-  let lastUpdatePayload: unknown = null;
-  let deleteConfirmed = false;
-
-  const processLogs = [
-    {
-      id: '1',
-      timestamp: '2024-06-01T10:00:00.000Z',
-      level: 'info',
-      message: 'Processo iniciado pelo supervisor (PID 321).',
-    },
-  ];
-
-  function buildProcessSnapshot() {
-    return {
-      server_id: provider.id,
-      status: 'running',
-      command: serverRecord?.command ?? provider.command,
-      pid: 321,
-      started_at: '2024-06-01T10:00:00.000Z',
-      stopped_at: null,
-      return_code: null,
-      last_error: null,
-      logs: processLogs,
-      cursor: '1',
-    };
+  const healthStatusByServer = new Map(
+    Object.entries(healthFixture.checks).map(([serverId, entries]) => [serverId, entries[0]?.status ?? 'unknown']),
+  );
+  let healthyCount = 0;
+  let degradedCount = 0;
+  let errorCount = 0;
+  let unknownCount = 0;
+  for (const server of serversFixture.servers) {
+    switch (healthStatusByServer.get(server.id) ?? 'unknown') {
+      case 'healthy':
+        healthyCount += 1;
+        break;
+      case 'degraded':
+        degradedCount += 1;
+        break;
+      case 'error':
+        errorCount += 1;
+        break;
+      default:
+        unknownCount += 1;
+        break;
+    }
   }
 
-  await page.route('**/api/v1/servers', (route) => {
-    if (!serverRecord) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ servers: [] }) });
-    }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ servers: [serverRecord] }),
-    });
-  });
-
-  await page.route('**/api/v1/servers/processes', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ processes: serverRecord ? [buildProcessSnapshot()] : [] }),
-    }),
-  );
-
-  await page.route(`**/api/v1/servers/${provider.id}/process/logs**`, (route) => {
-    const url = new URL(route.request().url());
-    const cursor = url.searchParams.get('cursor');
-    if (!cursor || cursor === '1') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ logs: processLogs, cursor: '1' }),
-      });
-    }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ logs: [], cursor }),
-    });
-  });
-
-  await page.route(`**/api/v1/servers/${provider.id}/health`, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ checks: healthChecks }),
-    }),
-  );
-
-  await page.route(`**/api/v1/servers/${provider.id}/health/ping`, (route) => {
-    healthChecks = [
-      {
-        status: 'healthy',
-        checked_at: '2024-06-01T11:05:00.000Z',
-        latency_ms: 210,
-        message: 'Ping de monitoramento manual concluído com sucesso.',
-        actor: 'Console MCP',
-        plan_id: 'plan-operacoes',
-      },
-      ...healthChecks,
-    ].slice(0, 6);
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ check: healthChecks[0] }),
-    });
-  });
-
-  await page.route(`**/api/v1/servers/${provider.id}`, async (route) => {
-    if (route.request().method() === 'PUT') {
-      lastUpdatePayload = route.request().postDataJSON();
-      const body = lastUpdatePayload as {
-        name?: string;
-        command?: string;
-        description?: string | null;
-        tags?: string[];
-        capabilities?: string[];
-        transport?: string;
-      };
-      serverRecord = {
-        ...serverRecord!,
-        name: body.name ?? serverRecord!.name,
-        command: body.command ?? serverRecord!.command,
-        description: body.description ?? serverRecord!.description,
-        tags: body.tags ?? serverRecord!.tags,
-        capabilities: body.capabilities ?? serverRecord!.capabilities,
-        transport: body.transport ?? serverRecord!.transport,
-        updated_at: '2024-06-01T11:05:00.000Z',
-      };
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(serverRecord),
-      });
-      return;
-    }
-    if (route.request().method() === 'DELETE') {
-      deleteConfirmed = true;
-      serverRecord = null;
-      healthChecks = [];
-      await route.fulfill({ status: 204, body: '' });
-      return;
-    }
-    await route.fallback();
-  });
-
-  await page.route('**/api/v1/providers', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [provider] }) }),
-  );
-  await page.route('**/api/v1/sessions', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessions: [] }) }),
-  );
-  await page.route('**/api/v1/secrets', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ secrets: [] }) }),
-  );
-  await page.route('**/api/v1/notifications', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [] }) }),
-  );
-  await page.route('**/api/v1/telemetry/*', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) }),
-  );
-
   await page.goto('/');
-
   await page.getByRole('button', { name: 'Servidores' }).click();
-  await expect(page.getByRole('heading', { name: /Servidores MCP/i })).toBeVisible();
 
-  const healthRegion = page.getByRole('region', { name: 'Resumo de health-checks' });
-  await expect(healthRegion.locator('strong')).toHaveText(['1', '0', '0', '0']);
-  await expect(page.getByText('Ping automatizado dentro do SLA.')).toBeVisible();
+  const statusSection = page.getByTestId(SERVERS_TEST_IDS.status.section);
+  await expect(statusSection.getByTestId(SERVERS_TEST_IDS.status.online)).toHaveText(String(runningCount));
+  await expect(statusSection.getByTestId(SERVERS_TEST_IDS.status.offline)).toHaveText(String(offlineCount));
+  await expect(statusSection.getByTestId(SERVERS_TEST_IDS.status.total)).toHaveText(
+    String(serversFixture.servers.length),
+  );
 
-  await page.getByRole('button', { name: 'Ping agora' }).click();
-  await expect(page.getByText('Ping de monitoramento manual concluído com sucesso.')).toBeVisible();
+  const healthSection = page.getByTestId(SERVERS_TEST_IDS.health.section);
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.healthy)).toHaveText(String(healthyCount));
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.degraded)).toHaveText(String(degradedCount));
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.error)).toHaveText(String(errorCount));
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.unknown)).toHaveText(String(unknownCount));
 
-  await page.getByRole('button', { name: 'Editar servidor' }).click();
+  const geminiCard = page.getByTestId(SERVERS_TEST_IDS.card('gemini'));
+  await expect(geminiCard.getByRole('heading', { level: 2, name: 'Gemini MCP' })).toBeVisible();
+  await expect(geminiCard.getByText('~/.local/bin/gemini-mcp')).toBeVisible();
+
+  const [pingRequest] = await Promise.all([
+    page.waitForRequest(
+      (request) => request.url().includes('/api/v1/servers/gemini/health/ping') && request.method() === 'POST',
+    ),
+    page.getByTestId(SERVERS_TEST_IDS.pingButton('gemini')).click(),
+  ]);
+  expect(pingRequest.method()).toBe('POST');
+  await expect(geminiCard.getByText('Ping realizado com sucesso via fixtures.')).toBeVisible();
+
+  await geminiCard.getByRole('button', { name: 'Editar servidor' }).click();
   const editDialog = page.getByRole('dialog', { name: 'Editar servidor MCP' });
   await editDialog.getByLabel('Nome exibido').fill('Gemini MCP · Observabilidade');
   await editDialog.getByLabel('Comando/endpoint').fill('/opt/mcp/gemini');
@@ -206,12 +89,22 @@ test('permite editar e remover servidores MCP via interface', async ({ page }) =
   await editDialog.getByLabel('Transporte').fill('http');
   await editDialog.getByLabel('Tags (separadas por vírgula)').fill('llm,observabilidade');
   await editDialog.getByLabel('Capacidades (separadas por vírgula)').fill('chat,embeddings');
-  await editDialog.getByRole('button', { name: 'Salvar alterações' }).click();
 
-  await expect(page.getByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' })).toBeVisible();
-  await expect(page.getByText('/opt/mcp/gemini')).toBeVisible();
-  await expect(page.getByText('http')).toBeVisible();
-  expect(lastUpdatePayload).toEqual({
+  const [updateRequest] = await Promise.all([
+    page.waitForRequest(
+      (request) => request.url().includes('/api/v1/servers/gemini') && request.method() === 'PUT',
+    ),
+    editDialog.getByRole('button', { name: 'Salvar alterações' }).click(),
+  ]);
+  const updatePayload = updateRequest.postDataJSON() as {
+    name: string;
+    command: string;
+    description: string;
+    tags: string[];
+    capabilities: string[];
+    transport: string;
+  };
+  expect(updatePayload).toEqual({
     name: 'Gemini MCP · Observabilidade',
     command: '/opt/mcp/gemini',
     description: 'Servidor MCP supervisionado pela console.',
@@ -219,12 +112,36 @@ test('permite editar e remover servidores MCP via interface', async ({ page }) =
     capabilities: ['chat', 'embeddings'],
     transport: 'http',
   });
+  await expect(editDialog).toBeHidden();
 
-  await page.getByRole('button', { name: 'Remover servidor' }).click();
+  await expect(geminiCard.getByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' })).toBeVisible();
+  await expect(geminiCard.getByText('/opt/mcp/gemini')).toBeVisible();
+  await expect(geminiCard.getByText('http')).toBeVisible();
+
+  await geminiCard.getByRole('button', { name: 'Remover servidor' }).click();
   const deleteDialog = page.getByRole('dialog', { name: 'Remover servidor MCP' });
-  await deleteDialog.getByRole('button', { name: 'Remover servidor' }).click();
+  const [deleteRequest] = await Promise.all([
+    page.waitForRequest(
+      (request) => request.url().includes('/api/v1/servers/gemini') && request.method() === 'DELETE',
+    ),
+    deleteDialog.getByRole('button', { name: 'Remover servidor' }).click(),
+  ]);
+  expect(deleteRequest.method()).toBe('DELETE');
+  await expect(page.getByTestId(SERVERS_TEST_IDS.card('gemini'))).toHaveCount(0);
 
-  await expect(page.getByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' })).toHaveCount(0);
-  await expect(healthRegion.locator('strong')).toHaveText(['0', '0', '0', '0']);
-  expect(deleteConfirmed).toBe(true);
+  const runningAfter = runningCount - (processStatusByServer.get('gemini') === 'running' ? 1 : 0);
+  const totalAfter = serversFixture.servers.length - 1;
+  const offlineAfter = totalAfter - runningAfter;
+  const healthyAfter = healthyCount - (healthStatusByServer.get('gemini') === 'healthy' ? 1 : 0);
+  const degradedAfter = degradedCount - (healthStatusByServer.get('gemini') === 'degraded' ? 1 : 0);
+  const errorAfter = errorCount - (healthStatusByServer.get('gemini') === 'error' ? 1 : 0);
+  const unknownAfter = unknownCount - (healthStatusByServer.get('gemini') === 'unknown' ? 1 : 0);
+
+  await expect(statusSection.getByTestId(SERVERS_TEST_IDS.status.online)).toHaveText(String(runningAfter));
+  await expect(statusSection.getByTestId(SERVERS_TEST_IDS.status.offline)).toHaveText(String(offlineAfter));
+  await expect(statusSection.getByTestId(SERVERS_TEST_IDS.status.total)).toHaveText(String(totalAfter));
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.healthy)).toHaveText(String(healthyAfter));
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.degraded)).toHaveText(String(degradedAfter));
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.error)).toHaveText(String(errorAfter));
+  await expect(healthSection.getByTestId(SERVERS_TEST_IDS.health.unknown)).toHaveText(String(unknownAfter));
 });

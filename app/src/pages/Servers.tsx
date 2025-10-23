@@ -26,6 +26,7 @@ import {
 import ServerActions, { type ServerAction } from '../components/ServerActions';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { SERVERS_TEST_IDS } from './testIds';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 
 export interface ServersProps {
   providers: ProviderSummary[];
@@ -491,6 +492,14 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
   const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const serverRequestMessages = useMemo(
+    () =>
+      describeFixtureRequest('informações dos servidores MCP', {
+        action: 'Sincronizando',
+        errorPrefix: 'sincronizar',
+      }),
+    [],
+  );
   const [providerOverrides, setProviderOverrides] = useState<Record<string, ProviderSummary>>({});
   const [hiddenProviders, setHiddenProviders] = useState<string[]>([]);
   const [healthHistory, setHealthHistory] = useState<Record<string, ServerHealthCheck[]>>({});
@@ -1136,7 +1145,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         </div>
       </section>
 
-      {(isLoading || isSyncing) && <p className="info">Sincronizando informações dos servidores…</p>}
+      {(isLoading || isSyncing) && <p className="info">{serverRequestMessages.loading}</p>}
       {initialError && <p className="error">{initialError}</p>}
       {syncError && <p className="error">{syncError}</p>}
 

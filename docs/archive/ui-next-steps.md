@@ -1,5 +1,5 @@
 # ui-next-steps.md — Roadmap UI (Bootstrap 5 + Font Awesome + Vite/React/TS)
-**Última atualização:** 2025-10-15 08:29
+**Última atualização:** 2025-10-20 16:20
 **Objetivo:** acelerar o time-to-value da UI com **Bootstrap 5 (SCSS seletivo)** + **Font Awesome** e **suporte completo a temas (Light/Dark)**, garantindo **a11y AA**, **performance ≥90** e **consistência visual**.
 
 ## Governança e follow-up
@@ -14,7 +14,8 @@
 - Cada componente com estados: `loading`, `empty`, `error`, `success`.
 - Telemetria leve de UI (console/log dev) para rastrear interações críticas.
 
-## Status auditado (2025-10-18)
+## Status auditado (2025-10-20)
+- `[~]` indica fluxo restaurado em modo fixture, pendente apenas de validação externa (ex.: dependências do runner Playwright).
 - [x] **TASK-UI-SH-010** · Shell auditado com `skip-link`, atalhos (`⌘K`/`⇧⌘N`) e roving tabindex; ainda requer mocks para dados dinâmicos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **TASK-UI-NAV-011** · Breadcrumbs + Pagination ativos, tokens documentados e foco visível nas interações (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **TASK-UI-ACT-020** · Catálogo de botões revisado com variantes MCP e toolbar segmentada (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
@@ -28,18 +29,18 @@
 - [x] **TASK-UI-FORM-040** · Controles de formulário migrados para camada MCP (`docs/forms/README.md`).【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
 - [ ] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-PG-070** · Dashboard sem fluxos funcionais; smoke Playwright ainda falha com cards ausentes.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L11】
-- [ ] **TASK-UI-PG-071** · Página Servers depende de backend real; indicadores de health retornam contagens erradas.【F:docs/evidence/TASK-UI-PG-070/README.md†L17-L17】
-- [ ] **TASK-UI-PG-072** · Keys sem máscara/validação confiável; grid de usuários/auditoria vazio.【F:docs/evidence/TASK-UI-PG-070/README.md†L16-L16】
-- [ ] **TASK-UI-PG-073** · Policies não aplicam templates/rollback; suite não encontra heading esperado.【F:docs/evidence/TASK-UI-PG-070/README.md†L14-L14】
-- [ ] **TASK-UI-PG-074** · Routing Lab incompleto; selects não aceitam fallback e mensagem de erro não surge.【F:docs/evidence/TASK-UI-PG-070/README.md†L15-L15】
-- [ ] **TASK-UI-PG-075** · FinOps sem gráficos exportáveis; link "FinOps" trava no clique inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L13-L13】
+- [~] **TASK-UI-PG-070** · Dashboard reidrata métricas/telemetria via fixtures e mensagens `describeFixtureRequest`; smoke Playwright bloqueado pelo host sem `playwright install-deps`.【F:app/src/pages/Dashboard.tsx†L18-L42】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [~] **TASK-UI-PG-071** · Página Servers usa fixtures (`loadBackendFixture`) para resumo/ações CRUD; suíte Playwright aguarda dependências nativas do Chromium no runner.【F:tests/e2e/servers.spec.ts†L1-L146】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [~] **TASK-UI-PG-072** · Console de segurança consome fixtures e exibe mensagens contextualizadas (`describeFixtureRequest`); specs Playwright só falharam por libs do sistema ausentes.【F:app/src/pages/Security.tsx†L89-L139】【F:tests/e2e/security.spec.ts†L1-L145】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [~] **TASK-UI-PG-073** · Policies HITL e histórico carregam fixtures, com testes exercendo geração/aplicação end-to-end; execução depende do Chromium local.【F:app/src/pages/Policies.tsx†L32-L64】【F:tests/e2e/policies-hitl.spec.ts†L1-L63】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [~] **TASK-UI-PG-074** · Routing Lab simula intents/planos a partir de fixtures determinísticos; smoke travado apenas pelo erro `browserType.launch` no container QA.【F:app/src/pages/Routing.tsx†L22-L55】【F:tests/e2e/routing-rules.spec.ts†L1-L86】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [~] **TASK-UI-PG-075** · FinOps consome planos/alertas do MSW e valida payloads; Playwright gera artefatos apesar do bloqueio de dependências. 【F:app/src/pages/FinOps.tsx†L18-L39】【F:tests/e2e/finops-plan.spec.ts†L1-L86】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
 - [x] **TASK-UI-OBS-082** · UI Kit vivo ativo com snippets, métricas publicadas em `/docs/evidence/TASK-UI-OBS-082/`.【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 
 ## Auditoria Final UI — 2025-10-20
 - `pnpm -r dev` inicializa o shell Vite e permanece em execução até ser encerrado manualmente, confirmando que o toolkit React continua pronto para desenvolvimento local.【2b58dd†L1-L5】
 - Fixtures ativados (`UI-ACT-005`) e backend simulador entregam respostas de FinOps/Routing consistentes, mas o export CSV segue sem eventos — apenas cabeçalho — até que a base SQLite receba ingestão real ou fixtures atualizados.【F:docs/evidence/UI-ACT-005/README.md†L1-L17】【d2ef4c†L1-L17】【a7a14c†L1-L3】
-- Fluxos das páginas core permanecem bloqueados: smoke Playwright reprova cards do Dashboard, navegação FinOps congela e policies não renderizam heading crítico.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+- Fluxos das páginas core dependem do runner com dependências Chromium instaladas; no contêiner padrão, o smoke Playwright aborta ainda na inicialização do browser (`browserType.launch`).【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
 - Mantemos recomendação **No-Go** para UI até restabelecer dados de telemetria e fechar as lacunas da sprint M5/M6 (vide atualização em `docs/audit-ui-m1-m6.md`).【F:docs/audit-ui-m1-m6.md†L1-L200】
 
 ## Plano UI — Próximo ciclo (handover)

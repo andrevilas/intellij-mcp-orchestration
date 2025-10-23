@@ -6,6 +6,7 @@ import AgentDetail from './Agents/AgentDetail';
 import NewAgentWizard from './Agents/NewAgentWizard';
 import SmokeEndpointsPanel from '../components/SmokeEndpointsPanel';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
+import { describeFixtureRequest } from '../utils/fixtureStatus';
 import { AGENTS_TEST_IDS } from './testIds';
 
 type StatusFilter = 'all' | AgentStatus;
@@ -45,6 +46,11 @@ function Agents(): JSX.Element {
   const [isCreateWizardOpen, setCreateWizardOpen] = useState(false);
   const smokeControllers = useRef(new Map<string, AbortController>());
 
+  const requestMessages = useMemo(
+    () => describeFixtureRequest('catálogo de agents'),
+    [],
+  );
+
   const reloadAgents = useCallback(() => {
     setIsLoading(true);
     setError(null);
@@ -55,15 +61,15 @@ function Agents(): JSX.Element {
       })
       .catch((cause) => {
         const message =
-          cause instanceof ApiError
+          cause instanceof ApiError && cause.message
             ? cause.message
-            : 'Falha ao carregar catálogo de agents.';
+            : requestMessages.error;
         setError(message);
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, [requestMessages]);
 
   const handleOpenCreate = useCallback(() => {
     setCreateWizardOpen(true);
@@ -99,9 +105,9 @@ function Agents(): JSX.Element {
           return;
         }
         const message =
-          cause instanceof ApiError
+          cause instanceof ApiError && cause.message
             ? cause.message
-            : 'Falha ao carregar catálogo de agents.';
+            : requestMessages.error;
         setError(message);
       })
       .finally(() => {
@@ -114,7 +120,7 @@ function Agents(): JSX.Element {
       isMounted = false;
       controller.abort();
     };
-  }, []);
+  }, [requestMessages]);
 
   useEffect(() => {
     return () => {
@@ -342,7 +348,7 @@ function Agents(): JSX.Element {
         </div>
       ) : isLoading ? (
         <p className="agents__empty" data-testid={AGENTS_TEST_IDS.loading}>
-          Carregando catálogo de agents…
+          {requestMessages.loading}
         </p>
       ) : !renderTable ? (
         <div className="agents__empty" role="status" data-testid={AGENTS_TEST_IDS.empty}>
