@@ -1,0 +1,51 @@
+{
+  "kpi": {
+    "status": "default",
+    "label": "Custo semanal",
+    "value": "US$ 482,37",
+    "caption": "Executou 1.842 rotinas com 842 ms de latência média.",
+    "ariaBusy": "false",
+    "ariaLive": "off",
+    "statusMessage": null
+  },
+  "progressIndicators": [
+    {
+      "status": "default",
+      "ariaBusy": "false",
+      "ariaLive": "off",
+      "label": "Taxa de sucesso",
+      "value": "98%",
+      "description": "Dados de tests/fixtures/backend/telemetry_metrics.json",
+      "statusMessage": null
+    },
+    {
+      "status": "default",
+      "ariaBusy": "false",
+      "ariaLive": "off",
+      "label": "Tokens de saída",
+      "value": "76%",
+      "description": "712.804 tokens emitidos nesta sprint.",
+      "statusMessage": null
+    }
+  ],
+  "table": {
+    "status": "default",
+    "ariaBusy": "false",
+    "ariaLive": null,
+    "rowCount": 4,
+    "toolbar": "4 conectados",
+    "statusMessage": null
+  },
+  "detail": {
+    "status": "default",
+    "ariaBusy": "false",
+    "ariaLive": "off",
+    "statusMessage": null,
+    "items": [
+      "Status",
+      "Latência média",
+      "Tokens consumidos",
+      "Custo semanal"
+    ]
+  }
+}
