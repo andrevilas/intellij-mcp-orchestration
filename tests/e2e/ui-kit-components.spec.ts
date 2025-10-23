@@ -1,5 +1,5 @@
 import { expect, test, loadBackendFixture } from './fixtures';
-import type { Page, Route } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +8,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const repoRoot = resolve(__dirname, '..', '..');
 const evidenceDir = resolve(repoRoot, 'docs', 'evidence', 'TASK-UI-DATA-030');
+
+const ELLIPSIS = '\u2026';
+const telemetryLoadingMessage = `Carregando telemetria de custo via fixtures${ELLIPSIS}`;
+const telemetryErrorMessage = 'Falha ao carregar telemetria de custo a partir dos fixtures locais.';
+const telemetryEmptyMessage = 'Fixture sem movimentação nesta sprint.';
+const successIndicatorEmptyMessage = 'Sem execuções registradas nesta janela.';
+const tokensIndicatorEmptyMessage = 'Aguardando emissões para calcular a taxa.';
+const serverLoadingMessage = `Sincronizando informações dos servidores MCP via fixtures${ELLIPSIS}`;
+const serverErrorMessage =
+  'Falha ao sincronizar informações dos servidores MCP a partir dos fixtures locais.';
+const serverEmptyMessage = 'Nenhum servidor provisionado no momento.';
+const detailEmptyMessage = 'Selecione um servidor para visualizar métricas simuladas.';
 
 type BaseRoutePayloads = {
   servers: unknown;
@@ -44,6 +56,13 @@ type ServersFixture = {
 type ServerHealthFixture = {
   checks: Record<string, Array<{ status: string; [key: string]: unknown }>>;
 };
+
+async function readOptionalText(locator: Locator): Promise<string | null> {
+  if ((await locator.count()) === 0) {
+    return null;
+  }
+  return (await locator.first().textContent())?.trim() ?? null;
+}
 
 async function analyzeAccessibility(page: Page): Promise<Record<string, unknown>> {
   try {
@@ -218,30 +237,69 @@ test('interage com o showcase do UI Kit', async ({ page }) => {
   await indicatorsGroup.getByRole('button', { name: 'Carregando' }).click();
   await expect(kpiCard).toHaveAttribute('data-status', 'loading');
   await expect(kpiCard).toHaveAttribute('aria-busy', 'true');
+  await expect(kpiCard).toHaveAttribute('aria-live', 'polite');
+  await expect(kpiCard.locator('.kpi-card__status-message')).toHaveText(telemetryLoadingMessage);
   await expect(firstIndicator).toHaveAttribute('data-status', 'loading');
   await expect(firstIndicator).toHaveAttribute('aria-busy', 'true');
+  await expect(firstIndicator).toHaveAttribute('aria-live', 'polite');
+  await expect(
+    firstIndicator.locator('.progress-indicator__status-message'),
+  ).toHaveText(telemetryLoadingMessage);
   await expect(secondIndicator).toHaveAttribute('data-status', 'loading');
-  await expect(indicatorsGroup.getByText('Sincronizando indicador de sucesso…')).toBeVisible();
-  await expect(indicatorsGroup.getByText('Comparando volume de tokens…')).toBeVisible();
+  await expect(secondIndicator).toHaveAttribute('aria-busy', 'true');
+  await expect(secondIndicator).toHaveAttribute('aria-live', 'polite');
+  await expect(
+    secondIndicator.locator('.progress-indicator__status-message'),
+  ).toHaveText(telemetryLoadingMessage);
 
   await indicatorsGroup.getByRole('button', { name: 'Vazio' }).click();
   await expect(kpiCard).toHaveAttribute('data-status', 'empty');
+  await expect(kpiCard).toHaveAttribute('aria-busy', 'false');
+  await expect(kpiCard).toHaveAttribute('aria-live', 'polite');
+  await expect(kpiCard.locator('.kpi-card__status-message')).toHaveText(telemetryEmptyMessage);
   await expect(firstIndicator).toHaveAttribute('data-status', 'empty');
+  await expect(firstIndicator).toHaveAttribute('aria-busy', 'false');
+  await expect(firstIndicator).toHaveAttribute('aria-live', 'polite');
+  await expect(
+    firstIndicator.locator('.progress-indicator__status-message'),
+  ).toHaveText(successIndicatorEmptyMessage);
   await expect(secondIndicator).toHaveAttribute('data-status', 'empty');
-  await expect(indicatorsGroup.getByText('Fixture sem movimentação nesta sprint.')).toBeVisible();
-  await expect(indicatorsGroup.getByText('Aguardando emissões para calcular a taxa.')).toBeVisible();
+  await expect(secondIndicator).toHaveAttribute('aria-busy', 'false');
+  await expect(secondIndicator).toHaveAttribute('aria-live', 'polite');
+  await expect(
+    secondIndicator.locator('.progress-indicator__status-message'),
+  ).toHaveText(tokensIndicatorEmptyMessage);
 
   await indicatorsGroup.getByRole('button', { name: 'Erro' }).click();
   await expect(kpiCard).toHaveAttribute('data-status', 'error');
+  await expect(kpiCard).toHaveAttribute('aria-busy', 'false');
+  await expect(kpiCard).toHaveAttribute('aria-live', 'assertive');
+  await expect(kpiCard.locator('.kpi-card__status-message')).toHaveText(telemetryErrorMessage);
   await expect(firstIndicator).toHaveAttribute('data-status', 'error');
+  await expect(firstIndicator).toHaveAttribute('aria-busy', 'false');
+  await expect(firstIndicator).toHaveAttribute('aria-live', 'assertive');
+  await expect(
+    firstIndicator.locator('.progress-indicator__status-message'),
+  ).toHaveText(telemetryErrorMessage);
+  await expect(firstIndicator.getByRole('button', { name: 'Recarregar indicador' })).toBeVisible();
   await expect(secondIndicator).toHaveAttribute('data-status', 'error');
-  await expect(indicatorsGroup.getByText('Não foi possível ler telemetry_metrics.json.')).toBeVisible();
+  await expect(secondIndicator).toHaveAttribute('aria-busy', 'false');
+  await expect(secondIndicator).toHaveAttribute('aria-live', 'assertive');
+  await expect(
+    secondIndicator.locator('.progress-indicator__status-message'),
+  ).toHaveText(telemetryErrorMessage);
 
   await indicatorsGroup.getByRole('button', { name: 'Dados' }).click();
   await expect(kpiCard).not.toHaveAttribute('data-status', /.*/);
-  await expect(kpiCard).not.toHaveAttribute('aria-busy', /.*/);
+  await expect(kpiCard).toHaveAttribute('aria-busy', 'false');
+  await expect(kpiCard).toHaveAttribute('aria-live', 'off');
+  await expect(kpiCard.locator('.kpi-card__status-message')).toHaveCount(0);
   await expect(firstIndicator).not.toHaveAttribute('data-status', /.*/);
+  await expect(firstIndicator).toHaveAttribute('aria-live', 'off');
+  await expect(firstIndicator.locator('.progress-indicator__status-message')).toHaveCount(0);
   await expect(secondIndicator).not.toHaveAttribute('data-status', /.*/);
+  await expect(secondIndicator).toHaveAttribute('aria-live', 'off');
+  await expect(secondIndicator.locator('.progress-indicator__status-message')).toHaveCount(0);
 
   const tableGroup = showcase.locator('.ui-kit-showcase__group').filter({ hasText: 'Listas e tabelas' });
   const resourceTable = tableGroup.locator('.resource-table');
@@ -249,19 +307,26 @@ test('interage com o showcase do UI Kit', async ({ page }) => {
   await tableGroup.getByRole('button', { name: 'Carregando' }).click();
   await expect(resourceTable).toHaveAttribute('data-status', 'loading');
   await expect(resourceTable).toHaveAttribute('aria-busy', 'true');
-  await expect(tableGroup.getByText('Carregando dados…')).toBeVisible();
+  await expect(tableGroup.getByText(serverLoadingMessage)).toBeVisible();
 
   await tableGroup.getByRole('button', { name: 'Vazio' }).click();
   await expect(resourceTable).toHaveAttribute('data-status', 'empty');
-  await expect(tableGroup.getByText('Nenhum servidor provisionado')).toBeVisible();
+  await expect(resourceTable).toHaveAttribute('aria-busy', 'false');
+  await expect(tableGroup.getByText(serverEmptyMessage)).toBeVisible();
+  await expect(
+    tableGroup.getByText('Utilize o CTA para registrar o primeiro workspace MCP da squad.'),
+  ).toBeVisible();
+  await expect(tableGroup.getByRole('button', { name: 'Registrar servidor' })).toBeVisible();
 
   await tableGroup.getByRole('button', { name: 'Erro' }).click();
   await expect(resourceTable).toHaveAttribute('data-status', 'error');
-  await expect(tableGroup.getByText('Falha ao sincronizar com fixture de servidores.')).toBeVisible();
+  await expect(resourceTable).toHaveAttribute('aria-busy', 'false');
+  await expect(tableGroup.getByText(serverErrorMessage)).toBeVisible();
+  await expect(tableGroup.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
 
   await tableGroup.getByRole('button', { name: 'Dados' }).click();
   await expect(resourceTable).not.toHaveAttribute('data-status', /.*/);
-  await expect(resourceTable).not.toHaveAttribute('aria-busy', /.*/);
+  await expect(resourceTable).toHaveAttribute('aria-busy', 'false');
   const firstRow = tableGroup.locator('tbody tr').first();
   await firstRow.focus();
   await expect(firstRow).toHaveAttribute('data-clickable', 'true');
@@ -276,20 +341,28 @@ test('interage com o showcase do UI Kit', async ({ page }) => {
   await detailGroup.getByRole('button', { name: 'Carregando' }).click();
   await expect(detailCard).toHaveAttribute('data-status', 'loading');
   await expect(detailCard).toHaveAttribute('aria-busy', 'true');
-  await expect(detailGroup.getByText('Carregando detalhes…')).toBeVisible();
+  await expect(detailCard).toHaveAttribute('aria-live', 'polite');
+  await expect(detailGroup.getByText(serverLoadingMessage)).toBeVisible();
 
   await detailGroup.getByRole('button', { name: 'Vazio' }).click();
   await expect(detailCard).toHaveAttribute('data-status', 'empty');
-  await expect(detailGroup.getByText('Selecione um servidor')).toBeVisible();
+  await expect(detailCard).toHaveAttribute('aria-busy', 'false');
+  await expect(detailCard).toHaveAttribute('aria-live', 'polite');
+  await expect(detailGroup.getByText(detailEmptyMessage)).toBeVisible();
 
   await detailGroup.getByRole('button', { name: 'Erro' }).click();
   await expect(detailCard).toHaveAttribute('data-status', 'error');
-  await expect(detailGroup.getByText('Fixture de health-check indisponível.')).toBeVisible();
+  await expect(detailCard).toHaveAttribute('aria-busy', 'false');
+  await expect(detailCard).toHaveAttribute('aria-live', 'assertive');
+  await expect(detailGroup.getByText(serverErrorMessage)).toBeVisible();
+  await expect(detailGroup.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
 
   await detailGroup.getByRole('button', { name: 'Dados' }).click();
   await expect(detailCard).not.toHaveAttribute('data-status', /.*/);
-  await expect(detailCard).not.toHaveAttribute('aria-busy', /.*/);
+  await expect(detailCard).toHaveAttribute('aria-busy', 'false');
+  await expect(detailCard).toHaveAttribute('aria-live', 'off');
   await expect(detailGroup.getByText(expectedGeminiStatus)).toBeVisible();
+  await expect(detailGroup.getByRole('button', { name: 'Reexecutar health-check' })).toBeVisible();
 
   const kpiStatusAttr = (await kpiCard.getAttribute('data-status')) ?? 'default';
   const tableStatusAttr = (await resourceTable.getAttribute('data-status')) ?? 'default';
@@ -297,9 +370,12 @@ test('interage com o showcase do UI Kit', async ({ page }) => {
   const progressSnapshot = await indicatorsGroup.locator('.progress-indicator').evaluateAll((nodes) =>
     nodes.map((node) => ({
       status: node.getAttribute('data-status') ?? 'default',
+      ariaBusy: node.getAttribute('aria-busy'),
+      ariaLive: node.getAttribute('aria-live'),
       label: node.querySelector('.progress-indicator__label')?.textContent?.trim() ?? '',
       value: node.querySelector('.progress-indicator__value')?.textContent?.trim() ?? null,
       description: node.querySelector('.progress-indicator__description')?.textContent?.trim() ?? null,
+      statusMessage: node.querySelector('.progress-indicator__status-message')?.textContent?.trim() ?? null,
     })),
   );
   const detailItems = await detailCard
@@ -313,17 +389,24 @@ test('interage com o showcase do UI Kit', async ({ page }) => {
       label: (await kpiCard.locator('.kpi-card__label').textContent())?.trim() ?? '',
       value: (await kpiCard.locator('.kpi-card__value').textContent())?.trim() ?? '',
       caption: (await kpiCard.locator('.kpi-card__caption').textContent())?.trim() ?? '',
+      ariaBusy: await kpiCard.getAttribute('aria-busy'),
+      ariaLive: await kpiCard.getAttribute('aria-live'),
+      statusMessage: await readOptionalText(kpiCard.locator('.kpi-card__status-message')),
     },
     progressIndicators: progressSnapshot,
     table: {
       status: tableStatusAttr,
       ariaBusy: await resourceTable.getAttribute('aria-busy'),
+      ariaLive: await resourceTable.getAttribute('aria-live'),
       rowCount,
       toolbar: tableToolbar,
+      statusMessage: await readOptionalText(tableGroup.locator('.resource-table__status-message')),
     },
     detail: {
       status: detailStatusAttr,
       ariaBusy: await detailCard.getAttribute('aria-busy'),
+      ariaLive: await detailCard.getAttribute('aria-live'),
+      statusMessage: await readOptionalText(detailGroup.locator('.resource-detail-card__status p')),
       items: detailItems,
     },
   };
