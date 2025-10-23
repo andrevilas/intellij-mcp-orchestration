@@ -2,10 +2,18 @@ import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
 
+import {
+  getStatusMetadata,
+  isStatusActive,
+  resolveStatusMessage,
+  type AsyncContentStatus,
+  type StatusMessageOverrides,
+} from './status/statusUtils';
+
 import './resource-table.scss';
 
 type SortDirection = 'asc' | 'desc';
-type ResourceTableStatus = 'default' | 'loading' | 'empty' | 'error';
+type ResourceTableStatus = AsyncContentStatus;
 
 export interface ResourceTableColumn<T> {
   id: string;
@@ -41,6 +49,7 @@ export interface ResourceTableProps<T> {
   error?: string | null;
   emptyState: ResourceTableEmptyState;
   onRetry?: () => void;
+  statusMessages?: StatusMessageOverrides;
   defaultSort?: { columnId: string; direction?: SortDirection };
   onSortChange?: (sort: { columnId: string; direction: SortDirection }) => void;
   onRowClick?: (item: T) => void;
@@ -64,7 +73,7 @@ function normalizeValue(value: string | number | Date | boolean | null | undefin
 function resolveEmptyState(emptyState: ResourceTableEmptyState): ReactNode {
   if (typeof emptyState === 'object' && emptyState && 'title' in emptyState) {
     return (
-      <div className="resource-table__empty-card" role="note">
+      <div className="resource-table__empty-card">
         {emptyState.illustration ? (
           <div className="resource-table__empty-illustration" aria-hidden="true">
             {emptyState.illustration}
@@ -94,6 +103,7 @@ export default function ResourceTable<T>({
   error = null,
   emptyState,
   onRetry,
+  statusMessages,
   defaultSort,
   onSortChange,
   onRowClick,
@@ -142,6 +152,15 @@ export default function ResourceTable<T>({
       : showEmptyState
         ? 'empty'
         : 'default';
+  const statusMetadata = getStatusMetadata(status);
+  const hasStatus = isStatusActive(status);
+  const statusOverride =
+    status === 'error'
+      ? error ?? statusMessages?.error ?? null
+      : statusMessages?.[status] ?? null;
+  const statusMessage = hasStatus ? resolveStatusMessage(status, statusOverride) : null;
+  const statusMessageText = statusMessage ?? '';
+  const shouldDescribeTable = status === 'error' || status === 'loading';
 
   function handleSort(column: ResourceTableColumn<T>): void {
     if (!column.sortable || !column.sortAccessor) {
@@ -160,10 +179,10 @@ export default function ResourceTable<T>({
   return (
     <section
       className="resource-table"
-      data-status={status !== 'default' ? status : undefined}
+      data-status={hasStatus ? status : undefined}
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
-      aria-busy={status === 'loading'}
+      aria-busy={statusMetadata.ariaBusy}
     >
       <header className="resource-table__header">
         <div>
@@ -179,33 +198,52 @@ export default function ResourceTable<T>({
 
       {filters ? <div className="resource-table__filters">{filters}</div> : null}
 
-      <div id={statusId} className="resource-table__status" aria-live="polite">
-        {status === 'error' ? (
-          <div className="resource-table__error" role="alert">
-            <span>{error}</span>
-            {onRetry ? (
-              <button type="button" className="resource-table__retry" onClick={onRetry}>
-                Tentar novamente
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+      {status === 'error' || status === 'loading' ? (
+        <div
+          id={statusId}
+          className="resource-table__status"
+          role={statusMetadata.role}
+          aria-live={statusMetadata.ariaLive}
+          aria-busy={statusMetadata.ariaBusy}
+        >
+          {status === 'error' ? (
+            <div className="resource-table__error">
+              <span className="resource-table__status-message">{statusMessageText}</span>
+              {onRetry ? (
+                <button type="button" className="resource-table__retry" onClick={onRetry}>
+                  Tentar novamente
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
-        {status === 'loading' ? (
-          <div className="resource-table__loading" role="status" aria-live="polite">
-            <span className="resource-table__loading-bar" aria-hidden="true" />
-            Carregando dados…
-          </div>
-        ) : null}
-      </div>
+          {status === 'loading' ? (
+            <div className="resource-table__loading">
+              <span className="resource-table__loading-bar" aria-hidden="true" />
+              <span>{statusMessageText}</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {showEmptyState ? (
-        <div className="resource-table__empty" role="note">
+        <div
+          id={statusId}
+          className="resource-table__empty"
+          role={statusMetadata.role}
+          aria-live={statusMetadata.ariaLive}
+          aria-busy={statusMetadata.ariaBusy}
+        >
+          <p className="resource-table__status-message">{statusMessageText}</p>
           {resolveEmptyState(emptyState)}
         </div>
       ) : (
         <div className="resource-table__scroll" role="region" aria-live="polite">
-          <table className="resource-table__table" aria-label={ariaLabel} aria-describedby={statusId}>
+          <table
+            className="resource-table__table"
+            aria-label={ariaLabel}
+            aria-describedby={shouldDescribeTable ? statusId : undefined}
+          >
             <thead>
               <tr>
                 {columns.map((column) => {
