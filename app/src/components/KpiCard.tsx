@@ -6,6 +6,7 @@ import {
   isStatusActive,
   resolveStatusMessage,
   type AsyncContentStatus,
+  type StatusMessageOverrides,
 } from './status/statusUtils';
 
 import './kpi-card.scss';
@@ -22,7 +23,7 @@ export interface KpiCardProps {
   trendLabel?: string;
   icon?: ReactNode;
   status?: KpiCardStatus;
-  statusMessage?: string;
+  statusMessages?: StatusMessageOverrides;
   action?: ReactNode;
   onRetry?: () => void;
   footer?: ReactNode;
@@ -43,7 +44,7 @@ export function KpiCard({
   trendLabel,
   icon,
   status = 'default',
-  statusMessage,
+  statusMessages,
   action,
   onRetry,
   footer,
@@ -51,7 +52,9 @@ export function KpiCard({
 }: KpiCardProps) {
   const headingId = `${label.replace(/\s+/g, '-').toLowerCase()}-kpi`; // deterministic id
   const statusMetadata = getStatusMetadata(status);
-  const message = isStatusActive(status) ? resolveStatusMessage(status, statusMessage) : undefined;
+  const message = isStatusActive(status)
+    ? resolveStatusMessage(status, statusMessages?.[status])
+    : undefined;
 
   return (
     <article
