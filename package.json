@@ -8,6 +8,7 @@
     "dev:all": "bash scripts/dev-all.sh",
     "dev:frontend": "pnpm --dir app dev",
     "dev:backend": "bash scripts/dev-backend.sh",
+    "lint": "pnpm --dir app lint",
     "test": "pnpm -r test",
     "test:frontend": "pnpm --dir app test",
     "build": "bash scripts/build-local.sh",
