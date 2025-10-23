@@ -1,8 +1,15 @@
 import type { ReactNode } from 'react';
 
+import {
+  getStatusMetadata,
+  isStatusActive,
+  resolveStatusMessage,
+  type AsyncContentStatus,
+} from './status/statusUtils';
+
 import './resource-detail-card.scss';
 
-export type ResourceDetailStatus = 'default' | 'loading' | 'empty' | 'error';
+export type ResourceDetailStatus = AsyncContentStatus;
 
 export interface ResourceDetailItem {
   id: string;
@@ -30,12 +37,6 @@ export interface ResourceDetailCardProps {
   footer?: ReactNode;
 }
 
-const STATUS_MESSAGE: Record<Exclude<ResourceDetailStatus, 'default'>, string> = {
-  loading: 'Carregando detalhes…',
-  empty: 'Nenhuma informação disponível para o recurso selecionado.',
-  error: 'Não foi possível carregar os detalhes deste recurso.',
-};
-
 export default function ResourceDetailCard({
   title,
   description,
@@ -50,15 +51,21 @@ export default function ResourceDetailCard({
 }: ResourceDetailCardProps) {
   const headingId = `${title.replace(/\s+/g, '-').toLowerCase()}-detail-heading`;
   const descriptionId = description ? `${headingId}-description` : undefined;
+  const statusMetadata = getStatusMetadata(status);
+  const hasStatus = isStatusActive(status);
+  const message = hasStatus
+    ? resolveStatusMessage(status, status === 'error' ? error : undefined)
+    : undefined;
 
   return (
     <section
       className="resource-detail-card"
-      data-status={status !== 'default' ? status : undefined}
+      data-status={hasStatus ? status : undefined}
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
       aria-label={ariaLabel}
-      aria-busy={status === 'loading'}
+      aria-busy={statusMetadata.ariaBusy}
+      aria-live={statusMetadata.ariaLive}
     >
       <header className="resource-detail-card__header">
         <div className="resource-detail-card__titles">
@@ -72,7 +79,7 @@ export default function ResourceDetailCard({
         {actions ? <div className="resource-detail-card__actions">{actions}</div> : null}
       </header>
 
-      {status === 'default' ? (
+      {!hasStatus ? (
         <dl className="resource-detail-card__grid">
           {items.map((item) => (
             <div key={item.id} className="resource-detail-card__item">
@@ -89,14 +96,15 @@ export default function ResourceDetailCard({
         </dl>
       ) : null}
 
-      {status !== 'default' ? (
+      {hasStatus ? (
         <div
           className="resource-detail-card__status"
-          role={status === 'error' ? 'alert' : 'status'}
-          aria-live="polite"
+          role={statusMetadata.role}
+          aria-live={statusMetadata.ariaLive}
+          aria-busy={statusMetadata.ariaBusy}
         >
           {status === 'loading' ? <span className="resource-detail-card__spinner" aria-hidden="true" /> : null}
-          <p>{status === 'error' && error ? error : STATUS_MESSAGE[status]}</p>
+          <p>{message}</p>
           {status === 'error' && onRetry ? (
             <button type="button" className="resource-detail-card__retry" onClick={onRetry}>
               Tentar novamente

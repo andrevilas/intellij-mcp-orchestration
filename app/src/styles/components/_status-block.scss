@@ -1,0 +1,80 @@
+$statuses: (
+  default: (
+    surface: var(--mcp-status-surface-default),
+    border: var(--mcp-status-border-default),
+    text: var(--mcp-status-fg-default),
+    muted: var(--mcp-status-muted-default),
+    icon: var(--mcp-status-icon-default),
+  ),
+  loading: (
+    surface: var(--mcp-status-surface-loading),
+    border: var(--mcp-status-border-loading),
+    text: var(--mcp-status-fg-loading),
+    muted: var(--mcp-status-muted-loading),
+    icon: var(--mcp-status-icon-loading),
+  ),
+  empty: (
+    surface: var(--mcp-status-surface-empty),
+    border: var(--mcp-status-border-empty),
+    text: var(--mcp-status-fg-empty),
+    muted: var(--mcp-status-muted-empty),
+    icon: var(--mcp-status-icon-empty),
+  ),
+  error: (
+    surface: var(--mcp-status-surface-error),
+    border: var(--mcp-status-border-error),
+    text: var(--mcp-status-fg-error),
+    muted: var(--mcp-status-muted-error),
+    icon: var(--mcp-status-icon-error),
+  ),
+);
+
+@function status-token($status, $token) {
+  @if map-has-key($statuses, $status) {
+    $values: map-get($statuses, $status);
+
+    @if map-has-key($values, $token) {
+      @return map-get($values, $token);
+    }
+  }
+
+  @error 'Status `#{$status}` não é suportado ou token `#{$token}` inválido.';
+}
+
+@mixin assign-status-variables($status, $vars) {
+  @each $var, $token in $vars {
+    --#{$var}: #{status-token($status, $token)};
+  }
+}
+
+@mixin status-theme($selector, $vars) {
+  #{$selector} {
+    @include assign-status-variables(default, $vars);
+  }
+
+  @each $status, $values in $statuses {
+    @if $status != default {
+      #{$selector}[data-status='#{$status}'] {
+        @include assign-status-variables($status, $vars);
+      }
+    }
+  }
+}
+
+@mixin status-surface($selector, $surface-var, $border-var: null) {
+  #{$selector} {
+    background: var(--#{$surface-var});
+
+    @if $border-var != null {
+      border-color: var(--#{$border-var});
+    }
+  }
+}
+
+@mixin status-icon-color($selector, $icon-var) {
+  #{$selector} {
+    color: var(--#{$icon-var});
+    fill: var(--#{$icon-var});
+    stroke: var(--#{$icon-var});
+  }
+}

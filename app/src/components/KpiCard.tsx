@@ -1,11 +1,18 @@
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
 
+import {
+  getStatusMetadata,
+  isStatusActive,
+  resolveStatusMessage,
+  type AsyncContentStatus,
+} from './status/statusUtils';
+
 import './kpi-card.scss';
 
 export type Trend = 'up' | 'down' | 'flat';
 
-export type KpiCardStatus = 'default' | 'loading' | 'empty' | 'error';
+export type KpiCardStatus = AsyncContentStatus;
 
 export interface KpiCardProps {
   label: string;
@@ -28,12 +35,6 @@ const TREND_SYMBOL: Record<Trend, string> = {
   flat: '■',
 };
 
-const STATUS_LABEL: Record<Exclude<KpiCardStatus, 'default'>, string> = {
-  loading: 'Carregando indicador',
-  empty: 'Nenhum dado disponível',
-  error: 'Falha ao carregar indicador',
-};
-
 export function KpiCard({
   label,
   value,
@@ -49,15 +50,16 @@ export function KpiCard({
   testId,
 }: KpiCardProps) {
   const headingId = `${label.replace(/\s+/g, '-').toLowerCase()}-kpi`; // deterministic id
-  const message = status !== 'default' ? statusMessage ?? STATUS_LABEL[status] : undefined;
+  const statusMetadata = getStatusMetadata(status);
+  const message = isStatusActive(status) ? resolveStatusMessage(status, statusMessage) : undefined;
 
   return (
     <article
       className="kpi-card"
-      data-status={status !== 'default' ? status : undefined}
+      data-status={isStatusActive(status) ? status : undefined}
       aria-labelledby={headingId}
-      aria-busy={status === 'loading'}
-      aria-live={status === 'loading' ? 'polite' : 'off'}
+      aria-busy={statusMetadata.ariaBusy}
+      aria-live={statusMetadata.ariaLive}
       data-testid={testId}
     >
       <header className="kpi-card__header">
@@ -82,8 +84,13 @@ export function KpiCard({
         </>
       ) : null}
 
-      {status !== 'default' ? (
-        <div className="kpi-card__status" role={status === 'error' ? 'alert' : 'status'} aria-live="polite">
+      {isStatusActive(status) ? (
+        <div
+          className="kpi-card__status"
+          role={statusMetadata.role}
+          aria-live={statusMetadata.ariaLive}
+          aria-busy={statusMetadata.ariaBusy}
+        >
           {status === 'loading' ? (
             <span className="kpi-card__skeleton" aria-hidden="true" />
           ) : null}
