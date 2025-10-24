@@ -1792,7 +1792,100 @@ export class ApiError extends Error {
   }
 }
 
+type FixtureLoader = () => Promise<unknown>;
+
+interface FixtureRouteDefinition {
+  readonly method: string;
+  readonly pattern: RegExp;
+  readonly load: FixtureLoader;
+}
+
+async function loadJsonFixture<T>(importer: () => Promise<{ default: T }>): Promise<T> {
+  const module = await importer();
+  const data = module.default;
+  if (typeof structuredClone === 'function') {
+    return structuredClone(data);
+  }
+  return JSON.parse(JSON.stringify(data)) as T;
+}
+
+function normalizeRequestPath(path: string): string {
+  const withoutQuery = path.replace(/[?#].*$/, '');
+  if (!withoutQuery.startsWith('/')) {
+    return `/${withoutQuery}`;
+  }
+  return withoutQuery;
+}
+
+const API_FIXTURE_ROUTES: FixtureRouteDefinition[] = [
+  {
+    method: 'GET',
+    pattern: /^\/servers\/?$/,
+    load: () => loadJsonFixture(() => import('#fixtures/servers.json', { with: { type: 'json' } })),
+  },
+  {
+    method: 'GET',
+    pattern: /^\/sessions\/?$/,
+    load: () => loadJsonFixture(() => import('#fixtures/sessions.json', { with: { type: 'json' } })),
+  },
+  {
+    method: 'GET',
+    pattern: /^\/telemetry\/metrics\/?$/,
+    load: () => loadJsonFixture(() => import('#fixtures/telemetry_metrics.json', { with: { type: 'json' } })),
+  },
+  {
+    method: 'GET',
+    pattern: /^\/telemetry\/heatmap\/?$/,
+    load: () => loadJsonFixture(() => import('#fixtures/telemetry_heatmap.json', { with: { type: 'json' } })),
+  },
+  {
+    method: 'GET',
+    pattern: /^\/policies\/compliance\/?$/,
+    load: () => loadJsonFixture(() => import('#fixtures/policies_compliance.json', { with: { type: 'json' } })),
+  },
+  {
+    method: 'GET',
+    pattern: /^\/notifications\/?$/,
+    load: () => loadJsonFixture(() => import('#fixtures/notifications.json', { with: { type: 'json' } })),
+  },
+];
+
+const AGENT_FIXTURE_ROUTES: FixtureRouteDefinition[] = [
+  {
+    method: 'GET',
+    pattern: /^\/agents\/?$/,
+    load: () => loadJsonFixture(() => import('#fixtures/agents.json', { with: { type: 'json' } })),
+  },
+];
+
+async function tryResolveFixture<T>(
+  routes: readonly FixtureRouteDefinition[],
+  path: string,
+  init?: RequestInit,
+): Promise<T | null> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const normalizedPath = normalizeRequestPath(path);
+  for (const route of routes) {
+    if (route.method !== method) {
+      continue;
+    }
+    if (!route.pattern.test(normalizedPath)) {
+      continue;
+    }
+    const data = (await route.load()) as T;
+    return data;
+  }
+  return null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isFixtureModeEnabled()) {
+    const fixture = await tryResolveFixture<T>(API_FIXTURE_ROUTES, path, init);
+    if (fixture !== null) {
+      return fixture;
+    }
+  }
+
   let response: Response;
   try {
     response = await fetchFromApi(path, init);
@@ -1823,6 +1916,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function requestAgents<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isFixtureModeEnabled()) {
+    const fixture = await tryResolveFixture<T>(AGENT_FIXTURE_ROUTES, path, init);
+    if (fixture !== null) {
+      return fixture;
+    }
+  }
+
   let response: Response;
   try {
     response = await fetchFromAgents(path, init);

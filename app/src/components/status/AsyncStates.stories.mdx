@@ -1,0 +1,118 @@
+import { Meta, Canvas, Story } from '@storybook/blocks';
+import { StoryThemeProvider } from '../story-utils/StoryThemeProvider';
+import KpiCard from '../KpiCard';
+import ResourceTable, { type ResourceTableColumn } from '../ResourceTable';
+import StatusBadge from '../indicators/StatusBadge';
+import type { StatusMessageOverrides } from '../status/statusUtils';
+
+<Meta title="Status/Async States" />
+
+# Estados de carregamento, vazio e erro
+
+Demonstração de como os componentes core do console MCP exibem estados assíncronos
+(`loading`, `empty`, `error`) alinhados aos tokens acessíveis definidos em
+`statusUtils`.
+
+## KPI Card
+
+<Canvas>
+  <Story name="Loading">
+    <StoryThemeProvider>
+      <KpiCard
+        label="Custo (24h)"
+        status="loading"
+        statusMessages={{ loading: 'Carregando indicadores de telemetria…' }}
+      />
+    </StoryThemeProvider>
+  </Story>
+</Canvas>
+
+<Canvas>
+  <Story name="Empty">
+    <StoryThemeProvider>
+      <KpiCard
+        label="Custo (24h)"
+        status="empty"
+        statusMessages={{ empty: 'Nenhum indicador disponível nesta janela.' }}
+      />
+    </StoryThemeProvider>
+  </Story>
+</Canvas>
+
+<Canvas>
+  <Story name="Error">
+    <StoryThemeProvider>
+      <KpiCard
+        label="Custo (24h)"
+        status="error"
+        statusMessages={{ error: 'Falha ao carregar indicadores de telemetria a partir dos fixtures locais.' }}
+        onRetry={() => {}}
+      />
+    </StoryThemeProvider>
+  </Story>
+</Canvas>
+
+## Resource Table
+
+<Canvas>
+  <Story name="Tabela vazia com fixtures">
+    {(() => {
+      type Session = { id: string; provider: string; createdAt: string };
+      const columns: ResourceTableColumn<Session>[] = [
+        { id: 'id', header: 'Sessão', render: (session) => <code>{session.id}</code> },
+        { id: 'provider', header: 'Provedor', render: (session) => session.provider },
+        {
+          id: 'createdAt',
+          header: 'Criado em',
+          render: (session) => new Date(session.createdAt).toLocaleString('pt-BR'),
+        },
+      ];
+      const statusMessages: StatusMessageOverrides = {
+        loading: 'Carregando histórico de sessões…',
+        empty: 'Ainda não há sessões registradas nesta execução.',
+        error: 'Falha ao carregar histórico de sessões a partir dos fixtures locais.',
+      };
+
+      return (
+        <StoryThemeProvider>
+          <ResourceTable
+            title="Histórico de sessões"
+            description="Tabela ilustrativa com status assíncronos."
+            ariaLabel="Tabela de histórico de sessões"
+            items={[]}
+            columns={columns}
+            getRowId={(session) => session.id}
+            isLoading={false}
+            statusMessages={statusMessages}
+            emptyState={{
+              title: 'Sem dados disponíveis',
+              description: 'Provisionamentos aparecerão assim que novas sessões forem executadas.',
+            }}
+          />
+        </StoryThemeProvider>
+      );
+    })()}
+  </Story>
+</Canvas>
+
+## Status Badge
+
+<Canvas>
+  <Story name="Badge em estado de carregamento">
+    <StoryThemeProvider>
+      <StatusBadge status="loading" statusMessages={{ loading: 'Sincronizando checklist de conformidade…' }} />
+    </StoryThemeProvider>
+  </Story>
+</Canvas>
+
+<Canvas>
+  <Story name="Badge em erro">
+    <StoryThemeProvider>
+      <StatusBadge
+        status="error"
+        statusMessages={{ error: 'Falha ao sincronizar checklist a partir dos fixtures locais.' }}
+        onRetry={() => {}}
+      />
+    </StoryThemeProvider>
+  </Story>
+</Canvas>

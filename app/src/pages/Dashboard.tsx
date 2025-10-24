@@ -9,9 +9,16 @@ import type {
 } from '../api';
 import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
-import Pagination from '../components/navigation/Pagination';
+import StatusBadge, { type StatusBadgeTone } from '../components/indicators/StatusBadge';
 import { useToastNotification } from '../hooks/useToastNotification';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
+import {
+  getStatusMetadata,
+  resolveStatusMessage,
+  type AsyncContentStatus,
+  type StatusMessageOverrides,
+} from '../components/status/statusUtils';
+import SessionHistorySection from '../views/dashboard/SessionHistorySection';
 import {
   LATENCY_FORMATTER,
   currencyFormatter,
@@ -57,6 +64,10 @@ export interface DashboardProps {
 }
 
 const SESSION_PAGE_SIZE = 6;
+
+type DashboardScenario = 'default' | 'loading' | 'empty' | 'error';
+const SESSION_EMPTY_DESCRIPTION =
+  'Provisionamentos aparecerão aqui assim que novas execuções forem registradas.';
 
 export interface HeatmapPoint {
   day: string;
@@ -294,9 +305,53 @@ export function Dashboard({
     () => describeFixtureRequest('provedores MCP'),
     [],
   );
+  const telemetryRequestMessages = useMemo(
+    () => describeFixtureRequest('indicadores de telemetria'),
+    [],
+  );
+  const sessionRequestMessages = useMemo(
+    () =>
+      describeFixtureRequest('histórico de sessões', {
+        action: 'Carregando',
+        errorPrefix: 'carregar',
+      }),
+    [],
+  );
+  const complianceRequestMessages = useMemo(
+    () =>
+      describeFixtureRequest('checklist de conformidade', {
+        action: 'Sincronizando',
+        errorPrefix: 'sincronizar',
+      }),
+    [],
+  );
+  const forcedScenario = useMemo<DashboardScenario>(() => {
+    if (typeof window === 'undefined') {
+      return 'default';
+    }
+    try {
+      const url = new URL(window.location.href);
+      const scenarioParam = url.searchParams.get('dashboardState');
+      if (scenarioParam === 'loading' || scenarioParam === 'empty' || scenarioParam === 'error') {
+        return scenarioParam;
+      }
+    } catch (error) {
+      console.warn('Não foi possível analisar dashboardState da URL', error);
+    }
+    return 'default';
+  }, []);
+  const telemetryMetricsSource =
+    forcedScenario === 'loading' || forcedScenario === 'error' || forcedScenario === 'empty'
+      ? null
+      : metrics;
+  const telemetryHeatmapSource =
+    forcedScenario === 'loading' || forcedScenario === 'error' || forcedScenario === 'empty'
+      ? []
+      : heatmapBuckets;
+
   const derived = useMemo(
-    () => deriveDashboardData(providers, metrics, heatmapBuckets),
-    [providers, metrics, heatmapBuckets],
+    () => deriveDashboardData(providers, telemetryMetricsSource, telemetryHeatmapSource),
+    [providers, telemetryMetricsSource, telemetryHeatmapSource],
   );
 
   useToastNotification(initialError, {
@@ -317,34 +372,93 @@ export function Dashboard({
     autoDismiss: feedbackAutoDismiss,
   });
 
+  const sessionSource = useMemo(() => {
+    if (forcedScenario === 'loading' || forcedScenario === 'empty' || forcedScenario === 'error') {
+      return [] as Session[];
+    }
+    return sessions;
+  }, [forcedScenario, sessions]);
+
   useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(sessionSource.length / SESSION_PAGE_SIZE));
     if (currentSessionPage > totalPages) {
       setCurrentSessionPage(totalPages);
     }
-  }, [sessions, currentSessionPage]);
+  }, [sessionSource, currentSessionPage]);
 
   const sessionPageCount = useMemo(
-    () => Math.max(1, Math.ceil(sessions.length / SESSION_PAGE_SIZE)),
-    [sessions.length],
+    () => Math.max(1, Math.ceil(sessionSource.length / SESSION_PAGE_SIZE)),
+    [sessionSource.length],
   );
 
   const paginatedSessions = useMemo(() => {
-    if (sessions.length === 0) {
+    if (sessionSource.length === 0) {
       return [];
     }
     const startIndex = (currentSessionPage - 1) * SESSION_PAGE_SIZE;
-    return sessions.slice(startIndex, startIndex + SESSION_PAGE_SIZE);
-  }, [sessions, currentSessionPage]);
+    return sessionSource.slice(startIndex, startIndex + SESSION_PAGE_SIZE);
+  }, [sessionSource, currentSessionPage]);
 
   const sessionRange = useMemo(() => {
-    if (sessions.length === 0) {
+    if (sessionSource.length === 0) {
       return { start: 0, end: 0 };
     }
     const start = (currentSessionPage - 1) * SESSION_PAGE_SIZE + 1;
-    const end = Math.min(currentSessionPage * SESSION_PAGE_SIZE, sessions.length);
+    const end = Math.min(currentSessionPage * SESSION_PAGE_SIZE, sessionSource.length);
     return { start, end };
-  }, [sessions, currentSessionPage]);
+  }, [sessionSource, currentSessionPage]);
+
+  const telemetryError = forcedScenario === 'error' ? telemetryRequestMessages.error : initialError;
+  const sessionsError = forcedScenario === 'error' ? sessionRequestMessages.error : initialError;
+  const bootstrapError = forcedScenario === 'error' ? providerRequestMessages.error : initialError;
+  const providersLoading = forcedScenario === 'loading' ? true : isLoading;
+
+  const telemetryStatus: AsyncContentStatus = (() => {
+    if (forcedScenario === 'loading') {
+      return 'loading';
+    }
+    if (forcedScenario === 'error') {
+      return 'error';
+    }
+    if (forcedScenario === 'empty') {
+      return 'empty';
+    }
+    if (isLoading) {
+      return 'loading';
+    }
+    if (initialError) {
+      return 'error';
+    }
+    if (!metrics) {
+      return 'empty';
+    }
+    return 'default';
+  })();
+
+  const telemetryStatusMessages = useMemo<StatusMessageOverrides>(
+    () => ({
+      loading: telemetryRequestMessages.loading,
+      empty: 'Nenhum indicador disponível no momento.',
+      error: telemetryError ?? telemetryRequestMessages.error,
+    }),
+    [telemetryRequestMessages, telemetryError],
+  );
+
+  const telemetryStatusMetadata = getStatusMetadata(telemetryStatus);
+  const telemetryStatusMessage = resolveStatusMessage(
+    telemetryStatus,
+    telemetryStatusMessages[telemetryStatus] ?? null,
+  );
+
+  const sessionsIsLoading = forcedScenario === 'loading' ? true : isLoading;
+  const sessionStatusMessages = useMemo<StatusMessageOverrides>(
+    () => ({
+      loading: sessionRequestMessages.loading,
+      empty: SESSION_EMPTY_DESCRIPTION,
+      error: sessionsError ?? sessionRequestMessages.error,
+    }),
+    [sessionRequestMessages, sessionsError],
+  );
 
   const handleSessionPageChange = useCallback((page: number) => {
     setCurrentSessionPage(page);
@@ -370,6 +484,36 @@ export function Dashboard({
       items: compliance.items,
     };
   }, [compliance]);
+
+  const complianceStatus: AsyncContentStatus = (() => {
+    if (forcedScenario === 'loading') {
+      return 'loading';
+    }
+    if (forcedScenario === 'error') {
+      return 'error';
+    }
+    if (!complianceState) {
+      return 'empty';
+    }
+    return 'default';
+  })();
+
+  const complianceTone: StatusBadgeTone = complianceState
+    ? complianceState.status === 'fail'
+      ? 'danger'
+      : complianceState.status === 'warning'
+        ? 'warning'
+        : 'success'
+    : 'info';
+
+  const complianceStatusMessages = useMemo<StatusMessageOverrides>(
+    () => ({
+      loading: complianceRequestMessages.loading,
+      empty: 'Checklist indisponível no momento.',
+      error: complianceRequestMessages.error,
+    }),
+    [complianceRequestMessages],
+  );
 
   const kpis = useMemo(() => {
     const items: Array<{
@@ -512,13 +656,16 @@ export function Dashboard({
       >
         <header>
           <h2>Checklist de conformidade</h2>
-          <span
-            className={`compliance-status compliance-status--${complianceState ? complianceState.status : 'unknown'}`}
+          <StatusBadge
+            tone={complianceTone}
+            appearance="outline"
+            status={complianceStatus}
+            statusMessages={complianceStatusMessages}
           >
             {complianceState ? complianceState.label : 'Sem dados'}
-          </span>
+          </StatusBadge>
         </header>
-        {complianceState ? (
+        {complianceStatus === 'default' && complianceState ? (
           <>
             <p className="dashboard__compliance-summary">
               {complianceState.missingRequired === 0
@@ -555,9 +702,8 @@ export function Dashboard({
               })}
             </ul>
           </>
-        ) : (
-          <p className="info">Checklist indisponível no momento.</p>
-        )}
+        ) : null}
+        {complianceStatus === 'empty' ? <p className="info">Checklist indisponível no momento.</p> : null}
       </section>
 
       <section
@@ -574,6 +720,8 @@ export function Dashboard({
             trend={kpi.trend}
             trendLabel={kpi.trendLabel}
             testId={`dashboard-kpi-${kpi.id}`}
+            status={telemetryStatus}
+            statusMessages={telemetryStatusMessages}
           />
         ))}
       </section>
@@ -586,38 +734,50 @@ export function Dashboard({
         <div
           className="dashboard__insight-cards"
           data-testid={DASHBOARD_TEST_IDS.insightCards}
+          data-status={telemetryStatus !== 'default' ? telemetryStatus : undefined}
+          role={telemetryStatus !== 'default' ? telemetryStatusMetadata.role : undefined}
+          aria-live={telemetryStatus !== 'default' ? telemetryStatusMetadata.ariaLive : undefined}
+          aria-busy={telemetryStatus !== 'default' ? telemetryStatusMetadata.ariaBusy : undefined}
         >
-          {insightCards.map((card) => (
-            <article
-              key={card.id}
-              className="insight-card"
-              data-testid={DASHBOARD_TEST_IDS.insightCard(card.id)}
-            >
-              <header>
-                <h3>{card.title}</h3>
-              </header>
-              <p className="insight-card__value">{card.value}</p>
-              <p className="insight-card__caption">{card.caption}</p>
-            </article>
-          ))}
+          {telemetryStatus === 'default'
+            ? insightCards.map((card) => (
+                <article
+                  key={card.id}
+                  className="insight-card"
+                  data-testid={DASHBOARD_TEST_IDS.insightCard(card.id)}
+                >
+                  <header>
+                    <h3>{card.title}</h3>
+                  </header>
+                  <p className="insight-card__value">{card.value}</p>
+                  <p className="insight-card__caption">{card.caption}</p>
+                </article>
+              ))
+            : (
+                <div className="dashboard__insight-status" data-status={telemetryStatus}>
+                  <p>{telemetryStatusMessage}</p>
+                </div>
+              )}
         </div>
-        <Suspense
-          fallback={
-            <div className="dashboard__insight-visuals">
-              <p className="info" role="status" aria-live="polite">
-                Carregando visualizações…
-              </p>
-            </div>
-          }
-        >
-          <DashboardInsightVisuals
-            derived={derived}
-            costChartTitleId={costChartTitleId}
-            costChartDescriptionId={costChartDescriptionId}
-            errorChartTitleId={errorChartTitleId}
-            errorChartDescriptionId={errorChartDescriptionId}
-          />
-        </Suspense>
+        {telemetryStatus === 'default' ? (
+          <Suspense
+            fallback={
+              <div className="dashboard__insight-visuals">
+                <p className="info" role="status" aria-live="polite">
+                  Carregando visualizações…
+                </p>
+              </div>
+            }
+          >
+            <DashboardInsightVisuals
+              derived={derived}
+              costChartTitleId={costChartTitleId}
+              costChartDescriptionId={costChartDescriptionId}
+              errorChartTitleId={errorChartTitleId}
+              errorChartDescriptionId={errorChartDescriptionId}
+            />
+          </Suspense>
+        ) : null}
       </section>
 
       <section
@@ -658,17 +818,17 @@ export function Dashboard({
       </Suspense>
 
       <section className="providers" data-testid={DASHBOARD_TEST_IDS.sections.providers}>
-        <header className="section-header">
+        <header className="dashboard__section-header">
           <div>
             <h2>Provedores registrados</h2>
             <p>Lista carregada do manifesto versionado em {"config/console-mcp/servers.example.json"}.</p>
           </div>
         </header>
 
-        {isLoading && <p className="info">{providerRequestMessages.loading}</p>}
-        {initialError && <p className="error">{initialError}</p>}
+        {providersLoading && <p className="info">{providerRequestMessages.loading}</p>}
+        {bootstrapError && <p className="error">{bootstrapError}</p>}
 
-        {!isLoading && !initialError && providers.length === 0 && (
+        {!providersLoading && !bootstrapError && providers.length === 0 && (
           <p className="info">Nenhum provedor configurado ainda. Ajuste o manifesto e recarregue.</p>
         )}
 
@@ -684,9 +844,9 @@ export function Dashboard({
                   <h3>{provider.name}</h3>
                   <p className="provider-description">{provider.description || 'Sem descrição fornecida.'}</p>
                 </div>
-                <span className={`availability ${provider.is_available ? 'online' : 'offline'}`}>
+                <StatusBadge tone={provider.is_available ? 'success' : 'danger'} appearance="soft">
                   {provider.is_available ? 'Disponível' : 'Indisponível'}
-                </span>
+                </StatusBadge>
               </header>
 
               <dl className="provider-meta">
@@ -733,52 +893,19 @@ export function Dashboard({
 
       {feedback && <div className={`feedback ${feedback.kind}`}>{feedback.text}</div>}
 
-      <section className="sessions">
-        <header className="section-header">
-          <div>
-            <h2>Histórico recente de sessões</h2>
-            <p>Dados retornados pelo endpoint `/api/v1/sessions`.</p>
-          </div>
-        </header>
-
-        {sessions.length === 0 && <p className="info">Ainda não há sessões registradas nesta execução.</p>}
-
-        {sessions.length > 0 && (
-          <>
-            <ul className="session-list">
-              {paginatedSessions.map((session) => (
-                <li key={session.id} className="session-item">
-                  <div className="session-header">
-                    <span className="session-id">{session.id}</span>
-                    <span className="session-status">{session.status}</span>
-                  </div>
-                  <div className="session-meta">
-                    <span>
-                      Provedor: <strong>{session.provider_id}</strong>
-                    </span>
-                    <span>
-                      Criado em: {new Date(session.created_at).toLocaleString()}
-                    </span>
-                    {session.reason && <span>Motivo: {session.reason}</span>}
-                    {session.client && <span>Cliente: {session.client}</span>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <div className="session-pagination">
-              <span className="session-pagination__summary" role="status" aria-live="polite">
-                Mostrando {sessionRange.start}–{sessionRange.end} de {sessions.length} sessões
-              </span>
-              <Pagination
-                currentPage={currentSessionPage}
-                pageCount={sessionPageCount}
-                onPageChange={handleSessionPageChange}
-                ariaLabel="Paginação do histórico de sessões"
-              />
-            </div>
-          </>
-        )}
-      </section>
+      <SessionHistorySection
+        sessions={paginatedSessions}
+        totalSessions={sessionSource.length}
+        range={sessionRange}
+        currentPage={currentSessionPage}
+        pageCount={sessionPageCount}
+        onPageChange={handleSessionPageChange}
+        isLoading={sessionsIsLoading}
+        error={sessionsError}
+        statusMessages={sessionStatusMessages}
+        emptyDescription={SESSION_EMPTY_DESCRIPTION}
+        testId={DASHBOARD_TEST_IDS.sections.sessions}
+      />
     </main>
   );
 }
