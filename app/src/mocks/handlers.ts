@@ -36,19 +36,25 @@ const sessionsFixture = loadFixture('sessions');
 const notificationsFixture = loadFixture('notifications');
 const policiesComplianceFixture = loadFixture('policies_compliance');
 const policyManifestFixture = loadFixture('policy_manifest');
-const policyTemplatesFixture = loadFixture('policy_templates');
-const policyDeploymentsFixture = loadFixture('policy_deployments');
+const policyTemplatesFixture = loadFixture('policy_templates', () => ({
+  templates: [],
+  rollout: null,
+}));
+const policyDeploymentsFixture = loadFixture('policy_deployments', () => ({
+  deployments: [],
+  active_id: null,
+}));
 const telemetryExperimentsFixture = loadFixture('telemetry_experiments');
 const telemetryLaneCostsFixture = loadFixture('telemetry_lane_costs');
 const telemetryMarketplaceFixture = loadFixture('telemetry_marketplace');
 const providersFixture = loadFixture('providers');
-const smokeEndpointsFixture = loadFixture('smoke_endpoints');
+const smokeEndpointsFixture = loadFixture('smoke_endpoints', () => ({ endpoints: [] }));
 const agentsFixture = loadFixture('agents');
-const securityUsersFixture = loadFixture('security_users');
-const securityRolesFixture = loadFixture('security_roles');
-const securityApiKeysFixture = loadFixture('security_api_keys');
-const securityAuditTrailFixture = loadFixture('security_audit_trail');
-const securityAuditLogsFixture = loadFixture('security_audit_logs');
+const securityUsersFixture = loadFixture('security_users', () => ({ users: [] }));
+const securityRolesFixture = loadFixture('security_roles', () => ({ roles: [] }));
+const securityApiKeysFixture = loadFixture('security_api_keys', () => ({ keys: [] }));
+const securityAuditTrailFixture = loadFixture('security_audit_trail', () => ({ events: {} }));
+const securityAuditLogsFixture = loadFixture('security_audit_logs', () => ({ events: [] }));
 
 const API_PREFIX = '*/api/v1';
 

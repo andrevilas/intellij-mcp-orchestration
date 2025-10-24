@@ -11,6 +11,7 @@ const backendFixtureModules = import.meta.glob<unknown>(
 type FixtureModuleMap = Record<string, unknown>;
 
 const fixtureStore = new Map<string, unknown>();
+const fallbackFactories = new Map<string, () => unknown>();
 
 const cloneFixture = <T>(value: T): T => {
   if (typeof structuredClone === 'function') {
@@ -52,14 +53,26 @@ export const hasFixture = (name: string): boolean => fixtureStore.has(name);
 
 export const listFixtures = (): string[] => Array.from(fixtureStore.keys()).sort();
 
-export function loadFixture<T = unknown>(name: string, fallback?: T): T {
+type FixtureFallback<T> = T | (() => T);
+
+const toFallbackFactory = <T>(fallback: FixtureFallback<T>): (() => T) => {
+  return typeof fallback === 'function'
+    ? (fallback as () => T)
+    : () => fallback;
+};
+
+export function loadFixture<T = unknown>(name: string, fallback?: FixtureFallback<T>): T {
   if (fixtureStore.has(name)) {
     const value = fixtureStore.get(name) as T;
     return cloneFixture(value);
   }
 
   if (fallback !== undefined) {
-    return cloneFixture(fallback);
+    const factory = toFallbackFactory(fallback);
+    fallbackFactories.set(name, factory as () => unknown);
+    const storedValue = cloneFixture(factory());
+    fixtureStore.set(name, storedValue);
+    return cloneFixture(storedValue as T);
   }
 
   throw new Error(`Fixture "${name}" não encontrada nas pastas suportadas.`);
@@ -69,4 +82,8 @@ export function resetFixtureStore(): void {
   fixtureStore.clear();
   registerModules(serverFixtureModules as FixtureModuleMap);
   registerModules(backendFixtureModules as FixtureModuleMap);
+  for (const [name, factory] of fallbackFactories.entries()) {
+    const value = cloneFixture(factory());
+    fixtureStore.set(name, value);
+  }
 }

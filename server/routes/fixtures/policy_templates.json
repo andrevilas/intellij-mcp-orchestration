@@ -1,0 +1,209 @@
+{
+  "templates": [
+    {
+      "id": "policy-routing-latency",
+      "name": "Routing focado em latência",
+      "tagline": "Diminui P95 usando fallback automático.",
+      "description": "Rebalanceia tráfego priorizando rotas turbo.",
+      "price_delta": "-12% vs. baseline",
+      "latency_target": "até 2.4 s P95",
+      "guardrail_level": "Nível 3 · Avançado",
+      "features": [
+        "Prioriza turbo em intents críticas",
+        "Failover automático com circuito aberto",
+        "Alertas de latência multirregião"
+      ]
+    },
+    {
+      "id": "policy-finops-burn",
+      "name": "FinOps burn-rate",
+      "tagline": "Ativa alertas de burn-rate agressivos.",
+      "description": "Ajusta budgets e adiciona degradê suave.",
+      "price_delta": "-8% vs. baseline",
+      "latency_target": "até 3.1 s P95",
+      "guardrail_level": "Nível 2 · Moderado",
+      "features": [
+        "Alertas automáticos de burn-rate",
+        "Graceful degradation configurável",
+        "Buffers de orçamento por tier"
+      ]
+    }
+  ],
+  "rollout": {
+    "generatedAt": "2025-03-06T10:00:00Z",
+    "plans": [
+      {
+        "templateId": "policy-routing-latency",
+        "generatedAt": "2025-03-06T09:45:00Z",
+        "allocations": [
+          {
+            "segment": {
+              "id": "canary",
+              "name": "Canário",
+              "description": "Clientes piloto monitorados em tempo real."
+            },
+            "coverage": 18,
+            "providers": [
+              {
+                "id": "gemini",
+                "name": "Gemini MCP",
+                "command": "~/.local/bin/gemini-mcp",
+                "description": "Google Gemini router exposed via local MCP bridge",
+                "tags": ["llm", "google"],
+                "capabilities": ["chat", "tools"],
+                "transport": "stdio",
+                "is_available": true
+              },
+              {
+                "id": "codex",
+                "name": "Codex CLI",
+                "command": "~/.local/bin/codex-mcp",
+                "description": "OpenAI-compatible MCP CLI optimized for iterative coding",
+                "tags": ["llm", "openai"],
+                "capabilities": ["chat", "exec"],
+                "transport": "stdio",
+                "is_available": true
+              }
+            ]
+          },
+          {
+            "segment": {
+              "id": "general",
+              "name": "Disponibilidade geral",
+              "description": "Workloads padrão com fallback automático."
+            },
+            "coverage": 62,
+            "providers": [
+              {
+                "id": "gemini",
+                "name": "Gemini MCP",
+                "command": "~/.local/bin/gemini-mcp",
+                "description": "Google Gemini router exposed via local MCP bridge",
+                "tags": ["llm", "google"],
+                "capabilities": ["chat", "tools"],
+                "transport": "stdio",
+                "is_available": true
+              },
+              {
+                "id": "codex",
+                "name": "Codex CLI",
+                "command": "~/.local/bin/codex-mcp",
+                "description": "OpenAI-compatible MCP CLI optimized for iterative coding",
+                "tags": ["llm", "openai"],
+                "capabilities": ["chat", "exec"],
+                "transport": "stdio",
+                "is_available": true
+              },
+              {
+                "id": "claude",
+                "name": "Claude MCP",
+                "command": "~/.local/bin/claude-mcp",
+                "description": "Claude environment orchestration via CLI",
+                "tags": ["llm", "anthropic"],
+                "capabilities": ["chat"],
+                "transport": "stdio",
+                "is_available": true
+              }
+            ]
+          },
+          {
+            "segment": {
+              "id": "fallback",
+              "name": "Fallback monitorado",
+              "description": "Rotas sensíveis com rollback dedicado."
+            },
+            "coverage": 20,
+            "providers": [
+              {
+                "id": "glm46",
+                "name": "GLM-4.6",
+                "command": "~/.local/bin/glm46-mcp",
+                "description": "Zhipu AI GLM-4.6 stdio MCP server with guardrails",
+                "tags": ["llm", "zhipu"],
+                "capabilities": ["chat", "embedding", "token_count"],
+                "transport": "stdio",
+                "is_available": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "templateId": "policy-finops-burn",
+        "generatedAt": "2025-03-05T18:30:00Z",
+        "allocations": [
+          {
+            "segment": {
+              "id": "canary",
+              "name": "Canário",
+              "description": "Rollout inicial com monitoramento de burn-rate."
+            },
+            "coverage": 12,
+            "providers": [
+              {
+                "id": "codex",
+                "name": "Codex CLI",
+                "command": "~/.local/bin/codex-mcp",
+                "description": "OpenAI-compatible MCP CLI optimized for iterative coding",
+                "tags": ["llm", "openai"],
+                "capabilities": ["chat", "exec"],
+                "transport": "stdio",
+                "is_available": true
+              }
+            ]
+          },
+          {
+            "segment": {
+              "id": "general",
+              "name": "Disponibilidade geral",
+              "description": "Equipes com budgets monitorados semanalmente."
+            },
+            "coverage": 58,
+            "providers": [
+              {
+                "id": "gemini",
+                "name": "Gemini MCP",
+                "command": "~/.local/bin/gemini-mcp",
+                "description": "Google Gemini router exposed via local MCP bridge",
+                "tags": ["llm", "google"],
+                "capabilities": ["chat", "tools"],
+                "transport": "stdio",
+                "is_available": true
+              },
+              {
+                "id": "claude",
+                "name": "Claude MCP",
+                "command": "~/.local/bin/claude-mcp",
+                "description": "Claude environment orchestration via CLI",
+                "tags": ["llm", "anthropic"],
+                "capabilities": ["chat"],
+                "transport": "stdio",
+                "is_available": true
+              }
+            ]
+          },
+          {
+            "segment": {
+              "id": "fallback",
+              "name": "Fallback monitorado",
+              "description": "Fallback automático quando burn-rate ultrapassar 80%."
+            },
+            "coverage": 30,
+            "providers": [
+              {
+                "id": "glm46",
+                "name": "GLM-4.6",
+                "command": "~/.local/bin/glm46-mcp",
+                "description": "Zhipu AI GLM-4.6 stdio MCP server with guardrails",
+                "tags": ["llm", "zhipu"],
+                "capabilities": ["chat", "embedding", "token_count"],
+                "transport": "stdio",
+                "is_available": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

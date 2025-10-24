@@ -12,13 +12,19 @@
 
 1. Instale dependências com o cache local do PNPM (ex.: `pnpm install --offline`).
 2. Garanta que as fixtures estejam disponíveis (padrão do repositório em `tests/fixtures/backend` e espelho em `server/routes/fixtures`).
-3. Exporte a flag para habilitar o modo MSW/fixtures (já habilitada por padrão):
+   - Os mesmos JSONs são carregados tanto pelo backend FastAPI quanto pelo MSW do frontend. Se for necessário atualizar algum payload,
+     modifique `server/routes/fixtures/*.json` e execute novamente os comandos abaixo.
+3. (Opcional) Ajuste a flag do Vite caso queira sobrescrever o modo padrão:
 
    ```bash
-   export CONSOLE_MCP_USE_FIXTURES=1
+   # já padrão: ativa MSW usando handlers locais determinísticos
+   export CONSOLE_MCP_USE_FIXTURES=auto
+
+   # força o proxy HTTP caso haja backend disponível
+   export CONSOLE_MCP_USE_FIXTURES=off
    ```
 
-4. Inicie o frontend usando apenas as fixtures locais:
+4. Inicie o frontend usando apenas as fixtures locais (sem backend):
 
    ```bash
    pnpm --dir app dev
@@ -34,3 +40,11 @@
    ```
 
    Caso o backend não esteja acessível, o Vite retorna automaticamente às fixtures determinísticas, alinhadas com `server/routes/fixtures`.
+
+6. Para validar o modo offline em ambientes de QA, execute o Playwright apontando para o worker de fixtures (já habilitado por padrão):
+
+   ```bash
+   pnpm --dir tests exec playwright test
+   ```
+
+   O helper `tests/e2e/fixtures.ts` aguarda `window.__CONSOLE_MCP_FIXTURES__ === 'ready'`, garantindo que a UI utilize somente os dados locais.
