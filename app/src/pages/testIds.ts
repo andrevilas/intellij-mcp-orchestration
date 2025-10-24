@@ -7,6 +7,7 @@ export const DASHBOARD_TEST_IDS = {
     alerts: 'dashboard-alerts',
     heatmap: 'dashboard-heatmap',
     providers: 'dashboard-providers',
+    sessions: 'dashboard-sessions',
   },
   insightCards: 'dashboard-insight-cards',
   insightCard: (id: string) => `dashboard-insight-${id}`,
