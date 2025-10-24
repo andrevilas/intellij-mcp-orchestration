@@ -34,6 +34,8 @@ import sessionsFixture from '#fixtures/sessions.json' with { type: 'json' };
 import notificationsFixture from '#fixtures/notifications.json' with { type: 'json' };
 import policiesComplianceFixture from '#fixtures/policies_compliance.json' with { type: 'json' };
 import policyManifestFixture from '#fixtures/policy_manifest.json' with { type: 'json' };
+import policyTemplatesFixture from '#fixtures/policy_templates.json' with { type: 'json' };
+import policyDeploymentsFixture from '#fixtures/policy_deployments.json' with { type: 'json' };
 import telemetryExperimentsFixture from '#fixtures/telemetry_experiments.json' with { type: 'json' };
 import telemetryLaneCostsFixture from '#fixtures/telemetry_lane_costs.json' with { type: 'json' };
 import telemetryMarketplaceFixture from '#fixtures/telemetry_marketplace.json' with { type: 'json' };
@@ -644,58 +646,86 @@ const resetPolicyOverrideStore = () => {
 const listPolicyOverrides = (): PolicyOverrideRecord[] =>
   Array.from(policyOverrideStore.values()).map((override) => createResponse(override));
 
-const policyTemplateCatalog = {
-  templates: [
-    {
-      id: 'policy-routing-latency',
-      name: 'Routing focado em latência',
-      tagline: 'Diminui P95 usando fallback automático.',
-      description: 'Rebalanceia tráfego priorizando rotas turbo.',
-      price_delta: 1.08,
-      latency_target: 0.82,
-      guardrail_level: 'medium',
-      features: ['prioriza-turbo', 'failover-automático'],
-    },
-    {
-      id: 'policy-finops-burn',
-      name: 'FinOps burn-rate',
-      tagline: 'Ativa alertas de burn-rate agressivos.',
-      description: 'Ajusta budgets e adiciona degradê suave.',
-      price_delta: 0.95,
-      latency_target: 1.05,
-      guardrail_level: 'high',
-      features: ['burn-rate', 'graceful-degradation'],
-    },
-  ],
-  rollout: {
-    generatedAt: '2025-03-06T10:00:00Z',
-    plans: [
-      {
-        templateId: 'policy-routing-latency',
-        generatedAt: '2025-03-06T09:45:00Z',
-        allocations: [
-          {
-            segment: {
-              id: 'canary',
-              name: 'Canary',
-              description: 'Clientes piloto para validação.',
-            },
-            coverage: 0.15,
-            providers: providerCatalog.slice(0, 2),
-          },
-          {
-            segment: {
-              id: 'general',
-              name: 'General availability',
-              description: 'Segmento padrão das rotas.',
-            },
-            coverage: 0.85,
-            providers: providerCatalog.slice(0, 3),
-          },
-        ],
-      },
-    ],
+type PolicyDeploymentRecord = {
+  id: string;
+  template_id: string;
+  deployed_at: string;
+  author: string;
+  window: string | null;
+  note: string | null;
+  slo_p95_ms: number;
+  budget_usage_pct: number;
+  incidents_count: number;
+  guardrail_score: number;
+  created_at: string;
+  updated_at: string;
+};
+
+const policyTemplateCatalog = createResponse(
+  policyTemplatesFixture as {
+    templates: Array<Record<string, unknown>>;
+    rollout?: Record<string, unknown> | null;
   },
+);
+
+const policyDeploymentSource = (policyDeploymentsFixture as {
+  deployments: PolicyDeploymentRecord[];
+  active_id?: string | null;
+}).deployments;
+
+let activePolicyDeploymentId = (
+  policyDeploymentsFixture as { active_id?: string | null }
+).active_id ?? null;
+
+const policyDeploymentStore = new Map<string, PolicyDeploymentRecord>();
+
+const resetPolicyDeploymentStore = () => {
+  policyDeploymentStore.clear();
+  for (const record of policyDeploymentSource) {
+    policyDeploymentStore.set(record.id, createResponse(record));
+  }
+  activePolicyDeploymentId = (
+    policyDeploymentsFixture as { active_id?: string | null }
+  ).active_id ?? null;
+};
+
+const listPolicyDeployments = (): PolicyDeploymentRecord[] =>
+  Array.from(policyDeploymentStore.values()).map((record) => createResponse(record));
+
+const listPolicyDeploymentsSorted = (): PolicyDeploymentRecord[] =>
+  listPolicyDeployments().sort(
+    (a, b) => new Date(a.deployed_at).getTime() - new Date(b.deployed_at).getTime(),
+  );
+
+resetPolicyDeploymentStore();
+
+const nextPolicyDeploymentSequence = (() => {
+  let counter = policyDeploymentSource.length;
+  return () => {
+    counter += 1;
+    return counter;
+  };
+})();
+
+const nextPolicyDeploymentTimestamp = (() => {
+  let seed = Date.UTC(2025, 2, 7, 18, 45, 0);
+  return () => {
+    seed += 60_000;
+    return new Date(seed).toISOString();
+  };
+})();
+
+const deriveDeploymentMetrics = (templateId: string) => {
+  let hash = 0;
+  for (const char of templateId) {
+    hash = (hash * 31 + char.charCodeAt(0)) & 0xffffffff;
+  }
+  const normalized = Math.abs(hash);
+  const slo = 820 + (normalized % 220);
+  const budget = 60 + ((normalized >> 3) % 30);
+  const incidents = (normalized >> 5) % 3;
+  const guardrail = 70 + ((normalized >> 7) % 24);
+  return { slo, budget, incidents, guardrail };
 };
 
 const observabilityPreferencesState = {
@@ -1044,6 +1074,7 @@ export const resetMockState = () => {
   resetSecretStore();
   resetCostPolicyStore();
   resetPolicyOverrideStore();
+  resetPolicyDeploymentStore();
   resetSecurityUserStore();
   resetSecurityRoleStore();
   resetSecurityApiKeyStore();
@@ -1824,6 +1855,76 @@ export const handlers = [
       stats: { pending: 0, completed: 0 },
     }),
   ),
+  http.get(`${API_PREFIX}/policies/deployments`, () =>
+    HttpResponse.json({
+      deployments: listPolicyDeploymentsSorted(),
+      active_id: activePolicyDeploymentId,
+    }),
+  ),
+  http.post(`${API_PREFIX}/policies/deployments`, async ({ request }) => {
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // ignore malformed payloads
+    }
+
+    const templateId =
+      typeof payload.template_id === 'string' && payload.template_id.trim().length > 0
+        ? payload.template_id.trim()
+        : 'policy-routing-latency';
+    const author =
+      typeof payload.author === 'string' && payload.author.trim().length > 0
+        ? payload.author.trim()
+        : 'Console MCP';
+    const windowLabel =
+      typeof payload.window === 'string' && payload.window.trim().length > 0
+        ? payload.window.trim()
+        : null;
+    const note =
+      typeof payload.note === 'string' && payload.note.trim().length > 0
+        ? payload.note.trim()
+        : null;
+
+    const sequence = nextPolicyDeploymentSequence();
+    const timestamp = nextPolicyDeploymentTimestamp();
+    const metrics = deriveDeploymentMetrics(templateId);
+
+    const record: PolicyDeploymentRecord = {
+      id: `${templateId}-${sequence.toString(16)}`,
+      template_id: templateId,
+      deployed_at: timestamp,
+      author,
+      window: windowLabel,
+      note,
+      slo_p95_ms: metrics.slo,
+      budget_usage_pct: metrics.budget,
+      incidents_count: metrics.incidents,
+      guardrail_score: metrics.guardrail,
+      created_at: timestamp,
+      updated_at: timestamp,
+    };
+
+    const storedRecord = createResponse(record);
+    policyDeploymentStore.set(storedRecord.id, storedRecord);
+    activePolicyDeploymentId = storedRecord.id;
+
+    return HttpResponse.json(createResponse(storedRecord), { status: 201 });
+  }),
+  http.delete(`${API_PREFIX}/policies/deployments/:deploymentId`, ({ params }) => {
+    const deploymentId = params.deploymentId as string;
+    if (!policyDeploymentStore.has(deploymentId)) {
+      return HttpResponse.json({ detail: 'Deployment not found' }, { status: 404 });
+    }
+
+    policyDeploymentStore.delete(deploymentId);
+    if (activePolicyDeploymentId === deploymentId) {
+      const remaining = listPolicyDeploymentsSorted();
+      activePolicyDeploymentId = remaining.length > 0 ? remaining[remaining.length - 1].id : null;
+    }
+
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.get(`${API_PREFIX}/policies`, () =>
     HttpResponse.json({ policies: listCostPolicies() }),
   ),
@@ -2351,7 +2452,27 @@ export const handlers = [
     const response = cloneDeep(finopsPlanApplyFixture);
     response.plan_id = planId;
     response.record_id = `record-${planId}`;
-    response.message = `Plano ${planId} aplicado com sucesso via fixtures.`;
+    const planType = planId.startsWith('policy-plan')
+      ? 'policies'
+      : planId.startsWith('finops-plan')
+        ? 'finops'
+        : 'generic';
+
+    if (planType === 'policies') {
+      response.branch = 'chore/policies-plan-fixtures';
+      if (response.pull_request) {
+        response.pull_request.title = 'Atualizar políticas MCP (fixtures)';
+      }
+    }
+
+    const planLabel =
+      planType === 'policies'
+        ? 'Plano de políticas'
+        : planType === 'finops'
+          ? 'Plano FinOps'
+          : 'Plano';
+
+    response.message = `${planLabel} aplicado com sucesso via fixtures.`;
 
     if (response.pull_request) {
       response.pull_request.id = `${planId}-pr`;

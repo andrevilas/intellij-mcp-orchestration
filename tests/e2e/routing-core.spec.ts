@@ -99,7 +99,7 @@ test('gera e aplica plano de roteamento com intents customizadas', async ({ page
   expect(applyPayload.actor_email).toBe('joana@example.com');
   expect(applyPayload.commit_message).toBe('feat: atualizar intents e regras');
 
-  await expect(page.getByText('Plano FinOps aplicado com sucesso via fixtures.')).toBeVisible();
+  await expect(page.getByText('Plano aplicado com sucesso via fixtures.')).toBeVisible();
   await expect(page.getByText('Branch: chore/finops-plan-fixtures')).toBeVisible();
   await expect(page.getByText('PR: https://github.com/example/console-mcp/pull/42')).toBeVisible();
 });

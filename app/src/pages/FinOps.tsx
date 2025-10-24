@@ -42,6 +42,7 @@ import {
   type PlanExecutionPullRequest,
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
+import ConfirmationModal from '../components/modals/ConfirmationModal';
 import type {
   FinOpsMetricAccessor,
   FinOpsTimeseriesDatum,
@@ -889,6 +890,8 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const [planError, setPlanError] = useState<string | null>(null);
   const [isPlanGenerating, setPlanGenerating] = useState(false);
   const [isPlanApplying, setPlanApplying] = useState(false);
+  const [planConfirmation, setPlanConfirmation] = useState<{ action: 'apply' | 'discard' } | null>(null);
+  const [isPlanConfirming, setPlanConfirming] = useState(false);
   const [costCenterError, setCostCenterError] = useState<string | null>(null);
 
   const isFormDisabled = isManifestLoading || isPlanGenerating || isPlanApplying;
@@ -1449,7 +1452,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     ],
   );
 
-  const handlePlanApply = useCallback(async () => {
+  const executePlanApply = useCallback(async () => {
     if (!pendingPlan) {
       setPlanError('Gere um plano antes de aplicar as mudanças.');
       return;
@@ -1497,10 +1500,69 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     }
   }, [pendingPlan]);
 
-  const handlePlanReset = useCallback(() => {
+  const executePlanReset = useCallback(() => {
     resetPendingPlan();
     setPlanStatusMessage('Plano descartado. Ajuste a política e gere novamente.');
   }, [resetPendingPlan]);
+
+  const requestPlanApply = useCallback(() => {
+    if (!pendingPlan) {
+      setPlanError('Gere um plano antes de aplicar as mudanças.');
+      return;
+    }
+    setPlanConfirmation({ action: 'apply' });
+  }, [pendingPlan]);
+
+  const requestPlanReset = useCallback(() => {
+    if (!pendingPlan) {
+      setPlanError('Nenhum plano pendente para descartar.');
+      return;
+    }
+    setPlanConfirmation({ action: 'discard' });
+  }, [pendingPlan]);
+
+  const closePlanConfirmation = useCallback(() => {
+    if (isPlanConfirming || isPlanApplying) {
+      return;
+    }
+    setPlanConfirmation(null);
+  }, [isPlanConfirming, isPlanApplying]);
+
+  const confirmPlanAction = useCallback(() => {
+    if (!planConfirmation) {
+      return;
+    }
+    if (planConfirmation.action === 'apply') {
+      setPlanConfirming(true);
+      void executePlanApply().finally(() => {
+        setPlanConfirming(false);
+        setPlanConfirmation(null);
+      });
+      return;
+    }
+    executePlanReset();
+    setPlanConfirmation(null);
+  }, [planConfirmation, executePlanApply, executePlanReset]);
+
+  const planConfirmationContent = useMemo(() => {
+    if (!planConfirmation) {
+      return null;
+    }
+    if (planConfirmation.action === 'apply') {
+      return {
+        title: 'Aplicar plano FinOps',
+        description: 'Aplicará budgets, alertas e limites atualizados no manifesto FinOps.',
+        confirmLabel: 'Aplicar plano',
+        confirmArmedLabel: 'Aplicar agora',
+      } as const;
+    }
+    return {
+      title: 'Descartar plano FinOps',
+      description: 'Descartará as alterações geradas e manterá o manifesto atual.',
+      confirmLabel: 'Descartar plano',
+      confirmArmedLabel: 'Descartar agora',
+    } as const;
+  }, [planConfirmation]);
 
   const availableSeries = useMemo(() => {
     const days = RANGE_TO_DAYS[selectedRange];
@@ -2856,6 +2918,16 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
           aria-label="Plano FinOps"
           data-testid={FINOPS_TEST_IDS.plan.section}
         >
+          <ConfirmationModal
+            isOpen={Boolean(planConfirmation)}
+            title={planConfirmationContent?.title ?? 'Confirmar ação'}
+            description={planConfirmationContent?.description}
+            confirmLabel={planConfirmationContent?.confirmLabel ?? 'Confirmar'}
+            confirmArmedLabel={planConfirmationContent?.confirmArmedLabel ?? 'Confirmar agora'}
+            onConfirm={confirmPlanAction}
+            onCancel={closePlanConfirmation}
+            isLoading={isPlanConfirming || isPlanApplying}
+          />
           <PlanSummary
             plan={planSummary}
             isLoading={isPlanGenerating || isPlanApplying}
@@ -2866,16 +2938,16 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
                   <button
                     type="button"
                     className="button button--ghost"
-                    onClick={handlePlanReset}
-                    disabled={isPlanGenerating || isPlanApplying}
+                    onClick={requestPlanReset}
+                    disabled={isPlanGenerating || isPlanApplying || isPlanConfirming}
                   >
                     Descartar plano
                   </button>
                   <button
                     type="button"
                     className="button button--primary"
-                    onClick={handlePlanApply}
-                    disabled={isPlanGenerating || isPlanApplying}
+                    onClick={requestPlanApply}
+                    disabled={isPlanGenerating || isPlanApplying || isPlanConfirming}
                   >
                     {isPlanApplying ? 'Aplicando…' : 'Aplicar plano'}
                   </button>

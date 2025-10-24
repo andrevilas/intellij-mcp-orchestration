@@ -1,0 +1,399 @@
+main.policies {
+  margin: 0 auto;
+  max-width: 1160px;
+  padding: 3.5rem 1.75rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.policies__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.policies__hero h1 {
+  margin: 0;
+  font-size: clamp(2.1rem, 3.8vw, 3.1rem);
+}
+
+.policies__hero p {
+  margin: 0;
+  max-width: 720px;
+  color: var(--mcp-text-muted);
+}
+
+.policies__status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.policy-overview {
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--mcp-surface-contrast) 10%, transparent);
+  background: color-mix(in srgb, var(--mcp-surface) 94%, transparent 6%);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.policy-overview header span {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--mcp-text-muted);
+}
+
+.policy-overview header h2 {
+  margin: 0.35rem 0 0;
+  font-size: 1.6rem;
+}
+
+.policy-overview p {
+  margin: 0;
+  color: var(--mcp-text-muted);
+}
+
+.policy-overview dl {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.policy-overview dl div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.policy-overview dl dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mcp-text-muted);
+}
+
+.policy-overview dl dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.policy-overview__metrics {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.policy-overview__metrics li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: color-mix(in srgb, var(--mcp-overlay-soft) 45%, transparent 55%);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+}
+
+.policy-overview__metrics span {
+  font-size: 0.8rem;
+  color: var(--mcp-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.policy-overview__metrics strong {
+  font-size: 1.2rem;
+}
+
+.policy-overview--secondary {
+  background: color-mix(in srgb, var(--mcp-overlay-soft) 60%, transparent 40%);
+}
+
+.policy-banner {
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  font-weight: 600;
+}
+
+.policy-banner--success {
+  background: color-mix(in srgb, var(--mcp-green-soft) 65%, transparent 35%);
+}
+
+.policy-banner--info {
+  background: color-mix(in srgb, var(--mcp-teal-soft) 60%, transparent 40%);
+}
+
+.policy-banner--warning {
+  background: color-mix(in srgb, var(--mcp-amber-soft) 60%, transparent 40%);
+}
+
+.policies__templates {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.policies__templates-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.policies__templates-header p {
+  margin: 0;
+  color: var(--mcp-text-muted);
+}
+
+.policies__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.policy-action {
+  border-radius: 12px;
+  padding: 0.85rem 1.5rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.policy-action--primary {
+  background: var(--mcp-primary);
+  color: var(--mcp-primary-contrast);
+}
+
+.policy-action--ghost {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--mcp-surface-contrast) 12%, transparent);
+}
+
+.policies__plan {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.rollout-plan__chart {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--mcp-surface-contrast) 12%, transparent);
+  background: color-mix(in srgb, var(--mcp-overlay-soft) 55%, transparent 45%);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rollout-plan__chart-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.rollout-plan__chart-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rollout-plan__chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.rollout-plan__chart-bar {
+  position: relative;
+  height: 0.65rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mcp-surface-contrast) 8%, transparent);
+}
+
+.rollout-plan__chart-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--mcp-primary) 0%, var(--mcp-teal-soft) 100%);
+}
+
+.rollout-plan__chart figcaption {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--mcp-text-muted);
+}
+
+.rollout-plan {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.rollout-plan__item {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 1.25rem;
+}
+
+.rollout-plan__summary h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.rollout-plan__summary p {
+  margin: 0.35rem 0 0;
+  color: var(--mcp-text-muted);
+}
+
+.rollout-plan__coverage {
+  color: var(--mcp-text-muted);
+  font-weight: 500;
+}
+
+.rollout-plan__providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rollout-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mcp-overlay-soft) 70%, transparent 30%);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.rollout-chip--muted {
+  background: color-mix(in srgb, var(--mcp-surface-contrast) 8%, transparent);
+  color: var(--mcp-text-muted);
+}
+
+.policies__runtime {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.runtime-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.runtime-settings__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-field span {
+  font-weight: 600;
+}
+
+.form-field__error {
+  font-size: 0.8rem;
+  color: var(--mcp-danger);
+}
+
+.form-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.runtime-settings__hitl {
+  border: 1px solid color-mix(in srgb, var(--mcp-surface-contrast) 10%, transparent);
+  border-radius: 14px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.checkpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.checkpoint-item {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--mcp-surface-contrast) 10%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--mcp-overlay-soft) 50%, transparent 50%);
+}
+
+.checkpoint-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.checkpoint-item__actions button {
+  border-radius: 10px;
+  padding: 0.5rem 0.85rem;
+}
+
+.policies__hitl,
+.policies__history {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.policy-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.policy-history__item {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(200px, 1fr);
+  gap: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--mcp-surface-contrast) 10%, transparent);
+  padding-bottom: 1rem;
+}
+
+.policy-history__item:last-child {
+  border-bottom: none;
+}
+
+.policy-history__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+@media (max-width: 960px) {
+  .rollout-plan__item,
+  .policy-history__item {
+    grid-template-columns: 1fr;
+  }
+}

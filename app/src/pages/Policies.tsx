@@ -29,8 +29,11 @@ import {
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
+import { useToastNotification } from '../hooks/useToastNotification';
 import { POLICIES_TEST_IDS } from './testIds';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
+
+import './Policies.scss';
 
 export interface PoliciesProps {
   providers: ProviderSummary[];
@@ -310,6 +313,68 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     () => describeFixtureRequest('histórico de deploys'),
     [],
   );
+
+  useToastNotification(initialError, {
+    id: 'policies-initial-error',
+    title: 'Console de políticas',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(templatesError, {
+    id: 'policies-templates-error',
+    title: 'Templates de políticas',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(historyError, {
+    id: 'policies-history-error',
+    title: 'Histórico de deploys',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(manifestError, {
+    id: 'policies-manifest-error',
+    title: 'Manifesto de runtime',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  useToastNotification(planError, {
+    id: 'policies-plan-error',
+    title: 'Plano de rollout',
+    variant: 'error',
+    autoDismiss: false,
+  });
+
+  const runtimeToastVariant = runtimeMessage && runtimeMessage.toLowerCase().includes('falha')
+    ? 'warning'
+    : 'success';
+  useToastNotification(runtimeMessage, {
+    id: 'policies-runtime-status',
+    title: 'Plano de runtime',
+    variant: runtimeToastVariant,
+  });
+
+  const bannerMessage = banner?.message ?? null;
+  const bannerVariant =
+    banner?.kind === 'success' ? 'success' : banner?.kind === 'warning' ? 'warning' : 'info';
+  useToastNotification(bannerMessage, {
+    id: 'policies-banner',
+    title: 'Templates MCP',
+    variant: bannerVariant,
+    autoDismiss: banner?.kind === 'success',
+    duration: banner?.kind === 'success' ? 5000 : undefined,
+  });
+
+  useToastNotification(hitlError, {
+    id: 'policies-hitl-error',
+    title: 'Fila HITL',
+    variant: 'error',
+    autoDismiss: false,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1211,30 +1276,58 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             {providers.length > 0 && ' Registre um deploy para gerar a distribuição entre os provedores cadastrados.'}
           </p>
         ) : (
-          <ul className="rollout-plan">
-            {rolloutPlan.map((entry) => (
-              <li key={entry.segment.id} className="rollout-plan__item">
-                <div className="rollout-plan__summary">
-                  <h3>
-                    {entry.segment.name}
-                    <span className="rollout-plan__coverage"> · {entry.coverage}%</span>
-                  </h3>
-                  <p>{entry.segment.description}</p>
-                </div>
-                <div className="rollout-plan__providers" aria-live="polite">
-                  {entry.providers.length > 0 ? (
-                    entry.providers.map((provider) => (
-                      <span key={provider.id} className="rollout-chip">
-                        {provider.name}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="rollout-chip rollout-chip--muted">Sem servidores neste estágio</span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <figure
+              className="rollout-plan__chart"
+              aria-label="Cobertura sugerida por segmento"
+              data-testid={POLICIES_TEST_IDS.rolloutChart}
+            >
+              <ol className="rollout-plan__chart-list">
+                {rolloutPlan.map((entry) => {
+                  const coverageValue = Math.max(0, Math.min(100, Math.round(entry.coverage)));
+                  return (
+                    <li key={`${entry.segment.id}-chart`} className="rollout-plan__chart-item">
+                      <div className="rollout-plan__chart-header">
+                        <span>{entry.segment.name}</span>
+                        <strong>{coverageValue}%</strong>
+                      </div>
+                      <div className="rollout-plan__chart-bar" role="presentation" aria-hidden="true">
+                        <span
+                          className="rollout-plan__chart-fill"
+                          style={{ width: `${coverageValue}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+              <figcaption>Distribuição percentual calculada a partir das fixtures locais.</figcaption>
+            </figure>
+            <ul className="rollout-plan">
+              {rolloutPlan.map((entry) => (
+                <li key={entry.segment.id} className="rollout-plan__item">
+                  <div className="rollout-plan__summary">
+                    <h3>
+                      {entry.segment.name}
+                      <span className="rollout-plan__coverage"> · {Math.round(entry.coverage)}%</span>
+                    </h3>
+                    <p>{entry.segment.description}</p>
+                  </div>
+                  <div className="rollout-plan__providers" aria-live="polite">
+                    {entry.providers.length > 0 ? (
+                      entry.providers.map((provider) => (
+                        <span key={provider.id} className="rollout-chip">
+                          {provider.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="rollout-chip rollout-chip--muted">Sem servidores neste estágio</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
 

@@ -8,6 +8,7 @@ Os JSONs deste diretório são cópias das respostas de referência utilizadas p
 | `sessions.json` | `GET /api/v1/sessions`, `POST /api/v1/providers/:providerId/sessions` |
 | `notifications.json` | `GET /api/v1/notifications` |
 | `policy_manifest.json`, `policies_compliance.json` | `GET /api/v1/policies/manifest`, `GET /api/v1/policies/compliance`, `GET /api/v1/policy/compliance` |
+| `policy_templates.json`, `policy_deployments.json` | `GET /api/v1/policies/templates`, `GET/POST/DELETE /api/v1/policies/deployments` |
 | `providers.json` | `GET /api/v1/providers`, `POST /api/v1/providers/:providerId/sessions` |
 | `routing_simulation.json` | `POST /api/v1/routing/simulate` |
 | `telemetry_metrics.json`, `telemetry_heatmap.json`, `telemetry_timeseries.json`, `telemetry_pareto.json`, `telemetry_runs.json` | `GET /api/v1/telemetry/metrics`, `GET /api/v1/telemetry/heatmap`, `GET /api/v1/telemetry/timeseries`, `GET /api/v1/telemetry/pareto`, `GET /api/v1/telemetry/runs` |
