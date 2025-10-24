@@ -152,6 +152,11 @@ test.describe('@config-reload governed flow', () => {
     await page.fill('#config-reload-justification', 'Validar com FinOps.');
     await page.getByRole('button', { name: 'Aplicar plano' }).click();
 
+    const confirmation = page.getByRole('dialog', { name: 'Confirmar aplicação governada' });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Aplicar plano' }).click();
+    await confirmation.getByRole('button', { name: 'Aplicar agora' }).click();
+
     await expect(page.locator('.config-reload__success')).toContainText('Artefato regenerado com sucesso');
     await expect(page.getByText(/Executor: Ana Operator/)).toBeVisible();
 

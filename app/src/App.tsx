@@ -368,6 +368,8 @@ function App() {
   useEffect(() => {
     preloadView('observability');
     preloadView('finops');
+    preloadView('agents');
+    preloadView('admin-chat');
     preloadView(initialViewRef.current);
   }, []);
 

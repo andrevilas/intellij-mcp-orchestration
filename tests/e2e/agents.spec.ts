@@ -77,3 +77,23 @@ test('abre detalhes do agente e executa playground com overrides', async ({ page
   expect(requestBody?.config?.metadata?.caller).toBe('console-playground');
   expect(requestBody?.config?.metadata?.surface).toBe('agent-detail');
 });
+
+test('fecha painel de detalhes com tecla Escape e retorna foco', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Agents' }).click();
+
+  const table = page.locator(`[data-testid="${AGENTS_TEST_IDS.table}"]`);
+  const detailButton = table
+    .getByRole('row', { name: /Catalog Search/ })
+    .getByRole('button', { name: 'Detalhes' });
+
+  await detailButton.click();
+
+  const panel = page.getByTestId(AGENT_DETAIL_TEST_IDS.root);
+  await expect(panel).toBeVisible();
+
+  await page.keyboard.press('Escape');
+
+  await expect(panel).toBeHidden();
+  await expect(detailButton).toBeFocused();
+});

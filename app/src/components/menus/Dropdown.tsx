@@ -23,12 +23,23 @@ export interface DropdownOption {
   icon?: ReactNode;
 }
 
+export type DropdownStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error';
+
+export interface DropdownStatusMessages {
+  loading?: string;
+  empty?: string;
+  error?: string;
+  success?: string;
+}
+
 export interface DropdownProps {
   label: ReactNode;
   options: DropdownOption[];
   className?: string;
   align?: 'start' | 'end';
   triggerAriaLabel?: string;
+  status?: DropdownStatus;
+  statusMessages?: DropdownStatusMessages;
 }
 
 export default function Dropdown({
@@ -37,6 +48,8 @@ export default function Dropdown({
   className,
   align = 'start',
   triggerAriaLabel,
+  status,
+  statusMessages,
 }: DropdownProps): JSX.Element {
   const triggerId = useId();
   const menuId = useId();
@@ -45,6 +58,26 @@ export default function Dropdown({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const pendingFocus = useRef<'first' | 'last' | null>(null);
+
+  const resolvedMessages = useMemo(
+    () => ({
+      loading: 'Carregando ações…',
+      empty: 'Nenhuma ação disponível',
+      error: 'Não foi possível carregar ações.',
+      success: 'Ações disponíveis.',
+      ...(statusMessages ?? {}),
+    }),
+    [statusMessages],
+  );
+
+  const resolvedStatus: DropdownStatus = useMemo(() => {
+    if (status) {
+      return status;
+    }
+    return options.length === 0 ? 'empty' : 'success';
+  }, [options.length, status]);
+
+  const isInteractive = resolvedStatus === 'success' || resolvedStatus === 'idle';
 
   const focusOption = useCallback((index: number) => {
     const target = optionRefs.current[index];
@@ -55,6 +88,11 @@ export default function Dropdown({
 
   useEffect(() => {
     if (!isOpen) {
+      return;
+    }
+
+    if (!isInteractive) {
+      pendingFocus.current = null;
       return;
     }
 
@@ -119,7 +157,7 @@ export default function Dropdown({
       window.removeEventListener('keydown', handleGlobalKeyDown);
       menuRef.current?.removeEventListener('focusout', handleFocusOut);
     };
-  }, [focusOption, isOpen, options]);
+  }, [focusOption, isInteractive, isOpen, options]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -132,6 +170,10 @@ export default function Dropdown({
     }
 
     const handleMenuKeyDown = (event: KeyboardEvent) => {
+      if (!isInteractive) {
+        return;
+      }
+
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         const enabledOptions = options
@@ -170,7 +212,7 @@ export default function Dropdown({
 
     menu.addEventListener('keydown', handleMenuKeyDown);
     return () => menu.removeEventListener('keydown', handleMenuKeyDown);
-  }, [focusOption, isOpen, options]);
+  }, [focusOption, isInteractive, isOpen, options]);
 
   const handleTriggerKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -185,7 +227,7 @@ export default function Dropdown({
 
   const handleOptionClick = useCallback(
     (option: DropdownOption) => {
-      if (option.disabled) {
+      if (!isInteractive || option.disabled) {
         return;
       }
       option.onSelect();
@@ -194,40 +236,81 @@ export default function Dropdown({
         triggerRef.current?.focus({ preventScroll: true });
       });
     },
-    [],
+    [isInteractive],
   );
 
   const renderedOptions = useMemo(
     () =>
-      options.map((option, index) => (
-        <button
-          key={option.id}
-          type="button"
-          role="menuitem"
-          className={clsx('mcp-dropdown__option', option.disabled && 'mcp-dropdown__option--disabled')}
-          onClick={() => handleOptionClick(option)}
-          disabled={option.disabled}
-          aria-disabled={option.disabled || undefined}
-          ref={(element) => {
-            optionRefs.current[index] = element;
-          }}
-        >
-          {option.icon ? <span className="mcp-dropdown__icon">{option.icon}</span> : null}
-          <span className="mcp-dropdown__label">{option.label}</span>
-          {option.description ? (
-            <span className="mcp-dropdown__description">{option.description}</span>
-          ) : null}
-        </button>
-      )),
-    [handleOptionClick, options],
+      !isInteractive
+        ? []
+        : options.map((option, index) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitem"
+              className={clsx('mcp-dropdown__option', option.disabled && 'mcp-dropdown__option--disabled')}
+              onClick={() => handleOptionClick(option)}
+              disabled={option.disabled}
+              aria-disabled={option.disabled || undefined}
+              ref={(element) => {
+                optionRefs.current[index] = element;
+              }}
+            >
+              {option.icon ? <span className="mcp-dropdown__icon">{option.icon}</span> : null}
+              <span className="mcp-dropdown__label">{option.label}</span>
+              {option.description ? (
+                <span className="mcp-dropdown__description">{option.description}</span>
+              ) : null}
+            </button>
+          )),
+    [handleOptionClick, isInteractive, options],
   );
 
   useEffect(() => {
     optionRefs.current.length = options.length;
   }, [options.length]);
 
+  const statusMarkup = useMemo(() => {
+    if (!isOpen) {
+      return null;
+    }
+
+    switch (resolvedStatus) {
+      case 'loading':
+        return (
+          <div
+            className="mcp-dropdown__status mcp-dropdown__status--loading"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="mcp-dropdown__spinner" aria-hidden="true" />
+            {resolvedMessages.loading}
+          </div>
+        );
+      case 'empty':
+        return (
+          <div className="mcp-dropdown__status" role="status" aria-live="polite">
+            {resolvedMessages.empty}
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="mcp-dropdown__status mcp-dropdown__status--error" role="alert">
+            {resolvedMessages.error}
+          </div>
+        );
+      default:
+        return null;
+    }
+  }, [isOpen, resolvedMessages.empty, resolvedMessages.error, resolvedMessages.loading, resolvedStatus]);
+
   return (
-    <div className={clsx('mcp-dropdown', className)} data-open={isOpen}>
+    <div
+      className={clsx('mcp-dropdown', className)}
+      data-open={isOpen}
+      data-state={resolvedStatus}
+      aria-busy={resolvedStatus === 'loading' || undefined}
+    >
       <Button
         ref={triggerRef}
         aria-haspopup="menu"
@@ -251,13 +334,15 @@ export default function Dropdown({
           className={clsx('mcp-dropdown__menu', `mcp-dropdown__menu--${align}`)}
           ref={menuRef}
         >
-          {renderedOptions.length > 0 ? renderedOptions : (
-            <Fragment>
-              <span className="mcp-dropdown__empty" role="status" aria-live="polite">
-                Nenhuma ação disponível
-              </span>
-            </Fragment>
-          )}
+          {renderedOptions.length > 0
+            ? renderedOptions
+            : statusMarkup ?? (
+                <Fragment>
+                  <span className="mcp-dropdown__empty" role="status" aria-live="polite">
+                    {resolvedMessages.success}
+                  </span>
+                </Fragment>
+              )}
         </div>
       ) : null}
     </div>

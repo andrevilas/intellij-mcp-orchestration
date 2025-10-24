@@ -74,6 +74,7 @@ export default function ConfirmationModal({
       title={title}
       description={description}
       onClose={handleCancel}
+      closeOnBackdrop={false}
       footer={
         <>
           <div className="mcp-modal__actions">

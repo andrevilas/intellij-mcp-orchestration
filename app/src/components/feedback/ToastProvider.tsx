@@ -115,6 +115,7 @@ export function ToastProvider({ children, maxVisible = 3 }: { children: ReactNod
       <div
         className="mcp-toast-viewport"
         data-theme={theme}
+        data-state={items.length === 0 ? 'empty' : 'active'}
         role="region"
         aria-live="polite"
         aria-label="Notificações recentes"
