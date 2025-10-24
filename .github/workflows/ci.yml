@@ -221,3 +221,55 @@ jobs:
           name: uvicorn-log
           path: uvicorn.log
           if-no-files-found: ignore
+
+  playwright:
+    needs:
+      - lint
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install project dependencies
+        run: make install
+
+      - name: Install Playwright browsers and deps
+        run: pnpm --dir tests exec playwright install --with-deps
+
+      - name: Run Playwright E2E suite
+        env:
+          PLAYWRIGHT_VIDEO: retain-on-failure
+          PLAYWRIGHT_TRACE: retain-on-failure
+          CONSOLE_MCP_USE_FIXTURES: force
+        run: |
+          set -o pipefail
+          pnpm --dir tests exec playwright test 2>&1 | tee playwright.log
+
+      - name: Upload Playwright log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-log
+          path: playwright.log
+          if-no-files-found: ignore
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: tests/test-results
+          if-no-files-found: ignore

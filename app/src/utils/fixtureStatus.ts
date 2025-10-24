@@ -25,6 +25,18 @@ function readGlobalFlag(): FixtureStatus | undefined {
   return undefined;
 }
 
+function writeGlobalFlag(status: FixtureStatus): void {
+  if (typeof globalThis === 'undefined') {
+    return;
+  }
+
+  const globalObject = globalThis as typeof globalThis & {
+    [FIXTURE_FLAG]?: FixtureStatus;
+  };
+
+  globalObject[FIXTURE_FLAG] = status;
+}
+
 function coerceBoolean(value: unknown): boolean {
   if (value === true || value === 'true') {
     return true;
@@ -47,9 +59,11 @@ export function getFixtureStatus(): FixtureStatus {
 
   const envValue = import.meta.env?.VITE_CONSOLE_USE_FIXTURES;
   if (coerceBoolean(envValue)) {
+    writeGlobalFlag('ready');
     return 'ready';
   }
 
+  writeGlobalFlag('disabled');
   return 'disabled';
 }
 
