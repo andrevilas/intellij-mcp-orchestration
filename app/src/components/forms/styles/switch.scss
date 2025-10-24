@@ -1,0 +1,86 @@
+.mcp-switch {
+  display: grid;
+  gap: 0.35rem;
+  align-items: flex-start;
+  color: var(--mcp-form-control-color);
+}
+
+.mcp-switch__body {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mcp-switch__control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 1.5rem;
+}
+
+.mcp-switch__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mcp-switch__track {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--mcp-border-strong) 60%, transparent 40%);
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 70%, transparent 30%);
+  display: flex;
+  align-items: center;
+  padding: 0 0.2rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mcp-switch__thumb {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--mcp-form-control-bg);
+  box-shadow: var(--mcp-shadow-soft);
+  transform: translateX(0);
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.mcp-switch__input:checked + .mcp-switch__track {
+  background: color-mix(in srgb, var(--mcp-interactive-soft) 70%, transparent 30%);
+  border-color: color-mix(in srgb, var(--mcp-interactive) 55%, transparent 45%);
+}
+
+.mcp-switch__input:checked + .mcp-switch__track .mcp-switch__thumb {
+  transform: translateX(1.2rem);
+  background: var(--mcp-interactive);
+}
+
+.mcp-switch__input:focus-visible + .mcp-switch__track {
+  box-shadow: 0 0 0 3px var(--mcp-focus-ring);
+}
+
+.mcp-switch--invalid .mcp-switch__track {
+  border-color: color-mix(in srgb, var(--mcp-danger-strong) 65%, transparent 35%);
+  box-shadow: var(--mcp-form-control-shadow-error);
+}
+
+.mcp-switch__hint {
+  font-size: 0.85rem;
+  color: var(--mcp-text-subtle);
+  line-height: 1.4;
+}
+
+.mcp-switch.mcp-form-field--disabled {
+  opacity: 0.65;
+}
+
+.mcp-switch.mcp-form-field--disabled .mcp-switch__input {
+  cursor: not-allowed;
+}

@@ -2,7 +2,8 @@ import { forwardRef, useId } from 'react';
 import type { InputHTMLAttributes, ReactNode } from 'react';
 import clsx from 'clsx';
 
-import './forms.scss';
+import './styles/form-base.scss';
+import './styles/switch.scss';
 import { mergeIds } from './utils';
 
 export interface SwitchProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {

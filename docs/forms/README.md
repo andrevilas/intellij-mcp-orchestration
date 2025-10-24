@@ -3,7 +3,7 @@
 Este guia documenta os controles de formulário introduzidos na sprint TASK-UI-FORM-040 e como integrá-los à camada de validação declarativa.
 
 ## Controles básicos
-- `Input`, `Select`, `TextArea`, `Switch` e `InputGroup` compartilham estilos em `forms.scss`, usando tokens `--mcp-form-*` para superfícies, foco e estados inválidos.【F:app/src/components/forms/forms.scss†L1-L210】【F:app/src/components/forms/Input.tsx†L1-L58】
+- `Input`, `Select`, `TextArea`, `Switch` e `InputGroup` compartilham estilos em `styles/form-base.scss` e `styles/control-inputs.scss`, com extensões pontuais para `switch.scss` e `input-group.scss`, usando tokens `--mcp-form-*` para superfícies, foco e estados inválidos.【F:app/src/components/forms/styles/form-base.scss†L1-L44】【F:app/src/components/forms/styles/control-inputs.scss†L1-L79】【F:app/src/components/forms/styles/switch.scss†L1-L86】
 - Componentes suportam rótulos, mensagens auxiliares e `invalid-feedback`, propagando `aria-invalid` automaticamente quando usados com `useMcpField`.【F:app/src/components/forms/Select.tsx†L1-L59】【F:app/src/hooks/useMcpForm.ts†L62-L111】
 - `InputGroup` aceita ícones Font Awesome para pré/pós fixo, mantendo foco e descrição combinada.【F:app/src/components/forms/InputGroup.tsx†L1-L63】
 

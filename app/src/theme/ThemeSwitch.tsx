@@ -2,6 +2,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import clsx from 'clsx';
 import { useId } from 'react';
 
+import '../icons/theme';
+
 import { useTheme } from './ThemeContext';
 import './theme-switch.scss';
 

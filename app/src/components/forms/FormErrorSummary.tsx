@@ -5,7 +5,8 @@ import Alert from '../feedback/Alert';
 import { useFormErrorSummary, useMcpFormContext } from '../../hooks/useMcpForm';
 import type { FormErrorSummaryItem } from '../../hooks/useMcpForm';
 
-import './forms.scss';
+import './styles/form-base.scss';
+import './styles/form-feedback.scss';
 
 export interface FormErrorSummaryProps {
   title?: string;

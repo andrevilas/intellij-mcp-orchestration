@@ -1,0 +1,7 @@
+@use './light';
+@use './dark';
+
+@mixin register() {
+  @include light.light-theme();
+  @include dark.dark-theme();
+}

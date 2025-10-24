@@ -1,5 +1,7 @@
 import { ChangeEvent, FormEvent, useCallback, useMemo, useRef, useState } from 'react';
 
+import './admin-chat.scss';
+
 import {
   fetchNotifications,
   postConfigReload,

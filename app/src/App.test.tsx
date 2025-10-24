@@ -5,7 +5,6 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import App, { NOTIFICATION_READ_STATE_KEY } from './App';
-import './icons';
 import { ThemeProvider } from './theme/ThemeContext';
 
 function renderWithinProviders(): ReturnType<typeof render> {

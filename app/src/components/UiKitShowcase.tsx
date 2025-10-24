@@ -14,6 +14,7 @@ import ResourceDetailCard, { type ResourceDetailStatus } from './ResourceDetailC
 import StatusBadge from './indicators/StatusBadge';
 import ProgressIndicator from './indicators/ProgressIndicator';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import '../icons/ui-kit';
 import {
   FileDownloadControl,
   FileUploadControl,

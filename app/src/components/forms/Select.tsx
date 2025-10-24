@@ -2,7 +2,8 @@ import { forwardRef, useId } from 'react';
 import type { ReactNode, SelectHTMLAttributes } from 'react';
 import clsx from 'clsx';
 
-import './forms.scss';
+import './styles/form-base.scss';
+import './styles/control-inputs.scss';
 import { mergeIds } from './utils';
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
