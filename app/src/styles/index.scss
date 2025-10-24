@@ -2,9 +2,24 @@
 
 @include tokens.register();
 
+:root {
+  color-scheme: light;
+  background-color: var(--mcp-surface);
+  accent-color: var(--mcp-interactive);
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+
 body {
   background-color: var(--mcp-surface-subtle);
   color: var(--mcp-surface-contrast);
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
 }

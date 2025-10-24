@@ -35,7 +35,7 @@ module.exports = {
     },
     upload: {
       target: 'filesystem',
-      outputDir: '../docs/evidence/TASK-UI-OBS-082/lighthouse',
+      outputDir: '../docs/ui-kit/performance/lighthouse',
     },
   },
 };

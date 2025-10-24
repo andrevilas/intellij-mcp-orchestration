@@ -2,8 +2,19 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100%;
+}
+
 a {
   color: inherit;
+  text-decoration-thickness: 0.1em;
+  text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
 }
 
 a:hover {
@@ -12,6 +23,46 @@ a:hover {
 
 button {
   font: inherit;
+}
+
+:where(a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='button'],
+    [role='menuitem'],
+    [role='tab'],
+    [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--mcp-focus-ring);
+  outline-offset: var(--mcp-focus-outline-offset, 3px);
+  border-radius: var(--mcp-focus-outline-radius, 0.5rem);
+  box-shadow: var(--mcp-shadow-focus-ring);
+}
+
+:where(a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='button'],
+    [role='menuitem'],
+    [role='tab'],
+    [tabindex]:not([tabindex='-1'])):focus:not(:focus-visible) {
+  outline: none;
+}
+
+svg.svg-inline--fa {
+  display: inline-block;
+  height: 1em;
+  overflow: visible;
+  vertical-align: -0.125em;
+}
+
+svg.svg-inline--fa path {
+  fill: currentColor;
 }
 
 .icon-leading {

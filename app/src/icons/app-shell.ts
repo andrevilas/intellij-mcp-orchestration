@@ -1,4 +1,4 @@
-import { library } from '@fortawesome/fontawesome-svg-core';
+import { config, library } from '@fortawesome/fontawesome-svg-core';
 import { faBars } from '@fortawesome/free-solid-svg-icons/faBars';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import { faCircleHalfStroke } from '@fortawesome/free-solid-svg-icons/faCircleHalfStroke';
@@ -14,6 +14,8 @@ import { faDiagramProject } from '@fortawesome/free-solid-svg-icons/faDiagramPro
 import { faTableColumns } from '@fortawesome/free-solid-svg-icons/faTableColumns';
 import { faStore } from '@fortawesome/free-solid-svg-icons/faStore';
 import { faMessage } from '@fortawesome/free-solid-svg-icons/faMessage';
+
+config.autoAddCss = false;
 
 library.add(
   faBars,

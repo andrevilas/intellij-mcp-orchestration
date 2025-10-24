@@ -53,7 +53,10 @@
     --mcp-interactive-soft: rgba(165, 180, 252, 0.28);
     --mcp-interactive-alt: #c084fc;
     --mcp-interactive-soft-alt: rgba(192, 132, 252, 0.34);
-    --mcp-focus-ring: rgba(165, 180, 252, 0.55);
+    --mcp-focus-ring: rgba(199, 210, 254, 0.85);
+    --mcp-focus-ring-glow: rgba(129, 140, 248, 0.32);
+    --mcp-focus-outline-offset: 3px;
+    --mcp-focus-outline-radius: 0.5rem;
     --mcp-shadow-soft: 0 18px 38px rgba(5, 8, 18, 0.6);
     --mcp-shadow-elevated: 0 18px 38px rgba(5, 8, 18, 0.6);
     --mcp-shadow-modal: 0 24px 44px rgba(5, 8, 18, 0.68);
@@ -61,7 +64,7 @@
     --mcp-shadow-accent: 0 14px 32px rgba(165, 180, 252, 0.32);
     --mcp-shadow-accent-strong: 0 18px 40px rgba(165, 180, 252, 0.38);
     --mcp-shadow-accent-intense: 0 22px 48px rgba(165, 180, 252, 0.44);
-    --mcp-shadow-focus-ring: 0 0 0 3px rgba(165, 180, 252, 0.3);
+    --mcp-shadow-focus-ring: 0 0 0 4px var(--mcp-focus-ring-glow);
     --mcp-z-dropdown: 20;
     --mcp-z-tooltip: 30;
     --mcp-z-modal: 80;

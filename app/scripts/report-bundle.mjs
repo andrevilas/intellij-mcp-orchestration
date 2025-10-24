@@ -3,6 +3,8 @@ import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 
+const MAX_CSS_BYTES = 220 * 1024;
+
 const [, , outputDirArg] = process.argv;
 const distDir = path.resolve(process.cwd(), outputDirArg ?? 'dist');
 
@@ -69,11 +71,28 @@ async function main() {
     { size: 0, gzip: 0 },
   );
 
+  const cssTotals = assets
+    .filter((asset) => asset.type === 'css')
+    .reduce(
+      (acc, asset) => {
+        acc.size += asset.size;
+        acc.gzip += asset.gzip;
+        return acc;
+      },
+      { size: 0, gzip: 0 },
+    );
+
   const report = {
     generatedAt: new Date().toISOString(),
     distDir: path.relative(process.cwd(), distDir) || '.',
     totals,
     assets,
+    css: {
+      limit: MAX_CSS_BYTES,
+      size: cssTotals.size,
+      gzip: cssTotals.gzip,
+      isWithinBudget: cssTotals.size <= MAX_CSS_BYTES,
+    },
   };
 
   const metricsDir = path.resolve(process.cwd(), 'metrics');
@@ -82,6 +101,16 @@ async function main() {
   await fs.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`);
 
   console.log(`Bundle metrics written to ${path.relative(process.cwd(), outputPath)}`);
+  console.log(
+    `Total CSS size: ${(cssTotals.size / 1024).toFixed(2)} kB (budget ${(MAX_CSS_BYTES / 1024).toFixed(0)} kB)`,
+  );
+
+  if (cssTotals.size > MAX_CSS_BYTES) {
+    console.error(
+      `CSS budget exceeded by ${((cssTotals.size - MAX_CSS_BYTES) / 1024).toFixed(2)} kB. Reduce stylesheet size to stay within ${(MAX_CSS_BYTES / 1024).toFixed(0)} kB.`,
+    );
+    process.exitCode = 1;
+  }
   console.table(
     assets.slice(0, 10).map((asset) => ({
       file: asset.file,

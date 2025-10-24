@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(appRoot, '..');
 const metricsDir = path.resolve(appRoot, 'metrics');
-const docsTarget = path.resolve(repoRoot, 'docs', 'evidence', 'TASK-UI-OBS-082');
+const docsTarget = path.resolve(repoRoot, 'docs', 'ui-kit', 'performance', 'bundle');
 
 const artifacts = [
   { source: path.join(metricsDir, 'bundle-report.json'), targetName: 'bundle-report.json' },
