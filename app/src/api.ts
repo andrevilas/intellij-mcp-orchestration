@@ -1879,18 +1879,24 @@ async function tryResolveFixture<T>(
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (isFixtureModeEnabled()) {
-    const fixture = await tryResolveFixture<T>(API_FIXTURE_ROUTES, path, init);
-    if (fixture !== null) {
-      return fixture;
-    }
-  }
+  let response: Response | null = null;
+  let fetchError: unknown = null;
 
-  let response: Response;
   try {
     response = await fetchFromApi(path, init);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+    fetchError = error;
+  }
+
+  if (!response) {
+    if (isFixtureModeEnabled()) {
+      const fixture = await tryResolveFixture<T>(API_FIXTURE_ROUTES, path, init);
+      if (fixture !== null) {
+        return fixture;
+      }
+    }
+
+    const detail = fetchError instanceof Error ? fetchError.message : String(fetchError ?? 'Unknown error');
     const message = isFixtureModeEnabled()
       ? 'Falha ao consultar dados das fixtures locais.'
       : 'Falha ao executar requisição contra a API do Console MCP.';
@@ -1916,18 +1922,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function requestAgents<T>(path: string, init?: RequestInit): Promise<T> {
-  if (isFixtureModeEnabled()) {
-    const fixture = await tryResolveFixture<T>(AGENT_FIXTURE_ROUTES, path, init);
-    if (fixture !== null) {
-      return fixture;
-    }
-  }
+  let response: Response | null = null;
+  let fetchError: unknown = null;
 
-  let response: Response;
   try {
     response = await fetchFromAgents(path, init);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+    fetchError = error;
+  }
+
+  if (!response) {
+    if (isFixtureModeEnabled()) {
+      const fixture = await tryResolveFixture<T>(AGENT_FIXTURE_ROUTES, path, init);
+      if (fixture !== null) {
+        return fixture;
+      }
+    }
+
+    const detail = fetchError instanceof Error ? fetchError.message : String(fetchError ?? 'Unknown error');
     const message = isFixtureModeEnabled()
       ? 'Falha ao consultar dados das fixtures locais.'
       : 'Falha ao executar requisição contra o catálogo de agents.';

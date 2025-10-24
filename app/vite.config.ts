@@ -186,12 +186,18 @@ export default defineConfig(async () => {
 
   const runningVitest = Boolean(process.env.VITEST);
 
-  let useFixtures = false;
+  let useFixtures = fixtureMode !== 'off';
   let fixtureReason: string | null = null;
 
   if (fixtureMode === 'force') {
     useFixtures = true;
     fixtureReason = 'forçado via CONSOLE_MCP_USE_FIXTURES';
+  } else if (fixtureMode === 'auto') {
+    useFixtures = true;
+    fixtureReason = 'modo padrão (auto)';
+    console.info(
+      'Console MCP frontend iniciará usando fixtures MSW (modo padrão). Defina CONSOLE_MCP_USE_FIXTURES=0 para usar o proxy HTTP.',
+    );
   } else {
     const probe = await probeBackend(API_PROXY_TARGET);
     if (!probe.reachable) {
@@ -199,20 +205,17 @@ export default defineConfig(async () => {
       fixtureReason = probe.reason
         ? `backend indisponível em ${API_PROXY_TARGET} — ${probe.reason}`
         : `backend indisponível em ${API_PROXY_TARGET}`;
-      const overrideLabel = fixtureMode === 'off' ? ' (modo off sobrescrito)' : '';
       console.warn(
-        'Console MCP backend não detectado em %s — habilitando fixtures%s.',
+        'Console MCP backend não detectado em %s — habilitando fixtures (modo off sobrescrito).',
         API_PROXY_TARGET,
-        overrideLabel,
       );
       if (probe.reason) {
         console.warn('Motivo detectado para indisponibilidade do backend: %s.', probe.reason);
       }
-    } else if (fixtureMode === 'auto') {
-      console.info(
-        'Console MCP backend detectado em %s — mantendo proxy HTTP do Vite.',
-        API_PROXY_TARGET,
-      );
+    } else {
+      useFixtures = false;
+      fixtureReason = null;
+      console.info('Console MCP backend detectado em %s — modo proxy ativado.', API_PROXY_TARGET);
     }
   }
 
@@ -237,7 +240,11 @@ export default defineConfig(async () => {
     port: frontendPort,
     host: frontendHost,
     fs: {
-      allow: [path.resolve(__dirname, '.'), path.resolve(__dirname, '../tests/fixtures')],
+      allow: [
+        path.resolve(__dirname, '.'),
+        path.resolve(__dirname, '../tests/fixtures'),
+        path.resolve(__dirname, '../server/routes/fixtures'),
+      ],
     },
   };
 

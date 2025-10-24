@@ -18,35 +18,37 @@ import type {
   PolicyOverridePayload,
   PolicyOverridesPayload,
 } from '../api';
-import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' with { type: 'json' };
-import telemetryHeatmapFixture from '#fixtures/telemetry_heatmap.json' with { type: 'json' };
-import telemetryTimeseriesFixture from '#fixtures/telemetry_timeseries.json' with { type: 'json' };
-import telemetryParetoFixture from '#fixtures/telemetry_pareto.json' with { type: 'json' };
-import telemetryRunsFixture from '#fixtures/telemetry_runs.json' with { type: 'json' };
-import routingSimulationFixture from '#fixtures/routing_simulation.json' with { type: 'json' };
-import finopsSprintsFixture from '#fixtures/finops_sprints.json' with { type: 'json' };
-import finopsPullRequestsFixture from '#fixtures/finops_pull_requests.json' with { type: 'json' };
-import finopsEventsFixture from '#fixtures/finops_events.json' with { type: 'json' };
-import serversFixture from '#fixtures/servers.json' with { type: 'json' };
-import serverProcessesFixture from '#fixtures/server_processes.json' with { type: 'json' };
-import serverHealthFixture from '#fixtures/server_health.json' with { type: 'json' };
-import sessionsFixture from '#fixtures/sessions.json' with { type: 'json' };
-import notificationsFixture from '#fixtures/notifications.json' with { type: 'json' };
-import policiesComplianceFixture from '#fixtures/policies_compliance.json' with { type: 'json' };
-import policyManifestFixture from '#fixtures/policy_manifest.json' with { type: 'json' };
-import policyTemplatesFixture from '#fixtures/policy_templates.json' with { type: 'json' };
-import policyDeploymentsFixture from '#fixtures/policy_deployments.json' with { type: 'json' };
-import telemetryExperimentsFixture from '#fixtures/telemetry_experiments.json' with { type: 'json' };
-import telemetryLaneCostsFixture from '#fixtures/telemetry_lane_costs.json' with { type: 'json' };
-import telemetryMarketplaceFixture from '#fixtures/telemetry_marketplace.json' with { type: 'json' };
-import providersFixture from '#fixtures/providers.json' with { type: 'json' };
-import smokeEndpointsFixture from '#fixtures/smoke_endpoints.json' with { type: 'json' };
-import agentsFixture from '#fixtures/agents.json' with { type: 'json' };
-import securityUsersFixture from '#fixtures/security_users.json' with { type: 'json' };
-import securityRolesFixture from '#fixtures/security_roles.json' with { type: 'json' };
-import securityApiKeysFixture from '#fixtures/security_api_keys.json' with { type: 'json' };
-import securityAuditTrailFixture from '#fixtures/security_audit_trail.json' with { type: 'json' };
-import securityAuditLogsFixture from '#fixtures/security_audit_logs.json' with { type: 'json' };
+import { loadFixture, resetFixtureStore } from './fixture-registry';
+
+const telemetryMetricsFixture = loadFixture('telemetry_metrics');
+const telemetryHeatmapFixture = loadFixture('telemetry_heatmap');
+const telemetryTimeseriesFixture = loadFixture('telemetry_timeseries');
+const telemetryParetoFixture = loadFixture('telemetry_pareto');
+const telemetryRunsFixture = loadFixture('telemetry_runs');
+const routingSimulationFixture = loadFixture('routing_simulation');
+const finopsSprintsFixture = loadFixture('finops_sprints');
+const finopsPullRequestsFixture = loadFixture('finops_pull_requests');
+const finopsEventsFixture = loadFixture('finops_events');
+const serversFixture = loadFixture('servers');
+const serverProcessesFixture = loadFixture('server_processes');
+const serverHealthFixture = loadFixture('server_health');
+const sessionsFixture = loadFixture('sessions');
+const notificationsFixture = loadFixture('notifications');
+const policiesComplianceFixture = loadFixture('policies_compliance');
+const policyManifestFixture = loadFixture('policy_manifest');
+const policyTemplatesFixture = loadFixture('policy_templates');
+const policyDeploymentsFixture = loadFixture('policy_deployments');
+const telemetryExperimentsFixture = loadFixture('telemetry_experiments');
+const telemetryLaneCostsFixture = loadFixture('telemetry_lane_costs');
+const telemetryMarketplaceFixture = loadFixture('telemetry_marketplace');
+const providersFixture = loadFixture('providers');
+const smokeEndpointsFixture = loadFixture('smoke_endpoints');
+const agentsFixture = loadFixture('agents');
+const securityUsersFixture = loadFixture('security_users');
+const securityRolesFixture = loadFixture('security_roles');
+const securityApiKeysFixture = loadFixture('security_api_keys');
+const securityAuditTrailFixture = loadFixture('security_audit_trail');
+const securityAuditLogsFixture = loadFixture('security_audit_logs');
 
 const API_PREFIX = '*/api/v1';
 
@@ -1066,6 +1068,7 @@ const resetSmokeEndpointStore = () => {
 };
 
 export const resetMockState = () => {
+  resetFixtureStore();
   resetProcessState();
   resetServerCatalogStore();
   resetSessionStore();
