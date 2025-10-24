@@ -56,7 +56,7 @@ check: doctor test
 ci: check smoke
 
 test-frontend:
-	cd app && $(PNPM) test
+	$(PNPM) --dir app test
 
 test-backend:
 	cd server && $(PYTHON) -m pytest

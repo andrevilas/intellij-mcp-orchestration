@@ -45,7 +45,7 @@ Variáveis de ambiente úteis:
 - `import.meta.env.VITE_CONSOLE_USE_FIXTURES` é definido pelo Vite sempre que as fixtures estiverem ativas. O `main.tsx` inicia
   `app/src/mocks/browser.ts`, expondo o status atual em `window.__CONSOLE_MCP_FIXTURES__` (valores `ready`, `disabled` ou `error`).
 - Em execuções do Vitest (`pnpm --dir app test`), o toggle é forçado automaticamente: o `vite.config.ts` ignora `off` e liga o
-  MSW para que os testes unitários não dependam do backend real. O setup (`app/src/test/setup.ts`) também marca o flag global
+  MSW para que os testes unitários não dependam do backend real. O setup (`app/src/setupTests.ts`) também marca o flag global
   como `ready` durante a suíte.
 - Os testes Playwright (`pnpm --dir tests exec playwright test`) sobem o Vite em fixture mode (`CONSOLE_MCP_USE_FIXTURES=force`)
   via `tests/playwright.config.ts`. O helper `tests/e2e/fixtures.ts` aguarda o worker do MSW após cada `page.goto` ou
