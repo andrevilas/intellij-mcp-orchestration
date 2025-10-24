@@ -218,7 +218,7 @@ const VIEW_DEFINITIONS = [
 
 type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
 
-type ViewLoader = () => Promise<{ default: ComponentType<unknown> }>;
+type ViewLoader = () => Promise<{ default: ComponentType<any> }>;
 
 const VIEW_COMPONENT_LOADERS: Record<ViewId, ViewLoader> = {
   dashboard: () => import('./pages/Dashboard'),

@@ -1,51 +1,57 @@
 {
-  "generatedAt": "2025-10-21T17:34:12.553Z",
+  "generatedAt": "2025-10-24T08:36:40.188Z",
   "distDir": "dist",
   "totals": {
-    "size": 1531272,
-    "gzip": 422296
+    "size": 1559340,
+    "gzip": 431413
   },
   "assets": [
     {
-      "file": "assets/view-finops-DvA7jXX1.js",
-      "size": 628002,
-      "gzip": 175220,
+      "file": "assets/vendor-recharts-C1DrJ0hD.js",
+      "size": 412761,
+      "gzip": 108837,
       "type": "js"
     },
     {
-      "file": "assets/view-flows-CCtNvh-X.js",
-      "size": 148929,
-      "gzip": 47357,
+      "file": "assets/vendor-reactflow-1obJ9cbP.js",
+      "size": 290981,
+      "gzip": 94354,
       "type": "js"
     },
     {
-      "file": "assets/view-ui-kit-B9Iob9Dx.js",
-      "size": 132325,
-      "gzip": 42174,
+      "file": "assets/view-agents-zHZmxk6Z.js",
+      "size": 161861,
+      "gzip": 50418,
       "type": "js"
     },
     {
-      "file": "assets/view-admin-chat-ZeGqatQU.js",
-      "size": 113401,
-      "gzip": 28861,
+      "file": "assets/view-admin-chat-F5OCdkCk.js",
+      "size": 107490,
+      "gzip": 26985,
       "type": "js"
     },
     {
-      "file": "assets/index-CR5d5Nza.js",
-      "size": 64382,
-      "gzip": 19952,
+      "file": "assets/view-finops-BA-lHB-B.js",
+      "size": 68530,
+      "gzip": 18241,
       "type": "js"
     },
     {
-      "file": "assets/view-agents-DXQh9d-O.js",
-      "size": 48068,
-      "gzip": 13116,
+      "file": "assets/index-CDmJmYRY.js",
+      "size": 55350,
+      "gzip": 17785,
       "type": "js"
     },
     {
-      "file": "assets/view-security-CVFWyXGQ.js",
-      "size": 43544,
-      "gzip": 12237,
+      "file": "assets/view-security-BNHw1WOG.js",
+      "size": 44302,
+      "gzip": 12531,
+      "type": "js"
+    },
+    {
+      "file": "assets/view-ui-kit-qI4uvc7R.js",
+      "size": 41958,
+      "gzip": 13417,
       "type": "js"
     },
     {
@@ -61,51 +67,51 @@
       "type": "css"
     },
     {
-      "file": "assets/view-policies-D32rq-WX.js",
-      "size": 33235,
-      "gzip": 9586,
+      "file": "assets/view-policies-4sCzaGv8.js",
+      "size": 33260,
+      "gzip": 9656,
       "type": "js"
     },
     {
-      "file": "assets/view-routing-Hq7UrqLw.js",
-      "size": 32264,
-      "gzip": 8759,
-      "type": "js"
-    },
-    {
-      "file": "assets/index-DRsdaKf-.css",
-      "size": 28231,
-      "gzip": 5002,
+      "file": "assets/index-CuAxaO33.css",
+      "size": 33169,
+      "gzip": 5536,
       "type": "css"
     },
     {
-      "file": "assets/view-servers-D9_BPT-H.js",
-      "size": 24774,
-      "gzip": 6954,
+      "file": "assets/view-routing-BwuWNiHz.js",
+      "size": 32351,
+      "gzip": 8846,
       "type": "js"
     },
     {
-      "file": "assets/view-ui-kit-4PF0ftht.css",
-      "size": 23176,
-      "gzip": 4130,
+      "file": "assets/view-servers-oKcpxefK.js",
+      "size": 24891,
+      "gzip": 7031,
+      "type": "js"
+    },
+    {
+      "file": "assets/view-observability-CSDAwSfN.js",
+      "size": 20729,
+      "gzip": 6478,
+      "type": "js"
+    },
+    {
+      "file": "assets/view-agents-DejVyWuo.css",
+      "size": 19259,
+      "gzip": 3500,
       "type": "css"
     },
     {
-      "file": "assets/view-dashboard-BLRXrCZB.js",
-      "size": 23165,
-      "gzip": 8015,
+      "file": "assets/view-dashboard-DEaVog5f.js",
+      "size": 19070,
+      "gzip": 6664,
       "type": "js"
     },
     {
-      "file": "assets/view-observability-BfZ1AZbm.js",
-      "size": 20565,
-      "gzip": 6417,
-      "type": "js"
-    },
-    {
-      "file": "assets/view-dashboard-CWgfnx-Y.css",
-      "size": 13478,
-      "gzip": 2858,
+      "file": "assets/view-ui-kit-Bog3ArRL.css",
+      "size": 15553,
+      "gzip": 2927,
       "type": "css"
     },
     {
@@ -113,6 +119,12 @@
       "size": 13129,
       "gzip": 2365,
       "type": "css"
+    },
+    {
+      "file": "assets/view-flows-DGpsiBi1.js",
+      "size": 11539,
+      "gzip": 3641,
+      "type": "js"
     },
     {
       "file": "assets/view-observability-CWQQZJeo.css",
@@ -127,45 +139,51 @@
       "type": "js"
     },
     {
-      "file": "assets/view-keys-BwPgIFbs.js",
-      "size": 8878,
-      "gzip": 2780,
+      "file": "assets/view-dashboard-wA9okAP3.css",
+      "size": 8942,
+      "gzip": 1888,
+      "type": "css"
+    },
+    {
+      "file": "assets/view-security-DK_jQRr1.css",
+      "size": 8941,
+      "gzip": 1754,
+      "type": "css"
+    },
+    {
+      "file": "assets/view-keys-D2vxfp8s.js",
+      "size": 8922,
+      "gzip": 2810,
       "type": "js"
     },
     {
-      "file": "assets/view-flows-B5DZHykP.css",
+      "file": "assets/vendor-reactflow-B5DZHykP.css",
       "size": 7322,
       "gzip": 1603,
       "type": "css"
     },
     {
-      "file": "assets/view-security-CS46Z6md.css",
-      "size": 7023,
-      "gzip": 1582,
-      "type": "css"
-    },
-    {
-      "file": "assets/view-marketplace-DkrIbfG9.js",
-      "size": 6442,
-      "gzip": 2177,
+      "file": "assets/view-marketplace-oEanO1NS.js",
+      "size": 6486,
+      "gzip": 2201,
       "type": "js"
     },
     {
-      "file": "assets/visual-sections-B0WUHwH-.js",
-      "size": 4798,
-      "gzip": 1928,
+      "file": "assets/visual-sections-BGYm2pLJ.js",
+      "size": 4864,
+      "gzip": 1960,
       "type": "js"
     },
     {
-      "file": "assets/metrics-visuals-Cjje5QyW.js",
-      "size": 2526,
-      "gzip": 976,
+      "file": "assets/metrics-visuals-lbOjInxH.js",
+      "size": 2603,
+      "gzip": 1012,
       "type": "js"
     },
     {
       "file": "index.html",
-      "size": 2182,
-      "gzip": 722,
+      "size": 2520,
+      "gzip": 787,
       "type": "html"
     },
     {
@@ -173,6 +191,12 @@
       "size": 1281,
       "gzip": 493,
       "type": "css"
+    },
+    {
+      "file": "assets/FinOpsTimeseriesChart-AD3TSlA2.js",
+      "size": 1124,
+      "gzip": 661,
+      "type": "js"
     }
   ]
 }

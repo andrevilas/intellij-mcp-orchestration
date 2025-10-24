@@ -563,11 +563,37 @@ const resetCostPolicyStore = () => {
 const listCostPolicies = (): CostPolicyRecord[] =>
   Array.from(costPolicyStore.values()).map((policy) => createResponse(policy));
 
-type PolicyOverridesPayloadRecord = NonNullable<PolicyOverridesPayload>;
+type PolicyOverridesPayloadRecord = {
+  policies?: Record<string, unknown> | null;
+  routing?: Record<string, unknown> | null;
+  finops?: Record<string, unknown> | null;
+  hitl?: Record<string, unknown> | null;
+  runtime?: Record<string, unknown> | null;
+  tracing?: Record<string, unknown> | null;
+};
 
-interface PolicyOverrideRecord extends PolicyOverridePayload {
+interface PolicyOverrideRecord {
+  id: string;
+  route: string;
+  project: string;
+  template_id: string;
+  max_latency_ms: number | null;
+  max_cost_usd: number | null;
+  require_manual_approval: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
   overrides?: PolicyOverridesPayloadRecord | null;
 }
+
+const toPolicyOverridesPayload = (
+  value: unknown,
+): PolicyOverridesPayloadRecord | null => {
+  if (value && typeof value === 'object') {
+    return value as PolicyOverridesPayloadRecord;
+  }
+  return null;
+};
 
 const policyOverrideFixtures: PolicyOverrideRecord[] = [
   {
@@ -1883,7 +1909,7 @@ export const handlers = [
       notes: typeof payload.notes === 'string' ? payload.notes : null,
       created_at: now,
       updated_at: now,
-      overrides: (payload.overrides as PolicyOverridesPayload | undefined) ?? null,
+      overrides: toPolicyOverridesPayload(payload.overrides),
     };
     policyOverrideStore.set(record.id, record);
     return HttpResponse.json(record, { status: 201 });
@@ -1900,6 +1926,7 @@ export const handlers = [
     } catch {
       // ignore
     }
+    const overridesPayload = toPolicyOverridesPayload(payload.overrides);
     const updated: PolicyOverrideRecord = {
       ...current,
       route: typeof payload.route === 'string' ? payload.route : current.route,
@@ -1917,7 +1944,7 @@ export const handlers = [
           ? payload.require_manual_approval
           : current.require_manual_approval,
       notes: typeof payload.notes === 'string' ? payload.notes : current.notes,
-      overrides: (payload.overrides as PolicyOverridesPayload | undefined) ?? current.overrides ?? null,
+      overrides: overridesPayload ?? current.overrides ?? null,
       updated_at: nextIsoTimestamp(),
     };
     policyOverrideStore.set(overrideId, updated);
@@ -2230,7 +2257,8 @@ export const handlers = [
     appendAgentHistory(agentId, {
       plan_id: planId,
       summary: response.message,
-      requested_by: payload.actor ?? 'fixtures@console',
+      requested_by:
+        typeof payload.actor === 'string' ? payload.actor : 'fixtures@console',
       plan_payload:
         (payload.plan as Record<string, unknown> | undefined) ??
         createResponse(finopsPlanResponseFixture.plan),
