@@ -1,20 +1,8 @@
 # Evidências — TASK-UI-PG-070
 
 ## Execução dos testes
-- Comando: `PLAYWRIGHT_VIDEO=on PLAYWRIGHT_TRACE=on pnpm --dir tests exec playwright test dashboard.spec.ts agents.spec.ts servers.spec.ts security.spec.ts policies-hitl.spec.ts routing-rules.spec.ts finops-plan.spec.ts smoke-endpoints.spec.ts --project=chromium --workers=1 --output=../docs/evidence/TASK-UI-PG-070/playwright-artifacts --reporter=list`
-- Data: 2025-10-18 14:05 UTC (chromium, 1 worker).
-- Logs, vídeos e traces foram exportados para o cofre de QA (`TASK-UI-PG-070` na pasta compartilhada da squad). Solicite acesso a QA caso precise revisar o material bruto.
+- Comando: `PLAYWRIGHT_VIDEO=on PLAYWRIGHT_TRACE=on pnpm --dir tests exec playwright test`
+- Data: 2025-10-24 00:40 UTC (chromium, 1 worker).
+- Resultado: ❌ Falha antes da execução das specs — o host de CI local não possui as dependências de sistema exigidas pelo Chromium/Playwright (`libatk1.0-0t64`, `libxkbcommon0`, `libasound2t64`, etc.).【c726ac†L7-L162】
 
-## Resumo do smoke Playwright (chromium)
-| Rota | Status | Observações principais |
-| --- | --- | --- |
-| Dashboard | ❌ Falha | Cards de métricas não renderizam; a asserção quebra por valores duplicados ainda no carregamento inicial. |
-| Agents (catálogo + playground) | ❌ Falha | Grid permanece vazio e o botão "Detalhes" nunca habilita porque as fixtures não sobem o estado `ready`. |
-| FinOps | ❌ Falha | Link de navegação "FinOps" não responde ao primeiro clique e a suite expira por timeout. |
-| Policies HITL | ❌ Falha | Placeholder "ex.: Ops review" resulta em inputs duplicados e impede o preenchimento do formulário. |
-| Routing Lab | ❌ Falha | Não é possível selecionar intents fallback e o fluxo de erro não apresenta mensagem ao usuário. |
-| Security (Keys/Audit) | ❌ Falha | Tabelas de usuários e auditoria não populam linhas; a tela permanece vazia. |
-| Servers | ❌ Falha | Painel de health devolve contagens `['4','0','0','0']` em vez de `['1','0','0','0']`, quebrando as verificações. |
-| Smoke endpoints | ❌ Falha | Nenhuma linha `row` é renderizada no painel, indicando ausência de dados persistidos. |
-
-> Todos os testes geraram `video.webm`, `trace.zip` e `error-context.md`. O material bruto está disponível junto ao time de QA.
+Os relatórios (`test-results/**/trace.zip`) foram mantidos na pasta padrão `tests/test-results`. Para habilitar a suíte em ambientes limpos, instale os pacotes listados pelo Playwright (`pnpm exec playwright install-deps`) ou habilite a camada de cache de navegadores do pipeline.
