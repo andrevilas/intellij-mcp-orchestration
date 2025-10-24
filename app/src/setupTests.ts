@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { resetMockState, server } from '../mocks/server';
+import { resetMockState, server } from './mocks/server';
 
 declare global {
   // eslint-disable-next-line no-var

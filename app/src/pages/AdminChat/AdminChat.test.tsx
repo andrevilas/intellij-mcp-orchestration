@@ -3,7 +3,7 @@ import type { Mock } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import AdminChat from '../pages/AdminChat';
+import AdminChat from './AdminChat';
 import type {
   AdminPlanSummary,
   ConfigChatResponse,
@@ -14,7 +14,7 @@ import type {
   ConfigOnboardRequest,
   McpSmokeRunResponse,
   McpOnboardingStatus,
-} from '../api';
+} from '../../api';
 import {
   postConfigChat,
   postConfigPlan,
@@ -25,12 +25,12 @@ import {
   postConfigMcpOnboard,
   postMcpSmokeRun,
   fetchMcpOnboardingStatus,
-} from '../api';
+} from '../../api';
 
-type ApiModule = typeof import('../api');
+type ApiModule = typeof import('../../api');
 
-vi.mock('../api', async () => {
-  const actual = await vi.importActual<ApiModule>('../api');
+vi.mock('../../api', async () => {
+  const actual = await vi.importActual<ApiModule>('../../api');
   return {
     ...actual,
     postConfigChat: vi.fn(),

@@ -28,7 +28,7 @@ def _run(command: list[str], *, cwd: Path | None = None, env: dict[str, str] | N
 
 
 def main() -> None:
-    _run([PNPM, "test"], cwd=ROOT / "app")
+    _run([PNPM, "--dir", "app", "test"])
     _run([PYTHON, "-m", "pytest"], cwd=ROOT / "server")
     _run([PYTHON, "-m", "pytest"], cwd=ROOT / "agents-hub")
 

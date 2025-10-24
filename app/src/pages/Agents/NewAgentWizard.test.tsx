@@ -8,15 +8,15 @@ import type {
   ConfigPlanPayload,
   ConfigPlanPreview,
   ProviderSummary,
-} from '../api';
+} from '../../api';
 import {
   fetchProviders,
   postAgentPlanApply,
   postGovernedAgentPlan,
-} from '../api';
-import NewAgentWizard from '../pages/Agents/NewAgentWizard';
+} from '../../api';
+import NewAgentWizard from './NewAgentWizard';
 
-vi.mock('../api');
+vi.mock('../../api');
 
 describe('NewAgentWizard', () => {
   const providers: ProviderSummary[] = [

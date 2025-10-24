@@ -2,8 +2,8 @@ import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import McpServersList from '../pages/AdminChat/McpServersList';
-import * as api from '../api';
+import McpServersList from './McpServersList';
+import * as api from '../../api';
 import {
   applyConfigMcpUpdate,
   fetchServerCatalog,
@@ -11,7 +11,7 @@ import {
   type ConfigMcpUpdateApplyRequest,
   type ConfigMcpUpdateApplyResponse,
   type McpServer,
-} from '../api';
+} from '../../api';
 
 const catalogMock = vi.spyOn(api, 'fetchServerCatalog');
 const planMock = vi.spyOn(api, 'planConfigMcpUpdate');

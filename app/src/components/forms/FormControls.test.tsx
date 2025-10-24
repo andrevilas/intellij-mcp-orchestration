@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../hooks/useMcpForm';
-import { FormErrorSummary, Input, InputGroup, Select } from '../components/forms';
+import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../../hooks/useMcpForm';
+import { FormErrorSummary, Input, InputGroup, Select } from '.';
 
 interface SampleValues {
   name: string;
