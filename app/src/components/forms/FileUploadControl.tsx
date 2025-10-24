@@ -9,7 +9,8 @@ import Alert from '../feedback/Alert';
 import ProgressIndicator from '../indicators/ProgressIndicator';
 import { useToast } from '../feedback/ToastProvider';
 
-import './forms.scss';
+import '../../icons/forms';
+import './styles/file-transfer.scss';
 
 export type UploadProgressHandler = (value: number) => void;
 

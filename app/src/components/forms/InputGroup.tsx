@@ -4,7 +4,10 @@ import clsx from 'clsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconProp } from '@fortawesome/fontawesome-svg-core';
 
-import './forms.scss';
+import '../../icons/forms';
+import './styles/form-base.scss';
+import './styles/control-inputs.scss';
+import './styles/input-group.scss';
 import { mergeIds } from './utils';
 
 export interface InputGroupProps extends InputHTMLAttributes<HTMLInputElement> {

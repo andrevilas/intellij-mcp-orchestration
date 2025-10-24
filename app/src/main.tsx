@@ -1,7 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './icons';
 import './styles/index.scss';
 import './styles/base.scss';
 import { ThemeProvider } from './theme/ThemeContext';

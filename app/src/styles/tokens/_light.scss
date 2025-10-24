@@ -1,0 +1,134 @@
+@mixin light-theme() {
+  :root {
+    /* Superfícies & bordas */
+    --mcp-surface: #ffffff;
+    --mcp-surface-subtle: #f4f6fb;
+    --mcp-surface-elevated: rgba(244, 246, 251, 0.96);
+    --mcp-surface-translucent: rgba(244, 246, 251, 0.9);
+    --mcp-surface-contrast: #0f172a;
+    --mcp-border-strong: rgba(15, 23, 42, 0.12);
+    --mcp-border-subtle: rgba(15, 23, 42, 0.08);
+    --mcp-border-muted: rgba(15, 23, 42, 0.05);
+    --mcp-border-accent: rgba(100, 116, 139, 0.45);
+    --mcp-overlay-soft: rgba(15, 23, 42, 0.06);
+    --mcp-overlay-strong: rgba(15, 23, 42, 0.15);
+    --mcp-backdrop: rgba(15, 23, 42, 0.45);
+    --mcp-backdrop-strong: rgba(15, 23, 42, 0.65);
+    --mcp-sidebar-bg: #0f172a;
+    --mcp-sidebar-fg: #e2e8f0;
+
+    /* Tokens de interação */
+    --mcp-interactive: #3730a3;
+    --mcp-interactive-soft: rgba(55, 48, 163, 0.12);
+    --mcp-interactive-alt: #5b21b6;
+    --mcp-interactive-soft-alt: rgba(91, 33, 182, 0.18);
+    --mcp-focus-ring: rgba(55, 48, 163, 0.5);
+    --mcp-shadow-soft: 0 20px 45px rgba(15, 23, 42, 0.08);
+    --mcp-shadow-elevated: 0 20px 45px rgba(15, 23, 42, 0.08);
+    --mcp-shadow-modal: 0 28px 52px rgba(15, 23, 42, 0.28);
+    --mcp-shadow-diff: 0 30px 80px rgba(15, 23, 42, 0.35);
+    --mcp-shadow-accent: 0 12px 28px rgba(37, 99, 235, 0.2);
+    --mcp-shadow-accent-strong: 0 16px 36px rgba(37, 99, 235, 0.28);
+    --mcp-shadow-accent-intense: 0 22px 44px rgba(37, 99, 235, 0.32);
+    --mcp-shadow-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    --mcp-z-dropdown: 20;
+    --mcp-z-tooltip: 30;
+    --mcp-z-modal: 80;
+    --mcp-z-toast: 70;
+
+    /* Ações & botões */
+    --mcp-action-primary-bg: var(--mcp-interactive);
+    --mcp-action-primary-fg: var(--mcp-text-inverse);
+    --mcp-action-primary-border: transparent;
+    --mcp-action-primary-hover-bg: color-mix(in srgb, var(--mcp-interactive) 88%, var(--mcp-surface-contrast) 12%);
+    --mcp-action-primary-hover-fg: var(--mcp-text-inverse);
+
+    --mcp-action-secondary-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
+    --mcp-action-secondary-fg: var(--mcp-surface-contrast);
+    --mcp-action-secondary-border: color-mix(in srgb, var(--mcp-border-strong) 80%, transparent 20%);
+    --mcp-action-secondary-hover-bg: color-mix(in srgb, var(--mcp-surface-subtle) 92%, var(--mcp-surface-contrast) 8%);
+    --mcp-action-secondary-hover-fg: var(--mcp-surface-contrast);
+
+    --mcp-action-danger-bg: var(--mcp-danger-strong);
+    --mcp-action-danger-fg: var(--mcp-text-inverse);
+    --mcp-action-danger-border: transparent;
+    --mcp-action-danger-hover-bg: color-mix(in srgb, var(--mcp-danger-strong) 88%, var(--mcp-surface-contrast) 12%);
+    --mcp-action-danger-hover-fg: var(--mcp-text-inverse);
+
+    --mcp-action-outline-bg: transparent;
+    --mcp-action-outline-fg: var(--mcp-surface-contrast);
+    --mcp-action-outline-border: color-mix(in srgb, var(--mcp-border-strong) 85%, transparent 15%);
+    --mcp-action-outline-hover-bg: color-mix(in srgb, var(--mcp-surface-subtle) 88%, transparent 12%);
+    --mcp-action-outline-hover-fg: var(--mcp-surface-contrast);
+
+    --mcp-action-link-bg: transparent;
+    --mcp-action-link-fg: var(--mcp-interactive);
+    --mcp-action-link-border: transparent;
+    --mcp-action-link-hover-bg: color-mix(in srgb, var(--mcp-interactive) 12%, transparent 88%);
+    --mcp-action-link-hover-fg: var(--mcp-interactive);
+
+    --mcp-action-disabled-opacity: 0.6;
+    --mcp-action-toolbar-bg: color-mix(in srgb, var(--mcp-surface-subtle) 70%, transparent 30%);
+    --mcp-action-toolbar-border: color-mix(in srgb, var(--mcp-border-strong) 85%, transparent 15%);
+
+    /* Tipografia & feedback */
+    --mcp-text-muted: #475569;
+    --mcp-text-subtle: #5b6b82;
+    --mcp-text-inverse: #e2e8f0;
+    --mcp-state-surface-default: var(--mcp-surface);
+    --mcp-state-surface-loading: color-mix(in srgb, var(--mcp-overlay-soft) 60%, var(--mcp-surface) 40%);
+    --mcp-state-surface-empty: color-mix(in srgb, var(--mcp-info-soft) 65%, var(--mcp-surface) 35%);
+    --mcp-state-surface-error: color-mix(in srgb, var(--mcp-danger-soft) 65%, var(--mcp-surface) 35%);
+    --mcp-state-border-default: color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+    --mcp-state-border-loading: color-mix(in srgb, var(--mcp-border-strong) 70%, transparent 30%);
+    --mcp-state-border-empty: color-mix(in srgb, var(--mcp-info-strong) 60%, transparent 40%);
+    --mcp-state-border-error: color-mix(in srgb, var(--mcp-danger-strong) 65%, transparent 35%);
+    --mcp-state-fg-default: var(--mcp-surface-contrast);
+    --mcp-state-fg-loading: var(--mcp-text-subtle);
+    --mcp-state-fg-empty: var(--mcp-info-stronger);
+    --mcp-state-fg-error: var(--mcp-danger-strong);
+    --mcp-status-surface-default: var(--mcp-state-surface-default);
+    --mcp-status-surface-loading: var(--mcp-state-surface-loading);
+    --mcp-status-surface-empty: var(--mcp-state-surface-empty);
+    --mcp-status-surface-error: var(--mcp-state-surface-error);
+    --mcp-status-border-default: var(--mcp-state-border-default);
+    --mcp-status-border-loading: var(--mcp-state-border-loading);
+    --mcp-status-border-empty: var(--mcp-state-border-empty);
+    --mcp-status-border-error: var(--mcp-state-border-error);
+    --mcp-status-fg-default: var(--mcp-state-fg-default);
+    --mcp-status-fg-loading: color-mix(in srgb, var(--mcp-state-fg-default) 65%, var(--mcp-state-fg-loading) 35%);
+    --mcp-status-fg-empty: color-mix(in srgb, var(--mcp-state-fg-empty) 85%, var(--mcp-state-fg-default) 15%);
+    --mcp-status-fg-error: color-mix(in srgb, var(--mcp-state-fg-error) 92%, var(--mcp-state-fg-default) 8%);
+    --mcp-status-muted-default: var(--mcp-text-muted);
+    --mcp-status-muted-loading: color-mix(in srgb, var(--mcp-state-fg-loading) 75%, var(--mcp-state-fg-default) 25%);
+    --mcp-status-muted-empty: color-mix(in srgb, var(--mcp-info-strong) 70%, var(--mcp-text-muted) 30%);
+    --mcp-status-muted-error: color-mix(in srgb, var(--mcp-state-fg-error) 78%, var(--mcp-state-fg-default) 22%);
+    --mcp-status-icon-default: var(--mcp-state-fg-default);
+    --mcp-status-icon-loading: var(--mcp-info-strong);
+    --mcp-status-icon-empty: var(--mcp-info-stronger);
+    --mcp-status-icon-error: var(--mcp-danger-strong);
+    --mcp-info-strong: #1d4ed8;
+    --mcp-info-stronger: #1e3a8a;
+    --mcp-info-soft: rgba(37, 99, 235, 0.12);
+    --mcp-info-soft-medium: rgba(37, 99, 235, 0.18);
+    --mcp-info-soft-strong: rgba(37, 99, 235, 0.22);
+    --mcp-info-soft-fade: rgba(37, 99, 235, 0.08);
+    --mcp-info-emphasis: #0f3d8c;
+    --mcp-success-strong: #166534;
+    --mcp-success-soft: rgba(34, 197, 94, 0.18);
+    --mcp-success-emphasis: #065f46;
+    --mcp-danger-strong: #b91c1c;
+    --mcp-danger-soft: rgba(239, 68, 68, 0.2);
+    --mcp-warning-strong: #b45309;
+    --mcp-warning-soft: rgba(234, 179, 8, 0.22);
+    --mcp-teal-strong: #0f766e;
+    --mcp-teal-soft: rgba(15, 118, 110, 0.2);
+    --mcp-teal-stronger: #0d5d58;
+    --mcp-text-secondary: #334155;
+    --mcp-text-muted-strong: #1f2937;
+
+    /* Scrollbar */
+    --mcp-scroll-thumb: rgba(148, 163, 184, 0.6);
+    --mcp-scroll-track: rgba(15, 23, 42, 0.08);
+  }
+}

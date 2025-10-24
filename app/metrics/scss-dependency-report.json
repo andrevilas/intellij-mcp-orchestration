@@ -1,0 +1,155 @@
+{
+  "entry": "app/src/styles/index.scss",
+  "scssGraph": {
+    "app/src/components/NotificationCenter.scss": [],
+    "app/src/components/actions/button-group.scss": [],
+    "app/src/components/actions/button.scss": [],
+    "app/src/components/feedback/feedback.scss": [],
+    "app/src/components/forms/styles/control-inputs.scss": [],
+    "app/src/components/forms/styles/file-transfer.scss": [],
+    "app/src/components/forms/styles/form-base.scss": [],
+    "app/src/components/forms/styles/form-feedback.scss": [],
+    "app/src/components/forms/styles/input-group.scss": [],
+    "app/src/components/forms/styles/switch.scss": [],
+    "app/src/components/indicators/progress-indicator.scss": [
+      "app/src/styles/components/_status-block.scss"
+    ],
+    "app/src/components/indicators/status-badge.scss": [],
+    "app/src/components/kpi-card.scss": [
+      "app/src/styles/components/_status-block.scss"
+    ],
+    "app/src/components/menus/dropdown.scss": [],
+    "app/src/components/menus/tooltip.scss": [],
+    "app/src/components/modals/modal.scss": [],
+    "app/src/components/navigation/breadcrumbs.scss": [],
+    "app/src/components/navigation/pagination.scss": [],
+    "app/src/components/resource-detail-card.scss": [
+      "app/src/styles/components/_status-block.scss"
+    ],
+    "app/src/components/resource-table.scss": [
+      "app/src/styles/components/_status-block.scss"
+    ],
+    "app/src/components/ui-kit-showcase.scss": [],
+    "app/src/pages/AdminChat/admin-chat.scss": [],
+    "app/src/pages/Dashboard.scss": [],
+    "app/src/pages/FinOps.scss": [],
+    "app/src/pages/Observability.scss": [],
+    "app/src/pages/Routing.scss": [],
+    "app/src/styles/app-shell.scss": [],
+    "app/src/styles/base.scss": [],
+    "app/src/styles/components/_status-block.scss": [],
+    "app/src/styles/index.scss": [
+      "app/src/styles/tokens/_index.scss"
+    ],
+    "app/src/styles/tokens/_dark.scss": [],
+    "app/src/styles/tokens/_index.scss": [
+      "app/src/styles/tokens/_dark.scss",
+      "app/src/styles/tokens/_light.scss"
+    ],
+    "app/src/styles/tokens/_light.scss": [],
+    "app/src/theme/theme-switch.scss": []
+  },
+  "scssConsumers": {
+    "app/src/components/actions/button-group.scss": [
+      "app/src/components/actions/ButtonGroup.tsx"
+    ],
+    "app/src/components/actions/button.scss": [
+      "app/src/components/actions/Button.tsx"
+    ],
+    "app/src/components/feedback/feedback.scss": [
+      "app/src/components/feedback/Alert.tsx",
+      "app/src/components/feedback/ToastProvider.tsx"
+    ],
+    "app/src/components/forms/styles/control-inputs.scss": [
+      "app/src/components/forms/Input.tsx",
+      "app/src/components/forms/InputGroup.tsx",
+      "app/src/components/forms/Select.tsx",
+      "app/src/components/forms/TextArea.tsx"
+    ],
+    "app/src/components/forms/styles/file-transfer.scss": [
+      "app/src/components/forms/FileDownloadControl.tsx",
+      "app/src/components/forms/FileUploadControl.tsx"
+    ],
+    "app/src/components/forms/styles/form-base.scss": [
+      "app/src/components/forms/FormErrorSummary.tsx",
+      "app/src/components/forms/Input.tsx",
+      "app/src/components/forms/InputGroup.tsx",
+      "app/src/components/forms/Select.tsx",
+      "app/src/components/forms/Switch.tsx",
+      "app/src/components/forms/TextArea.tsx"
+    ],
+    "app/src/components/forms/styles/form-feedback.scss": [
+      "app/src/components/forms/FormErrorSummary.tsx"
+    ],
+    "app/src/components/forms/styles/input-group.scss": [
+      "app/src/components/forms/InputGroup.tsx"
+    ],
+    "app/src/components/forms/styles/switch.scss": [
+      "app/src/components/forms/Switch.tsx"
+    ],
+    "app/src/components/indicators/progress-indicator.scss": [
+      "app/src/components/indicators/ProgressIndicator.tsx"
+    ],
+    "app/src/components/indicators/status-badge.scss": [
+      "app/src/components/indicators/StatusBadge.tsx"
+    ],
+    "app/src/components/kpi-card.scss": [
+      "app/src/components/KpiCard.tsx"
+    ],
+    "app/src/components/menus/dropdown.scss": [
+      "app/src/components/menus/Dropdown.tsx"
+    ],
+    "app/src/components/menus/tooltip.scss": [
+      "app/src/components/menus/Tooltip.tsx"
+    ],
+    "app/src/components/modals/modal.scss": [
+      "app/src/components/modals/ModalBase.tsx"
+    ],
+    "app/src/components/navigation/breadcrumbs.scss": [
+      "app/src/components/navigation/Breadcrumbs.tsx"
+    ],
+    "app/src/components/navigation/pagination.scss": [
+      "app/src/components/navigation/Pagination.tsx"
+    ],
+    "app/src/components/NotificationCenter.scss": [
+      "app/src/components/NotificationCenter.tsx"
+    ],
+    "app/src/components/resource-detail-card.scss": [
+      "app/src/components/ResourceDetailCard.tsx"
+    ],
+    "app/src/components/resource-table.scss": [
+      "app/src/components/ResourceTable.tsx"
+    ],
+    "app/src/components/ui-kit-showcase.scss": [
+      "app/src/components/UiKitShowcase.tsx"
+    ],
+    "app/src/pages/AdminChat/admin-chat.scss": [
+      "app/src/pages/AdminChat/AdminChat.tsx"
+    ],
+    "app/src/pages/Dashboard.scss": [
+      "app/src/pages/Dashboard.tsx"
+    ],
+    "app/src/pages/FinOps.scss": [
+      "app/src/pages/FinOps.tsx"
+    ],
+    "app/src/pages/Observability.scss": [
+      "app/src/pages/Observability.tsx"
+    ],
+    "app/src/pages/Routing.scss": [
+      "app/src/pages/Routing.tsx"
+    ],
+    "app/src/styles/app-shell.scss": [
+      "app/src/App.tsx"
+    ],
+    "app/src/styles/base.scss": [
+      "app/src/main.tsx"
+    ],
+    "app/src/styles/index.scss": [
+      "app/src/main.tsx"
+    ],
+    "app/src/theme/theme-switch.scss": [
+      "app/src/theme/ThemeSwitch.tsx"
+    ]
+  },
+  "redundant": []
+}

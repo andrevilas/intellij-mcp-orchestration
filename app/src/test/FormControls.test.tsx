@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event';
 
 import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../hooks/useMcpForm';
 import { FormErrorSummary, Input, InputGroup, Select } from '../components/forms';
-import '../icons';
 
 interface SampleValues {
   name: string;

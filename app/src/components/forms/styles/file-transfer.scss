@@ -1,0 +1,41 @@
+.mcp-file-transfer {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px dashed color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 78%, transparent 22%);
+}
+
+.mcp-file-transfer__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mcp-file-transfer__title {
+  font-weight: 600;
+  color: var(--mcp-surface-contrast);
+}
+
+.mcp-file-transfer__description {
+  font-size: 0.9rem;
+  color: var(--mcp-text-subtle);
+  margin: 0;
+}
+
+.mcp-file-transfer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.mcp-file-transfer__meta {
+  font-size: 0.8rem;
+  color: var(--mcp-text-muted);
+}
+
+.mcp-file-transfer__progress {
+  margin-top: 0.25rem;
+}

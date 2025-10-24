@@ -1,0 +1,40 @@
+.mcp-input-group {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--mcp-form-control-radius);
+  border: 1px solid var(--mcp-form-control-border);
+  background-color: var(--mcp-form-control-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mcp-surface) 60%, transparent 40%);
+}
+
+.mcp-input-group__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--mcp-form-control-padding-x);
+  color: var(--mcp-text-muted);
+}
+
+.mcp-input-group__control {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--mcp-form-control-color);
+  padding: var(--mcp-form-control-padding-y) var(--mcp-form-control-padding-x);
+  font: inherit;
+  min-height: var(--mcp-form-control-height);
+}
+
+.mcp-input-group__control:focus-visible {
+  outline: none;
+}
+
+.mcp-input-group:focus-within {
+  border-color: color-mix(in srgb, var(--mcp-interactive) 60%, transparent 40%);
+  box-shadow: var(--mcp-form-control-shadow-focus);
+}
+
+.mcp-input-group--invalid {
+  border-color: color-mix(in srgb, var(--mcp-danger-strong) 65%, transparent 35%);
+  box-shadow: var(--mcp-form-control-shadow-error);
+}
