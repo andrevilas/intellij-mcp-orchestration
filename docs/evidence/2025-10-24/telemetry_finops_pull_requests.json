@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "id": "gemini:balanced",
+      "provider_id": "gemini",
+      "provider_name": "Gemini MCP",
+      "route": "balanced",
+      "lane": "balanced",
+      "title": "Gemini MCP · balanced",
+      "owner": "growth-team",
+      "merged_at": "2025-10-21T13:00:00Z",
+      "cost_impact_usd": 59.2,
+      "cost_delta": 0.9293563579277865,
+      "tokens_impact": 40500,
+      "status": "regression",
+      "summary": "Alta de 92.9% no custo da rota balanced (Gemini MCP) em relação ao período anterior."
+    },
+    {
+      "id": "glm46:default",
+      "provider_id": "glm46",
+      "provider_name": "GLM-4.6",
+      "route": "default",
+      "lane": "turbo",
+      "title": "GLM-4.6 · default",
+      "owner": "atlas",
+      "merged_at": "2025-10-21T14:00:00Z",
+      "cost_impact_usd": 56.1,
+      "cost_delta": 1.0388888888888888,
+      "tokens_impact": 36520,
+      "status": "regression",
+      "summary": "Alta de 103.9% no custo da rota default (GLM-4.6) em relação ao período anterior."
+    },
+    {
+      "id": "codex:economy",
+      "provider_id": "codex",
+      "provider_name": "Codex CLI",
+      "route": "economy",
+      "lane": "balanced",
+      "title": "Codex CLI · economy",
+      "owner": "cli-core",
+      "merged_at": "2025-10-21T15:00:00Z",
+      "cost_impact_usd": 39.95,
+      "cost_delta": 0.9701311316172898,
+      "tokens_impact": 25780,
+      "status": "regression",
+      "summary": "Alta de 97.0% no custo da rota economy (Codex CLI) em relação ao período anterior."
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+timestamp,provider_id,tool,route,status,tokens_in,tokens_out,duration_ms,cost_estimated_usd,experiment_cohort,experiment_tag,metadata,source_file
+2025-10-08T13:00:00+00:00,gemini,gemini.chat,balanced,success,4200,1900,890,9.6,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-000""}",finops-fixture/gemini.jsonl
+2025-10-08T14:00:00+00:00,glm46,glm46.chat,default,success,3600,1400,930,7.4,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-08T15:00:00+00:00,codex,codex.cli,economy,success,2800,1050,870,6.1,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-09T13:00:00+00:00,gemini,gemini.chat,balanced,success,4150,1880,910,9.8,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-001""}",finops-fixture/gemini.jsonl
+2025-10-09T14:00:00+00:00,glm46,glm46.chat,default,success,3580,1380,960,7.2,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-09T15:00:00+00:00,codex,codex.cli,economy,success,2820,1060,895,6.2,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-10T13:00:00+00:00,gemini,gemini.chat,balanced,error,4300,1950,930,10.1,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-002""}",finops-fixture/gemini.jsonl
+2025-10-10T14:00:00+00:00,glm46,glm46.chat,default,success,3620,1420,990,7.5,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-10T15:00:00+00:00,codex,codex.cli,economy,success,2790,1040,920,6.0,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-11T13:00:00+00:00,gemini,gemini.chat,balanced,success,4250,1920,890,9.9,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-003""}",finops-fixture/gemini.jsonl
+2025-10-11T14:00:00+00:00,glm46,glm46.chat,default,success,3660,1440,1020,7.6,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-11T15:00:00+00:00,codex,codex.cli,economy,success,2810,1055,945,6.15,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-12T13:00:00+00:00,gemini,gemini.chat,balanced,success,4180,1890,910,9.5,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-004""}",finops-fixture/gemini.jsonl
+2025-10-12T14:00:00+00:00,glm46,glm46.chat,default,success,3590,1410,930,7.3,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-12T15:00:00+00:00,codex,codex.cli,economy,success,2830,1065,970,6.25,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-13T13:00:00+00:00,gemini,gemini.chat,balanced,success,4220,1910,930,9.7,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-005""}",finops-fixture/gemini.jsonl
+2025-10-13T14:00:00+00:00,glm46,glm46.chat,default,retry,3610,1390,960,7.1,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-13T15:00:00+00:00,codex,codex.cli,economy,success,2800,1050,870,6.1,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-14T13:00:00+00:00,gemini,gemini.chat,balanced,success,4350,1930,890,9.8,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-006""}",finops-fixture/gemini.jsonl
+2025-10-14T14:00:00+00:00,glm46,glm46.chat,default,success,3650,1430,990,7.2,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-14T15:00:00+00:00,codex,codex.cli,economy,success,2825,1060,895,6.18,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-15T13:00:00+00:00,gemini,gemini.chat,balanced,success,4000,1800,910,8.6,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-007""}",finops-fixture/gemini.jsonl
+2025-10-15T14:00:00+00:00,glm46,glm46.chat,default,success,3720,1480,1020,8.1,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-15T15:00:00+00:00,codex,codex.cli,economy,success,2700,990,920,5.6,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-16T13:00:00+00:00,gemini,gemini.chat,balanced,success,3980,1780,930,8.2,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-008""}",finops-fixture/gemini.jsonl
+2025-10-16T14:00:00+00:00,glm46,glm46.chat,default,success,3740,1500,930,8.3,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-16T15:00:00+00:00,codex,codex.cli,economy,success,2680,980,945,5.5,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-17T13:00:00+00:00,gemini,gemini.chat,balanced,error,3920,1760,890,8.0,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-009""}",finops-fixture/gemini.jsonl
+2025-10-17T14:00:00+00:00,glm46,glm46.chat,default,success,3760,1520,960,8.4,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-17T15:00:00+00:00,codex,codex.cli,economy,success,2660,970,970,5.4,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-18T13:00:00+00:00,gemini,gemini.chat,balanced,success,3880,1740,910,7.8,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-010""}",finops-fixture/gemini.jsonl
+2025-10-18T14:00:00+00:00,glm46,glm46.chat,default,success,3780,1540,990,8.6,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-18T15:00:00+00:00,codex,codex.cli,economy,success,2640,960,870,5.55,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-19T13:00:00+00:00,gemini,gemini.chat,balanced,success,3840,1720,930,7.5,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-011""}",finops-fixture/gemini.jsonl
+2025-10-19T14:00:00+00:00,glm46,glm46.chat,default,success,3800,1560,1020,8.2,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-19T15:00:00+00:00,codex,codex.cli,economy,success,2620,950,895,5.45,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-20T13:00:00+00:00,gemini,gemini.chat,balanced,success,3800,1700,890,7.3,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-012""}",finops-fixture/gemini.jsonl
+2025-10-20T14:00:00+00:00,glm46,glm46.chat,default,retry,3820,1580,930,8.5,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-20T15:00:00+00:00,codex,codex.cli,economy,success,2600,940,920,5.35,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
+2025-10-21T13:00:00+00:00,gemini,gemini.chat,balanced,success,3760,1680,910,7.1,canary,prompt-v3,"{""consumer"": ""growth-team"", ""trace_id"": ""gem-013""}",finops-fixture/gemini.jsonl
+2025-10-21T14:00:00+00:00,glm46,glm46.chat,default,success,3840,1600,960,8.7,baseline,route-a,"{""project"": ""atlas""}",finops-fixture/glm46.jsonl
+2025-10-21T15:00:00+00:00,codex,codex.cli,economy,success,2580,930,945,5.3,pilot,cli-v2,"{""consumer"": ""cli-core""}",finops-fixture/codex.jsonl
