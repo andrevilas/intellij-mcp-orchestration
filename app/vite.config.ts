@@ -147,10 +147,25 @@ const viewManualChunks = [
   { segments: ['components', 'UiKitShowcase'], chunk: 'view-ui-kit' },
 ];
 
+const vendorManualChunks = [
+  { moduleName: 'recharts', chunk: 'vendor-recharts' },
+  { moduleName: 'reactflow', chunk: 'vendor-reactflow' },
+];
+
 const matchesPathSegments = (id: string, segments: string[]): boolean => {
   const posixPath = segments.join('/');
   const windowsPath = segments.join('\\');
   return id.includes(`/${posixPath}`) || id.includes(`\\${windowsPath}`);
+};
+
+const normalizeId = (id: string): string => id.replace(/\\/g, '/');
+
+const matchesVendorModule = (id: string, moduleName: string): boolean => {
+  const normalized = normalizeId(id);
+  return (
+    normalized.includes(`/node_modules/${moduleName}/`) ||
+    normalized.includes(`/node_modules/.pnpm/${moduleName}@`)
+  );
 };
 
 const frontendHost = process.env.CONSOLE_MCP_FRONTEND_HOST ?? '127.0.0.1';
@@ -270,6 +285,12 @@ export default defineConfig(async () => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            for (const { moduleName, chunk } of vendorManualChunks) {
+              if (matchesVendorModule(id, moduleName)) {
+                return chunk;
+              }
+            }
+
             for (const { segments, chunk } of viewManualChunks) {
               if (matchesPathSegments(id, segments)) {
                 return chunk;

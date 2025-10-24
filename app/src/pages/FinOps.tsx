@@ -1,15 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { createTwoFilesPatch } from 'diff';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 
 import type {
   ProviderSummary,
@@ -51,12 +42,32 @@ import {
   type PlanExecutionPullRequest,
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
+import type {
+  FinOpsMetricAccessor,
+  FinOpsTimeseriesDatum,
+} from '../components/charts/FinOpsTimeseriesChart';
 import PlanSummary from './AdminChat/PlanSummary';
 import { useToastNotification } from '../hooks/useToastNotification';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
 import { FINOPS_TEST_IDS } from './testIds';
 
 import './FinOps.scss';
+
+let finOpsChartsModulePromise:
+  | Promise<typeof import('../components/charts/FinOpsTimeseriesChart')>
+  | null = null;
+
+const loadFinOpsChartsModule = () => {
+  if (!finOpsChartsModulePromise) {
+    finOpsChartsModulePromise = import('../components/charts/FinOpsTimeseriesChart');
+  }
+  return finOpsChartsModulePromise;
+};
+
+const FinOpsTimeseriesChart = lazy(async () => {
+  const module = await loadFinOpsChartsModule();
+  return { default: module.FinOpsTimeseriesChart };
+});
 
 export interface FinOpsProps {
   providers: ProviderSummary[];
@@ -71,13 +82,7 @@ type ProviderSelection = 'all' | string;
 
 type LaneCategory = 'economy' | 'balanced' | 'turbo';
 
-interface TimeSeriesPoint {
-  date: string;
-  label: string;
-  costUsd: number;
-  tokensMillions: number;
-  avgLatencyMs: number;
-}
+type TimeSeriesPoint = FinOpsTimeseriesDatum;
 
 interface AggregatedMetrics {
   totalCost: number;
@@ -451,7 +456,10 @@ const RANGE_TO_DAYS: Record<RangeOption, number> = {
   '90d': 90,
 };
 
-const METRIC_CONFIG: Record<MetricOption, { label: string; accessor: keyof TimeSeriesPoint; formatter: (value: number) => string }>
+const METRIC_CONFIG: Record<
+  MetricOption,
+  { label: string; accessor: FinOpsMetricAccessor; formatter: (value: number) => string }
+>
   = {
     cost: {
       label: 'Custo (USD)',
@@ -1740,6 +1748,13 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
   const aggregatedMetrics = useMemo(() => computeMetrics(availableSeries), [availableSeries]);
 
   const metricConfig = METRIC_CONFIG[selectedMetric];
+  const timeseriesYAxisFormatter = useCallback(
+    (value: number) =>
+      selectedMetric === 'cost'
+        ? `$${value.toFixed(value >= 1000 ? 0 : 1)}`
+        : `${value.toFixed(0)} mi`,
+    [selectedMetric],
+  );
 
   const selectedProviderLabel = useMemo(() => {
     if (selectedProvider === 'all') {
@@ -2979,38 +2994,22 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
       </div>
 
       <div className="finops__chart" role="figure" aria-label={`Série temporal de ${metricConfig.label}`}>
-        {availableSeries.length === 0 ? (
-          <p className="finops__state">Sem dados para o filtro selecionado.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={availableSeries} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" className="finops__chart-grid" />
-              <XAxis dataKey="label" className="finops__chart-axis" interval="preserveStartEnd" />
-              <YAxis
-                className="finops__chart-axis"
-                tickFormatter={(value: number) =>
-                  selectedMetric === 'cost' ? `$${value.toFixed(value >= 1000 ? 0 : 1)}` : `${value.toFixed(0)} mi`
-                }
-                width={80}
-              />
-              <Tooltip
-                formatter={(value: number) => metricConfig.formatter(value)}
-                labelFormatter={(label: string) => label}
-                contentStyle={{ background: 'var(--surface-elevated)', borderRadius: '12px', border: '1px solid var(--border-strong)' }}
-              />
-              <Area
-                type="monotone"
-                dataKey={metricConfig.accessor}
-                name={metricConfig.label}
-                stroke="var(--accent-primary)"
-                fill="var(--accent-primary-transparent)"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
+        <Suspense
+          fallback={
+            <p className="finops__state" role="status" aria-live="polite">
+              Carregando série temporal…
+            </p>
+          }
+        >
+          <FinOpsTimeseriesChart
+            availableSeries={availableSeries}
+            metricAccessor={metricConfig.accessor}
+            metricLabel={metricConfig.label}
+            tooltipFormatter={metricConfig.formatter}
+            yAxisFormatter={timeseriesYAxisFormatter}
+            emptyStateMessage="Sem dados para o filtro selecionado."
+          />
+        </Suspense>
       </div>
 
       <section className="finops__table" aria-label="Resumo diário">
