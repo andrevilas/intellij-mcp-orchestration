@@ -783,7 +783,7 @@ interface CostPoliciesResponsePayload {
   policies: CostPolicyPayload[];
 }
 
-interface PolicyOverridePayload {
+export interface PolicyOverridePayload {
   id: string;
   route: string;
   project: string;
@@ -961,7 +961,7 @@ interface PolicyManifestPayload {
   updated_at?: string | null;
 }
 
-interface PolicyOverridesPayload {
+export interface PolicyOverridesPayload {
   policies?: PoliciesSectionPayload;
   routing?: RoutingPolicyPayload;
   finops?: FinOpsConfigPayload;

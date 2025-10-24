@@ -1,7 +1,7 @@
 module.exports = {
   ci: {
     collect: {
-      url: ['http://127.0.0.1:4173/'],
+      url: ['http://127.0.0.1:4173/?view=observability'],
       numberOfRuns: 1,
       startServerCommand: 'pnpm preview --host 0.0.0.0 --port 4173',
       startServerReadyPattern: 'Local',
@@ -15,7 +15,15 @@ module.exports = {
           deviceScaleFactor: 1,
           disabled: false,
         },
-        throttlingMethod: 'provided',
+        throttlingMethod: 'devtools',
+        throttling: {
+          rttMs: 20,
+          throughputKbps: 20000,
+          cpuSlowdownMultiplier: 1,
+          requestLatencyMs: 0,
+          downloadThroughputKbps: 0,
+          uploadThroughputKbps: 0,
+        },
         disableStorageReset: true,
       },
     },
