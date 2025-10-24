@@ -23,6 +23,7 @@ Este resumo consolida os componentes utilizados para desbloquear as histórias U
 ## Formulários
 - `Input`, `Select`, `TextArea`, `Switch` e `InputGroup` compartilham `forms.scss`, respeitando tokens `--mcp-form-*`, foco MCP e feedback invalidado via `react-hook-form` (`useMcpForm`/`useMcpField`).【F:app/src/components/forms/forms.scss†L1-L210】【F:app/src/hooks/useMcpForm.ts†L18-L111】
 - `FormErrorSummary` reutiliza `Alert` para listar erros navegáveis e o UI Kit demonstra o fluxo completo (`FormControlsSection`) com reset, helper dinâmico e integração aos novos controles.【F:app/src/components/forms/FormErrorSummary.tsx†L1-L67】【F:app/src/components/UiKitShowcase.tsx†L209-L321】
+- `NewAgentWizard` encapsula `McpFormProvider`, `FormErrorSummary` e mensagens de `describeFixtureRequest` para garantir estados `loading/empty/error/success` consistentes, preservando seletores críticos como `.agent-wizard` e campos com rótulos acessíveis.【F:app/src/pages/Agents/NewAgentWizard.tsx†L222-L768】【F:app/src/components/UiKitShowcase.tsx†L51-L108】
 - `FileUploadControl`/`FileDownloadControl` adicionam progresso, limites e toasts/alerts consistentes, mantendo tokens de superfície e feedback MCP.【F:app/src/components/forms/FileUploadControl.tsx†L1-L161】【F:app/src/components/forms/FileDownloadControl.tsx†L1-L147】
 
 ## Testes e exemplos

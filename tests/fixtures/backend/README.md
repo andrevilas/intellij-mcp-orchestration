@@ -15,4 +15,5 @@ Os JSONs deste diretório são cópias das respostas de referência utilizadas p
 | `finops_sprints.json`, `finops_pull_requests.json`, `finops_events.json` | `GET /api/v1/telemetry/finops/sprints`, `GET /api/v1/telemetry/finops/pull-requests`, `GET /api/v1/telemetry/finops/events` |
 | `smoke_endpoints.json` | `GET /api/v1/smoke/endpoints`, `POST /api/v1/smoke/endpoints/:endpointId/run` |
 | `agents.json` | `GET */agents/agents` |
+| `agent_governed_plan.json` | `POST /api/v1/config/agents?intent=plan` |
 | `security_users.json`, `security_roles.json`, `security_api_keys.json`, `security_audit_trail.json`, `security_audit_logs.json` | `GET/POST/PATCH /api/v1/security/users`, `GET/POST/PATCH /api/v1/security/roles`, `GET/POST/PUT/DELETE /api/v1/security/api-keys` (inclui `/rotate`), `GET /api/v1/security/audit/:resource/:resourceId`, `GET /api/v1/audit/logs` |

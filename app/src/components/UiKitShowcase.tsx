@@ -151,6 +151,20 @@ const snippetEntries: Array<UsageSnippetProps & { id: string }> = [
       { label: 'UI Roadmap', href: `${DOC_BASE_URL}/docs/archive/ui-next-steps.md` },
     ],
   },
+  {
+    id: 'agents-wizard',
+    title: 'Wizard Governado de Agents',
+    description:
+      'Use `McpFormProvider`, `FormErrorSummary` e `describeFixtureRequest` para alinhar estados `loading/empty/error/success` aos mocks do catálogo MCP.',
+    code: `const form = useMcpForm<PlanFormValues>({ defaultValues });\nconst { register, handleSubmit } = form;\n\n<McpFormProvider {...form}>\n  <form onSubmit={handleSubmit(onSubmit)}>\n    <FormErrorSummary />\n    <Input label="Identificador" {...register('slug', { required: 'Informe o identificador.' })} />\n    <fieldset data-status={status} aria-describedby={statusId}>\n      {status === 'loading' && <p>{request.loading}</p>}\n      {status === 'error' && <Alert variant="error" title={request.error} />}\n      {status === 'empty' && <p>Nenhum servidor MCP cadastrado.</p>}\n    </fieldset>\n  </form>\n</McpFormProvider>;`,
+    docs: [
+      {
+        label: 'Fixture de plano governado',
+        href: `${DOC_BASE_URL}/tests/fixtures/backend/agent_governed_plan.json`,
+      },
+      { label: 'Handlers MSW', href: `${DOC_BASE_URL}/app/src/mocks/handlers.ts` },
+    ],
+  },
 ];
 
 export default function UiKitShowcase(): JSX.Element {

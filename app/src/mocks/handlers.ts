@@ -1319,6 +1319,168 @@ const buildPlanResponse = (summary: string, intent = 'config.update') => {
   return response;
 };
 
+const sanitizeAgentSlug = (value: unknown, fallback = 'agent-fixture'): string => {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || fallback;
+};
+
+const toTitleCase = (value: string): string =>
+  value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+
+const ensureManifestRecord = (source: string, slug: string): Record<string, unknown> => {
+  try {
+    const parsed = JSON.parse(source) as Record<string, unknown>;
+    if (parsed && typeof parsed === 'object') {
+      const record = { ...parsed };
+      if (typeof record.name !== 'string' || !record.name.trim()) {
+        record.name = slug;
+      }
+      if (typeof record.title !== 'string' || !record.title.trim()) {
+        record.title = toTitleCase(slug);
+      }
+      if (typeof record.description !== 'string' || !record.description.trim()) {
+        record.description = 'Manifesto gerado via fixtures para o novo agent.';
+      }
+      if (!Array.isArray(record.capabilities)) {
+        record.capabilities = ['monitoring'];
+      }
+      return record;
+    }
+  } catch {
+    // ignore parse errors and fall back to default record
+  }
+  return {
+    name: slug,
+    title: toTitleCase(slug),
+    description: 'Manifesto gerado via fixtures para o novo agent.',
+    capabilities: ['monitoring'],
+    model: { provider: 'openai', name: 'gpt-4o-mini' },
+    tools: [],
+  };
+};
+
+const formatManifestDiff = (manifest: Record<string, unknown>, path: string): string => {
+  const lines = JSON.stringify(manifest, null, 2)
+    .split('\n')
+    .map((line) => `+${line}`);
+  return ['--- /dev/null', `+++ ${path}`, ...lines, ''].join('\n');
+};
+
+const buildGovernedAgentPlanResponse = (
+  slug: string,
+  repository: string,
+  manifestSource: string,
+  servers: string[],
+) => {
+  const safeRepo = repository || 'agents-hub';
+  const manifestRecord = ensureManifestRecord(manifestSource, slug);
+  const manifestPath = `${safeRepo}/app/agents/${slug}/agent.yaml`;
+  const readmePath = `${safeRepo}/app/agents/${slug}/README.md`;
+  const manifestDiff = formatManifestDiff(manifestRecord, manifestPath);
+  const readmeDiff = ['--- /dev/null', `+++ ${readmePath}`, `+# ${toTitleCase(slug)}`, '+', '+Documentação inicial gerada automaticamente via fixtures.', ''].join(
+    '\n',
+  );
+  const serversLabel = servers.length > 0 ? servers.join(', ') : 'servidores MCP pendentes';
+
+  const plan = {
+    intent: 'agents.governed.plan',
+    summary: `Adicionar agent ${slug} ao repositório ${safeRepo}.`,
+    status: 'pending',
+    steps: [
+      {
+        id: 'scaffold-agent',
+        title: `Scaffold agent '${slug}'`,
+        description: 'Gerar manifesto base e arquivos iniciais.',
+        depends_on: [],
+        actions: [
+          {
+            type: 'file.create',
+            path: manifestPath,
+            contents: JSON.stringify(manifestRecord, null, 2),
+            encoding: 'utf-8',
+            overwrite: false,
+          },
+        ],
+      },
+      {
+        id: 'register-servers',
+        title: 'Registrar servidores MCP',
+        description: `Habilitar integrações para: ${serversLabel}.`,
+        depends_on: ['scaffold-agent'],
+        actions: servers.map((serverId) => ({
+          type: 'config.update',
+          path: `mcp/servers/${serverId}`,
+          contents: `enable agent ${slug}`,
+          encoding: 'utf-8',
+          overwrite: false,
+        })),
+      },
+    ],
+    diffs: [
+      {
+        path: manifestPath,
+        summary: 'Criar manifesto inicial do agent',
+        change_type: 'create',
+        diff: manifestDiff,
+      },
+      {
+        path: readmePath,
+        summary: 'Criar documentação inicial do agent',
+        change_type: 'create',
+        diff: readmeDiff,
+      },
+    ],
+    risks: [
+      {
+        title: 'Validação de segredos',
+        impact: 'médio',
+        mitigation: 'Confirmar variáveis de ambiente com os owners antes do deploy.',
+      },
+      {
+        title: 'Smoke tests pendentes',
+        impact: 'baixo',
+        mitigation: 'Adicionar smoke endpoints para validar o agent após provisionamento.',
+      },
+    ],
+    context: [
+      {
+        path: manifestPath,
+        snippet: JSON.stringify(manifestRecord, null, 2).slice(0, 280),
+        score: 0.92,
+        title: 'Manifesto proposto',
+        chunk: 1,
+      },
+    ],
+    approval_rules: ['governance-mcp'],
+  };
+
+  const preview = {
+    branch: `feature/add-${slug}`,
+    base_branch: 'main',
+    commit_message: `feat: adicionar agent ${slug}`,
+    pull_request: {
+      provider: 'github',
+      title: `feat: adicionar agent ${slug}`,
+      url: `https://github.com/intellij-mcp-orchestration/${safeRepo}/pull/42`,
+    },
+  };
+
+  return { plan, preview };
+};
+
 const experimentItems = (telemetryExperimentsFixture as {
   items: TelemetryExperimentSummaryEntry[];
 }).items;
@@ -1991,11 +2153,25 @@ export const handlers = [
         // ignore
       }
       const agent = (payload.agent as Record<string, unknown> | undefined) ?? {};
-      const slug = typeof agent.slug === 'string' ? agent.slug : 'catalog-search';
-      const response = buildPlanResponse(
-        `Gerar plano governado para ${slug} via fixtures.`,
-        'agents.governed.plan',
-      );
+      const slug = sanitizeAgentSlug(agent.slug, 'governed-agent');
+      const repository =
+        typeof agent.repository === 'string' && agent.repository.trim()
+          ? agent.repository.trim()
+          : 'agents-hub';
+      const manifestSource =
+        typeof payload.manifestSource === 'string'
+          ? payload.manifestSource
+          : JSON.stringify(agent.manifest ?? {}, null, 2);
+      const servers = Array.isArray(payload.mcpServers)
+        ? Array.from(
+            new Set(
+              (payload.mcpServers as unknown[])
+                .map((value) => (typeof value === 'string' ? value : String(value ?? '')))
+                .filter((value) => value.length > 0),
+            ),
+          )
+        : [];
+      const response = buildGovernedAgentPlanResponse(slug, repository, manifestSource, servers);
       return HttpResponse.json(response);
     }
     return HttpResponse.json(buildPlanResponse('Plano padrão para agentes via fixtures.', 'agents.plan'));

@@ -27,7 +27,7 @@
 - [ ] **TASK-UI-DATA-031** · Tabela + EmptyState sem comportamento esperado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [ ] **TASK-UI-DATA-032** · Badges/progress não padronizados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [x] **TASK-UI-FORM-040** · Controles de formulário migrados para camada MCP (`docs/forms/README.md`).【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
-- [ ] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+- [x] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:app/src/pages/Agents/NewAgentWizard.tsx†L222-L768】【F:docs/ui-kit/actions-feedback-dados.md†L19-L26】
 - [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
 - [~] **TASK-UI-PG-070** · Dashboard reidrata métricas/telemetria via fixtures e mensagens `describeFixtureRequest`; smoke Playwright bloqueado pelo host sem `playwright install-deps`.【F:app/src/pages/Dashboard.tsx†L18-L42】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
 - [~] **TASK-UI-PG-071** · Página Servers usa fixtures (`loadBackendFixture`) para resumo/ações CRUD; suíte Playwright aguarda dependências nativas do Chromium no runner.【F:tests/e2e/servers.spec.ts†L1-L146】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
