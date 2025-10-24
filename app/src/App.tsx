@@ -235,6 +235,27 @@ const VIEW_COMPONENT_LOADERS: Record<ViewId, ViewLoader> = {
   'admin-chat': () => import('./pages/AdminChat'),
 };
 
+const VIEW_ID_SET = new Set<ViewId>(VIEW_DEFINITIONS.map((definition) => definition.id));
+
+function resolveInitialView(): ViewId {
+  if (typeof window === 'undefined') {
+    return 'dashboard';
+  }
+
+  const url = new URL(window.location.href);
+  const viewParam = url.searchParams.get('view');
+  if (viewParam && VIEW_ID_SET.has(viewParam as ViewId)) {
+    return viewParam as ViewId;
+  }
+
+  const hashValue = url.hash.replace(/^#/, '');
+  if (hashValue && VIEW_ID_SET.has(hashValue as ViewId)) {
+    return hashValue as ViewId;
+  }
+
+  return 'dashboard';
+}
+
 const Dashboard = lazy(VIEW_COMPONENT_LOADERS.dashboard);
 const Observability = lazy(VIEW_COMPONENT_LOADERS.observability);
 const Servers = lazy(VIEW_COMPONENT_LOADERS.servers);
@@ -281,6 +302,7 @@ const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
 };
 
 function App() {
+  const initialViewRef = useRef<ViewId>(resolveInitialView());
   const fixtureStatus = getFixtureStatus();
   const fixtureSnapshot = useMemo(() => {
     if (fixtureStatus !== 'ready') {
@@ -322,7 +344,7 @@ function App() {
   const [initialError, setInitialError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<ViewId>('dashboard');
+  const [activeView, setActiveView] = useState<ViewId>(initialViewRef.current);
   const [isPaletteOpen, setPaletteOpen] = useState(false);
   const [, setNotificationReadState] = useState<Record<string, boolean>>(
     () => initialNotificationState.readState,
@@ -346,7 +368,18 @@ function App() {
   useEffect(() => {
     preloadView('observability');
     preloadView('finops');
+    preloadView(initialViewRef.current);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', activeView);
+    url.hash = `#${activeView}`;
+    window.history.replaceState(null, '', url.toString());
+  }, [activeView]);
 
   const applyNotifications = useCallback(
     (items: NotificationSummary[]) => {

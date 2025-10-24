@@ -16,6 +16,7 @@ const appRoot = path.resolve(__dirname, '..');
 const cacheDir = path.resolve(appRoot, '.cache', 'chrome');
 const chromeBuild = process.env.LHCI_CHROME_BUILD ?? 'stable';
 const execFile = promisify(execFileCallback);
+const shouldUseSudo = process.platform !== 'win32' && typeof process.getuid === 'function' && process.getuid() !== 0;
 
 async function pathExists(candidate) {
   if (!candidate) {
@@ -112,6 +113,41 @@ async function installChromeWithPuppeteer() {
   });
 }
 
+let didUpdateApt = false;
+
+async function ensureAptPackages(packages) {
+  const aptGetPath = '/usr/bin/apt-get';
+  if (!(await pathExists(aptGetPath))) {
+    return false;
+  }
+
+  const env = {
+    ...process.env,
+    DEBIAN_FRONTEND: 'noninteractive',
+  };
+
+  if (!didUpdateApt) {
+    try {
+      await runCommand(aptGetPath, ['update'], { env, useSudo: true });
+      didUpdateApt = true;
+    } catch (error) {
+      console.warn('[lighthouse:ci] Falha ao executar "apt-get update":', error instanceof Error ? error.message : error);
+    }
+  }
+
+  if (packages.length === 0) {
+    return true;
+  }
+
+  try {
+    await runCommand(aptGetPath, ['install', '-y', ...packages], { env, useSudo: true });
+    return true;
+  } catch (error) {
+    console.warn('[lighthouse:ci] Falha ao instalar dependências via apt-get:', error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
 async function installSystemChrome() {
   const aptGetPath = '/usr/bin/apt-get';
   if (!(await pathExists(aptGetPath))) {
@@ -123,17 +159,12 @@ async function installSystemChrome() {
     DEBIAN_FRONTEND: 'noninteractive',
   };
 
-  try {
-    await runCommand(aptGetPath, ['update'], { env });
-  } catch (error) {
-    console.warn('[lighthouse:ci] Falha ao executar "apt-get update":', error instanceof Error ? error.message : error);
-    return null;
-  }
+  await ensureAptPackages([]);
 
   const packageCandidates = ['chromium', 'chromium-browser'];
   for (const pkg of packageCandidates) {
     try {
-      await runCommand(aptGetPath, ['install', '-y', pkg], { env });
+      await runCommand(aptGetPath, ['install', '-y', pkg], { env, useSudo: true });
       const resolved = await locateSystemChrome();
       if (resolved) {
         return resolved;
@@ -201,13 +232,36 @@ async function installChromeFromDeb() {
 
   const env = { ...process.env, DEBIAN_FRONTEND: 'noninteractive' };
 
+  const chromeDependencies = [
+    'fonts-liberation',
+    'libasound2',
+    'libatk-bridge2.0-0',
+    'libatk1.0-0',
+    'libatspi2.0-0',
+    'libcups2',
+    'libgbm1',
+    'libgtk-3-0',
+    'libvulkan1',
+    'libxcomposite1',
+    'libxdamage1',
+    'libxfixes3',
+    'libxkbcommon0',
+    'libxrandr2',
+    'xdg-utils',
+  ];
+
+  await ensureAptPackages(chromeDependencies);
+
   try {
-    await runCommand('dpkg', ['-i', destination], { env: process.env });
+    await runCommand('dpkg', ['-i', destination], { env: process.env, useSudo: true });
   } catch (error) {
     console.warn('[lighthouse:ci] dpkg sinalizou dependências ausentes ao instalar Chrome. Tentando resolver automaticamente...');
     try {
-      await runCommand('/usr/bin/apt-get', ['install', '-f', '-y'], { env });
-      await runCommand('dpkg', ['-i', destination], { env: process.env });
+      const installedDeps = await ensureAptPackages(chromeDependencies);
+      if (!installedDeps) {
+        await runCommand('/usr/bin/apt-get', ['install', '-f', '-y'], { env, useSudo: true });
+      }
+      await runCommand('dpkg', ['-i', destination], { env: process.env, useSudo: true });
     } catch (resolveError) {
       console.error(
         '[lighthouse:ci] Falha ao instalar dependências do Chrome via apt-get:',
@@ -266,9 +320,12 @@ async function ensureBuildArtifacts() {
 }
 
 function runCommand(command, args, options = {}) {
-  const { env = process.env, cwd = appRoot } = options;
+  const { env = process.env, cwd = appRoot, useSudo = false } = options;
+  const needsElevation = useSudo && shouldUseSudo;
+  const resolvedCommand = needsElevation ? 'sudo' : command;
+  const resolvedArgs = needsElevation ? [command, ...args] : args;
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(resolvedCommand, resolvedArgs, {
       cwd,
       stdio: 'inherit',
       env,

@@ -15,6 +15,8 @@ import type {
   TelemetryExperimentSummaryEntry,
   TelemetryLaneCostEntry,
   TelemetryRunEntry,
+  PolicyOverridePayload,
+  PolicyOverridesPayload,
 } from '../api';
 import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' with { type: 'json' };
 import telemetryHeatmapFixture from '#fixtures/telemetry_heatmap.json' with { type: 'json' };
@@ -609,7 +611,11 @@ const policyOverrideFixtures: PolicyOverrideRecord[] = [
     updated_at: '2025-03-06T08:30:00Z',
     overrides: {
       finops: {
-        budgets: { daily: 950, weekly: 6400, monthly: 28000 },
+        budgets: [
+          { tier: 'economy', amount: 950, currency: 'USD', period: 'daily' },
+          { tier: 'balanced', amount: 6400, currency: 'USD', period: 'weekly' },
+          { tier: 'turbo', amount: 28000, currency: 'USD', period: 'monthly' },
+        ],
       },
       routing: {
         intents: [
