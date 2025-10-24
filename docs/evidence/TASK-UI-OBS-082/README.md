@@ -7,17 +7,18 @@
 ## Métricas de bundle (dist/assets)
 | Chunk | Tipo | Tamanho | Gzip |
 | --- | --- | ---: | ---: |
-| view-finops | JS | 613.28 kB | 171.11 kB |
-| view-flows | JS | 145.44 kB | 46.25 kB |
-| view-ui-kit | JS | 129.22 kB | 41.19 kB |
-| view-admin-chat | JS | 110.74 kB | 28.18 kB |
-| index | JS | 62.87 kB | 19.48 kB |
-| view-dashboard | JS | 22.63 kB | 7.83 kB |
-| view-observability | JS | 20.09 kB | 6.27 kB |
-| visual-sections | JS | 4.68 kB | 1.88 kB |
-| metrics-visuals | JS | 2.47 kB | 0.95 kB |
+| vendor-recharts-C1DrJ0hD | JS | 403.09 kB | 106.29 kB |
+| vendor-reactflow-1obJ9cbP | JS | 284.16 kB | 92.14 kB |
+| view-agents-zHZmxk6Z | JS | 158.07 kB | 49.24 kB |
+| view-admin-chat-F5OCdkCk | JS | 104.97 kB | 26.35 kB |
+| view-finops-BA-lHB-B | JS | 66.92 kB | 17.81 kB |
+| index-CDmJmYRY | JS | 54.05 kB | 17.37 kB |
+| view-security-BNHw1WOG | JS | 43.26 kB | 12.24 kB |
+| view-ui-kit-qI4uvc7R | JS | 40.97 kB | 13.10 kB |
+| view-admin-chat-D-DABHmK | CSS | 40.33 kB | 6.44 kB |
+| view-finops-CLiuAyCl | CSS | 37.85 kB | 5.23 kB |
 
-_Destaques_: os gráficos do dashboard e da página de observabilidade agora são carregados via `React.lazy`, deixando `view-dashboard` em ~23 kB e movendo as bibliotecas do `recharts` para chunks separados de até 5 kB. Os formatadores numéricos foram extraídos para módulos compartilhados (`pages/dashboard/formatters.ts` e `pages/observability/formatters.ts`) reutilizados pelos gráficos e pelos KPIs.
+_Destaques_: os pacotes de terceiros seguem concentrados em `vendor-recharts` (403 kB) e `vendor-reactflow` (284 kB). Entre os views, `view-agents` e `view-admin-chat` continuam sendo os maiores, enquanto o bundle base (`index`) permanece abaixo de 55 kB graças ao carregamento via `React.lazy` dos módulos específicos. Os relatórios HTML/JSON desta coleta (gerados em 2025-10-24T08:36:40Z) estão publicados em `docs/evidence/TASK-UI-OBS-082/`.
 
 ## Lighthouse (ambiente local)
 - O comando `pnpm --dir app run lighthouse:ci` usa `scripts/run-lighthouse-ci.mjs` para instalar o Chrome (cache em `app/.cache/chrome`, download `.deb` ou fallback `apt-get`). Caso o ambiente possua um binário pré-instalado, é possível apontar `LHCI_CHROME_PATH`/`CHROME_PATH` para reutilizá-lo.
