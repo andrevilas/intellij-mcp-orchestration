@@ -146,11 +146,16 @@ jobs:
       - name: Install dependencies via Makefile
         run: make install
 
+      - name: Run frontend unit tests
+        run: pnpm --dir app test
+
       - name: Run test suite
         id: run-tests
         run: |
           set -o pipefail
           make test 2>&1 | tee pytest.log
+        env:
+          SKIP_FRONTEND_TESTS: '1'
 
       - name: Upload pytest log on failure
         if: failure()

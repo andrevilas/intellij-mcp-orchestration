@@ -113,7 +113,7 @@
 
 ### TASK-UI-FORM-040 · Form Controls (✅ entregue)
 - Inputs MCP (`Input`, `Select`, `TextArea`, `Switch`, `InputGroup`) com tokens `--mcp-form-*`, resumo de erros e integrações `react-hook-form` (`useMcpForm`/`useMcpField`).【F:app/src/components/forms/index.ts†L1-L16】【F:app/src/hooks/useMcpForm.ts†L18-L111】
-- **DoD**: showcase atualizado (`FormControlsSection`), documentação em `docs/forms/README.md` e testes (Vitest + Playwright) garantindo foco/tab order.【F:app/src/components/UiKitShowcase.tsx†L209-L321】【F:app/src/test/FormControls.test.tsx†L1-L83】【F:tests/e2e/forms-controls.spec.ts†L1-L83】
+- **DoD**: showcase atualizado (`FormControlsSection`), documentação em `docs/forms/README.md` e testes (Vitest + Playwright) garantindo foco/tab order.【F:app/src/components/UiKitShowcase.tsx†L209-L321】【F:app/src/components/forms/FormControls.test.tsx†L1-L104】【F:tests/e2e/forms-controls.spec.ts†L1-L83】
 
 ### TASK-UI-FORM-041 · Validação & Estados
 - `react-hook-form` + feedback Bootstrap (`is-invalid`/`invalid-feedback`); `aria-*` correto; error summary.

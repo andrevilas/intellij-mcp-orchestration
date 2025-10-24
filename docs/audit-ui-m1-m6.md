@@ -51,7 +51,7 @@
 
 ### M4 — Formulários & Validação
 - **Onboarding bloqueado**: wizard não progride; botões continuam desabilitados e componentes esperados não existem, impedindo validações e resumo de erros.【035a17†L209-L230】
-- **Tests unitários mal configurados**: suites em `src/test/*.test.tsx` referenciam `jest` globals sem setup, fazendo o build travar antes do bundle.【957f66†L82-L124】
+- **Tests unitários mal configurados**: suites legadas em `src/test/*.test.tsx` foram migradas para Vitest (`app/vitest.config.ts`) e reorganizadas em `src/pages/**`/`src/components/**`, eliminando dependências de `jest` globals e o travamento antes do bundle.【F:app/vitest.config.ts†L1-L14】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L1-L552】
 
 ### M5 — Páginas Core
 - **Dashboard/FinOps**: sem interceptors nativos, filtros acionam chamadas reais causando `ECONNREFUSED` e timeouts.【68dd4b†L1-L6】【9399da†L1-L1】
@@ -80,7 +80,7 @@
 
 ### P0 — Build TypeScript falha (resolvido na rebaseline)
 - **Atualização:** `pnpm --dir app build` volta a concluir (15.46s); manter limpeza das suites Jest legadas para evitar regressões.【9176d6†L1-L23】
-- **Próximos passos:** automatizar check em CI e remover testes obsoletos (`src/test/*`).
+- **Próximos passos:** automatizar check em CI e remover testes obsoletos (`src/test/*`). ✅ Executamos `pnpm --dir app test` no pipeline (`ci.yml`) garantindo cobertura contínua.【F:.github/workflows/ci.yml†L146-L158】【F:scripts/test_suite.py†L30-L43】
 
 ### P0 — UI depende de backend real (sem stubs)
 - **Descrição:** Vite proxy envia requisições para `127.0.0.1:8000`; sem servidor, fluxos Dashboard/Servers/FinOps quebram.
