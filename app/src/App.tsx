@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -7,6 +7,14 @@ import clsx from 'clsx';
 import './icons/app-shell';
 
 import './styles/app-shell.scss';
+import {
+  VIEW_DEFINITIONS,
+  type ViewId,
+  getViewComponent,
+  preloadCriticalViews,
+  preloadView,
+  resolveInitialView,
+} from './router';
 import type {
   NotificationSummary,
   ProviderSummary,
@@ -141,150 +149,21 @@ function buildFallbackNotifications(): NotificationSummary[] {
   ];
 }
 
-const VIEW_DEFINITIONS = [
-  {
-    id: 'dashboard',
-    label: 'Dashboard',
-    description: 'Visão executiva com KPIs e alertas operacionais',
-    keywords: ['home', 'overview', 'resumo'],
-  },
-  {
-    id: 'observability',
-    label: 'Observabilidade',
-    description: 'Tracing, métricas e evals em um único painel',
-    keywords: ['telemetria', 'tracing', 'metrics', 'evals'],
-  },
-  {
-    id: 'servers',
-    label: 'Servidores',
-    description: 'Controle de lifecycle e telemetria dos MCP servers',
-    keywords: ['start', 'stop', 'restart', 'logs'],
-  },
-  {
-    id: 'agents',
-    label: 'Agents',
-    description: 'Catálogo de agents com owners, status e smoke tests',
-    keywords: ['catalogo', 'agents', 'smoke'],
-  },
-  {
-    id: 'keys',
-    label: 'Chaves',
-    description: 'Gestão de credenciais e testes de conectividade',
-    keywords: ['credentials', 'access', 'tokens'],
-  },
-  {
-    id: 'security',
-    label: 'Segurança',
-    description: 'Identidades, papéis e auditorias em tempo real',
-    keywords: ['iam', 'roles', 'auditoria', 'mfa'],
-  },
-  {
-    id: 'policies',
-    label: 'Políticas',
-    description: 'Templates, rollouts e histórico de políticas',
-    keywords: ['guardrails', 'templates', 'rollback'],
-  },
-  {
-    id: 'routing',
-    label: 'Routing',
-    description: 'Simulações what-if e gestão de estratégias de roteamento',
-    keywords: ['rota', 'failover', 'latência'],
-  },
-  {
-    id: 'flows',
-    label: 'Flows',
-    description: 'Editor LangGraph com checkpoints HITL e versionamento',
-    keywords: ['langgraph', 'hitl', 'versão'],
-  },
-  {
-    id: 'finops',
-    label: 'FinOps',
-    description: 'Análises de custo, séries temporais e pareto',
-    keywords: ['custos', 'financeiro', 'pareto'],
-  },
-  {
-    id: 'marketplace',
-    label: 'Marketplace',
-    description: 'Catálogo filtrável com importação assistida e verificação de assinatura',
-    keywords: ['marketplace', 'agente', 'importação', 'assinatura'],
-  },
-  {
-    id: 'admin-chat',
-    label: 'Admin Chat',
-    description: 'Assistente para gerar e aplicar planos de configuração',
-    keywords: ['chat', 'config', 'plano', 'hitl'],
-  },
-] as const;
-
-type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
-
-type ViewLoader = () => Promise<{ default: ComponentType<any> }>;
-
-const VIEW_COMPONENT_LOADERS: Record<ViewId, ViewLoader> = {
-  dashboard: () => import('./pages/Dashboard'),
-  observability: () => import('./pages/Observability'),
-  servers: () => import('./pages/Servers'),
-  agents: () => import('./pages/Agents'),
-  keys: () => import('./pages/Keys'),
-  security: () => import('./pages/Security'),
-  policies: () => import('./pages/Policies'),
-  routing: () => import('./pages/Routing'),
-  flows: () => import('./pages/Flows'),
-  finops: () => import('./pages/FinOps'),
-  marketplace: () => import('./pages/Marketplace'),
-  'admin-chat': () => import('./pages/AdminChat'),
-};
-
-const VIEW_ID_SET = new Set<ViewId>(VIEW_DEFINITIONS.map((definition) => definition.id));
-
-function resolveInitialView(): ViewId {
-  if (typeof window === 'undefined') {
-    return 'dashboard';
-  }
-
-  const url = new URL(window.location.href);
-  const viewParam = url.searchParams.get('view');
-  if (viewParam && VIEW_ID_SET.has(viewParam as ViewId)) {
-    return viewParam as ViewId;
-  }
-
-  const hashValue = url.hash.replace(/^#/, '');
-  if (hashValue && VIEW_ID_SET.has(hashValue as ViewId)) {
-    return hashValue as ViewId;
-  }
-
-  return 'dashboard';
-}
-
-const Dashboard = lazy(VIEW_COMPONENT_LOADERS.dashboard);
-const Observability = lazy(VIEW_COMPONENT_LOADERS.observability);
-const Servers = lazy(VIEW_COMPONENT_LOADERS.servers);
-const Agents = lazy(VIEW_COMPONENT_LOADERS.agents);
-const Keys = lazy(VIEW_COMPONENT_LOADERS.keys);
-const Security = lazy(VIEW_COMPONENT_LOADERS.security);
-const Policies = lazy(VIEW_COMPONENT_LOADERS.policies);
-const Routing = lazy(VIEW_COMPONENT_LOADERS.routing);
-const Flows = lazy(VIEW_COMPONENT_LOADERS.flows);
-const FinOps = lazy(VIEW_COMPONENT_LOADERS.finops);
-const Marketplace = lazy(VIEW_COMPONENT_LOADERS.marketplace);
-const AdminChat = lazy(VIEW_COMPONENT_LOADERS['admin-chat']);
+const Dashboard = getViewComponent('dashboard');
+const Observability = getViewComponent('observability');
+const Servers = getViewComponent('servers');
+const Agents = getViewComponent('agents');
+const Keys = getViewComponent('keys');
+const Security = getViewComponent('security');
+const Policies = getViewComponent('policies');
+const Routing = getViewComponent('routing');
+const Flows = getViewComponent('flows');
+const FinOps = getViewComponent('finops');
+const Marketplace = getViewComponent('marketplace');
+const AdminChat = getViewComponent('admin-chat');
 const UiKitShowcase = lazy(() => import('./components/UiKitShowcase'));
 
-const preloadedViews = new Set<ViewId>();
-
-function preloadView(view: ViewId): void {
-  if (preloadedViews.has(view)) {
-    return;
-  }
-  const loader = VIEW_COMPONENT_LOADERS[view];
-  if (!loader) {
-    return;
-  }
-  preloadedViews.add(view);
-  void loader();
-}
-
-preloadView('dashboard');
+preloadCriticalViews();
 
 const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
   dashboard: 'gauge-high',

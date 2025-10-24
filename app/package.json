@@ -13,7 +13,8 @@
     "report:bundle": "node ./scripts/report-bundle.mjs",
     "build:bundle-report": "node ./scripts/run-performance-build.mjs",
     "analyze:bundle": "pnpm run build:bundle-report",
-    "lighthouse:ci": "node ./scripts/run-lighthouse-ci.mjs"
+    "lighthouse:ci": "node ./scripts/run-lighthouse-ci.mjs",
+    "report:performance": "pnpm run build:bundle-report && pnpm run lighthouse:ci"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.5.2",

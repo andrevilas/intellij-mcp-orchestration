@@ -756,10 +756,17 @@ function AuthStep({ onBack, onNext, showErrors }: AuthStepProps): JSX.Element {
   const authMode = watch('authMode');
   const secretField = useMcpField<WizardFormValues>('secretName', {
     rules: {
-      validate: (value) =>
-        authMode === 'none' || value.trim()
-          ? true
-          : 'Informe o nome da credencial.',
+      validate: (value) => {
+        if (authMode === 'none') {
+          return true;
+        }
+
+        if (typeof value === 'string' && value.trim()) {
+          return true;
+        }
+
+        return 'Informe o nome da credencial.';
+      },
     },
   });
   const authEnvironmentField = useMcpField<WizardFormValues>('authEnvironment');
