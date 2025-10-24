@@ -62,7 +62,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
         {...rest}
         id={selectId}
         ref={ref}
-        className={clsx('mcp-form-control', 'mcp-select', className)}
+        className={clsx('mcp-form-control', 'mcp-select', className, { 'is-invalid': invalid })}
         aria-invalid={normalizedInvalid}
         aria-describedby={describedBy}
         disabled={disabled}
