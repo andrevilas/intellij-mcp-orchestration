@@ -61,7 +61,7 @@ const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextAre
         {...rest}
         id={textAreaId}
         ref={ref}
-        className={clsx('mcp-form-control', 'mcp-textarea', className)}
+        className={clsx('mcp-form-control', 'mcp-textarea', className, { 'is-invalid': invalid })}
         aria-invalid={normalizedInvalid}
         aria-describedby={describedBy}
         disabled={disabled}

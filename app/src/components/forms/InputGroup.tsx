@@ -75,7 +75,7 @@ const InputGroup = forwardRef<HTMLInputElement, InputGroupProps>(function InputG
           {...rest}
           id={inputId}
           ref={ref}
-          className={clsx('mcp-input-group__control', className)}
+          className={clsx('mcp-input-group__control', className, { 'is-invalid': invalid })}
           aria-invalid={normalizedInvalid}
           aria-describedby={describedBy}
           disabled={disabled}

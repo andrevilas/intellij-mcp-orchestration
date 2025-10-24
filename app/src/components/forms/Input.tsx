@@ -61,7 +61,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         {...rest}
         id={inputId}
         ref={ref}
-        className={clsx('mcp-form-control', className)}
+        className={clsx('mcp-form-control', className, { 'is-invalid': invalid })}
         aria-invalid={normalizedInvalid}
         aria-describedby={describedBy}
         disabled={disabled}

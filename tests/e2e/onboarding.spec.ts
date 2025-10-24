@@ -1,10 +1,11 @@
 import { expect, test } from './fixtures';
+import type { Page } from '@playwright/test';
 
-test('@onboarding-validation completes MCP onboarding wizard end-to-end', async ({ page }) => {
+function createOnboardingFixtures() {
   const chatResponse = {
     threadId: 'thread-seed',
     messages: [],
-  };
+  } as const;
 
   const planResponse = {
     plan: {
@@ -18,7 +19,7 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
     },
     diffs: [],
     risks: [],
-  };
+  } as const;
 
   const onboardingPlan = {
     id: 'onboard-plan',
@@ -35,7 +36,7 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
         status: 'ready',
       },
     ],
-  };
+  } as const;
 
   const onboardingResponse = {
     plan: onboardingPlan,
@@ -86,7 +87,7 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
       merged: false,
     },
     plan: onboardingPlan,
-  };
+  } as const;
 
   const smokeResponse = {
     runId: 'smoke-1',
@@ -94,7 +95,7 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
     summary: 'Smoke em execução no ambiente production.',
     startedAt: '2025-01-11T09:05:00Z',
     finishedAt: null,
-  };
+  } as const;
 
   const statusResponse = {
     recordId: applyResponse.recordId,
@@ -104,10 +105,26 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
     commitSha: applyResponse.commitSha,
     pullRequest: applyResponse.pullRequest,
     updatedAt: '2025-01-11T09:10:00Z',
+  } as const;
+
+  return {
+    chatResponse,
+    planResponse,
+    onboardingResponse,
+    validationResponse,
+    applyResponse,
+    smokeResponse,
+    statusResponse,
   };
+}
 
-  const onboardPayloads: unknown[] = [];
+type OnboardingFixtures = ReturnType<typeof createOnboardingFixtures>;
 
+async function registerOnboardingRoutes(
+  page: Page,
+  fixtures: OnboardingFixtures,
+  onboardPayloads: unknown[] = [],
+): Promise<void> {
   await page.route('**/api/v1/servers', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ servers: [] }), contentType: 'application/json' }),
   );
@@ -136,7 +153,7 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await page.route('**/api/v1/policy/compliance', fulfillCompliance);
 
   await page.route('**/api/v1/config/chat', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify(chatResponse), contentType: 'application/json' }),
+    route.fulfill({ status: 200, body: JSON.stringify(fixtures.chatResponse), contentType: 'application/json' }),
   );
 
   await page.route('**/api/v1/config/plan', (route) => {
@@ -144,33 +161,43 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
     if (body.intent === 'summarize') {
       return route.fulfill({
         status: 200,
-        body: JSON.stringify({ plan: onboardingPlan, diffs: onboardingResponse.diffs, risks: onboardingResponse.risks }),
+        body: JSON.stringify({
+          plan: fixtures.onboardingResponse.plan,
+          diffs: fixtures.onboardingResponse.diffs,
+          risks: fixtures.onboardingResponse.risks,
+        }),
         contentType: 'application/json',
       });
     }
-    return route.fulfill({ status: 200, body: JSON.stringify(planResponse), contentType: 'application/json' });
+    return route.fulfill({ status: 200, body: JSON.stringify(fixtures.planResponse), contentType: 'application/json' });
   });
 
   await page.route('**/api/v1/config/mcp/onboard', (route) => {
     const payload = route.request().postDataJSON();
     onboardPayloads.push(payload);
     if (payload.intent === 'validate') {
-      return route.fulfill({ status: 200, body: JSON.stringify(validationResponse), contentType: 'application/json' });
+      return route.fulfill({ status: 200, body: JSON.stringify(fixtures.validationResponse), contentType: 'application/json' });
     }
-    return route.fulfill({ status: 200, body: JSON.stringify(onboardingResponse), contentType: 'application/json' });
+    return route.fulfill({ status: 200, body: JSON.stringify(fixtures.onboardingResponse), contentType: 'application/json' });
   });
 
   await page.route('**/api/v1/config/apply', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify(applyResponse), contentType: 'application/json' }),
+    route.fulfill({ status: 200, body: JSON.stringify(fixtures.applyResponse), contentType: 'application/json' }),
   );
 
   await page.route('**/api/v1/config/mcp/smoke', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify(smokeResponse), contentType: 'application/json' }),
+    route.fulfill({ status: 200, body: JSON.stringify(fixtures.smokeResponse), contentType: 'application/json' }),
   );
 
   await page.route('**/api/v1/config/mcp/onboard/status**', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify(statusResponse), contentType: 'application/json' }),
+    route.fulfill({ status: 200, body: JSON.stringify(fixtures.statusResponse), contentType: 'application/json' }),
   );
+}
+
+test('@onboarding-validation completes MCP onboarding wizard end-to-end', async ({ page }) => {
+  const fixtures = createOnboardingFixtures();
+  const onboardPayloads: unknown[] = [];
+  await registerOnboardingRoutes(page, fixtures, onboardPayloads);
 
   await page.goto('/');
   await page.getByRole('button', { name: 'Admin Chat' }).click();
@@ -205,10 +232,10 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await qualityField.fill('operacao,finops,confianca');
 
   await page.getByRole('button', { name: 'Gerar plano de onboarding' }).click();
-  await expect(page.getByText(onboardingResponse.message)).toBeVisible();
+  await expect(page.getByText(fixtures.onboardingResponse.message)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Resultado da validação' })).toBeVisible();
-  await expect(page.getByText(onboardingResponse.validation.endpoint)).toBeVisible();
-  await expect(page.getByText(onboardingResponse.validation.transport)).toBeVisible();
+  await expect(page.getByText(fixtures.onboardingResponse.validation.endpoint)).toBeVisible();
+  await expect(page.getByText(fixtures.onboardingResponse.validation.transport)).toBeVisible();
   await expect(page.getByText(/catalog\.search/)).toBeVisible();
   await expect(page.getByText('metrics.ingest')).toBeVisible();
   await expect(page.getByText('Criar manifesto')).toBeVisible();
@@ -217,9 +244,9 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await wizardPanel.getByLabel('Nota para aplicação').fill('Aplicar com acompanhamento do time de plataforma.');
   await page.getByRole('button', { name: 'Confirmar e aplicar plano' }).click();
 
-  await expect(page.getByText(applyResponse.recordId)).toBeVisible();
-  await expect(page.getByText(applyResponse.branch!)).toBeVisible();
-  await expect(page.getByRole('link', { name: applyResponse.pullRequest!.title })).toBeVisible();
+  await expect(page.getByText(fixtures.applyResponse.recordId)).toBeVisible();
+  await expect(page.getByText(fixtures.applyResponse.branch!)).toBeVisible();
+  await expect(page.getByRole('link', { name: fixtures.applyResponse.pullRequest!.title })).toBeVisible();
 
   await page.getByRole('button', { name: 'Atualizar status' }).click();
   await expect(page.getByText('Situação atual: running')).toBeVisible();
@@ -256,4 +283,42 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
       notes: 'Checklist final com owners.',
     },
   });
+});
+
+test('@onboarding-accessibility validates keyboard flow and aria feedback', async ({ page }) => {
+  const fixtures = createOnboardingFixtures();
+  await registerOnboardingRoutes(page, fixtures);
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Admin Chat' }).click();
+
+  const idInput = page.getByLabel('Identificador do agente');
+  await idInput.click();
+  await expect(idInput).toBeFocused();
+
+  await page.keyboard.press('Tab');
+  const displayInput = page.getByLabel('Nome exibido');
+  await expect(displayInput).toBeFocused();
+
+  await page.keyboard.press('Shift+Tab');
+  await expect(idInput).toBeFocused();
+
+  await page.getByRole('button', { name: 'Avançar para autenticação' }).click();
+
+  const repoInput = page.getByLabel('Repositório Git');
+  const endpointInput = page.getByLabel('Endpoint MCP (ws/wss)');
+
+  await expect(page.getByRole('alert', { name: 'Revise os campos destacados.' })).toBeVisible();
+  await expect(repoInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(repoInput).toHaveClass(/is-invalid/);
+  await expect(endpointInput).toHaveAttribute('aria-invalid', 'true');
+
+  await idInput.fill('openai-gpt4o');
+  await repoInput.fill('agents/openai-gpt4o');
+  await endpointInput.fill('wss://openai.example.com/ws');
+  await repoInput.blur();
+  await endpointInput.blur();
+
+  await expect(repoInput).toHaveAttribute('aria-invalid', 'false');
+  await expect(endpointInput).toHaveAttribute('aria-invalid', 'false');
 });
