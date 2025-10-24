@@ -90,9 +90,13 @@ test('@finops-plan gera e aplica plano FinOps com fixtures', async ({ page }) =>
   await expect(page.getByText('Atualizar limites e alertas FinOps usando fixtures locais.')).toBeVisible();
   await expect(page.getByTestId(FINOPS_TEST_IDS.plan.diffs)).toContainText('policies/manifest.json');
 
+  await page.getByRole('button', { name: 'Aplicar plano' }).click();
+  const confirmationModal = page.getByRole('dialog', { name: 'Aplicar plano FinOps' });
+  await expect(confirmationModal).toBeVisible();
+  await confirmationModal.getByRole('button', { name: 'Aplicar plano' }).click();
   const [applyRequest] = await Promise.all([
     page.waitForRequest((request) => request.url().includes('/api/v1/config/apply') && request.method() === 'POST'),
-    page.getByRole('button', { name: 'Aplicar plano' }).click(),
+    confirmationModal.getByRole('button', { name: 'Aplicar agora' }).click(),
   ]);
   const applyPayload = applyRequest.postDataJSON() as {
     plan_id: string;

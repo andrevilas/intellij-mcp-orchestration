@@ -75,6 +75,7 @@ export const POLICIES_TEST_IDS = {
   plan: 'policies-plan',
   planDiffs: 'policies-plan-diffs',
   planDiffPrefix: 'policies-plan-diff',
+  rolloutChart: 'policies-rollout-chart',
   runtime: {
     section: 'policies-runtime',
     form: 'policies-runtime-form',
