@@ -45,6 +45,7 @@ function Agents(): JSX.Element {
   const [activeAgent, setActiveAgent] = useState<AgentSummary | null>(null);
   const [isCreateWizardOpen, setCreateWizardOpen] = useState(false);
   const smokeControllers = useRef(new Map<string, AbortController>());
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const requestMessages = useMemo(
     () => describeFixtureRequest('catálogo de agents'),
@@ -77,6 +78,9 @@ function Agents(): JSX.Element {
 
   const handleCloseCreate = useCallback(() => {
     setCreateWizardOpen(false);
+    requestAnimationFrame(() => {
+      createButtonRef.current?.focus({ preventScroll: true });
+    });
   }, []);
 
   const handleAgentCreated = useCallback(
@@ -294,6 +298,7 @@ function Agents(): JSX.Element {
             type="button"
             className="agents__create-button"
             onClick={handleOpenCreate}
+            ref={createButtonRef}
             data-testid={AGENTS_TEST_IDS.createButton}
           >
             + Novo agent

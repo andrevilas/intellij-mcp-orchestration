@@ -11,6 +11,7 @@ interface ModalBaseProps {
   onClose: () => void;
   footer?: ReactNode;
   children?: ReactNode;
+  closeOnBackdrop?: boolean;
 }
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
@@ -27,7 +28,15 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
   );
 }
 
-export default function ModalBase({ isOpen, title, description, onClose, footer, children }: ModalBaseProps): JSX.Element | null {
+export default function ModalBase({
+  isOpen,
+  title,
+  description,
+  onClose,
+  footer,
+  children,
+  closeOnBackdrop = true,
+}: ModalBaseProps): JSX.Element | null {
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -96,8 +105,13 @@ export default function ModalBase({ isOpen, title, description, onClose, footer,
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
+      data-state={isOpen ? 'open' : 'closed'}
     >
-      <div className="mcp-modal__backdrop" onClick={onClose} />
+      <div
+        className="mcp-modal__backdrop"
+        onClick={closeOnBackdrop ? onClose : undefined}
+        aria-hidden="true"
+      />
       <div className="mcp-modal__dialog" ref={dialogRef} tabIndex={-1}>
         <header className="mcp-modal__header">
           <h2 id={titleId}>{title}</h2>

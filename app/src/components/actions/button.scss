@@ -60,6 +60,10 @@
   box-shadow: none;
 }
 
+.mcp-button[data-state='loading'] {
+  cursor: progress;
+}
+
 .mcp-button--secondary {
   --mcp-button-bg: var(--mcp-action-secondary-bg);
   --mcp-button-fg: var(--mcp-action-secondary-fg);
@@ -99,6 +103,15 @@
   --mcp-button-shadow: none;
   --mcp-button-hover-bg: var(--mcp-action-outline-hover-bg);
   --mcp-button-hover-fg: var(--mcp-action-outline-hover-fg);
+}
+
+.mcp-button--ghost {
+  --mcp-button-bg: color-mix(in srgb, var(--mcp-interactive-soft) 15%, transparent);
+  --mcp-button-fg: var(--mcp-interactive);
+  --mcp-button-border: transparent;
+  --mcp-button-shadow: none;
+  --mcp-button-hover-bg: color-mix(in srgb, var(--mcp-interactive-soft) 32%, transparent);
+  --mcp-button-hover-fg: color-mix(in srgb, var(--mcp-interactive) 88%, var(--mcp-surface-contrast) 12%);
 }
 
 .mcp-button--link {

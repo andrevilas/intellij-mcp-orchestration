@@ -132,6 +132,13 @@ describe('ConfigReloadAction', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Aplicar plano' }));
 
+    const confirmation = await screen.findByRole('dialog', { name: 'Confirmar aplicação governada' });
+    expect(
+      within(confirmation).getByText('Revise diffs e clique para habilitar a confirmação final.'),
+    ).toBeVisible();
+    await userEvent.click(within(confirmation).getByRole('button', { name: 'Aplicar plano' }));
+    await userEvent.click(within(confirmation).getByRole('button', { name: 'Aplicar agora' }));
+
     await waitFor(() => expect(applyMock).toHaveBeenCalledTimes(1));
     expect(applyMock.mock.calls[0][0]).toMatchObject({
       planId: 'reload-plan-123',

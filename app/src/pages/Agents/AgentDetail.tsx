@@ -109,6 +109,8 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
   const routingRef = useRef<AgentConfigLayerEditorHandle>(null);
   const finopsRef = useRef<AgentConfigLayerEditorHandle>(null);
   const observabilityRef = useRef<AgentConfigLayerEditorHandle>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setActiveTab('playground');
@@ -315,12 +317,55 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
     ? (data.result as { trace?: unknown }).trace
     : undefined);
 
+  useEffect(() => {
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    let focusFrame: number | null = null;
+    if (typeof window !== 'undefined') {
+      focusFrame = window.requestAnimationFrame(() => {
+        containerRef.current?.focus({ preventScroll: true });
+      });
+    } else {
+      containerRef.current?.focus({ preventScroll: true });
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      if (typeof window !== 'undefined' && focusFrame !== null) {
+        window.cancelAnimationFrame(focusFrame);
+      }
+      document.removeEventListener('keydown', handleKeyDown);
+      const previous = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previous) {
+        if (typeof window !== 'undefined') {
+          window.requestAnimationFrame(() => {
+            previous.focus({ preventScroll: true });
+          });
+        } else {
+          previous.focus({ preventScroll: true });
+        }
+      }
+    };
+  }, [onClose]);
+
   return (
     <aside
       className="agent-detail"
       aria-labelledby="agent-detail-title"
       role="dialog"
       data-testid={AGENT_DETAIL_TEST_IDS.root}
+      ref={containerRef}
+      tabIndex={-1}
     >
       <header className="agent-detail__header">
         <div>

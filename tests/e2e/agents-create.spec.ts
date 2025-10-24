@@ -267,4 +267,22 @@ test.describe('@agent-create', () => {
 
     await wizard.getByRole('button', { name: 'Fechar' }).click();
   });
+
+  test('fecha wizard governado com tecla Escape e restaura foco', async ({ page }) => {
+    await registerBaseRoutes(page);
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Agents' }).click();
+
+    const createButton = page.getByRole('button', { name: '+ Novo agent' });
+    await createButton.click();
+
+    const wizard = page.locator('.agent-wizard');
+    await expect(wizard).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    await expect(wizard).toBeHidden();
+    await expect(createButton).toBeFocused();
+  });
 });

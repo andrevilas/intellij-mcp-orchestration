@@ -11,6 +11,7 @@ import {
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from './PlanDiffViewer';
 import AuditTrailPanel from './AuditTrailPanel';
+import ConfirmationModal from './modals/ConfirmationModal';
 
 interface SupportedArtifact {
   id: string;
@@ -122,6 +123,16 @@ export default function ConfigReloadAction() {
   const [applyError, setApplyError] = useState<string | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [applyLoading, setApplyLoading] = useState(false);
+  const [isApplyConfirmOpen, setApplyConfirmOpen] = useState(false);
+  const [pendingApply, setPendingApply] = useState<
+    | {
+        actor: string;
+        actorEmail: string;
+        commitMessage: string;
+        justification: string;
+      }
+    | null
+  >(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const selectedArtifact = useMemo(() => resolveArtifactConfig(artifactId), [artifactId]);
@@ -140,6 +151,8 @@ export default function ConfigReloadAction() {
     setPatch('');
     setJustification('');
     setApplyError(null);
+    setApplyConfirmOpen(false);
+    setPendingApply(null);
   }, []);
 
   const publishAuditEvent = useCallback(
@@ -220,14 +233,17 @@ export default function ConfigReloadAction() {
   );
 
   const handleApply = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!planId || !planPayload) {
+        setApplyError('Gere um plano antes de aplicar.');
         return;
       }
 
       const trimmedActor = actor.trim();
       const trimmedEmail = actorEmail.trim();
+      const trimmedPatch = patch.trim();
+
       if (!trimmedActor) {
         setApplyError('Informe o executor responsável pela alteração.');
         return;
@@ -236,80 +252,95 @@ export default function ConfigReloadAction() {
         setApplyError('Informe o e-mail corporativo do executor.');
         return;
       }
-
-      setApplyLoading(true);
-      setApplyError(null);
-
-      try {
-        const response: GovernedConfigReloadApplyResponse = await applyGovernedConfigReload({
-          planId,
-          plan: planPayload,
-          patch,
-          actor: trimmedActor,
-          actorEmail: trimmedEmail,
-          commitMessage: commitMessage.trim() || DEFAULT_COMMIT,
-        });
-
-        const timestamp = new Date().toISOString();
-        const details = [response.message];
-        if (response.branch) {
-          details.push(`Branch: ${response.branch}`);
-        }
-        if (response.pullRequest?.url) {
-          details.push(`PR: ${response.pullRequest.url}`);
-        }
-        setSuccessMessage(details.join(' '));
-        setHistory((current) => [
-          {
-            id: planId,
-            status: response.status,
-            actor: trimmedActor,
-            timestamp,
-            message: response.message,
-            branch: response.branch ?? null,
-            pullRequestUrl: response.pullRequest?.url ?? null,
-          },
-          ...current,
-        ]);
-        publishAuditEvent({
-          actor: trimmedActor,
-          action: 'config.reload.apply',
-          target: targetPath,
-          description: response.message,
-          metadata: {
-            planId,
-            branch: response.branch ?? null,
-            baseBranch: response.baseBranch ?? null,
-            commitSha: response.commitSha ?? null,
-            pullRequest: response.pullRequest ?? null,
-            justification: justification.trim() || null,
-          },
-          timestamp,
-        });
-        resetPlanState();
-      } catch (error) {
-        const message =
-          error instanceof Error && error.message
-            ? error.message
-            : 'Falha ao aplicar plano governado de reload.';
-        setApplyError(message);
-      } finally {
-        setApplyLoading(false);
+      if (!trimmedPatch) {
+        setApplyError('O plano não possui diffs aplicáveis. Gere novamente.');
+        return;
       }
+
+      setApplyError(null);
+      setPendingApply({
+        actor: trimmedActor,
+        actorEmail: trimmedEmail,
+        commitMessage: commitMessage.trim() || DEFAULT_COMMIT,
+        justification: justification.trim(),
+      });
+      setApplyConfirmOpen(true);
     },
-    [
-      actor,
-      actorEmail,
-      commitMessage,
-      justification,
-      patch,
-      planId,
-      planPayload,
-      publishAuditEvent,
-      resetPlanState,
-      targetPath,
-    ],
+    [actor, actorEmail, commitMessage, justification, patch, planId, planPayload],
   );
+
+  const executeApply = useCallback(async () => {
+    if (!planId || !planPayload || !pendingApply) {
+      return;
+    }
+
+    setApplyLoading(true);
+    setApplyError(null);
+    setApplyConfirmOpen(false);
+
+    try {
+      const response: GovernedConfigReloadApplyResponse = await applyGovernedConfigReload({
+        planId,
+        plan: planPayload,
+        patch,
+        actor: pendingApply.actor,
+        actorEmail: pendingApply.actorEmail,
+        commitMessage: pendingApply.commitMessage,
+      });
+
+      const timestamp = new Date().toISOString();
+      const details = [response.message];
+      if (response.branch) {
+        details.push(`Branch: ${response.branch}`);
+      }
+      if (response.pullRequest?.url) {
+        details.push(`PR: ${response.pullRequest.url}`);
+      }
+      setSuccessMessage(details.join(' '));
+      setHistory((current) => [
+        {
+          id: planId,
+          status: response.status,
+          actor: pendingApply.actor,
+          timestamp,
+          message: response.message,
+          branch: response.branch ?? null,
+          pullRequestUrl: response.pullRequest?.url ?? null,
+        },
+        ...current,
+      ]);
+      publishAuditEvent({
+        actor: pendingApply.actor,
+        action: 'config.reload.apply',
+        target: targetPath,
+        description: response.message,
+        metadata: {
+          planId,
+          branch: response.branch ?? null,
+          baseBranch: response.baseBranch ?? null,
+          commitSha: response.commitSha ?? null,
+          pullRequest: response.pullRequest ?? null,
+          justification: pendingApply.justification || null,
+        },
+        timestamp,
+      });
+      resetPlanState();
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Falha ao aplicar plano governado de reload.';
+      setApplyError(message);
+    } finally {
+      setApplyLoading(false);
+      setPendingApply(null);
+    }
+  }, [patch, pendingApply, planId, planPayload, publishAuditEvent, resetPlanState, targetPath]);
+
+  const handleCancelApplyConfirm = useCallback(() => {
+    setApplyConfirmOpen(false);
+    setPendingApply(null);
+  }, []);
 
   return (
     <section className="config-reload" aria-labelledby="config-reload-title">
@@ -492,6 +523,18 @@ export default function ConfigReloadAction() {
         events={auditEvents}
         onClose={() => setAuditOpen(false)}
         emptyState="Nenhum evento registrado. Gere um plano ou aplique uma alteração para popular a trilha."
+      />
+      <ConfirmationModal
+        isOpen={isApplyConfirmOpen}
+        title="Confirmar aplicação governada"
+        description="Aplicar o plano regera o artefato selecionado e registra auditoria nos sistemas MCP. Confirme para prosseguir."
+        confirmLabel="Aplicar plano"
+        confirmArmedLabel="Aplicar agora"
+        confirmHint="Revise diffs e clique para habilitar a confirmação final."
+        confirmArmedHint="Clique novamente para aplicar com auditoria."
+        onConfirm={executeApply}
+        onCancel={handleCancelApplyConfirm}
+        isLoading={applyLoading}
       />
     </section>
   );
