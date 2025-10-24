@@ -273,3 +273,39 @@ jobs:
           name: playwright-traces
           path: tests/test-results
           if-no-files-found: ignore
+
+  lighthouse:
+    needs:
+      - lint
+      - test
+      - smoke
+      - playwright
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Lighthouse CI suite
+        run: pnpm --dir app run lighthouse:ci
+
+      - name: Upload Lighthouse reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: docs/evidence/TASK-UI-OBS-082/lighthouse
+          if-no-files-found: error
