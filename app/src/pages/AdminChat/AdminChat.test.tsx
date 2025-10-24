@@ -210,26 +210,42 @@ describe('AdminChat view', () => {
     },
   };
 
+  const applySuccessPullRequest: ConfigApplyResponse['pullRequest'] = {
+    provider: 'github',
+    id: 'pr-42',
+    number: '42',
+    url: 'https://github.com/prom/demo/pull/42',
+    title: 'feat: onboard openai-gpt4o',
+    state: 'open',
+    headSha: 'abc123',
+    branch: 'feature/mcp-openai-gpt4o',
+    ciStatus: 'pending',
+    reviewStatus: 'pending',
+    merged: false,
+  };
+
   const applySuccessResponse: ConfigApplyResponse = {
     status: 'applied',
     message: 'Plano aplicado com sucesso.',
-    plan: { ...planSummary, status: 'applied', generatedAt: '2025-01-10T10:05:00Z' },
+    plan: {
+      ...planSummary,
+      status: 'applied',
+      generatedAt: '2025-01-10T10:05:00Z',
+      pullRequest: {
+        id: applySuccessPullRequest.id,
+        number: applySuccessPullRequest.number,
+        title: applySuccessPullRequest.title,
+        url: applySuccessPullRequest.url,
+        state: applySuccessPullRequest.state,
+        reviewStatus: applySuccessPullRequest.reviewStatus,
+        branch: applySuccessPullRequest.branch,
+      },
+    },
     branch: 'feature/mcp-openai-gpt4o',
     baseBranch: 'main',
     commitSha: 'abc123',
     recordId: 'rec-apply-1',
-    pullRequest: {
-      provider: 'github',
-      id: 'pr-42',
-      number: '42',
-      url: 'https://github.com/prom/demo/pull/42',
-      title: 'feat: onboard openai-gpt4o',
-      state: 'open',
-      headSha: 'abc123',
-      ciStatus: 'pending',
-      reviewStatus: 'pending',
-      merged: false,
-    },
+    pullRequest: applySuccessPullRequest,
   };
 
   const onboardPlan: AdminPlanSummary = {
@@ -408,7 +424,7 @@ describe('AdminChat view', () => {
     });
     expect(screen.getByText('Aplicado')).toBeInTheDocument();
 
-    const agentIdInput = screen.getByLabelText('Identificador do agente');
+    const agentIdInput = await screen.findByLabelText(/Identificador do agen/i);
     await userEvent.type(agentIdInput, 'openai-gpt4o');
 
     const wizardForm = agentIdInput.closest('form');
@@ -416,14 +432,14 @@ describe('AdminChat view', () => {
     const wizard = within(wizardForm as HTMLFormElement);
 
     await userEvent.type(wizard.getByLabelText('Nome exibido'), 'OpenAI GPT-4o');
-    await userEvent.type(wizard.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
-    await userEvent.type(wizard.getByLabelText('Endpoint MCP (ws/wss)'), 'wss://openai.example.com/ws');
+    await userEvent.type(wizard.getByLabelText(/Repositório Git/i), 'agents/openai-gpt4o');
+    await userEvent.type(wizard.getByLabelText(/Endpoint MCP \(ws\/wss\)/i), 'wss://openai.example.com/ws');
     await userEvent.type(wizard.getByLabelText('Owner responsável'), '@squad-mcp');
     await userEvent.type(wizard.getByLabelText('Tags (separadas por vírgula)'), 'openai,prod');
     await userEvent.type(wizard.getByLabelText('Capacidades (separadas por vírgula)'), 'chat');
     await userEvent.type(wizard.getByLabelText('Descrição'), 'Agente com fallback para GPT-4o.');
     await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
-    fireEvent.submit(screen.getByLabelText('Identificador do agente').closest('form') as HTMLFormElement);
+    fireEvent.submit(agentIdInput.closest('form') as HTMLFormElement);
 
     await userEvent.click(screen.getByLabelText('API Key'));
     await userEvent.type(screen.getByLabelText('Nome da credencial'), 'OPENAI_API_KEY');
@@ -431,9 +447,9 @@ describe('AdminChat view', () => {
     await userEvent.type(screen.getByLabelText('Instruções para provisionamento'), 'Gerar no vault e replicar.');
     await userEvent.click(screen.getByRole('button', { name: 'Avançar para tools' }));
 
-    await userEvent.type(screen.getByLabelText('Nome da tool 1'), 'catalog.search');
-    await userEvent.type(screen.getByLabelText('Descrição da tool 1'), 'Busca recursos homologados.');
-    await userEvent.type(screen.getByLabelText('Entry point da tool 1'), 'catalog/search.py');
+    await userEvent.type(screen.getByLabelText(/Nome da tool 1/i), 'catalog.search');
+    await userEvent.type(screen.getByLabelText(/Descrição da tool 1/i), 'Busca recursos homologados.');
+    await userEvent.type(screen.getByLabelText(/Entry point da tool 1/i), 'catalog/search.py');
     const validateButton = await screen.findByRole('button', { name: 'Testar conexão' });
     await userEvent.click(validateButton);
     await waitFor(() =>
@@ -514,7 +530,11 @@ describe('AdminChat view', () => {
     );
     expect(screen.getByText(applySuccessResponse.recordId)).toBeInTheDocument();
     expect(screen.getByText(applySuccessResponse.branch as string)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: applySuccessResponse.pullRequest?.title })).toBeInTheDocument();
+    if (!applySuccessResponse.pullRequest) {
+      throw new Error('Mock de sucesso deve possuir metadados de PR.');
+    }
+    const appliedPlanPrLabel = `#${applySuccessResponse.pullRequest.number} — ${applySuccessResponse.pullRequest.title}`;
+    expect(screen.getByRole('link', { name: appliedPlanPrLabel })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Atualizar status' }));
     await waitFor(() => expect(fetchStatusMock).toHaveBeenCalledWith(applySuccessResponse.recordId));
@@ -536,13 +556,30 @@ describe('AdminChat view', () => {
 
     render(<AdminChat />);
 
-    await userEvent.type(screen.getByLabelText('Identificador do agente'), 'openai-gpt4o');
-    await userEvent.type(screen.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
-    await userEvent.type(screen.getByLabelText('Endpoint MCP (ws/wss)'), 'wss://openai.example.com/ws');
+    const onboardingAgentIdField = await screen.findByLabelText(/Identificador do agen/i);
+    const onboardingWizardForm = onboardingAgentIdField.closest('form');
+    if (!onboardingWizardForm) {
+      throw new Error('Formulário do wizard de onboarding deve estar presente.');
+    }
+    const onboardingWizard = within(onboardingWizardForm as HTMLFormElement);
+
+    const repositoryField = onboardingWizard.getByLabelText(/Repositório Git/i);
+    const endpointField = onboardingWizard.getByLabelText(/Endpoint MCP \(ws\/wss\)/i);
+
+    await userEvent.type(onboardingAgentIdField, 'openai-gpt4o');
+    await userEvent.type(repositoryField, 'agents/openai-gpt4o');
+    await userEvent.type(endpointField, 'wss://openai.example.com/ws');
     await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
-    fireEvent.submit(screen.getByLabelText('Identificador do agente').closest('form') as HTMLFormElement);
+    fireEvent.submit(onboardingWizardForm as HTMLFormElement);
 
     const nextToolsButton = await screen.findByRole('button', { name: 'Avançar para tools' });
+    await userEvent.click(await screen.findByLabelText('API Key'));
+    await userEvent.type(await screen.findByLabelText('Nome da credencial'), 'OPENAI_API_KEY');
+    await userEvent.type(await screen.findByLabelText('Ambiente/namespace'), 'production');
+    await userEvent.type(
+      await screen.findByLabelText('Instruções para provisionamento'),
+      'Gerar no vault e replicar.',
+    );
     await userEvent.click(nextToolsButton);
 
     const testConnectionButton = await screen.findByRole('button', { name: 'Testar conexão' });
@@ -560,7 +597,8 @@ describe('AdminChat view', () => {
     const nextButton = screen.getByRole('button', { name: 'Ir para validação' });
     expect(nextButton).toBeDisabled();
 
-    await userEvent.type(screen.getByLabelText('Nome da tool 1'), 'catalog.search');
+    const toolNameField = await screen.findByLabelText(/Nome da tool 1/i);
+    await userEvent.type(toolNameField, 'catalog.search');
 
     expect(screen.getByRole('button', { name: 'Ir para validação' })).not.toBeDisabled();
   });
