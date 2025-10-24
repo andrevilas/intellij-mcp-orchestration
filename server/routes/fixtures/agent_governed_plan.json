@@ -1,0 +1,85 @@
+{
+  "plan": {
+    "intent": "agents.governed.plan",
+    "summary": "Adicionar agent sentinel-watcher ao repositório agents-hub.",
+    "status": "pending",
+    "steps": [
+      {
+        "id": "scaffold-agent",
+        "title": "Scaffold agent 'sentinel-watcher'",
+        "description": "Gerar manifesto base e arquivos iniciais.",
+        "depends_on": [],
+        "actions": [
+          {
+            "type": "file.create",
+            "path": "agents-hub/app/agents/sentinel-watcher/agent.yaml",
+            "contents": "{\n  \"name\": \"sentinel-watcher\",\n  \"title\": \"Sentinel Watcher\",\n  \"description\": \"Manifesto gerado via fixtures para o novo agent.\",\n  \"capabilities\": [\n    \"monitoring\"\n  ],\n  \"model\": {\n    \"provider\": \"openai\",\n    \"name\": \"gpt-4o-mini\"\n  },\n  \"tools\": []\n}",
+            "encoding": "utf-8",
+            "overwrite": false
+          }
+        ]
+      },
+      {
+        "id": "register-servers",
+        "title": "Registrar servidores MCP",
+        "description": "Habilitar integrações para: catalog.",
+        "depends_on": ["scaffold-agent"],
+        "actions": [
+          {
+            "type": "config.update",
+            "path": "mcp/servers/catalog",
+            "contents": "enable agent sentinel-watcher",
+            "encoding": "utf-8",
+            "overwrite": false
+          }
+        ]
+      }
+    ],
+    "diffs": [
+      {
+        "path": "agents-hub/app/agents/sentinel-watcher/agent.yaml",
+        "summary": "Criar manifesto inicial do agent",
+        "change_type": "create",
+        "diff": "--- /dev/null\n+++ agents-hub/app/agents/sentinel-watcher/agent.yaml\n+{\n+  \"name\": \"sentinel-watcher\",\n+  \"title\": \"Sentinel Watcher\",\n+  \"description\": \"Manifesto gerado via fixtures para o novo agent.\",\n+  \"capabilities\": [\n+    \"monitoring\"\n+  ],\n+  \"model\": {\n+    \"provider\": \"openai\",\n+    \"name\": \"gpt-4o-mini\"\n+  },\n+  \"tools\": []\n+}\n"
+      },
+      {
+        "path": "agents-hub/app/agents/sentinel-watcher/README.md",
+        "summary": "Criar documentação inicial do agent",
+        "change_type": "create",
+        "diff": "--- /dev/null\n+++ agents-hub/app/agents/sentinel-watcher/README.md\n+# Sentinel Watcher\n+\n+Documentação inicial gerada automaticamente via fixtures.\n"
+      }
+    ],
+    "risks": [
+      {
+        "title": "Validação de segredos",
+        "impact": "médio",
+        "mitigation": "Confirmar variáveis de ambiente com os owners antes do deploy."
+      },
+      {
+        "title": "Smoke tests pendentes",
+        "impact": "baixo",
+        "mitigation": "Adicionar smoke endpoints para validar o agent após provisionamento."
+      }
+    ],
+    "context": [
+      {
+        "path": "agents-hub/app/agents/sentinel-watcher/agent.yaml",
+        "snippet": "{\n  \"name\": \"sentinel-watcher\",\n  \"title\": \"Sentinel Watcher\",\n  \"description\": \"Manifesto gerado via fixtures para o novo agent.\",\n  \"capabilities\": [\n    \"monitoring\"\n  ],\n  \"model\": {\n    \"provider\": \"openai\",\n    \"name\": \"gpt-4o-mini\"\n  },\n  \"tools\": []\n}",
+        "score": 0.92,
+        "title": "Manifesto proposto",
+        "chunk": 1
+      }
+    ],
+    "approval_rules": ["governance-mcp"]
+  },
+  "preview": {
+    "branch": "feature/add-sentinel-watcher",
+    "base_branch": "main",
+    "commit_message": "feat: adicionar agent sentinel-watcher",
+    "pull_request": {
+      "provider": "github",
+      "title": "feat: adicionar agent sentinel-watcher",
+      "url": "https://github.com/intellij-mcp-orchestration/agents-hub/pull/42"
+    }
+  }
+}

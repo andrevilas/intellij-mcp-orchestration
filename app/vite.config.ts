@@ -25,6 +25,16 @@ const parseBoolean = (value: string | undefined): boolean | null => {
 };
 
 const resolveFixtureMode = (value: string | undefined): FixtureMode => {
+  if (!value) {
+    return 'auto';
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === 'auto' || normalized === 'force' || normalized === 'off') {
+    return normalized;
+  }
+
   const parsed = parseBoolean(value);
   if (parsed === true) {
     return 'force';
@@ -32,6 +42,12 @@ const resolveFixtureMode = (value: string | undefined): FixtureMode => {
   if (parsed === false) {
     return 'off';
   }
+
+  console.warn(
+    'Valor desconhecido para CONSOLE_MCP_USE_FIXTURES="%s". Usando modo "auto" (fixtures locais).',
+    value,
+  );
+
   return 'auto';
 };
 
@@ -196,7 +212,7 @@ export default defineConfig(async () => {
     useFixtures = true;
     fixtureReason = 'modo padrão (auto)';
     console.info(
-      'Console MCP frontend iniciará usando fixtures MSW (modo padrão). Defina CONSOLE_MCP_USE_FIXTURES=0 para usar o proxy HTTP.',
+      'Console MCP frontend iniciará usando fixtures MSW (modo padrão). Defina CONSOLE_MCP_USE_FIXTURES=off (ou 0) para usar o proxy HTTP.',
     );
   } else {
     const probe = await probeBackend(API_PROXY_TARGET);

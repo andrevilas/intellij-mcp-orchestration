@@ -1,0 +1,47 @@
+{
+  "deployments": [
+    {
+      "id": "deploy-routing-latency-20250304",
+      "template_id": "policy-routing-latency",
+      "deployed_at": "2025-03-04T14:30:00Z",
+      "author": "Rafael Ops",
+      "window": "Canário monitorado",
+      "note": "Ativar rotas turbo no cluster EU.",
+      "slo_p95_ms": 910,
+      "budget_usage_pct": 72,
+      "incidents_count": 1,
+      "guardrail_score": 78,
+      "created_at": "2025-03-04T14:30:00Z",
+      "updated_at": "2025-03-04T14:45:00Z"
+    },
+    {
+      "id": "deploy-routing-latency-20250306",
+      "template_id": "policy-routing-latency",
+      "deployed_at": "2025-03-06T09:15:00Z",
+      "author": "Clara SRE",
+      "window": "Rollout progressivo",
+      "note": "Expandir cobertura turbo após canário bem-sucedido.",
+      "slo_p95_ms": 870,
+      "budget_usage_pct": 66,
+      "incidents_count": 0,
+      "guardrail_score": 82,
+      "created_at": "2025-03-06T09:15:00Z",
+      "updated_at": "2025-03-06T09:45:00Z"
+    },
+    {
+      "id": "deploy-finops-burn-20250306",
+      "template_id": "policy-finops-burn",
+      "deployed_at": "2025-03-06T18:10:00Z",
+      "author": "Marina FP&A",
+      "window": "GA monitorado",
+      "note": "Ativar alertas agressivos para squads com burn-rate alto.",
+      "slo_p95_ms": 980,
+      "budget_usage_pct": 81,
+      "incidents_count": 2,
+      "guardrail_score": 74,
+      "created_at": "2025-03-06T18:10:00Z",
+      "updated_at": "2025-03-06T18:30:00Z"
+    }
+  ],
+  "active_id": "deploy-finops-burn-20250306"
+}

@@ -35,10 +35,10 @@ Variáveis de ambiente úteis:
 - `CONSOLE_MCP_API_PROXY`: redefine o destino do proxy HTTP utilizado pelo dev server do Vite (por padrão usa os valores
   de `CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`).
 - `CONSOLE_MCP_AGENTS_PROXY`: sobrescreve apenas o alvo do proxy `/agents` quando o hub de agentes roda em host/porta separados.
-- `CONSOLE_MCP_USE_FIXTURES`: aceita `auto` (padrão), `force` ou `off`. Em `auto`, o Vite tenta alcançar o backend configurado
-    (`CONSOLE_MCP_API_PROXY` ou `127.0.0.1:8000`). Caso não consiga conectar, registra `Console MCP backend não detectado —
-    habilitando fixtures (modo auto).` e ativa automaticamente o MSW com as respostas de `tests/fixtures/backend`. O modo `force`
-    mantém as fixtures ativas mesmo com backend disponível, enquanto `off` reativa o proxy padrão.
+- `CONSOLE_MCP_USE_FIXTURES`: aceita `auto` (padrão), `force` ou `off`. Em `auto`, o Console MCP inicia diretamente com as
+    fixtures locais (`app/src/mocks/handlers.ts`) espelhadas de `server/routes/fixtures`. Use `off` (ou `0`, `false`) para
+    habilitar o proxy HTTP do backend real; se o backend não responder, o Vite retorna automaticamente ao modo fixtures. O
+    modo `force` mantém o MSW ativo independentemente do backend.
 
 ### Modo offline com fixtures
 

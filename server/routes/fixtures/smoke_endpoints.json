@@ -1,0 +1,39 @@
+{
+  "endpoints": [
+    {
+      "id": "public-health",
+      "name": "Public API",
+      "description": "Verifica status HTTP externo da API pública.",
+      "url": "https://status.example.com/health",
+      "last_run": {
+        "run_id": "run-1",
+        "status": "passed",
+        "summary": "Todos os checks passaram.",
+        "triggered_by": "alice",
+        "triggered_at": "2025-03-01T10:00:00Z",
+        "finished_at": "2025-03-01T10:00:04Z",
+        "logs": [
+          {
+            "id": "log-1",
+            "timestamp": "2025-03-01T10:00:01Z",
+            "level": "info",
+            "message": "GET /health -> 200"
+          },
+          {
+            "id": "log-2",
+            "timestamp": "2025-03-01T10:00:04Z",
+            "level": "debug",
+            "message": "Latência 118ms"
+          }
+        ]
+      }
+    },
+    {
+      "id": "internal-orchestrator",
+      "name": "Internal orchestrator",
+      "description": "Smoke interno do orchestrator MCP.",
+      "url": "https://internal.example.com/health",
+      "last_run": null
+    }
+  ]
+}
