@@ -2,7 +2,7 @@
 
 O Admin Chat concentra o fluxo assistido para configurar o Console MCP. A interface encadeia o chat com o Config Assistant,
 a geração de planos e o onboarding de novos provedores em uma única página (`AdminChat.tsx`).
-Use este quickstart para validar o fluxo ponta a ponta com exemplos reais de mensagens e intents. 【F:app/src/pages/AdminChat/AdminChat.tsx†L1-L120】【F:app/src/test/AdminChat.test.tsx†L1-L120】
+Use este quickstart para validar o fluxo ponta a ponta com exemplos reais de mensagens e intents. 【F:app/src/pages/AdminChat/AdminChat.tsx†L1-L120】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L1-L120】
 
 ## Pré-requisitos
 
@@ -12,13 +12,13 @@ Use este quickstart para validar o fluxo ponta a ponta com exemplos reais de men
 
 ## Fluxo guiado
 
-1. **Inicie a conversa** — pergunte algo contextual, por exemplo `Quais guardrails devo atualizar?`. O hook `useAdminChat` envia a intent `message` para `/config/chat` e guarda o `threadId` retornado. 【F:app/src/hooks/useAdminChat.ts†L51-L109】【F:app/src/test/AdminChat.test.tsx†L60-L99】
-2. **Gere um plano** — informe um escopo como `Habilitar checkpoints HITL nas rotas prioritárias` e clique em "Gerar plano". O frontend chama `/config/plan` com a intent `generate`, e renderiza diffs/risks retornados. 【F:app/src/hooks/useAdminChat.ts†L111-L163】【F:app/src/test/AdminChat.test.tsx†L99-L147】
-3. **Solicite aplicação** — descreva uma nota opcional (ex.: `Validar com FinOps antes de aplicar.`) e acione "Aplicar plano". Se o executor exigir HITL, a resposta virá com `status: 'hitl_required'`. 【F:app/src/hooks/useAdminChat.ts†L165-L216】【F:app/src/test/AdminChat.test.tsx†L147-L191】
-4. **Aprove ou finalize HITL** — informe a justificativa (ex.: `Aprovado manualmente pelo time de risco.`) e confirme. O backend aprova o pedido via `/config/apply` com `approval_decision` apropriado. 【F:app/src/hooks/useAdminChat.ts†L218-L278】【F:app/src/test/AdminChat.test.tsx†L191-L222】
-5. **Onboard automático** — preencha o ID do provedor (`openai-gpt4o`) e o comando opcional (`./run-mcp --profile production`). O hook chama `/config/mcp/onboard` primeiro com `intent: 'validate'` para testar o endpoint e, na sequência, com `intent: 'plan'` para gerar o plano completo. 【F:app/src/hooks/useAdminChat.ts†L280-L324】【F:app/src/test/AdminChat.test.tsx†L222-L258】【F:tests/e2e/onboarding.spec.ts†L148-L236】
+1. **Inicie a conversa** — pergunte algo contextual, por exemplo `Quais guardrails devo atualizar?`. O hook `useAdminChat` envia a intent `message` para `/config/chat` e guarda o `threadId` retornado. 【F:app/src/hooks/useAdminChat.ts†L51-L109】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L60-L99】
+2. **Gere um plano** — informe um escopo como `Habilitar checkpoints HITL nas rotas prioritárias` e clique em "Gerar plano". O frontend chama `/config/plan` com a intent `generate`, e renderiza diffs/risks retornados. 【F:app/src/hooks/useAdminChat.ts†L111-L163】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L99-L147】
+3. **Solicite aplicação** — descreva uma nota opcional (ex.: `Validar com FinOps antes de aplicar.`) e acione "Aplicar plano". Se o executor exigir HITL, a resposta virá com `status: 'hitl_required'`. 【F:app/src/hooks/useAdminChat.ts†L165-L216】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L147-L191】
+4. **Aprove ou finalize HITL** — informe a justificativa (ex.: `Aprovado manualmente pelo time de risco.`) e confirme. O backend aprova o pedido via `/config/apply` com `approval_decision` apropriado. 【F:app/src/hooks/useAdminChat.ts†L218-L278】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L191-L222】
+5. **Onboard automático** — preencha o ID do provedor (`openai-gpt4o`) e o comando opcional (`./run-mcp --profile production`). O hook chama `/config/mcp/onboard` primeiro com `intent: 'validate'` para testar o endpoint e, na sequência, com `intent: 'plan'` para gerar o plano completo. 【F:app/src/hooks/useAdminChat.ts†L280-L324】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L222-L258】【F:tests/e2e/onboarding.spec.ts†L148-L236】
 
-Ao final, a barra de status exibirá mensagens como `Plano aplicado com sucesso.` ou `Onboarding iniciado para openai-gpt4o.` confirmando o sucesso da operação. 【F:app/src/hooks/useAdminChat.ts†L180-L216】【F:app/src/test/AdminChat.test.tsx†L191-L258】
+Ao final, a barra de status exibirá mensagens como `Plano aplicado com sucesso.` ou `Onboarding iniciado para openai-gpt4o.` confirmando o sucesso da operação. 【F:app/src/hooks/useAdminChat.ts†L180-L216】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L191-L258】
 
 ## Intents suportadas
 

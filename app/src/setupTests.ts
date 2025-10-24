@@ -1,10 +1,19 @@
 import '@testing-library/jest-dom/vitest';
-import { afterAll, afterEach, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest';
+
+type VitestExpect = typeof expect;
+type VitestVi = typeof vi;
 import { resetMockState, server } from './mocks/server';
 
 declare global {
   // eslint-disable-next-line no-var
   var __CONSOLE_MCP_FIXTURES__: 'ready' | 'error' | 'disabled' | undefined;
+  // Vitest exposes globals quando `globals: true`, porém os registramos explicitamente
+  // para evitar flutuações em ambientes que não carregam o runtime padrão (ex.: Playwright).
+  // eslint-disable-next-line no-var
+  var vi: VitestVi;
+  // eslint-disable-next-line no-var
+  var expect: VitestExpect;
 }
 
 const requestAnimationFrameShim: Window['requestAnimationFrame'] = (callback) => {
@@ -26,6 +35,8 @@ const cancelAnimationFrameShim: Window['cancelAnimationFrame'] = (handle) => {
 
 globalThis.requestAnimationFrame ??= requestAnimationFrameShim;
 globalThis.cancelAnimationFrame ??= cancelAnimationFrameShim;
+globalThis.vi ??= vi;
+globalThis.expect ??= expect;
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' });

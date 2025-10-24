@@ -27,8 +27,18 @@ def _run(command: list[str], *, cwd: Path | None = None, env: dict[str, str] | N
     subprocess.run(command, check=True, cwd=location, env=merged_env)
 
 
+def _is_truthy(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
 def main() -> None:
-    _run([PNPM, "--dir", "app", "test"])
+    skip_frontend = _is_truthy(os.environ.get("SKIP_FRONTEND_TESTS"))
+    if skip_frontend:
+        print("\nSkipping pnpm --dir app test (SKIP_FRONTEND_TESTS set)")
+    else:
+        _run([PNPM, "--dir", "app", "test"])
     _run([PYTHON, "-m", "pytest"], cwd=ROOT / "server")
     _run([PYTHON, "-m", "pytest"], cwd=ROOT / "agents-hub")
 

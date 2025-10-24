@@ -17,5 +17,5 @@ Este guia documenta os controles de formulário introduzidos na sprint TASK-UI-F
 - `FileDownloadControl` acompanha progresso, gera blobs e dispara download automático, registrando feedback visual e via toast.【F:app/src/components/forms/FileDownloadControl.tsx†L1-L147】
 
 ## Testes e evidências
-- Cobertura unitária valida propagação de `aria-invalid`, resumo de erros e `InputGroup` com feedback combinada.【F:app/src/test/FormControls.test.tsx†L1-L83】
+- Cobertura unitária valida propagação de `aria-invalid`, resumo de erros e `InputGroup` com feedback combinada.【F:app/src/components/forms/FormControls.test.tsx†L1-L104】
 - Teste Playwright garante ordem de tabulação e gera artefato `forms-tab-order.json` em `/docs/evidence/TASK-UI-FORM-040/`.【F:tests/e2e/forms-controls.spec.ts†L1-L83】
