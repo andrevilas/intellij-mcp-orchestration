@@ -9,12 +9,12 @@ import type {
   TelemetryMetrics,
 } from '../api';
 
-import providersFixture from '#fixtures/providers.json' with { type: 'json' };
-import sessionsFixture from '#fixtures/sessions.json' with { type: 'json' };
-import notificationsFixture from '#fixtures/notifications.json' with { type: 'json' };
-import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' with { type: 'json' };
-import telemetryHeatmapFixture from '#fixtures/telemetry_heatmap.json' with { type: 'json' };
-import complianceFixture from '#fixtures/policies_compliance.json' with { type: 'json' };
+import providersFixture from '#fixtures/providers.json';
+import sessionsFixture from '#fixtures/sessions.json';
+import notificationsFixture from '#fixtures/notifications.json';
+import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json';
+import telemetryHeatmapFixture from '#fixtures/telemetry_heatmap.json';
+import complianceFixture from '#fixtures/policies_compliance.json';
 
 interface ProviderFixtureEntry {
   id: string;

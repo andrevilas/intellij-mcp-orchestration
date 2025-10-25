@@ -8,6 +8,7 @@ import type {
   AdminPlanSummary,
   ConfigChatResponse,
   ConfigPlanResponse,
+  ConfigApplyPullRequest,
   ConfigApplyResponse,
   ConfigReloadResponse,
   ConfigOnboardResponse,
@@ -210,7 +211,7 @@ describe('AdminChat view', () => {
     },
   };
 
-  const applySuccessPullRequest: ConfigApplyResponse['pullRequest'] = {
+  const applySuccessPullRequest: ConfigApplyPullRequest = {
     provider: 'github',
     id: 'pr-42',
     number: '42',
