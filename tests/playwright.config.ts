@@ -1,4 +1,35 @@
+import { execFileSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig, devices } from '@playwright/test';
+
+const workspaceRoot = resolve(dirname(fileURLToPath(new URL('.', import.meta.url))));
+
+function shouldInstallPlaywrightDeps(): boolean {
+  const preference = process.env.PLAYWRIGHT_INSTALL_DEPS;
+  if (typeof preference === 'string') {
+    const normalized = preference.trim().toLowerCase();
+    if (['0', 'false', 'no', 'off', 'skip'].includes(normalized)) {
+      return false;
+    }
+    if (['1', 'true', 'yes', 'on', 'auto', 'deps'].includes(normalized)) {
+      return true;
+    }
+  }
+  return Boolean(process.env.CI);
+}
+
+if (shouldInstallPlaywrightDeps()) {
+  try {
+    execFileSync('pnpm', ['exec', 'playwright', 'install-deps'], {
+      cwd: workspaceRoot,
+      stdio: 'inherit',
+    });
+  } catch (error) {
+    console.warn('Falha ao executar "playwright install-deps" automaticamente.', error);
+  }
+}
 
 const traceSetting = process.env.PLAYWRIGHT_TRACE as
   | 'on'

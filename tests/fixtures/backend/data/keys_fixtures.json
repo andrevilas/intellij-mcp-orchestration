@@ -1,0 +1,37 @@
+{
+  "secrets": [
+    {
+      "provider_id": "gemini",
+      "has_secret": true,
+      "updated_at": "2025-03-01T10:00:00Z"
+    },
+    {
+      "provider_id": "codex",
+      "has_secret": false,
+      "updated_at": null
+    }
+  ],
+  "values": {
+    "gemini": {
+      "provider_id": "gemini",
+      "value": "sk-gemini-fixture",
+      "updated_at": "2025-03-01T10:00:00Z"
+    }
+  },
+  "tests": {
+    "gemini": {
+      "provider_id": "gemini",
+      "status": "healthy",
+      "latency_ms": 120,
+      "tested_at": "2025-03-07T14:20:00Z",
+      "message": "Handshake concluído com sucesso."
+    },
+    "codex": {
+      "provider_id": "codex",
+      "status": "error",
+      "latency_ms": 0,
+      "tested_at": "2025-03-07T14:21:00Z",
+      "message": "Credencial inválida."
+    }
+  }
+}
