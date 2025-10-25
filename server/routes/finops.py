@@ -94,6 +94,8 @@ def _validate_html(document: str) -> None:
     required_markers = ("<th scope=\"col\">provider</th>", "<th scope=\"col\">cost (usd)</th>", "<th scope=\"col\">tokens in</th>")
     if not all(marker in lowered for marker in required_markers):
         raise ExportValidationError("HTML export missing FinOps telemetry fields")
+    if "no telemetry events found" in lowered:
+        raise ExportValidationError("HTML export does not contain telemetry events")
 
 
 def _validate_json(document: str) -> None:
