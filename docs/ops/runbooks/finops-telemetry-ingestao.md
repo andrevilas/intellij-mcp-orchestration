@@ -31,7 +31,7 @@
 4. **Coletar respostas das rotas FinOps**
    ```bash
    DATA=$(date -I)
-   DEST="docs/evidence/${DATA}"
+   DEST="${TMPDIR:-/tmp}/finops-${DATA}"
    mkdir -p "${DEST}"
    export DEST
 
@@ -62,19 +62,19 @@
            print(f"gravado {target}")
    PY
    ```
-   O script usa o `TestClient` para respeitar os eventos de `startup/shutdown` do FastAPI e grava os arquivos formatados na pasta do dia (`YYYY-MM-DD`).
+   O script usa o `TestClient` para respeitar os eventos de `startup/shutdown` do FastAPI e grava os arquivos formatados em um diretório temporário (`${TMPDIR}` ou `/tmp`).
 5. **Validar janelas e agregações**
    - Conferir se as respostas cobrem o intervalo recomendado (`start=2025-10-08T00:00:00Z`, `end=2025-10-21T23:59:59Z`, `window_days=7`).
    - Revisar `status`, `cost_delta` e `summary` dos relatórios de sprint/PR para detectar regressões antes do go-live.
 
 ## Evidências esperadas
 
-- `docs/evidence/<DATA>/telemetry_finops_sprints.json`
-- `docs/evidence/<DATA>/telemetry_finops_pull_requests.json`
-- `docs/evidence/<DATA>/telemetry_export.csv`
-- `docs/evidence/<DATA>/telemetry_export.html`
+- `telemetry_finops_sprints.json`
+- `telemetry_finops_pull_requests.json`
+- `telemetry_export.csv`
+- `telemetry_export.html`
 
-Mantenha os arquivos versionados no PR associado à auditoria para rastreabilidade.
+Envie esses arquivos para o cofre corporativo de evidências (SharePoint/Confluence) e **não** faça commit das cópias neste repositório. Referencie o link seguro no dossiê associado ao PR.
 
 ## Referências
 
