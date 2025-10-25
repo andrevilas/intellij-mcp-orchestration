@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 
 import type { Session } from '../../api';
-import ResourceTable, { type ResourceTableColumn } from '../../components/ResourceTable';
+import AsyncStateTable from '../../components/async/AsyncStateTable';
+import type { ResourceTableColumn } from '../../components/ResourceTable';
 import StatusBadge from '../../components/indicators/StatusBadge';
 import Pagination from '../../components/navigation/Pagination';
 import type { StatusMessageOverrides } from '../../components/status/statusUtils';
@@ -129,12 +130,10 @@ export default function SessionHistorySection({
     [],
   );
 
+  const status = error ? 'error' : isLoading ? 'loading' : sessions.length === 0 ? 'empty' : 'default';
+
   return (
-    <section
-      className="dashboard__sessions"
-      aria-label="Histórico recente de sessões"
-      data-testid={testId}
-    >
+    <section className="dashboard__sessions" aria-label="Histórico recente de sessões" data-testid={testId}>
       <header className="dashboard__section-header">
         <div>
           <h2>Histórico recente de sessões</h2>
@@ -142,15 +141,15 @@ export default function SessionHistorySection({
         </div>
       </header>
 
-      <ResourceTable
+      <AsyncStateTable
         title="Sessões MCP"
         description="Últimas execuções de provisionamento registradas na console."
         ariaLabel="Tabela de histórico de sessões MCP"
         items={sessions}
         columns={columns}
         getRowId={(session) => session.id}
-        isLoading={isLoading}
-        error={error}
+        status={status}
+        errorMessage={error}
         statusMessages={statusMessages}
         emptyState={{
           title: 'Ainda não há sessões registradas nesta execução.',

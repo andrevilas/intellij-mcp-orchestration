@@ -105,7 +105,7 @@ def main() -> None:
     payload = response.model_dump(mode="json")
     output_paths = (
         repo_root / "server/routes/fixtures/routing_simulation.json",
-        repo_root / "tests/fixtures/backend/routing_simulation.json",
+        repo_root / "tests/fixtures/backend/data/routing_simulation.json",
     )
 
     serialized = json.dumps(payload, indent=2) + "\n"
@@ -115,7 +115,7 @@ def main() -> None:
         structlog.get_logger(__name__).info("routing_fixture.written", path=str(path))
 
     routing_dir = repo_root / "server/routes/fixtures/routing"
-    tests_routing_dir = repo_root / "tests/fixtures/backend/routing"
+    tests_routing_dir = repo_root / "tests/fixtures/backend/data/routing"
     routing_dir.mkdir(parents=True, exist_ok=True)
     tests_routing_dir.mkdir(parents=True, exist_ok=True)
 

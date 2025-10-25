@@ -17,7 +17,7 @@
    ```bash
    python scripts/generate_finops_fixtures.py
    ```
-   Confirma a atualização dos arquivos em `tests/fixtures/backend/` e `server/routes/fixtures/`.
+   Confirma a atualização dos arquivos em `tests/fixtures/backend/data/` e `server/routes/fixtures/`.
 2. **Semear o SQLite local**
    ```bash
    python scripts/generate_finops_fixtures.py --seed-db --db-path server/routes/fixtures/console.db

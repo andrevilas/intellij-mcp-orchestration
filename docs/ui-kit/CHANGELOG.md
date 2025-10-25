@@ -7,7 +7,7 @@
 - `pnpm --filter app test` cobriu regressões de formulários; smoke Playwright permanece bloqueado pelo ambiente, mas agora reconhece seletores `.agent-wizard` e headings de plano.
 
 ### Relatórios atualizados
-- Criado `tests/fixtures/backend/agent_governed_plan.json` e atualizado `app/src/mocks/handlers.ts` para retornar planos com diffs/risks fiéis aos fluxos governados.
+- Criado `tests/fixtures/backend/data/agent_governed_plan.json` e atualizado `app/src/mocks/handlers.ts` para retornar planos com diffs/risks fiéis aos fluxos governados.
 - `UiKitShowcase` ganhou snippet “Wizard Governado de Agents” demonstrando `McpFormProvider`, `FormErrorSummary` e estados derivados de `describeFixtureRequest`.
 
 ### Destaques para Design/QA

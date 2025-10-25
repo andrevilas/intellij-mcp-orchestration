@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   fetchMarketplaceEntries,
@@ -6,6 +6,21 @@ import {
   type MarketplaceEntry,
   type MarketplaceImportResponse,
 } from '../api';
+import AsyncStateCard from '../components/async/AsyncStateCard';
+import AsyncStateBadge from '../components/async/AsyncStateBadge';
+
+type CatalogScenario = 'default' | 'loading' | 'empty' | 'error';
+
+const DEFAULT_ERROR_MESSAGE = 'Falha ao carregar o marketplace.';
+
+function readCatalogScenario(search: string): CatalogScenario {
+  const params = new URLSearchParams(search);
+  const scenario = params.get('catalogState');
+  if (scenario === 'loading' || scenario === 'empty' || scenario === 'error') {
+    return scenario;
+  }
+  return 'default';
+}
 
 function normalizeText(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
@@ -15,40 +30,46 @@ function useMarketplaceCatalog() {
   const [entries, setEntries] = useState<MarketplaceEntry[]>([]);
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMounted = useRef(true);
 
   useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-    setError(null);
-    fetchMarketplaceEntries()
-      .then((items) => {
-        if (!isMounted) {
-          return;
-        }
-        setEntries(items);
-      })
-      .catch((cause) => {
-        if (!isMounted) {
-          return;
-        }
-        const message = cause instanceof Error ? cause.message : 'Falha ao carregar o marketplace.';
-        setError(message);
-      })
-      .finally(() => {
-        if (isMounted) {
-          setLoading(false);
-        }
-      });
+    isMounted.current = true;
     return () => {
-      isMounted = false;
+      isMounted.current = false;
     };
   }, []);
 
-  return { entries, isLoading, error };
+  const loadEntries = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const items = await fetchMarketplaceEntries();
+      if (!isMounted.current) {
+        return;
+      }
+      setEntries(items);
+    } catch (cause) {
+      if (!isMounted.current) {
+        return;
+      }
+      const message = cause instanceof Error ? cause.message : DEFAULT_ERROR_MESSAGE;
+      setError(message);
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
+
+  return { entries, isLoading, error, reload: loadEntries };
 }
 
 export default function Marketplace() {
-  const { entries, isLoading, error } = useMarketplaceCatalog();
+  const { entries, isLoading, error, reload } = useMarketplaceCatalog();
   const [query, setQuery] = useState('');
   const [originFilter, setOriginFilter] = useState<'all' | string>('all');
   const [minRating, setMinRating] = useState(0);
@@ -56,21 +77,31 @@ export default function Marketplace() {
   const [importing, setImporting] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<MarketplaceImportResponse | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [scenario] = useState<CatalogScenario>(() =>
+    typeof window === 'undefined' ? 'default' : readCatalogScenario(window.location.search),
+  );
+
+  const entriesForFiltering = useMemo(() => {
+    if (scenario === 'empty' || scenario === 'loading') {
+      return [] as MarketplaceEntry[];
+    }
+    return entries;
+  }, [entries, scenario]);
 
   const origins = useMemo(() => {
     const set = new Set<string>();
-    for (const entry of entries) {
+    for (const entry of entriesForFiltering) {
       if (entry.origin) {
         set.add(entry.origin);
       }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [entries]);
+  }, [entriesForFiltering]);
 
   const filteredEntries = useMemo(() => {
     const normalizedQuery = normalizeText(query);
     const maxCostValue = parseFloat(maxCost);
-    return entries.filter((entry) => {
+    return entriesForFiltering.filter((entry) => {
       if (originFilter !== 'all' && entry.origin !== originFilter) {
         return false;
       }
@@ -96,7 +127,7 @@ export default function Marketplace() {
       }
       return true;
     });
-  }, [entries, originFilter, minRating, maxCost, query]);
+  }, [entriesForFiltering, originFilter, minRating, maxCost, query]);
 
   const handleFilterSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -114,6 +145,38 @@ export default function Marketplace() {
       setImportResult(null);
     } finally {
       setImporting(null);
+    }
+  };
+
+  const scenarioStatus: CatalogScenario = scenario;
+  const derivedStatus = (() => {
+    if (scenarioStatus === 'loading' || scenarioStatus === 'empty' || scenarioStatus === 'error') {
+      return scenarioStatus;
+    }
+    if (error) {
+      return 'error';
+    }
+    if (isLoading) {
+      return 'loading';
+    }
+    return filteredEntries.length === 0 ? 'empty' : 'default';
+  })();
+
+  const cardStatusMessages = {
+    loading: 'Carregando catálogo do marketplace…',
+    empty:
+      scenarioStatus === 'empty'
+        ? 'Nenhum agente disponível para o cenário selecionado.'
+        : 'Nenhum agente encontrado com os filtros atuais.',
+    error:
+      scenarioStatus === 'error'
+        ? 'Falha ao carregar catálogo a partir dos fixtures do MSW.'
+        : error ?? DEFAULT_ERROR_MESSAGE,
+  } as const;
+
+  const handleRetry = () => {
+    if (scenarioStatus === 'default') {
+      reload();
     }
   };
 
@@ -175,15 +238,14 @@ export default function Marketplace() {
         </label>
       </form>
 
-      {isLoading ? (
-        <p className="marketplace__status">Carregando catálogo…</p>
-      ) : error ? (
-        <p className="marketplace__status marketplace__status--error" role="alert">
-          {error}
-        </p>
-      ) : filteredEntries.length === 0 ? (
-        <p className="marketplace__status">Nenhum agente encontrado com os filtros atuais.</p>
-      ) : (
+      <AsyncStateCard
+        title="Catálogo de agentes"
+        description="Lista de agentes homologados disponíveis para importação na console."
+        status={derivedStatus}
+        statusMessages={cardStatusMessages}
+        onRetry={derivedStatus === 'error' && scenarioStatus === 'default' ? handleRetry : undefined}
+        testId="marketplace-catalog"
+      >
         <div className="marketplace__grid" role="list">
           {filteredEntries.map((entry) => (
             <article key={entry.id} className="marketplace-card" role="listitem">
@@ -233,12 +295,12 @@ export default function Marketplace() {
             </article>
           ))}
         </div>
-      )}
+      </AsyncStateCard>
 
       {importError ? (
-        <p className="marketplace__status marketplace__status--error" role="alert">
-          {importError}
-        </p>
+        <div className="marketplace__status marketplace__status--error" role="alert">
+          <AsyncStateBadge status="error" statusMessages={{ error: importError }} tone="danger" appearance="solid" />
+        </div>
       ) : null}
 
       {importResult ? (

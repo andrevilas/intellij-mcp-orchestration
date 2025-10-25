@@ -107,7 +107,7 @@
 ## Recomendações
 
 ### Quick Wins
-1. **Liberar UI-ACT-005** — Backend agora serve fixtures determinísticas para Dashboard/Routing/FinOps (`server/routes/fixtures/*`), permitindo testes UI sem ambiente real. Compartilhar payloads com QA via `tests/fixtures/backend`.【F:server/routes/fixtures/README.md†L1-L6】【F:tests/fixtures/backend/README.md†L1-L6】
+1. **Liberar UI-ACT-005** — Backend agora serve fixtures determinísticas para Dashboard/Routing/FinOps (`server/routes/fixtures/*`), permitindo testes UI sem ambiente real. Compartilhar payloads com QA via `tests/fixtures/backend/data`.【F:server/routes/fixtures/README.md†L1-L6】【F:tests/fixtures/backend/README.md†L1-L6】
 2. **Corrigir toolchain TS/Vitest** — Remover suites Jest ou configurar `vitest` apropriadamente; ajustar tipos em `api.ts`, `App.test.tsx`.【957f66†L1-L124】
 3. **Parametrizar API via mocks** — Implementar MSW (Mock Service Worker) ou interceptadores locais para `/api/*`, evitando dependência 127.0.0.1:8000.【F:app/vite.config.ts†L24-L44】
 4. ✅ **Introduzir design tokens e tema toggle mínimo** — `ThemeProvider` ativo, tokens `--mcp-*` documentados e SCSS base migrado para variáveis compartilhadas.【F:app/src/main.tsx†L1-L21】【F:app/src/styles/index.scss†L4-L123】【F:app/src/styles/base.scss†L38-L336】

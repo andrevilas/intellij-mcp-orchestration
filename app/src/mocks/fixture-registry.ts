@@ -4,7 +4,7 @@ const serverFixtureModules = import.meta.glob<unknown>(
 );
 
 const backendFixtureModules = import.meta.glob<unknown>(
-  '../../../tests/fixtures/backend/*.json',
+  '../../../tests/fixtures/backend/data/**/*.json',
   { eager: true, import: 'default' },
 );
 
