@@ -173,4 +173,56 @@ describe('Dashboard telemetry overview', () => {
       ).length,
     ).toBeGreaterThan(0);
   });
+
+  it('renders skeleton placeholders while bootstrapping data', () => {
+    render(
+      <ThemeProvider>
+        <ToastProvider>
+          <Dashboard
+            providers={[]}
+            sessions={[]}
+            metrics={null}
+            heatmapBuckets={[]}
+            isLoading
+            initialError={null}
+            feedback={null}
+            provisioningId={null}
+            onProvision={() => {}}
+          />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
+
+    const costCard = screen.getByTestId('dashboard-kpi-cost');
+    expect(costCard).toHaveAttribute('data-status', 'skeleton');
+    expect(costCard.querySelector('.kpi-card__skeleton-group')).not.toBeNull();
+
+    const sessionsSection = screen.getByTestId(DASHBOARD_TEST_IDS.sections.sessions);
+    expect(sessionsSection.querySelector('.resource-table__skeleton-row')).not.toBeNull();
+  });
+
+  it('propagates bootstrap errors to KPI cards and sessions', () => {
+    render(
+      <ThemeProvider>
+        <ToastProvider>
+          <Dashboard
+            providers={[]}
+            sessions={[]}
+            metrics={null}
+            heatmapBuckets={[]}
+            isLoading={false}
+            initialError="Falha ao sincronizar dados"
+            feedback={null}
+            provisioningId={null}
+            onProvision={() => {}}
+          />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByTestId('dashboard-kpi-cost')).toHaveAttribute('data-status', 'error');
+    const sessionsSection = screen.getByTestId(DASHBOARD_TEST_IDS.sections.sessions);
+    expect(sessionsSection.querySelector('[data-status="error"]')).not.toBeNull();
+    expect(screen.getAllByText('Falha ao sincronizar dados').length).toBeGreaterThan(1);
+  });
 });

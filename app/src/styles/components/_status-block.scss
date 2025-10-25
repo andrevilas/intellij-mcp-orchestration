@@ -13,6 +13,13 @@ $statuses: (
     muted: var(--mcp-status-muted-loading),
     icon: var(--mcp-status-icon-loading),
   ),
+  skeleton: (
+    surface: var(--mcp-status-surface-skeleton),
+    border: var(--mcp-status-border-skeleton),
+    text: var(--mcp-status-fg-skeleton),
+    muted: var(--mcp-status-muted-skeleton),
+    icon: var(--mcp-status-icon-skeleton),
+  ),
   empty: (
     surface: var(--mcp-status-surface-empty),
     border: var(--mcp-status-border-empty),

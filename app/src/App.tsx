@@ -123,18 +123,32 @@ function buildInitialNotificationState(
   const nextState: Record<string, boolean> = { ...baseState };
   let changed = false;
 
-  for (const notification of snapshot.notifications) {
-    if (!(notification.id in nextState)) {
-      nextState[notification.id] = false;
+  const registerNotification = (notificationId: string) => {
+    if (!(notificationId in nextState)) {
+      nextState[notificationId] = false;
       changed = true;
     }
+  };
+
+  for (const notification of snapshot.notifications) {
+    registerNotification(notification.id);
+  }
+
+  let notificationsList = snapshot.notifications.slice();
+
+  if (notificationsList.length === 0) {
+    const fallback = buildFallbackNotifications();
+    for (const notification of fallback) {
+      registerNotification(notification.id);
+    }
+    notificationsList = fallback;
   }
 
   if (changed) {
     persistNotificationReadState(nextState);
   }
 
-  const items: NotificationItem[] = snapshot.notifications
+  const items: NotificationItem[] = notificationsList
     .map((notification) => ({
       ...notification,
       isRead: nextState[notification.id] ?? false,
@@ -315,13 +329,17 @@ function App() {
   );
 
   useEffect(() => {
+    if (hasFixtureBootstrap) {
+      setIsLoading(false);
+      setInitialError(null);
+      return;
+    }
+
     const controller = new AbortController();
 
     async function bootstrap() {
       try {
-        if (!hasFixtureBootstrap) {
-          setIsLoading(true);
-        }
+        setIsLoading(true);
         const now = new Date();
         const metricsStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const heatmapStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);

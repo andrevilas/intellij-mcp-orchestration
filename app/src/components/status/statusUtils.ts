@@ -1,4 +1,4 @@
-export type AsyncContentStatus = 'default' | 'loading' | 'empty' | 'error';
+export type AsyncContentStatus = 'default' | 'loading' | 'empty' | 'error' | 'skeleton';
 
 export type StatusMessageOverrides = Partial<Record<AsyncContentStatus, string>>;
 
@@ -30,6 +30,15 @@ const STATUS_METADATA: Record<AsyncContentStatus, StatusA11yAttributes> = {
     surfaceToken: '--mcp-status-surface-loading',
     borderToken: '--mcp-status-border-loading',
     accentToken: '--mcp-status-icon-loading',
+  },
+  skeleton: {
+    message: 'Preparando visualização…',
+    role: 'status',
+    ariaLive: 'polite',
+    ariaBusy: true,
+    surfaceToken: '--mcp-status-surface-skeleton',
+    borderToken: '--mcp-status-border-skeleton',
+    accentToken: '--mcp-status-icon-skeleton',
   },
   empty: {
     message: 'Nenhum dado disponível no momento.',

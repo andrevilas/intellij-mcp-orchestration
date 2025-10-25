@@ -130,7 +130,16 @@ export default function SessionHistorySection({
     [],
   );
 
-  const status = error ? 'error' : isLoading ? 'loading' : sessions.length === 0 ? 'empty' : 'default';
+  const hasSessions = sessions.length > 0;
+  const status: AsyncContentStatus = error
+    ? 'error'
+    : isLoading
+      ? hasSessions
+        ? 'loading'
+        : 'skeleton'
+      : hasSessions
+        ? 'default'
+        : 'empty';
 
   return (
     <section className="dashboard__sessions" aria-label="Histórico recente de sessões" data-testid={testId}>
