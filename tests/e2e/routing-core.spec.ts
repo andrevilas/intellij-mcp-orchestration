@@ -83,9 +83,13 @@ test('gera e aplica plano de roteamento com intents customizadas', async ({ page
   await page.getByLabel('E-mail do autor').fill('joana@example.com');
   await page.getByLabel('Mensagem do commit').fill('feat: atualizar intents e regras');
 
+  await page.getByRole('button', { name: 'Aplicar plano' }).click();
+  const confirmationModal = page.getByRole('dialog', { name: 'Aplicar plano de roteamento' });
+  await expect(confirmationModal).toBeVisible();
+  await confirmationModal.getByRole('button', { name: 'Armar aplicação' }).click();
   const [applyRequest] = await Promise.all([
     page.waitForRequest((request) => request.url().includes('/api/v1/config/apply') && request.method() === 'POST'),
-    page.getByRole('button', { name: 'Aplicar plano' }).click(),
+    confirmationModal.getByRole('button', { name: 'Aplicar agora' }).click(),
   ]);
   const applyPayload = applyRequest.postDataJSON() as {
     plan_id: string;

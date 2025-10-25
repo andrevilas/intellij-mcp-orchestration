@@ -29,6 +29,7 @@ import {
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
+import ModalBase from '../components/modals/ModalBase';
 import { useToastNotification } from '../hooks/useToastNotification';
 import { POLICIES_TEST_IDS } from './testIds';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
@@ -289,6 +290,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PendingPolicyPlan | null>(null);
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
+  const [isPlanApplyConfirmOpen, setPlanApplyConfirmOpen] = useState(false);
   const [isPlanApplying, setPlanApplying] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [planActor, setPlanActor] = useState(() => loadPlanPreference(PLAN_ACTOR_STORAGE_KEY, 'Console MCP'));
@@ -527,6 +529,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   );
 
   const handlePlanApply = useCallback(async () => {
+    setPlanApplyConfirmOpen(false);
     if (!pendingPlan || !manifest) {
       setPlanModalOpen(false);
       return;
@@ -600,6 +603,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     setPlanModalOpen(false);
     setPlanError(null);
     setPendingPlan(null);
+    setPlanApplyConfirmOpen(false);
   }, []);
 
   const handlePlanActorChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -1042,71 +1046,17 @@ export default function Policies({ providers, isLoading, initialError }: Policie
   return (
     <>
       {isPlanModalOpen && pendingPlan ? (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="policy-plan-modal-title">
-          <div className="modal">
-            <header className="modal__header">
-              <h2 id="policy-plan-modal-title" className="modal__title">
-                Confirmar alterações nas políticas
-              </h2>
-              <p className="modal__subtitle">{pendingPlan.plan.summary}</p>
-            </header>
-            <div className="modal__body">
-              <PlanDiffViewer
-                diffs={pendingPlan.diffs}
-                testId={POLICIES_TEST_IDS.planDiffs}
-                itemTestIdPrefix={POLICIES_TEST_IDS.planDiffPrefix}
-              />
-              <div
-                className="modal__form"
-                role="group"
-                aria-labelledby="policy-plan-modal-title"
-                data-testid={POLICIES_TEST_IDS.planForm}
-              >
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="policy-plan-actor">
-                    Autor da alteração
-                  </label>
-                  <input
-                    id="policy-plan-actor"
-                    type="text"
-                    className="modal__input"
-                    value={planActor}
-                    onChange={handlePlanActorChange}
-                    placeholder="Nome completo do autor"
-                    autoComplete="name"
-                  />
-                </div>
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="policy-plan-actor-email">
-                    E-mail do autor
-                  </label>
-                  <input
-                    id="policy-plan-actor-email"
-                    type="email"
-                    className="modal__input"
-                    value={planActorEmail}
-                    onChange={handlePlanActorEmailChange}
-                    placeholder="autor@example.com"
-                    autoComplete="email"
-                  />
-                </div>
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="policy-plan-commit-message">
-                    Mensagem do commit
-                  </label>
-                  <input
-                    id="policy-plan-commit-message"
-                    type="text"
-                    className="modal__input"
-                    value={planCommitMessage}
-                    onChange={handlePlanCommitMessageChange}
-                    placeholder="Descreva o objetivo das alterações"
-                  />
-                </div>
-              </div>
-              {planError && <p className="modal__error">{planError}</p>}
-            </div>
-            <footer className="modal__footer">
+        <ModalBase
+          isOpen={isPlanModalOpen}
+          onClose={handlePlanCancel}
+          title="Confirmar alterações nas políticas"
+          description={pendingPlan.plan.summary}
+          size="xl"
+          closeOnBackdrop={false}
+          dialogClassName="modal"
+          contentClassName="modal__body"
+          footer={
+            <div className="modal__footer">
               <button
                 type="button"
                 className="button button--ghost"
@@ -1118,15 +1068,75 @@ export default function Policies({ providers, isLoading, initialError }: Policie
               <button
                 type="button"
                 className="button button--primary"
-                onClick={handlePlanApply}
+                onClick={() => setPlanApplyConfirmOpen(true)}
                 disabled={isPlanApplying}
               >
                 {isPlanApplying ? 'Aplicando…' : 'Aplicar plano'}
               </button>
-            </footer>
+            </div>
+          }
+        >
+          <PlanDiffViewer
+            diffs={pendingPlan.diffs}
+            testId={POLICIES_TEST_IDS.planDiffs}
+            itemTestIdPrefix={POLICIES_TEST_IDS.planDiffPrefix}
+          />
+          <div className="modal__form" role="group" data-testid={POLICIES_TEST_IDS.planForm}>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="policy-plan-actor">
+                Autor da alteração
+              </label>
+              <input
+                id="policy-plan-actor"
+                type="text"
+                className="modal__input"
+                value={planActor}
+                onChange={handlePlanActorChange}
+                placeholder="Nome completo do autor"
+                autoComplete="name"
+              />
+            </div>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="policy-plan-actor-email">
+                E-mail do autor
+              </label>
+              <input
+                id="policy-plan-actor-email"
+                type="email"
+                className="modal__input"
+                value={planActorEmail}
+                onChange={handlePlanActorEmailChange}
+                placeholder="autor@example.com"
+                autoComplete="email"
+              />
+            </div>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="policy-plan-commit-message">
+                Mensagem do commit
+              </label>
+              <input
+                id="policy-plan-commit-message"
+                type="text"
+                className="modal__input"
+                value={planCommitMessage}
+                onChange={handlePlanCommitMessageChange}
+                placeholder="Descreva o objetivo das alterações"
+              />
+            </div>
           </div>
-        </div>
+          {planError && <p className="modal__error">{planError}</p>}
+        </ModalBase>
       ) : null}
+      <ConfirmationModal
+        isOpen={isPlanApplyConfirmOpen}
+        title="Aplicar plano de políticas"
+        description={pendingPlan?.plan.summary}
+        confirmLabel="Armar aplicação"
+        confirmArmedLabel="Aplicar agora"
+        onConfirm={handlePlanApply}
+        onCancel={() => setPlanApplyConfirmOpen(false)}
+        isLoading={isPlanApplying}
+      />
       <ConfirmationModal
         isOpen={Boolean(policyConfirmation)}
         title={policyModalContent?.title ?? 'Confirmar ação'}

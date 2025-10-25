@@ -21,6 +21,8 @@ import {
   type ConfigPlanDiffSummary,
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
+import ModalBase from '../components/modals/ModalBase';
+import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
 
 export interface RoutingProps {
@@ -639,6 +641,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   const [isRoutingSaving, setRoutingSaving] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<PendingRoutingPlan | null>(null);
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
+  const [isPlanApplyConfirmOpen, setPlanApplyConfirmOpen] = useState(false);
   const [isPlanApplying, setPlanApplying] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [planActor, setPlanActor] = useState(() => loadPlanPreference(ROUTING_PLAN_ACTOR_STORAGE_KEY, 'Console MCP'));
@@ -908,9 +911,11 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
     setPlanModalOpen(false);
     setPendingPlan(null);
     setPlanError(null);
+    setPlanApplyConfirmOpen(false);
   }, []);
 
   const handlePlanApply = useCallback(async () => {
+    setPlanApplyConfirmOpen(false);
     if (!pendingPlan) {
       return;
     }
@@ -1153,71 +1158,17 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   return (
     <>
       {isPlanModalOpen && pendingPlan ? (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="routing-plan-modal-title">
-          <div className="modal">
-            <header className="modal__header">
-              <h2 id="routing-plan-modal-title" className="modal__title">
-                Confirmar alterações de roteamento
-              </h2>
-              <p className="modal__subtitle">{pendingPlan.plan.summary}</p>
-            </header>
-            <div className="modal__body">
-              <PlanDiffViewer
-                diffs={pendingPlan.diffs}
-                testId="routing-plan-diffs"
-                itemTestIdPrefix="routing-plan-diff"
-              />
-              <div
-                className="modal__form"
-                role="group"
-                aria-labelledby="routing-plan-modal-title"
-                data-testid={ROUTING_TEST_IDS.planForm}
-              >
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="routing-plan-actor">
-                    Autor da alteração
-                  </label>
-                  <input
-                    id="routing-plan-actor"
-                    type="text"
-                    className="modal__input"
-                    value={planActor}
-                    onChange={handlePlanActorChange}
-                    placeholder="Nome completo do autor"
-                    autoComplete="name"
-                  />
-                </div>
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="routing-plan-actor-email">
-                    E-mail do autor
-                  </label>
-                  <input
-                    id="routing-plan-actor-email"
-                    type="email"
-                    className="modal__input"
-                    value={planActorEmail}
-                    onChange={handlePlanActorEmailChange}
-                    placeholder="autor@example.com"
-                    autoComplete="email"
-                  />
-                </div>
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="routing-plan-commit-message">
-                    Mensagem do commit
-                  </label>
-                  <input
-                    id="routing-plan-commit-message"
-                    type="text"
-                    className="modal__input"
-                    value={planCommitMessage}
-                    onChange={handlePlanCommitMessageChange}
-                    placeholder="Descreva o objetivo das alterações"
-                  />
-                </div>
-              </div>
-              {planError && <p className="modal__error">{planError}</p>}
-            </div>
-            <footer className="modal__footer">
+        <ModalBase
+          isOpen={isPlanModalOpen}
+          onClose={handlePlanCancel}
+          title="Confirmar alterações de roteamento"
+          description={pendingPlan.plan.summary}
+          size="xl"
+          closeOnBackdrop={false}
+          dialogClassName="modal"
+          contentClassName="modal__body"
+          footer={
+            <div className="modal__footer">
               <button
                 type="button"
                 className="button button--ghost"
@@ -1229,15 +1180,75 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
               <button
                 type="button"
                 className="button button--primary"
-                onClick={handlePlanApply}
+                onClick={() => setPlanApplyConfirmOpen(true)}
                 disabled={isPlanApplying}
               >
                 {isPlanApplying ? 'Aplicando…' : 'Aplicar plano'}
               </button>
-            </footer>
+            </div>
+          }
+        >
+          <PlanDiffViewer
+            diffs={pendingPlan.diffs}
+            testId="routing-plan-diffs"
+            itemTestIdPrefix="routing-plan-diff"
+          />
+          <div className="modal__form" role="group" data-testid={ROUTING_TEST_IDS.planForm}>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="routing-plan-actor">
+                Autor da alteração
+              </label>
+              <input
+                id="routing-plan-actor"
+                type="text"
+                className="modal__input"
+                value={planActor}
+                onChange={handlePlanActorChange}
+                placeholder="Nome completo do autor"
+                autoComplete="name"
+              />
+            </div>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="routing-plan-actor-email">
+                E-mail do autor
+              </label>
+              <input
+                id="routing-plan-actor-email"
+                type="email"
+                className="modal__input"
+                value={planActorEmail}
+                onChange={handlePlanActorEmailChange}
+                placeholder="autor@example.com"
+                autoComplete="email"
+              />
+            </div>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="routing-plan-commit-message">
+                Mensagem do commit
+              </label>
+              <input
+                id="routing-plan-commit-message"
+                type="text"
+                className="modal__input"
+                value={planCommitMessage}
+                onChange={handlePlanCommitMessageChange}
+                placeholder="Descreva o objetivo das alterações"
+              />
+            </div>
           </div>
-        </div>
+          {planError && <p className="modal__error">{planError}</p>}
+        </ModalBase>
       ) : null}
+      <ConfirmationModal
+        isOpen={isPlanApplyConfirmOpen}
+        title="Aplicar plano de roteamento"
+        description={pendingPlan?.plan.summary}
+        confirmLabel="Armar aplicação"
+        confirmArmedLabel="Aplicar agora"
+        onConfirm={handlePlanApply}
+        onCancel={() => setPlanApplyConfirmOpen(false)}
+        isLoading={isPlanApplying}
+      />
       <section className="routing-lab" data-testid={ROUTING_TEST_IDS.lab}>
       <header className="routing-lab__intro">
         <div>

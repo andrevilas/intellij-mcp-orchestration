@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
+import clsx from 'clsx';
 
 import Button from '../actions/Button';
 import './modal.scss';
@@ -12,6 +13,9 @@ interface ModalBaseProps {
   footer?: ReactNode;
   children?: ReactNode;
   closeOnBackdrop?: boolean;
+  size?: 'md' | 'lg' | 'xl';
+  dialogClassName?: string;
+  contentClassName?: string;
 }
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
@@ -36,6 +40,9 @@ export default function ModalBase({
   footer,
   children,
   closeOnBackdrop = true,
+  size = 'md',
+  dialogClassName,
+  contentClassName,
 }: ModalBaseProps): JSX.Element | null {
   const titleId = useId();
   const descriptionId = useId();
@@ -112,7 +119,12 @@ export default function ModalBase({
         onClick={closeOnBackdrop ? onClose : undefined}
         aria-hidden="true"
       />
-      <div className="mcp-modal__dialog" ref={dialogRef} tabIndex={-1}>
+      <div
+        className={clsx('mcp-modal__dialog', dialogClassName)}
+        ref={dialogRef}
+        tabIndex={-1}
+        data-size={size}
+      >
         <header className="mcp-modal__header">
           <h2 id={titleId}>{title}</h2>
           <Button
@@ -130,7 +142,7 @@ export default function ModalBase({
             {description}
           </p>
         ) : null}
-        <div className="mcp-modal__content">{children}</div>
+        <div className={clsx('mcp-modal__content', contentClassName)}>{children}</div>
         {footer ? <footer className="mcp-modal__footer">{footer}</footer> : null}
       </div>
     </div>

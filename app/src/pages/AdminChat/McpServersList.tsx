@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   applyConfigMcpUpdate,
@@ -10,6 +10,8 @@ import {
   type McpServerUpdateInput,
 } from '../../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
+import ModalBase from '../../components/modals/ModalBase';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
 
 interface ServerDraft {
   name: string;
@@ -157,6 +159,7 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
   const [applyActorEmail, setApplyActorEmail] = useState(DEFAULT_ACTOR_EMAIL);
   const [applyCommitMessage, setApplyCommitMessage] = useState(DEFAULT_COMMIT_MESSAGE);
   const [applyNote, setApplyNote] = useState('');
+  const [isApplyConfirmOpen, setApplyConfirmOpen] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -291,13 +294,15 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
   const handlePlanCancel = () => {
     setPendingPlan(null);
     setApplyError(null);
+    setApplyConfirmOpen(false);
   };
 
-  const handleApply = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const executeApply = useCallback(async () => {
     if (!pendingPlan) {
       return;
     }
+
+    setApplyConfirmOpen(false);
 
     const trimmedActor = applyActor.trim();
     const trimmedEmail = applyActorEmail.trim();
@@ -374,7 +379,15 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
       setApplyLoading(false);
       previousResultRef.current = undefined;
     }
-  };
+  }, [applyActor, applyActorEmail, applyCommitMessage, applyNote, pendingPlan, results]);
+
+  const handleApply = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      void executeApply();
+    },
+    [executeApply],
+  );
 
   const renderResultMessage = (serverId: string) => {
     const result = results[serverId];
@@ -525,87 +538,17 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
       ) : null}
 
       {pendingPlan ? (
-        <div
-          className="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="mcp-update-modal-title"
-        >
-          <form className="modal" onSubmit={handleApply}>
-            <header className="modal__header">
-              <h2 id="mcp-update-modal-title" className="modal__title">
-                Revisar plano para {pendingPlan.server.name}
-              </h2>
-              <p className="modal__subtitle">{pendingPlan.summary}</p>
-            </header>
-            <div className="modal__body">
-              {pendingPlan.message ? <p>{pendingPlan.message}</p> : null}
-              {applyError ? (
-                <p className="modal__error" role="alert">
-                  {applyError}
-                </p>
-              ) : null}
-              <PlanDiffViewer
-                diffs={pendingPlan.diffs}
-                title="Diffs sugeridos"
-                emptyMessage="Nenhuma alteração detectada para este servidor."
-              />
-              <div className="modal__form" role="group" aria-labelledby="mcp-update-modal-title">
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="mcp-update-actor">
-                    Autor da alteração
-                  </label>
-                  <input
-                    id="mcp-update-actor"
-                    className="modal__input"
-                    type="text"
-                    value={applyActor}
-                    onChange={(event) => setApplyActor(event.target.value)}
-                    disabled={isApplyLoading}
-                  />
-                </div>
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="mcp-update-email">
-                    E-mail do autor
-                  </label>
-                  <input
-                    id="mcp-update-email"
-                    className="modal__input"
-                    type="email"
-                    value={applyActorEmail}
-                    onChange={(event) => setApplyActorEmail(event.target.value)}
-                    disabled={isApplyLoading}
-                  />
-                </div>
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="mcp-update-commit">
-                    Mensagem do commit
-                  </label>
-                  <input
-                    id="mcp-update-commit"
-                    className="modal__input"
-                    type="text"
-                    value={applyCommitMessage}
-                    onChange={(event) => setApplyCommitMessage(event.target.value)}
-                    disabled={isApplyLoading}
-                  />
-                </div>
-                <div className="modal__field">
-                  <label className="modal__label" htmlFor="mcp-update-note">
-                    Nota adicional (opcional)
-                  </label>
-                  <textarea
-                    id="mcp-update-note"
-                    className="modal__input"
-                    rows={3}
-                    value={applyNote}
-                    onChange={(event) => setApplyNote(event.target.value)}
-                    disabled={isApplyLoading}
-                  />
-                </div>
-              </div>
-            </div>
-            <footer className="modal__footer">
+        <ModalBase
+          isOpen
+          onClose={handlePlanCancel}
+          title={`Revisar plano para ${pendingPlan.server.name}`}
+          description={pendingPlan.summary}
+          size="xl"
+          closeOnBackdrop={false}
+          dialogClassName="modal"
+          contentClassName="modal__body"
+          footer={
+            <div className="modal__footer">
               <button
                 type="button"
                 className="button button--ghost"
@@ -614,13 +557,95 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
               >
                 Cancelar
               </button>
-              <button type="submit" className="button button--primary" disabled={isApplyLoading}>
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={() => setApplyConfirmOpen(true)}
+                disabled={isApplyLoading}
+              >
                 {isApplyLoading ? 'Aplicando…' : 'Aplicar atualização'}
               </button>
-            </footer>
+            </div>
+          }
+        >
+          {pendingPlan.message ? <p>{pendingPlan.message}</p> : null}
+          {applyError ? (
+            <p className="modal__error" role="alert">
+              {applyError}
+            </p>
+          ) : null}
+          <PlanDiffViewer
+            diffs={pendingPlan.diffs}
+            title="Diffs sugeridos"
+            emptyMessage="Nenhuma alteração detectada para este servidor."
+          />
+          <form className="modal__form" onSubmit={handleApply}>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="mcp-update-actor">
+                Autor da alteração
+              </label>
+              <input
+                id="mcp-update-actor"
+                className="modal__input"
+                type="text"
+                value={applyActor}
+                onChange={(event) => setApplyActor(event.target.value)}
+                disabled={isApplyLoading}
+              />
+            </div>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="mcp-update-email">
+                E-mail do autor
+              </label>
+              <input
+                id="mcp-update-email"
+                className="modal__input"
+                type="email"
+                value={applyActorEmail}
+                onChange={(event) => setApplyActorEmail(event.target.value)}
+                disabled={isApplyLoading}
+              />
+            </div>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="mcp-update-commit">
+                Mensagem do commit
+              </label>
+              <input
+                id="mcp-update-commit"
+                className="modal__input"
+                type="text"
+                value={applyCommitMessage}
+                onChange={(event) => setApplyCommitMessage(event.target.value)}
+                disabled={isApplyLoading}
+              />
+            </div>
+            <div className="modal__field">
+              <label className="modal__label" htmlFor="mcp-update-note">
+                Nota adicional (opcional)
+              </label>
+              <textarea
+                id="mcp-update-note"
+                className="modal__input"
+                rows={3}
+                value={applyNote}
+                onChange={(event) => setApplyNote(event.target.value)}
+                disabled={isApplyLoading}
+              />
+            </div>
+            <button type="submit" hidden />
           </form>
-        </div>
+        </ModalBase>
       ) : null}
+      <ConfirmationModal
+        isOpen={isApplyConfirmOpen}
+        title={`Aplicar atualização · ${pendingPlan?.server.name ?? ''}`}
+        description={pendingPlan?.summary}
+        confirmLabel="Armar aplicação"
+        confirmArmedLabel="Aplicar agora"
+        onConfirm={executeApply}
+        onCancel={() => setApplyConfirmOpen(false)}
+        isLoading={isApplyLoading}
+      />
     </section>
   );
 }

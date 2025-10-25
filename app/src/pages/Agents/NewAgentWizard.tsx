@@ -1,14 +1,4 @@
-import {
-  type FormEvent,
-  type MouseEvent as ReactMouseEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useState } from 'react';
 
 import type {
   AdminPlanPullRequestSummary,
@@ -33,6 +23,8 @@ import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffView
 import { NEW_AGENT_WIZARD_TEST_IDS } from '../testIds';
 import { FormErrorSummary, Input, TextArea } from '../../components/forms';
 import { McpFormProvider, useMcpForm } from '../../hooks/useMcpForm';
+import ModalBase from '../../components/modals/ModalBase';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
 
 interface NewAgentWizardProps {
   isOpen: boolean;
@@ -214,7 +206,6 @@ function generatePlanId(): string {
 
 export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewAgentWizardProps) {
   const headingId = useId();
-  const panelRef = useRef<HTMLElement | null>(null);
 
   const planForm = useMcpForm<PlanFormValues>({
     defaultValues: {
@@ -276,6 +267,7 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applyStatusMessage, setApplyStatusMessage] = useState<string | null>(null);
   const [applyResponse, setApplyResponse] = useState<ApplyPolicyPlanResponse | null>(null);
+  const [isApplyConfirmationOpen, setApplyConfirmationOpen] = useState(false);
 
   const sortedProviders = useMemo(() => {
     return [...providers].sort((a, b) => a.name.localeCompare(b.name));
@@ -299,43 +291,13 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
     setApplyError(null);
     setApplyStatusMessage(null);
     setApplyResponse(null);
+    setApplyConfirmationOpen(false);
   }, [resetPlanForm]);
 
   const handleClose = useCallback(() => {
     resetWizard();
     onClose();
   }, [onClose, resetWizard]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return undefined;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        planForm.setFocus('slug');
-      } catch (error) {
-        const focusable = panelRef.current?.querySelector<HTMLElement>(
-          'input:not([type="hidden"]):not([disabled]), textarea:not([disabled])',
-        );
-        focusable?.focus({ preventScroll: true });
-      }
-    });
-
-    function handleKeydown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        handleClose();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeydown);
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener('keydown', handleKeydown);
-    };
-  }, [handleClose, isOpen, planForm]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -367,15 +329,6 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
       controller.abort();
     };
   }, [isOpen]);
-
-  const handleBackdropClick = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (event.target === event.currentTarget) {
-        handleClose();
-      }
-    },
-    [handleClose],
-  );
 
   const handleGeneratePlan = useCallback(
     async (values: PlanFormValues) => {
@@ -459,83 +412,6 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
     [clearPlanFormErrors, setPlanFormError, setPlanFormValue],
   );
 
-  const handleApplyPlan = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-
-      if (!pendingPlan) {
-        setApplyError('Gere um plano antes de aplicar as alterações.');
-        return;
-      }
-
-      const patch = pendingPlan.patch.trim();
-      if (!patch) {
-        setApplyError('O plano não forneceu diff aplicável.');
-        return;
-      }
-
-      const slugValue = getPlanFormValues('slug');
-      const normalizedSlug = sanitizeSlug(slugValue);
-      if (!normalizedSlug) {
-        setPlanFormError('slug', { type: 'manual', message: 'Informe o identificador do agent.' });
-        try {
-          planForm.setFocus('slug');
-        } catch (error) {
-          console.warn('Não foi possível focar o campo de slug do agent.', error);
-        }
-        return;
-      }
-
-      const normalizedCommit = commitMessage.trim() || `feat: adicionar agent ${normalizedSlug}`;
-
-      setApplying(true);
-      setApplyError(null);
-      setApplyStatusMessage(null);
-
-      try {
-        const response = await postAgentPlanApply({
-          planId: pendingPlan.id,
-          plan: pendingPlan.planPayload,
-          patch,
-          actor: DEFAULT_ACTOR,
-          actorEmail: DEFAULT_ACTOR_EMAIL,
-          commitMessage: normalizedCommit,
-        });
-
-        setApplyResponse(response);
-        setPlanSummary((current) => {
-          const base = current ?? buildPlanSummary(pendingPlan.id, pendingPlan.plan, null);
-          return {
-            ...base,
-            status: 'applied',
-            branch: response.branch ?? base.branch ?? null,
-            baseBranch: response.baseBranch ?? base.baseBranch ?? null,
-            pullRequest: mapExecutionPullRequest(response.pullRequest ?? null) ?? base.pullRequest ?? null,
-          };
-        });
-        setPendingPlan(null);
-
-        const details: string[] = [response.message];
-        if (response.branch) {
-          details.push(`Branch: ${response.branch}`);
-        }
-        if (response.pullRequest?.url) {
-          details.push(`PR: ${response.pullRequest.url}`);
-        }
-        setApplyStatusMessage(details.join(' '));
-
-        onAgentCreated?.(normalizedSlug);
-      } catch (error) {
-        console.error('Falha ao aplicar plano governado do agent', error);
-        const message = extractErrorMessage(error, 'Falha ao aplicar o plano gerado.');
-        setApplyError(message);
-      } finally {
-        setApplying(false);
-      }
-    },
-    [commitMessage, getPlanFormValues, onAgentCreated, pendingPlan, planForm, setPlanFormError],
-  );
-
   const submitPlanForm = useMemo(
     () =>
       planForm.handleSubmit(handleGeneratePlan, () => {
@@ -545,13 +421,9 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
     [handleGeneratePlan, planForm],
   );
 
-  if (!isOpen) {
-    return null;
-  }
-
   const hasRisks = risks.length > 0;
 
-  const actions: ReactNode = useMemo(() => {
+  const planActions: ReactNode = useMemo(() => {
     if (!pendingPlan) {
       return null;
     }
@@ -563,236 +435,348 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
     );
   }, [pendingPlan]);
 
-  return (
-    <div
-      className="agent-wizard"
-      role="presentation"
-      onClick={handleBackdropClick}
-      data-testid={NEW_AGENT_WIZARD_TEST_IDS.root}
-    >
-      <section
-        className="agent-wizard__panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={headingId}
-        ref={panelRef}
-        data-testid={NEW_AGENT_WIZARD_TEST_IDS.panel}
-      >
-        <header className="mcp-wizard__header">
-          <div>
-            <h2 id={headingId}>Novo agent governado</h2>
-            <p>Preencha os dados básicos, cole o manifesto base e selecione os servidores MCP envolvidos.</p>
-          </div>
-          <button type="button" className="agent-wizard__close" onClick={handleClose}>
-            Fechar
-          </button>
-        </header>
+  const applyConfirmationContent = useMemo(() => {
+    if (!pendingPlan) {
+      return null;
+    }
+    return {
+      title: 'Aplicar plano governado',
+      description: pendingPlan.plan.summary,
+      confirmLabel: 'Armar aplicação',
+      confirmArmedLabel: 'Aplicar agora',
+    } as const;
+  }, [pendingPlan]);
 
-        <div className="agent-wizard__review">
-          <McpFormProvider {...planForm}>
+  const requestApplyPlan = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!pendingPlan) {
+        setApplyError('Gere um plano antes de aplicar as alterações.');
+        return;
+      }
+      setApplyError(null);
+      setApplyStatusMessage(null);
+      setApplyConfirmationOpen(true);
+    },
+    [pendingPlan],
+  );
+
+  const closeApplyConfirmation = useCallback(() => {
+    setApplyConfirmationOpen(false);
+  }, []);
+
+  const executeApplyPlan = useCallback(async () => {
+    if (!pendingPlan) {
+      setApplyError('Gere um plano antes de aplicar as alterações.');
+      setApplyConfirmationOpen(false);
+      return;
+    }
+
+    const patch = pendingPlan.patch.trim();
+    if (!patch) {
+      setApplyError('O plano não forneceu diff aplicável.');
+      setApplyConfirmationOpen(false);
+      return;
+    }
+
+    const slugValue = getPlanFormValues('slug');
+    const normalizedSlug = sanitizeSlug(slugValue);
+    if (!normalizedSlug) {
+      setPlanFormError('slug', { type: 'manual', message: 'Informe o identificador do agent.' });
+      try {
+        planForm.setFocus('slug');
+      } catch (error) {
+        console.warn('Não foi possível focar o campo de slug do agent.', error);
+      }
+      setApplyConfirmationOpen(false);
+      return;
+    }
+
+    const normalizedCommit = commitMessage.trim() || `feat: adicionar agent ${normalizedSlug}`;
+
+    setApplyConfirmationOpen(false);
+    setApplying(true);
+    setApplyError(null);
+    setApplyStatusMessage(null);
+
+    try {
+      const response = await postAgentPlanApply({
+        planId: pendingPlan.id,
+        plan: pendingPlan.planPayload,
+        patch,
+        actor: DEFAULT_ACTOR,
+        actorEmail: DEFAULT_ACTOR_EMAIL,
+        commitMessage: normalizedCommit,
+      });
+
+      setApplyResponse(response);
+      setPlanSummary((current) => {
+        const base = current ?? buildPlanSummary(pendingPlan.id, pendingPlan.plan, null);
+        return {
+          ...base,
+          status: 'applied',
+          branch: response.branch ?? base.branch ?? null,
+          baseBranch: response.baseBranch ?? base.baseBranch ?? null,
+          pullRequest: mapExecutionPullRequest(response.pullRequest ?? null) ?? base.pullRequest ?? null,
+        };
+      });
+      setPendingPlan(null);
+
+      const details: string[] = [response.message];
+      if (response.branch) {
+        details.push(`Branch: ${response.branch}`);
+      }
+      if (response.pullRequest?.url) {
+        details.push(`PR: ${response.pullRequest.url}`);
+      }
+      setApplyStatusMessage(details.join(' '));
+
+      onAgentCreated?.(normalizedSlug);
+    } catch (error) {
+      console.error('Falha ao aplicar plano governado do agent', error);
+      const message = extractErrorMessage(error, 'Falha ao aplicar o plano gerado.');
+      setApplyError(message);
+    } finally {
+      setApplying(false);
+    }
+  }, [commitMessage, getPlanFormValues, onAgentCreated, pendingPlan, planForm, setPlanFormError]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setApplyConfirmationOpen(false);
+    }
+  }, [isOpen]);
+
+  return (
+    <>
+      <ModalBase
+        isOpen={isOpen}
+        title="Novo agent governado"
+        description="Preencha os dados básicos, cole o manifesto base e selecione os servidores MCP envolvidos."
+        onClose={handleClose}
+        closeOnBackdrop={false}
+        size="xl"
+        dialogClassName="agent-wizard__dialog"
+        contentClassName="agent-wizard__content"
+      >
+        <div className="agent-wizard" data-testid={NEW_AGENT_WIZARD_TEST_IDS.root}>
+          <div className="agent-wizard__review" data-testid={NEW_AGENT_WIZARD_TEST_IDS.panel}>
+            <McpFormProvider {...planForm}>
+              <form
+                onSubmit={submitPlanForm}
+                className="mcp-wizard"
+                data-testid={NEW_AGENT_WIZARD_TEST_IDS.planForm}
+              >
+                <FormErrorSummary />
+                <fieldset className="mcp-wizard__fields" disabled={isPlanning}>
+                  <legend>Dados do agent</legend>
+                  <div className="mcp-wizard__field">
+                    <Input
+                      label="Identificador do agent"
+                      placeholder="Ex.: sentinel-watcher"
+                      autoComplete="off"
+                      required
+                      error={slugErrorMessage}
+                      helperText="Use letras minúsculas, números e hífens."
+                      data-autofocus="true"
+                      {...register('slug', {
+                        required: 'Informe o identificador do agent.',
+                        setValueAs: (value) => sanitizeSlug(String(value ?? '')),
+                        validate: (value) =>
+                          value && String(value).trim().length > 0
+                            ? true
+                            : 'Informe o identificador do agent.',
+                      })}
+                    />
+                  </div>
+                  <div className="mcp-wizard__field">
+                    <Input
+                      label="Repositório de destino"
+                      placeholder="Ex.: agents-hub"
+                      autoComplete="off"
+                      required
+                      error={repositoryErrorMessage}
+                      {...register('repository', {
+                        required: 'Informe o repositório de destino.',
+                        setValueAs: (value) => String(value ?? '').trim(),
+                      })}
+                    />
+                  </div>
+                  <div className="mcp-wizard__field">
+                    <TextArea
+                      label="Manifesto base (JSON)"
+                      rows={8}
+                      spellCheck={false}
+                      required
+                      helperText="Inclua as chaves principais do agent (name, title, capabilities, model, tools...)."
+                      error={manifestErrorMessage}
+                      {...register('manifest', {
+                        required: 'Forneça o manifesto base em JSON.',
+                        validate: (value) => {
+                          try {
+                            parseManifestInput(value);
+                            return true;
+                          } catch (error) {
+                            return error instanceof Error
+                              ? error.message
+                              : 'Manifesto base inválido. Forneça JSON válido.';
+                          }
+                        },
+                      })}
+                    />
+                  </div>
+                  <div className="mcp-wizard__field">
+                    <fieldset className="mcp-wizard__fieldset">
+                      <legend>Servidores MCP envolvidos</legend>
+                      {providersLoading ? (
+                        <p className="mcp-wizard__helper">Carregando servidores MCP…</p>
+                      ) : providersError ? (
+                        <p className="mcp-wizard__helper mcp-wizard__helper--error" role="alert">
+                          {providersError}
+                        </p>
+                      ) : sortedProviders.length > 0 ? (
+                        <ul className="mcp-wizard__options">
+                          {sortedProviders.map((server) => (
+                            <li key={server.id}>
+                              <label className="mcp-wizard__checkbox">
+                                <input
+                                  type="checkbox"
+                                  value={server.id}
+                                  aria-describedby={serversErrorId}
+                                  aria-invalid={serversErrorMessage ? 'true' : 'false'}
+                                  {...register('servers', serverValidationRules)}
+                                />
+                                <span>
+                                  <strong>{server.name}</strong>
+                                  {server.description ? <span> — {server.description}</span> : null}
+                                </span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mcp-wizard__helper">Nenhum servidor MCP cadastrado.</p>
+                      )}
+                      {serversErrorMessage ? (
+                        <p
+                          id={serversErrorId}
+                          className="mcp-wizard__helper mcp-wizard__helper--error"
+                          role="alert"
+                        >
+                          {serversErrorMessage}
+                        </p>
+                      ) : null}
+                    </fieldset>
+                  </div>
+                </fieldset>
+                <button
+                  type="submit"
+                  className="mcp-wizard__button mcp-wizard__button--primary"
+                  disabled={isPlanning}
+                  data-testid={NEW_AGENT_WIZARD_TEST_IDS.generatePlan}
+                >
+                  {isPlanning ? 'Gerando plano…' : 'Gerar plano governado'}
+                </button>
+                {planError ? (
+                  <p className="mcp-wizard__helper mcp-wizard__helper--error" role="alert">
+                    {planError}
+                  </p>
+                ) : null}
+                {planMessage ? (
+                  <p className="mcp-wizard__helper" role="status">
+                    {planMessage}
+                  </p>
+                ) : null}
+              </form>
+            </McpFormProvider>
+
+            <PlanSummary
+              plan={planSummary}
+              isLoading={isPlanning}
+              actions={planActions}
+              testId="new-agent-plan-summary"
+            />
+            <PlanDiffViewer
+              diffs={pendingPlan?.diffItems ?? []}
+              emptyMessage="Gere um plano para visualizar os arquivos propostos."
+              testId="new-agent-plan-diffs"
+              itemTestIdPrefix="new-agent-diff"
+            />
+
+            {hasRisks ? (
+              <section className="mcp-wizard mcp-wizard__risks">
+                <h3>Riscos identificados</h3>
+                <ul>
+                  {risks.map((risk) => (
+                    <li key={risk.title}>
+                      <strong>{risk.title}</strong>
+                      <span>
+                        Impacto: {risk.impact} · Mitigação: {risk.mitigation}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
             <form
-              onSubmit={submitPlanForm}
+              onSubmit={requestApplyPlan}
               className="mcp-wizard"
-              data-testid={NEW_AGENT_WIZARD_TEST_IDS.planForm}
+              data-testid={NEW_AGENT_WIZARD_TEST_IDS.applyForm}
             >
-              <FormErrorSummary />
-              <fieldset className="mcp-wizard__fields" disabled={isPlanning}>
-                <legend>Dados do agent</legend>
+              <fieldset className="mcp-wizard__fields" disabled={isApplying || !pendingPlan}>
+                <legend>Aplicar plano</legend>
                 <div className="mcp-wizard__field">
-                  <Input
-                    label="Identificador do agent"
-                    placeholder="Ex.: sentinel-watcher"
-                    autoComplete="off"
-                    required
-                    error={slugErrorMessage}
-                    helperText="Use letras minúsculas, números e hífens."
-                    {...register('slug', {
-                      required: 'Informe o identificador do agent.',
-                      setValueAs: (value) => sanitizeSlug(String(value ?? '')),
-                      validate: (value) =>
-                        value && String(value).trim().length > 0
-                          ? true
-                          : 'Informe o identificador do agent.',
-                    })}
+                  <label htmlFor="new-agent-commit">Mensagem do commit</label>
+                  <input
+                    id="new-agent-commit"
+                    value={commitMessage}
+                    onChange={(event) => setCommitMessage(event.target.value)}
+                    placeholder="feat: adicionar agent <slug>"
                   />
-                </div>
-                <div className="mcp-wizard__field">
-                  <Input
-                    label="Repositório de destino"
-                    placeholder="Ex.: agents-hub"
-                    autoComplete="off"
-                    required
-                    error={repositoryErrorMessage}
-                    {...register('repository', {
-                      required: 'Informe o repositório de destino.',
-                      setValueAs: (value) => String(value ?? '').trim(),
-                    })}
-                  />
-                </div>
-                <div className="mcp-wizard__field">
-                  <TextArea
-                    label="Manifesto base (JSON)"
-                    rows={8}
-                    spellCheck={false}
-                    required
-                    helperText="Inclua as chaves principais do agent (name, title, capabilities, model, tools...)."
-                    error={manifestErrorMessage}
-                    {...register('manifest', {
-                      required: 'Forneça o manifesto base em JSON.',
-                      validate: (value) => {
-                        try {
-                          parseManifestInput(value);
-                          return true;
-                        } catch (error) {
-                          return error instanceof Error
-                            ? error.message
-                            : 'Manifesto base inválido. Forneça JSON válido.';
-                        }
-                      },
-                    })}
-                  />
-                </div>
-                <div className="mcp-wizard__field">
-                  <span>Servidores MCP selecionados</span>
-                  {providersLoading ? (
-                    <p className="mcp-wizard__helper">Carregando servidores MCP…</p>
-                  ) : null}
-                  {providersError ? (
-                    <p className="mcp-wizard__helper mcp-wizard__helper--error" role="alert">
-                      {providersError}
-                    </p>
-                  ) : null}
-                  {!providersLoading && !providersError ? (
-                    sortedProviders.length > 0 ? (
-                      <ul className="mcp-wizard__options">
-                        {sortedProviders.map((server) => (
-                          <li key={server.id}>
-                            <label className="mcp-wizard__checkbox">
-                              <input
-                                type="checkbox"
-                                value={server.id}
-                                aria-describedby={serversErrorId}
-                                aria-invalid={serversErrorMessage ? 'true' : 'false'}
-                                {...register('servers', serverValidationRules)}
-                              />
-                              <span>
-                                <strong>{server.name}</strong>
-                                {server.description ? <span> — {server.description}</span> : null}
-                              </span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mcp-wizard__helper">Nenhum servidor MCP cadastrado.</p>
-                    )
-                  ) : null}
-                  {serversErrorMessage ? (
-                    <p
-                      id={serversErrorId}
-                      className="mcp-wizard__helper mcp-wizard__helper--error"
-                      role="alert"
-                    >
-                      {serversErrorMessage}
-                    </p>
-                  ) : null}
                 </div>
               </fieldset>
               <button
                 type="submit"
                 className="mcp-wizard__button mcp-wizard__button--primary"
-                disabled={isPlanning}
-                data-testid={NEW_AGENT_WIZARD_TEST_IDS.generatePlan}
+                disabled={isApplying || !pendingPlan}
+                data-testid={NEW_AGENT_WIZARD_TEST_IDS.applyPlan}
               >
-                {isPlanning ? 'Gerando plano…' : 'Gerar plano governado'}
+                {isApplying ? 'Aplicando plano…' : 'Aplicar plano'}
               </button>
-              {planError ? (
+              {applyError ? (
                 <p className="mcp-wizard__helper mcp-wizard__helper--error" role="alert">
-                  {planError}
+                  {applyError}
                 </p>
               ) : null}
-              {planMessage ? (
+              {applyStatusMessage ? (
                 <p className="mcp-wizard__helper" role="status">
-                  {planMessage}
+                  {applyStatusMessage}
+                </p>
+              ) : null}
+              {applyResponse?.pullRequest?.url ? (
+                <p className="mcp-wizard__helper">
+                  <a href={applyResponse.pullRequest.url} target="_blank" rel="noreferrer">
+                    Abrir pull request aprovado
+                  </a>
                 </p>
               ) : null}
             </form>
-          </McpFormProvider>
-
-          <PlanSummary
-            plan={planSummary}
-            isLoading={isPlanning}
-            actions={actions}
-            testId="new-agent-plan-summary"
-          />
-          <PlanDiffViewer
-            diffs={pendingPlan?.diffItems ?? []}
-            emptyMessage="Gere um plano para visualizar os arquivos propostos."
-            testId="new-agent-plan-diffs"
-            itemTestIdPrefix="new-agent-diff"
-          />
-
-          {hasRisks ? (
-            <section className="mcp-wizard mcp-wizard__risks">
-              <h3>Riscos identificados</h3>
-              <ul>
-                {risks.map((risk) => (
-                  <li key={risk.title}>
-                    <strong>{risk.title}</strong>
-                    <span>
-                      Impacto: {risk.impact} · Mitigação: {risk.mitigation}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          <form
-            onSubmit={handleApplyPlan}
-            className="mcp-wizard"
-            data-testid={NEW_AGENT_WIZARD_TEST_IDS.applyForm}
-          >
-            <fieldset className="mcp-wizard__fields" disabled={isApplying || !pendingPlan}>
-              <legend>Aplicar plano</legend>
-              <div className="mcp-wizard__field">
-                <label htmlFor="new-agent-commit">Mensagem do commit</label>
-                <input
-                  id="new-agent-commit"
-                  value={commitMessage}
-                  onChange={(event) => setCommitMessage(event.target.value)}
-                  placeholder="feat: adicionar agent <slug>"
-                />
-              </div>
-            </fieldset>
-            <button
-              type="submit"
-              className="mcp-wizard__button mcp-wizard__button--primary"
-              disabled={isApplying || !pendingPlan}
-              data-testid={NEW_AGENT_WIZARD_TEST_IDS.applyPlan}
-            >
-              {isApplying ? 'Aplicando plano…' : 'Aplicar plano'}
-            </button>
-            {applyError ? (
-              <p className="mcp-wizard__helper mcp-wizard__helper--error" role="alert">
-                {applyError}
-              </p>
-            ) : null}
-            {applyStatusMessage ? (
-              <p className="mcp-wizard__helper" role="status">
-                {applyStatusMessage}
-              </p>
-            ) : null}
-            {applyResponse?.pullRequest?.url ? (
-              <p className="mcp-wizard__helper">
-                <a href={applyResponse.pullRequest.url} target="_blank" rel="noreferrer">
-                  Abrir pull request aprovado
-                </a>
-              </p>
-            ) : null}
-          </form>
+          </div>
         </div>
-      </section>
-    </div>
+      </ModalBase>
+      <ConfirmationModal
+        isOpen={isApplyConfirmationOpen}
+        title={applyConfirmationContent?.title ?? 'Aplicar plano governado'}
+        description={applyConfirmationContent?.description}
+        confirmLabel={applyConfirmationContent?.confirmLabel ?? 'Confirmar aplicação'}
+        confirmArmedLabel={applyConfirmationContent?.confirmArmedLabel ?? 'Aplicar agora'}
+        onConfirm={executeApplyPlan}
+        onCancel={closeApplyConfirmation}
+        isLoading={isApplying}
+        confirmHint="Clique uma vez para armar a aplicação."
+        confirmArmedHint="Clique novamente para aplicar o plano."
+      />
+    </>
   );
 }
