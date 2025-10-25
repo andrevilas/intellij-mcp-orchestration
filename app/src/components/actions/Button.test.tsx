@@ -50,6 +50,21 @@ describe('Button', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it('pode manter interação durante loading quando configurado', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <Button loading allowInteractionWhileLoading onClick={onClick}>
+        Sincronizando
+      </Button>,
+    );
+    const button = screen.getByRole('button', { name: 'Sincronizando' });
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    await user.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it('renderiza ícone opcional', () => {
     render(
       <Button icon={<span data-testid="icon" />}>Ação</Button>,

@@ -40,6 +40,9 @@ export interface DropdownProps {
   triggerAriaLabel?: string;
   status?: DropdownStatus;
   statusMessages?: DropdownStatusMessages;
+  disabled?: boolean;
+  loading?: boolean;
+  loadingLabel?: string;
 }
 
 export default function Dropdown({
@@ -50,6 +53,9 @@ export default function Dropdown({
   triggerAriaLabel,
   status,
   statusMessages,
+  disabled = false,
+  loading,
+  loadingLabel,
 }: DropdownProps): JSX.Element {
   const triggerId = useId();
   const menuId = useId();
@@ -77,7 +83,11 @@ export default function Dropdown({
     return options.length === 0 ? 'empty' : 'success';
   }, [options.length, status]);
 
-  const isInteractive = resolvedStatus === 'success' || resolvedStatus === 'idle';
+  const resolvedLoading = loading ?? resolvedStatus === 'loading';
+  const isDisabled = disabled;
+  const canToggle = !isDisabled;
+  const isInteractive =
+    !isDisabled && !resolvedLoading && (resolvedStatus === 'success' || resolvedStatus === 'idle');
 
   const focusOption = useCallback((index: number) => {
     const target = optionRefs.current[index];
@@ -216,13 +226,16 @@ export default function Dropdown({
 
   const handleTriggerKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+      if (!canToggle) {
+        return;
+      }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         pendingFocus.current = event.key === 'ArrowUp' ? 'last' : 'first';
         setOpen(true);
       }
     },
-    [],
+    [canToggle],
   );
 
   const handleOptionClick = useCallback(
@@ -275,18 +288,16 @@ export default function Dropdown({
       return null;
     }
 
+    if (resolvedLoading) {
+      return (
+        <div className="mcp-dropdown__status mcp-dropdown__status--loading" role="status" aria-live="polite">
+          <span className="mcp-dropdown__spinner" aria-hidden="true" />
+          {loadingLabel ?? resolvedMessages.loading}
+        </div>
+      );
+    }
+
     switch (resolvedStatus) {
-      case 'loading':
-        return (
-          <div
-            className="mcp-dropdown__status mcp-dropdown__status--loading"
-            role="status"
-            aria-live="polite"
-          >
-            <span className="mcp-dropdown__spinner" aria-hidden="true" />
-            {resolvedMessages.loading}
-          </div>
-        );
       case 'empty':
         return (
           <div className="mcp-dropdown__status" role="status" aria-live="polite">
@@ -302,14 +313,17 @@ export default function Dropdown({
       default:
         return null;
     }
-  }, [isOpen, resolvedMessages.empty, resolvedMessages.error, resolvedMessages.loading, resolvedStatus]);
+  }, [isOpen, loadingLabel, resolvedLoading, resolvedMessages.empty, resolvedMessages.error, resolvedMessages.loading, resolvedStatus]);
+
+  const componentState = isDisabled ? 'disabled' : resolvedLoading ? 'loading' : resolvedStatus;
 
   return (
     <div
       className={clsx('mcp-dropdown', className)}
       data-open={isOpen}
-      data-state={resolvedStatus}
-      aria-busy={resolvedStatus === 'loading' || undefined}
+      data-state={componentState}
+      aria-busy={resolvedLoading || undefined}
+      data-disabled={isDisabled || undefined}
     >
       <Button
         ref={triggerRef}
@@ -318,11 +332,20 @@ export default function Dropdown({
         aria-controls={isOpen ? menuId : undefined}
         id={triggerId}
         variant="secondary"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (!canToggle) {
+            return;
+          }
+          setOpen((value) => !value);
+        }}
         onKeyDown={handleTriggerKeyDown}
         type="button"
         className="mcp-dropdown__trigger"
         aria-label={triggerAriaLabel}
+        disabled={isDisabled}
+        loading={resolvedLoading}
+        allowInteractionWhileLoading={canToggle}
+        data-state={componentState}
       >
         {label}
       </Button>

@@ -116,6 +116,11 @@
   box-shadow: 0 12px 24px color-mix(in srgb, var(--mcp-overlay-soft) 65%, transparent);
 }
 
+.notification-center__controls .mcp-button {
+  min-height: auto;
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--mcp-overlay-soft) 65%, transparent);
+}
+
 .notification-center__close:focus-visible,
 .notification-center__mark-all:focus-visible {
   outline: 2px solid var(--mcp-focus-ring);
@@ -129,7 +134,8 @@
   box-shadow: 0 12px 28px color-mix(in srgb, var(--notification-accent) 28%, transparent);
 }
 
-.notification-center__mark-all:disabled {
+.notification-center__mark-all:disabled,
+.notification-center__mark-all.mcp-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   box-shadow: none;
@@ -355,10 +361,21 @@
   padding: 0.25rem 0.5rem;
   border-radius: 0.5rem;
   transition: background 0.2s ease, color 0.2s ease;
+  box-shadow: none;
+}
+
+.notification__action.mcp-button {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-height: auto;
+  padding: 0.25rem 0.5rem;
 }
 
 .notification__action:hover,
-.notification__action:focus-visible {
+.notification__action:focus-visible,
+.notification__action.mcp-button:hover,
+.notification__action.mcp-button:focus-visible {
   background: color-mix(in srgb, var(--notification-accent) 18%, transparent);
   color: var(--notification-accent-strong);
   outline: none;

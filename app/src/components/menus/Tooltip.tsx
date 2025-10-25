@@ -22,6 +22,9 @@ export interface TooltipProps {
   content: ReactNode;
   placement?: 'top' | 'right' | 'bottom' | 'left';
   delay?: number | TooltipDelay;
+  disabled?: boolean;
+  loading?: boolean;
+  loadingContent?: ReactNode;
 }
 
 export default function Tooltip({
@@ -29,6 +32,9 @@ export default function Tooltip({
   content,
   placement = 'top',
   delay,
+  disabled = false,
+  loading = false,
+  loadingContent,
 }: TooltipProps): JSX.Element {
   const tooltipId = useId();
   const [isVisible, setVisible] = useState(false);
@@ -57,9 +63,12 @@ export default function Tooltip({
     }
   };
 
-  useEffect(() => clearTimers, []);
+  useEffect(() => () => clearTimers(), []);
 
   const show = () => {
+    if (disabled) {
+      return;
+    }
     if (closeTimeoutRef.current) {
       window.clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
@@ -84,9 +93,16 @@ export default function Tooltip({
     }, delays.close);
   };
 
+  useEffect(() => {
+    if (disabled) {
+      clearTimers();
+      setVisible(false);
+    }
+  }, [disabled]);
+
   const describedBy = [
     (children.props as { 'aria-describedby'?: string })['aria-describedby'],
-    isVisible ? tooltipId : null,
+    !disabled && isVisible ? tooltipId : null,
   ]
     .filter((value): value is string => Boolean(value))
     .join(' ');
@@ -127,18 +143,24 @@ export default function Tooltip({
     'aria-describedby': describedBy.length > 0 ? describedBy : undefined,
   };
 
+  const bubbleContent = loading ? loadingContent ?? 'Carregando…' : content;
+  const tooltipState = disabled ? 'disabled' : loading ? 'loading' : isVisible ? 'open' : 'closed';
+
   return (
-    <span className="mcp-tooltip" data-placement={placement}>
+    <span className="mcp-tooltip" data-placement={placement} data-state={tooltipState} aria-busy={loading || undefined}>
       {cloneElement(children, triggerProps)}
-      {isVisible ? (
+      {isVisible && !disabled ? (
         <span
           role="tooltip"
           id={tooltipId}
           className="mcp-tooltip__bubble"
+          data-state={loading ? 'loading' : 'ready'}
+          aria-busy={loading || undefined}
           onPointerEnter={show}
           onPointerLeave={hide}
         >
-          {content}
+          {loading ? <span className="mcp-tooltip__spinner" aria-hidden="true" /> : null}
+          <span className="mcp-tooltip__content">{bubbleContent}</span>
         </span>
       ) : null}
     </span>

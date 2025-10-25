@@ -18,6 +18,27 @@
   top: 0;
   left: 50%;
   z-index: var(--mcp-z-tooltip);
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.mcp-tooltip__bubble[data-state='loading'] {
+  opacity: 0.9;
+}
+
+.mcp-tooltip__content {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mcp-tooltip__spinner {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  animation: mcp-tooltip-spin 600ms linear infinite;
 }
 
 .mcp-tooltip[data-placement='bottom'] .mcp-tooltip__bubble {
@@ -41,4 +62,10 @@
 [data-theme='dark'] .mcp-tooltip__bubble {
   background-color: var(--mcp-surface);
   color: var(--mcp-surface-contrast);
+}
+
+@keyframes mcp-tooltip-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
