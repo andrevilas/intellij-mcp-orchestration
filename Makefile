@@ -4,8 +4,8 @@ PNPM := pnpm
 PYTHON := python3
 
 .PHONY: doctor bootstrap reset clean install install-frontend install-backend \
-	dev dev-frontend dev-backend test test-suite test-frontend test-backend \
-	test-agents smoke check ci secrets-sync \
+        dev dev-frontend dev-backend test test-suite test-frontend test-backend \
+        test-agents smoke check ci secrets-sync secrets-audit \
 	build package-electron
 
 doctor:
@@ -15,7 +15,10 @@ bootstrap:
 	bash scripts/bootstrap-mcp.sh
 
 secrets-sync:
-	bash scripts/secrets-sync.sh
+        bash scripts/secrets-sync.sh
+
+secrets-audit:
+        bash scripts/secrets-audit.sh
 
 reset:
 	bash scripts/reset.sh

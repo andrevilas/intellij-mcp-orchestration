@@ -6,36 +6,23 @@ SOPS_FILE=${SOPS_FILE:-config/secrets.enc.yaml}
 MCP_HOME=${MCP_HOME:-"${HOME}/.mcp"}
 ENV_FILE=${ENV_FILE:-"${MCP_HOME}/.env"}
 SECRETS_JSON=${SECRETS_JSON:-"${MCP_HOME}/console-secrets.json"}
+SECRET_PROVIDER=${SECRET_PROVIDER:-auto}
+export SOPS_BIN SOPS_FILE
 
 usage() {
   cat <<'USAGE' >&2
 Usage: scripts/secrets-sync.sh
 
-Decrypts the SOPS-managed secrets bundle into the local developer workspace.
-Requires a valid SOPS age identity either in $SOPS_AGE_KEY or ~/.config/sops/age/keys.txt.
+Sincroniza segredos para o ambiente local utilizando HashiCorp Vault ou o
+bundle SOPS criptografado (fallback). Quando VAULT_ADDR e VAULT_SECRET_PATH
+estiverem definidos, o Vault será priorizado; caso contrário, o bundle SOPS
+é utilizado (requer chave age via $SOPS_AGE_KEY ou ~/.config/sops/age/keys.txt).
 USAGE
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
-fi
-
-if ! command -v "$SOPS_BIN" >/dev/null 2>&1; then
-  echo "[ERROR] sops not found in PATH. See docs/ops/runbooks/secret-management.md" >&2
-  exit 1
-fi
-
-if [[ ! -f "$SOPS_FILE" ]]; then
-  echo "[ERROR] Encrypted secrets bundle $SOPS_FILE not found." >&2
-  exit 1
-fi
-
-if [[ -z "${SOPS_AGE_KEY:-}" ]] && [[ ! -f "${HOME}/.config/sops/age/keys.txt" ]]; then
-  cat >&2 <<'MSG'
-[ERROR] No age identity detected. Export SOPS_AGE_KEY or place your key in ~/.config/sops/age/keys.txt.
-MSG
-  exit 1
 fi
 
 TMP_JSON=$(mktemp)
@@ -47,9 +34,9 @@ trap cleanup EXIT
 umask 077
 mkdir -p "$MCP_HOME"
 
-# Decrypt as JSON to simplify downstream processing.
-if ! "$SOPS_BIN" --decrypt --output-type json "$SOPS_FILE" >"$TMP_JSON"; then
-  echo "[ERROR] Failed to decrypt $SOPS_FILE. Check your SOPS_AGE_KEY." >&2
+# Carrega o bundle seguro em JSON utilizando o reader consolidado.
+if ! python3 config/secure_reader.py --provider "$SECRET_PROVIDER" --output "$TMP_JSON" >/dev/null; then
+  echo "[ERROR] Falha ao carregar segredos. Consulte a saída acima." >&2
   exit 1
 fi
 
