@@ -1,8 +1,9 @@
 # ui-next-steps.md — Roadmap UI (Bootstrap 5 + Font Awesome + Vite/React/TS)
-**Última atualização:** 2025-10-20 16:20
+**Última atualização:** 2025-10-25 19:30
 **Objetivo:** acelerar o time-to-value da UI com **Bootstrap 5 (SCSS seletivo)** + **Font Awesome** e **suporte completo a temas (Light/Dark)**, garantindo **a11y AA**, **performance ≥90** e **consistência visual**.
 
 ## Governança e follow-up
+- Consuma `docs/audit-ui-m1-m6.md` como fonte de verdade: só atualize este roadmap após refletir o mesmo status na auditoria e validar a paridade com `next-steps.md`.
 - Registre cada ID concluído atualizando os checklists deste arquivo e do `next-steps.md`, mantendo a sincronização entre roadmap macro e detalhado.
 - Publique as evidências correspondentes em `/docs/evidence/<ID>/` (prints, gravações, relatórios técnicos, etc.).
 - Sempre que uma sprint UI for desbloqueada, reavalie `docs/audit-ui-m1-m6.md` e documente novos riscos ou pendências.
@@ -14,28 +15,28 @@
 - Cada componente com estados: `loading`, `empty`, `error`, `success`.
 - Telemetria leve de UI (console/log dev) para rastrear interações críticas.
 
-## Status auditado (2025-10-20)
-- `[~]` indica fluxo restaurado em modo fixture, pendente apenas de validação externa (ex.: dependências do runner Playwright).
-- [x] **TASK-UI-SH-010** · Shell auditado com `skip-link`, atalhos (`⌘K`/`⇧⌘N`) e roving tabindex; ainda requer mocks para dados dinâmicos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **TASK-UI-NAV-011** · Breadcrumbs + Pagination ativos, tokens documentados e foco visível nas interações (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **TASK-UI-ACT-020** · Catálogo de botões revisado com variantes MCP e toolbar segmentada (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
-- [x] **TASK-UI-ACT-021** · Dropdowns/tooltips com foco gerenciado, ESC e delays configuráveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **TASK-UI-FB-022** · Alerts/toasts alinhados aos tokens e anúncios ARIA (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **TASK-UI-MOD-023** · Modais confirm/form com trap de foco e double confirm (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **UI-ACT-005** · Toggle de fixtures habilitado liberando sprint M5 em modo offline, com vitest e playwright ajustados para aguardar MSW.【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
-- [ ] **TASK-UI-DATA-030** · Cards KPI/lista/detalhe incompletos (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-DATA-031** · Tabela + EmptyState sem comportamento esperado (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **TASK-UI-DATA-032** · Badges/progress não padronizados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **TASK-UI-FORM-040** · Controles de formulário migrados para camada MCP (`docs/forms/README.md`).【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
-- [x] **TASK-UI-FORM-041** · Validação e feedback inacessíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:app/src/pages/Agents/NewAgentWizard.tsx†L222-L768】【F:docs/ui-kit/actions-feedback-dados.md†L19-L26】
-- [ ] **TASK-UI-FORM-042** · Upload/download não implementados (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [~] **TASK-UI-PG-070** · Dashboard reidrata métricas/telemetria via fixtures e mensagens `describeFixtureRequest`; smoke Playwright bloqueado pelo host sem `playwright install-deps`.【F:app/src/pages/Dashboard.tsx†L18-L42】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [~] **TASK-UI-PG-071** · Página Servers usa fixtures (`loadBackendFixture`) para resumo/ações CRUD; suíte Playwright aguarda dependências nativas do Chromium no runner.【F:tests/e2e/servers.spec.ts†L1-L146】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [~] **TASK-UI-PG-072** · Console de segurança consome fixtures e exibe mensagens contextualizadas (`describeFixtureRequest`); specs Playwright só falharam por libs do sistema ausentes.【F:app/src/pages/Security.tsx†L89-L139】【F:tests/e2e/security.spec.ts†L1-L145】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [~] **TASK-UI-PG-073** · Policies HITL e histórico carregam fixtures, com testes exercendo geração/aplicação end-to-end; execução depende do Chromium local.【F:app/src/pages/Policies.tsx†L32-L64】【F:tests/e2e/policies-hitl.spec.ts†L1-L63】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [~] **TASK-UI-PG-074** · Routing Lab simula intents/planos a partir de fixtures determinísticos; smoke travado apenas pelo erro `browserType.launch` no container QA.【F:app/src/pages/Routing.tsx†L22-L55】【F:tests/e2e/routing-rules.spec.ts†L1-L86】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [~] **TASK-UI-PG-075** · FinOps consome planos/alertas do MSW e valida payloads; Playwright gera artefatos apesar do bloqueio de dependências. 【F:app/src/pages/FinOps.tsx†L18-L39】【F:tests/e2e/finops-plan.spec.ts†L1-L86】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [x] **TASK-UI-OBS-082** · UI Kit vivo ativo com snippets, métricas publicadas em `/docs/evidence/TASK-UI-OBS-082/`.【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
+## Status auditado (2025-10-25)
+- `[x]` indica implementado, porém o valor de sprint continua **bloqueado** enquanto o ambiente Playwright não sobe.
+- [x] **TASK-UI-SH-010** · Implementação concluída, mas ver bloqueio global de execução da suíte.【4ea611†L1-L205】
+- [x] **TASK-UI-NAV-011** · Breadcrumbs/Pagination entregues, aguardando revalidação após `playwright install-deps`.【4ea611†L1-L205】
+- [x] **TASK-UI-ACT-020** · Componentes prontos, sem possibilidade de auditoria enquanto Chromium não inicia.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
+- [x] **TASK-UI-ACT-021** · Dropdowns/tooltips implementados, revalidação bloqueada pelo runner Chromium.【4ea611†L1-L205】
+- [x] **TASK-UI-FB-022** · Alerts/toasts entregues, aguardando smoke real para fechar sprint.【4ea611†L1-L205】
+- [x] **TASK-UI-MOD-023** · Modais auditados previamente; bloqueio persiste por falha da suíte E2E.【4ea611†L1-L205】
+- [x] **UI-ACT-005** · Toggle de fixtures ativo, mas sem suite não há evidência atualizada de desbloqueio da sprint.【4ea611†L1-L205】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
+- [ ] **TASK-UI-DATA-030** · Bloqueado — componentes de dados aguardam validação com Playwright operacional.【4ea611†L1-L205】
+- [ ] **TASK-UI-DATA-031** · Bloqueado — tabela/EmptyState continuam sem cobertura de teste por falha geral do runner.【4ea611†L1-L205】
+- [ ] **TASK-UI-DATA-032** · Bloqueado — progresso depende das mesmas dependências nativas ausentes.【4ea611†L1-L205】
+- [x] **TASK-UI-FORM-040** · Controles disponíveis; suite inacessível impede validação contínua.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
+- [ ] **TASK-UI-FORM-041** · Bloqueado — validações aguardam reexecução após corrigir ambiente.【4ea611†L1-L205】
+- [ ] **TASK-UI-FORM-042** · Bloqueado — upload/download pendentes e sem evidência atualizada.【4ea611†L1-L205】
+- [ ] **TASK-UI-PG-070** · Bloqueado — dashboard depende das fixtures porém Chromium não inicia para validar.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [ ] **TASK-UI-PG-071** · Bloqueado — página Servers sem smoke por `browserType.launch` falhando.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [ ] **TASK-UI-PG-072** · Bloqueado — console de segurança não pode ser auditado até restaurar suíte.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [ ] **TASK-UI-PG-073** · Bloqueado — policies HITL aguardam reexecução da suíte para confirmar fluxo.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [ ] **TASK-UI-PG-074** · Bloqueado — Routing Lab segue sem evidência nova por falha global do Chromium.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [ ] **TASK-UI-PG-075** · Bloqueado — FinOps continua sem teste automatizado válido pela falta de dependências do host.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [x] **TASK-UI-OBS-082** · UI Kit entregue; bloquear sprint até retestar com Playwright operacional.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 
 ## Auditoria Final UI — 2025-10-20
 - `pnpm -r dev` inicializa o shell Vite e permanece em execução até ser encerrado manualmente, confirmando que o toolkit React continua pronto para desenvolvimento local.【2b58dd†L1-L5】
