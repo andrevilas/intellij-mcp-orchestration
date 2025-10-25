@@ -1,0 +1,139 @@
+{
+  "entries": [
+    {
+      "id": "governed-checkout",
+      "slug": "governed-checkout",
+      "name": "Governed Checkout",
+      "summary": "Fluxo verificado para revisar pedidos de forma assistida.",
+      "description": "Integração com LangGraph e HITL para aprovar pedidos acima de 10k USD.",
+      "origin": "first-party",
+      "rating": 4.8,
+      "cost": 12.5,
+      "tags": ["compliance", "orders"],
+      "capabilities": ["plan", "webhook"],
+      "repository_url": "https://github.com/example/governed-checkout",
+      "package_path": "packages/governed-checkout",
+      "manifest_filename": "agent.yaml",
+      "entrypoint_filename": "agent.py",
+      "target_repository": "git@example.com:checkout/ops.git",
+      "signature": "fixture-signature",
+      "created_at": "2025-02-01T10:00:00Z",
+      "updated_at": "2025-03-01T09:30:00Z"
+    },
+    {
+      "id": "codex-labs",
+      "slug": "codex-labs",
+      "name": "Codex Labs Analyzer",
+      "summary": "Avalia execuções de MCP para sugerir otimizações.",
+      "description": "Relatórios semanais com métricas de custo e falhas.",
+      "origin": "community",
+      "rating": 4.1,
+      "cost": 4.2,
+      "tags": ["observability", "finops"],
+      "capabilities": ["report", "dashboard"],
+      "repository_url": "https://github.com/example/codex-labs",
+      "package_path": "packages/codex-labs",
+      "manifest_filename": "agent.yaml",
+      "entrypoint_filename": "agent.py",
+      "target_repository": "git@example.com:codex/ops.git",
+      "signature": "fixture-signature",
+      "created_at": "2025-01-12T08:00:00Z",
+      "updated_at": "2025-03-03T16:45:00Z"
+    },
+    {
+      "id": "gemini-cache",
+      "slug": "gemini-cache",
+      "name": "Gemini Cache Priming",
+      "summary": "Gera warmup automatizado para servidores Gemini MCP.",
+      "description": null,
+      "origin": "partner",
+      "rating": 4.9,
+      "cost": 7.9,
+      "tags": ["performance", "cache"],
+      "capabilities": ["warmup", "schedule"],
+      "repository_url": "https://github.com/example/gemini-cache",
+      "package_path": "packages/gemini-cache",
+      "manifest_filename": "agent.yaml",
+      "entrypoint_filename": null,
+      "target_repository": "git@example.com:gemini/cache.git",
+      "signature": "fixture-signature",
+      "created_at": "2024-12-05T14:00:00Z",
+      "updated_at": "2025-02-26T11:00:00Z"
+    }
+  ],
+  "imports": {
+    "governed-checkout": {
+      "entry": {
+        "id": "governed-checkout",
+        "slug": "governed-checkout",
+        "name": "Governed Checkout",
+        "summary": "Fluxo verificado para revisar pedidos de forma assistida.",
+        "description": "Integração com LangGraph e HITL para aprovar pedidos acima de 10k USD.",
+        "origin": "first-party",
+        "rating": 4.8,
+        "cost": 12.5,
+        "tags": ["compliance", "orders"],
+        "capabilities": ["plan", "webhook"],
+        "repository_url": "https://github.com/example/governed-checkout",
+        "package_path": "packages/governed-checkout",
+        "manifest_filename": "agent.yaml",
+        "entrypoint_filename": "agent.py",
+        "target_repository": "git@example.com:checkout/ops.git",
+        "signature": "fixture-signature",
+        "created_at": "2025-02-01T10:00:00Z",
+        "updated_at": "2025-03-01T09:30:00Z"
+      },
+      "plan": {
+        "intent": "marketplace.import",
+        "summary": "Importar Governed Checkout via fixtures.",
+        "steps": [
+          {
+            "id": "checkout-clone",
+            "title": "Clonar pacote do marketplace",
+            "description": "Baixa código, valida assinatura e prepara manifestos.",
+            "depends_on": [],
+            "actions": [
+              {
+                "type": "file.write",
+                "path": "packages/governed-checkout/agent.yaml",
+                "contents": "name: governed-checkout\nversion: 1.0.0\n",
+                "encoding": "utf-8",
+                "overwrite": true
+              }
+            ]
+          }
+        ],
+        "diffs": [
+          {
+            "path": "packages/governed-checkout/agent.yaml",
+            "summary": "Adicionar manifesto do agente Governed Checkout.",
+            "change_type": "add"
+          }
+        ],
+        "risks": [
+          {
+            "title": "Requer aprovação HITL",
+            "impact": "médio",
+            "mitigation": "Executar smoke tests após deploy."
+          }
+        ],
+        "status": "completed",
+        "context": [
+          {
+            "path": "packages/governed-checkout/README.md",
+            "snippet": "Governed Checkout pronto para uso.",
+            "score": 0.91,
+            "title": "README",
+            "chunk": 1
+          }
+        ],
+        "approval_rules": ["marketplace-review"]
+      },
+      "manifest": "name: governed-checkout\nversion: 1.0.0\nsource: fixtures",
+      "agent_code": "print('Governed Checkout importado')"
+    }
+  },
+  "errors": {
+    "codex-labs": "Falha ao importar Codex Labs Analyzer via fixtures."
+  }
+}

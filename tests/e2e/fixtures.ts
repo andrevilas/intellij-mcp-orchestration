@@ -1,5 +1,50 @@
-import { expect as baseExpect, test as base } from '@playwright/test';
-import { waitForFixtureWorker, FIXTURE_READY_FLAG } from '../../app/src/mocks/playwright';
+import { expect as baseExpect, test as base, type Page } from '@playwright/test';
+
+const FIXTURE_READY_FLAG = '__CONSOLE_MCP_FIXTURES__';
+
+type FixtureStatus = 'ready' | 'disabled' | 'error';
+
+async function waitForFixtureWorker(
+  page: Page,
+  timeout = 10_000,
+  options?: { allowDisabled?: boolean },
+): Promise<void> {
+  const { allowDisabled = false } = options ?? {};
+
+  await page.waitForFunction(
+    (flag) => {
+      const readyFlag = flag as typeof FIXTURE_READY_FLAG;
+      const globalObject = window as typeof window & { [FIXTURE_READY_FLAG]?: FixtureStatus };
+      const status = globalObject[readyFlag];
+      return status === 'ready' || status === 'disabled' || status === 'error';
+    },
+    FIXTURE_READY_FLAG,
+    { timeout },
+  );
+
+  const status = await page.evaluate<FixtureStatus | undefined>(
+    (flag) => {
+      const readyFlag = flag as typeof FIXTURE_READY_FLAG;
+      const globalObject = window as typeof window & { [FIXTURE_READY_FLAG]?: FixtureStatus };
+      return globalObject[readyFlag];
+    },
+    FIXTURE_READY_FLAG,
+  );
+
+  if (status === 'error') {
+    throw new Error('Console MCP fixture worker failed to initialize.');
+  }
+
+  if (status === 'disabled' && !allowDisabled) {
+    throw new Error(
+      'Console MCP fixture worker está desativado. Habilite CONSOLE_MCP_USE_FIXTURES para executar os testes.',
+    );
+  }
+
+  if (!status) {
+    throw new Error('Console MCP fixture worker status indisponível.');
+  }
+}
 
 type FixturePreference = 'force' | 'off' | 'auto';
 
@@ -24,6 +69,7 @@ export const test = base.extend({
     const originalGoto = page.goto.bind(page);
     const originalReload = page.reload.bind(page);
     const preference = resolveFixturePreference();
+    const allowDisabledFixtures = preference !== 'force';
 
     await page.addInitScript(
       ({ flag, status }) => {
@@ -63,14 +109,14 @@ export const test = base.extend({
 
     page.goto = (async (...args) => {
       const response = await originalGoto(...args);
-      await waitForFixtureWorker(page);
+      await waitForFixtureWorker(page, undefined, { allowDisabled: allowDisabledFixtures });
       await waitForNetworkIdle();
       return response;
     }) as typeof page.goto;
 
     page.reload = (async (...args) => {
       const response = await originalReload(...args);
-      await waitForFixtureWorker(page);
+      await waitForFixtureWorker(page, undefined, { allowDisabled: allowDisabledFixtures });
       await waitForNetworkIdle();
       return response;
     }) as typeof page.reload;

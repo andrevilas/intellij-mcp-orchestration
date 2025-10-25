@@ -265,6 +265,36 @@ jobs:
           path: uvicorn.log
           if-no-files-found: ignore
 
+      - name: Clean previous Playwright smoke artifacts
+        run: rm -rf tests/test-results tests/playwright-report playwright-smoke.log || true
+
+      - name: Run Playwright smoke suite
+        env:
+          PLAYWRIGHT_TRACE: retain-on-failure
+          PLAYWRIGHT_VIDEO: retain-on-failure
+          CONSOLE_MCP_USE_FIXTURES: force
+        run: |
+          set -o pipefail
+          pnpm --dir tests exec playwright test 2>&1 | tee playwright-smoke.log
+
+      - name: Upload Playwright smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-log
+          path: playwright-smoke.log
+          if-no-files-found: ignore
+
+      - name: Upload Playwright smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-artifacts
+          path: |
+            tests/test-results
+            tests/playwright-report
+          if-no-files-found: warn
+
   playwright:
     needs:
       - lint

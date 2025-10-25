@@ -1,0 +1,98 @@
+{
+  "flow_id": "demo-flow",
+  "versions": [
+    {
+      "flow_id": "demo-flow",
+      "version": 3,
+      "created_at": "2025-03-05T10:00:00Z",
+      "created_by": "Lia Observability",
+      "comment": "Adicionar checkpoint HITL",
+      "graph": {
+        "id": "demo-flow",
+        "label": "Fluxo demo Governança",
+        "entry": "inicio",
+        "exit": "fim",
+        "nodes": [
+          {
+            "id": "inicio",
+            "type": "state",
+            "label": "Início",
+            "config": {
+              "position": { "x": 120, "y": 180 }
+            }
+          },
+          {
+            "id": "checkpoint-hitl",
+            "type": "checkpoint",
+            "label": "Aprovação humana",
+            "config": {
+              "position": { "x": 360, "y": 200 }
+            }
+          },
+          {
+            "id": "fim",
+            "type": "state",
+            "label": "Fim",
+            "config": {
+              "position": { "x": 600, "y": 220 }
+            }
+          }
+        ],
+        "edges": [
+          { "id": "inicio-checkpoint", "source": "inicio", "target": "checkpoint-hitl", "condition": null },
+          { "id": "checkpoint-fim", "source": "checkpoint-hitl", "target": "fim", "condition": "approved" }
+        ],
+        "metadata": {
+          "description": "Fluxo demo com checkpoint HITL",
+          "agent_class": "CheckoutFlow",
+          "target_path": "agents-hub/app/agents/demo-flow/agent.py"
+        }
+      },
+      "agent_code": "print('demo flow v3')",
+      "hitl_checkpoints": ["checkpoint-hitl"],
+      "diff": "--- a/agent.py\\n+++ b/agent.py\\n+print('demo flow v3')"
+    },
+    {
+      "flow_id": "demo-flow",
+      "version": 2,
+      "created_at": "2025-03-01T09:00:00Z",
+      "created_by": "Lia Observability",
+      "comment": "Fluxo base",
+      "graph": {
+        "id": "demo-flow",
+        "label": "Fluxo demo Governança",
+        "entry": "inicio",
+        "exit": "fim",
+        "nodes": [
+          {
+            "id": "inicio",
+            "type": "state",
+            "label": "Início",
+            "config": {
+              "position": { "x": 120, "y": 180 }
+            }
+          },
+          {
+            "id": "fim",
+            "type": "state",
+            "label": "Fim",
+            "config": {
+              "position": { "x": 520, "y": 180 }
+            }
+          }
+        ],
+        "edges": [
+          { "id": "inicio-fim", "source": "inicio", "target": "fim", "condition": null }
+        ],
+        "metadata": {
+          "description": "Fluxo inicial",
+          "agent_class": "CheckoutFlow",
+          "target_path": "agents-hub/app/agents/demo-flow/agent.py"
+        }
+      },
+      "agent_code": "print('demo flow v2')",
+      "hitl_checkpoints": [],
+      "diff": ""
+    }
+  ]
+}
