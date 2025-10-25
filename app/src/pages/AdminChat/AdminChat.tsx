@@ -17,6 +17,8 @@ import McpOnboardingWizard from './McpOnboardingWizard';
 import McpServersList from './McpServersList';
 import MediaLightbox from '../../components/MediaLightbox';
 import MediaPlayer, { type MediaSource } from '../../components/MediaPlayer';
+import ModalBase from '../../components/modals/ModalBase';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
 
 const ROLE_LABELS = {
   user: 'Operador',
@@ -226,6 +228,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
   const [reloadPlanId, setReloadPlanId] = useState<string | null>(null);
   const [isReloadGenerating, setReloadGenerating] = useState(false);
   const [isReloadApplying, setReloadApplying] = useState(false);
+  const [isReloadApplyConfirmOpen, setReloadApplyConfirmOpen] = useState(false);
   const [reloadSuccessMessage, setReloadSuccessMessage] = useState<string | null>(null);
   const [reloadActor, setReloadActor] = useState(() => loadReloadPreference(RELOAD_ACTOR_STORAGE_KEY));
   const [reloadActorEmail, setReloadActorEmail] = useState(() => loadReloadPreference(RELOAD_ACTOR_EMAIL_STORAGE_KEY));
@@ -319,6 +322,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
     setReloadError(null);
     setReloadApplyError(null);
     setReloadParametersError(null);
+    setReloadApplyConfirmOpen(false);
     setReloadTargetPath('');
     setReloadParameters('');
     setReloadGenerating(false);
@@ -389,6 +393,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
   );
 
   const handleReloadApply = useCallback(async () => {
+    setReloadApplyConfirmOpen(false);
     if (!reloadPlanResponse || !reloadPlanId) {
       return;
     }
@@ -871,109 +876,21 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
         </MediaLightbox>
       ) : null}
       {isReloadModalOpen && selectedArtifact ? (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="admin-reload-modal-title">
-          <div className="modal">
-            <header className="modal__header">
-              <h2 id="admin-reload-modal-title" className="modal__title">
-                Regenerar {selectedArtifact.title}
-              </h2>
-              <p className="modal__subtitle">
-                {reloadPlanResponse ? reloadPlanResponse.plan.summary : 'Informe o destino e os parâmetros opcionais antes de gerar o plano.'}
-              </p>
-            </header>
-            <div className="modal__body">
-              {reloadPlanResponse ? (
-                <div>
-                  <p>{reloadPlanResponse.message}</p>
-                  {reloadApplyError ? <p className="modal__error">{reloadApplyError}</p> : null}
-                  {reloadError && !reloadApplyError ? <p className="modal__error">{reloadError}</p> : null}
-                  <PlanDiffViewer
-                    diffs={reloadDiffItems}
-                    title="Alterações propostas"
-                    emptyMessage="Nenhuma alteração detectada para o artefato informado."
-                  />
-                  <div className="modal__form" role="group" aria-labelledby="admin-reload-modal-title">
-                    <div className="modal__field">
-                      <label className="modal__label" htmlFor="admin-reload-target">Caminho de destino</label>
-                      <input
-                        id="admin-reload-target"
-                        type="text"
-                        className="modal__input"
-                        value={reloadTargetPath}
-                        onChange={handleReloadTargetPathChange}
-                        readOnly
-                        disabled
-                      />
-                    </div>
-                    <div className="modal__field">
-                      <label className="modal__label" htmlFor="admin-reload-actor">Autor da alteração</label>
-                      <input
-                        id="admin-reload-actor"
-                        type="text"
-                        className="modal__input"
-                        value={reloadActor}
-                        onChange={handleReloadActorChange}
-                        placeholder="Nome completo"
-                        disabled={isReloadApplying}
-                      />
-                    </div>
-                    <div className="modal__field">
-                      <label className="modal__label" htmlFor="admin-reload-email">E-mail do autor</label>
-                      <input
-                        id="admin-reload-email"
-                        type="email"
-                        className="modal__input"
-                        value={reloadActorEmail}
-                        onChange={handleReloadActorEmailChange}
-                        placeholder="autor@example.com"
-                        disabled={isReloadApplying}
-                      />
-                    </div>
-                    <div className="modal__field">
-                      <label className="modal__label" htmlFor="admin-reload-commit">Mensagem do commit</label>
-                      <input
-                        id="admin-reload-commit"
-                        type="text"
-                        className="modal__input"
-                        value={reloadCommitMessage}
-                        onChange={handleReloadCommitMessageChange}
-                        disabled={isReloadApplying}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <form className="modal__form" onSubmit={handleReloadGenerate}>
-                  {reloadError ? <p className="modal__error">{reloadError}</p> : null}
-                  <div className="modal__field">
-                    <label className="modal__label" htmlFor="admin-reload-target">Caminho de destino</label>
-                    <input
-                      id="admin-reload-target"
-                      type="text"
-                      className="modal__input"
-                      value={reloadTargetPath}
-                      onChange={handleReloadTargetPathChange}
-                      placeholder={selectedArtifact.placeholderPath}
-                      disabled={isReloadGenerating}
-                    />
-                  </div>
-                  <div className="modal__field">
-                    <label className="modal__label" htmlFor="admin-reload-parameters">Parâmetros (JSON)</label>
-                    <textarea
-                      id="admin-reload-parameters"
-                      className="modal__input"
-                      rows={4}
-                      value={reloadParameters}
-                      onChange={handleReloadParametersChange}
-                      placeholder={selectedArtifact.placeholderParameters ?? '{ }'}
-                      disabled={isReloadGenerating}
-                    />
-                    {reloadParametersError ? <p className="modal__error">{reloadParametersError}</p> : null}
-                  </div>
-                </form>
-              )}
-            </div>
-            <footer className="modal__footer">
+        <ModalBase
+          isOpen={isReloadModalOpen}
+          onClose={handleReloadCancel}
+          title={`Regenerar ${selectedArtifact.title}`}
+          description={
+            reloadPlanResponse
+              ? reloadPlanResponse.plan.summary
+              : 'Informe o destino e os parâmetros opcionais antes de gerar o plano.'
+          }
+          size="xl"
+          closeOnBackdrop={false}
+          dialogClassName="modal"
+          contentClassName="modal__body"
+          footer={
+            <div className="modal__footer">
               <button
                 type="button"
                 className="button button--ghost"
@@ -986,7 +903,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
                 <button
                   type="button"
                   className="button button--primary"
-                  onClick={handleReloadApply}
+                  onClick={() => setReloadApplyConfirmOpen(true)}
                   disabled={isReloadApplying}
                 >
                   {isReloadApplying ? 'Aplicando…' : 'Aplicar plano'}
@@ -1001,10 +918,111 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
                   {isReloadGenerating ? 'Gerando…' : 'Gerar plano'}
                 </button>
               )}
-            </footer>
-          </div>
-        </div>
+            </div>
+          }
+        >
+          {reloadPlanResponse ? (
+            <div>
+              <p>{reloadPlanResponse.message}</p>
+              {reloadApplyError ? <p className="modal__error">{reloadApplyError}</p> : null}
+              {reloadError && !reloadApplyError ? <p className="modal__error">{reloadError}</p> : null}
+              <PlanDiffViewer
+                diffs={reloadDiffItems}
+                title="Alterações propostas"
+                emptyMessage="Nenhuma alteração detectada para o artefato informado."
+              />
+              <div className="modal__form" role="group">
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="admin-reload-target">Caminho de destino</label>
+                  <input
+                    id="admin-reload-target"
+                    type="text"
+                    className="modal__input"
+                    value={reloadTargetPath}
+                    onChange={handleReloadTargetPathChange}
+                    readOnly
+                    disabled
+                  />
+                </div>
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="admin-reload-actor">Autor da alteração</label>
+                  <input
+                    id="admin-reload-actor"
+                    type="text"
+                    className="modal__input"
+                    value={reloadActor}
+                    onChange={handleReloadActorChange}
+                    placeholder="Nome completo"
+                    disabled={isReloadApplying}
+                  />
+                </div>
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="admin-reload-email">E-mail do autor</label>
+                  <input
+                    id="admin-reload-email"
+                    type="email"
+                    className="modal__input"
+                    value={reloadActorEmail}
+                    onChange={handleReloadActorEmailChange}
+                    placeholder="autor@example.com"
+                    disabled={isReloadApplying}
+                  />
+                </div>
+                <div className="modal__field">
+                  <label className="modal__label" htmlFor="admin-reload-commit">Mensagem do commit</label>
+                  <input
+                    id="admin-reload-commit"
+                    type="text"
+                    className="modal__input"
+                    value={reloadCommitMessage}
+                    onChange={handleReloadCommitMessageChange}
+                    disabled={isReloadApplying}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <form className="modal__form" onSubmit={handleReloadGenerate}>
+              {reloadError ? <p className="modal__error">{reloadError}</p> : null}
+              <div className="modal__field">
+                <label className="modal__label" htmlFor="admin-reload-target">Caminho de destino</label>
+                <input
+                  id="admin-reload-target"
+                  type="text"
+                  className="modal__input"
+                  value={reloadTargetPath}
+                  onChange={handleReloadTargetPathChange}
+                  placeholder={selectedArtifact.placeholderPath}
+                  disabled={isReloadGenerating}
+                />
+              </div>
+              <div className="modal__field">
+                <label className="modal__label" htmlFor="admin-reload-parameters">Parâmetros (JSON)</label>
+                <textarea
+                  id="admin-reload-parameters"
+                  className="modal__input"
+                  rows={4}
+                  value={reloadParameters}
+                  onChange={handleReloadParametersChange}
+                  placeholder={selectedArtifact.placeholderParameters ?? '{ }'}
+                  disabled={isReloadGenerating}
+                />
+                {reloadParametersError ? <p className="modal__error">{reloadParametersError}</p> : null}
+              </div>
+            </form>
+          )}
+        </ModalBase>
       ) : null}
+      <ConfirmationModal
+        isOpen={isReloadApplyConfirmOpen}
+        title={`Aplicar plano · ${selectedArtifact?.title ?? 'artefato'}`}
+        description={reloadPlanResponse?.plan.summary}
+        confirmLabel="Armar aplicação"
+        confirmArmedLabel="Aplicar agora"
+        onConfirm={handleReloadApply}
+        onCancel={() => setReloadApplyConfirmOpen(false)}
+        isLoading={isReloadApplying}
+      />
     </div>
   );
 }

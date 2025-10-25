@@ -12,20 +12,29 @@ export function useToastNotification(
   { id, title, variant = 'info', dismissible, autoDismiss, duration }: ToastNotificationConfig,
 ): void {
   const { pushToast } = useToast();
-  const lastMessageRef = useRef<string | null>(null);
+  const historyRef = useRef<Set<string>>(new Set());
+  const counterRef = useRef(0);
 
   useEffect(() => {
     if (!message) {
-      lastMessageRef.current = null;
+      historyRef.current.clear();
       return;
     }
 
-    if (lastMessageRef.current === message) {
+    const normalized = message.trim();
+    if (!normalized) {
       return;
     }
+
+    if (historyRef.current.has(normalized)) {
+      return;
+    }
+
+    historyRef.current.add(normalized);
+    const sequence = counterRef.current++;
 
     pushToast({
-      id,
+      id: `${id}-${sequence}`,
       title,
       description: message,
       variant,
@@ -33,6 +42,9 @@ export function useToastNotification(
       autoDismiss,
       duration,
     });
-    lastMessageRef.current = message;
+
+    if (historyRef.current.size > 10) {
+      historyRef.current.delete(historyRef.current.values().next().value);
+    }
   }, [message, id, title, variant, dismissible, autoDismiss, duration, pushToast]);
 }

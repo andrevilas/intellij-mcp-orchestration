@@ -131,6 +131,11 @@ test.describe('Atualizações assistidas de servidores MCP', () => {
 
     await modal.getByRole('button', { name: 'Aplicar atualização' }).click();
 
+    const confirmationModal = page.getByRole('dialog', { name: /Aplicar atualização ·/ });
+    await expect(confirmationModal).toBeVisible();
+    await confirmationModal.getByRole('button', { name: 'Armar aplicação' }).click();
+    await confirmationModal.getByRole('button', { name: 'Aplicar agora' }).click();
+
     await expect(page.getByText(/Atualização enviada com sucesso\./)).toBeVisible();
     await expect(page.getByText(/Registro: rec-1/)).toBeVisible();
     await expect(page.getByText(/Branch: feature\/mcp-update/)).toBeVisible();

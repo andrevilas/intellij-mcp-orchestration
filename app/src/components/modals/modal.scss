@@ -28,6 +28,14 @@
   gap: 1rem;
 }
 
+.mcp-modal__dialog[data-size='lg'] {
+  width: min(48rem, calc(100vw - 2rem));
+}
+
+.mcp-modal__dialog[data-size='xl'] {
+  width: min(64rem, calc(100vw - 2rem));
+}
+
 .mcp-modal__dialog:focus {
   outline: none;
 }

@@ -717,6 +717,10 @@ describe('AdminChat view', () => {
 
     await user.click(within(reloadDialog).getByRole('button', { name: 'Aplicar plano' }));
 
+    const confirmationDialog = await screen.findByRole('dialog', { name: 'Aplicar plano · Checklist FinOps' });
+    await user.click(within(confirmationDialog).getByRole('button', { name: 'Armar aplicação' }));
+    await user.click(within(confirmationDialog).getByRole('button', { name: 'Aplicar agora' }));
+
     await waitFor(() => expect(postPolicyPlanApplyMock).toHaveBeenCalledTimes(1));
     const applyPayload = postPolicyPlanApplyMock.mock.calls[0][0];
     expect(applyPayload.planId).toMatch(/^reload-/);

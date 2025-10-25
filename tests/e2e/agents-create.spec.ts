@@ -1,50 +1,19 @@
-import { expect, test } from './fixtures';
+import { expect, test, loadBackendFixture } from './fixtures';
 import type { Page } from '@playwright/test';
 
-const agentsResponse = {
-  agents: [
-    {
-      name: 'catalog-search',
-      title: 'Catalog Search',
-      version: '1.2.0',
-      description: 'Busca estruturada.',
-      capabilities: ['search'],
-      model: { provider: 'openai', name: 'o3-mini', parameters: { temperature: 0 } },
-      status: 'healthy',
-      last_deployed_at: '2025-01-02T10:00:00Z',
-      owner: '@catalog',
-    },
-    {
-      name: 'orchestrator-control',
-      title: 'Orchestrator Control',
-      version: '2.4.1',
-      description: 'Orquestra prompts e fluxos de validação.',
-      capabilities: ['routing', 'finops'],
-      model: { provider: 'anthropic', name: 'claude-3-opus', parameters: { temperature: 0.2 } },
-      status: 'degraded',
-      last_deployed_at: '2025-01-03T12:30:00Z',
-      owner: '@orchestrators',
-    },
-  ],
-};
 
-const serversResponse = {
-  servers: [
-    {
-      id: 'catalog',
-      name: 'Catalog MCP',
-      command: 'python app.py',
-      description: 'Catálogo estruturado',
-      tags: [],
-      capabilities: ['search'],
-      transport: 'stdio',
-    },
-  ],
-};
+async function registerBaseRoutes(
+  page: Page,
+  serversResponse?: { servers: Array<Record<string, unknown>> },
+  agentsResponse?: { agents: unknown[] },
+) {
+  const [serversData, agentsData] = await Promise.all([
+    serversResponse ?? loadBackendFixture<{ servers: Array<Record<string, unknown>> }>('servers.json'),
+    agentsResponse ?? loadBackendFixture<{ agents: unknown[] }>('agents.json'),
+  ]);
 
-async function registerBaseRoutes(page: Page) {
   await page.route('**/api/v1/servers', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify(serversResponse), contentType: 'application/json' }),
+    route.fulfill({ status: 200, body: JSON.stringify(serversData), contentType: 'application/json' }),
   );
   await page.route('**/api/v1/servers/processes', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ processes: [] }), contentType: 'application/json' }),
@@ -73,13 +42,18 @@ async function registerBaseRoutes(page: Page) {
     route.fulfill({ status: 200, body: JSON.stringify({ endpoints: [] }), contentType: 'application/json' }),
   );
   await page.route('**/agents/agents', (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify(agentsResponse), contentType: 'application/json' }),
+    route.fulfill({ status: 200, body: JSON.stringify(agentsData), contentType: 'application/json' }),
   );
 }
 
 test.describe('@agent-create', () => {
   test('cria novo agent governado e aplica plano', async ({ page }) => {
-    await registerBaseRoutes(page);
+    const [serversResponse, agentsResponse] = await Promise.all([
+      loadBackendFixture<{ servers: Array<Record<string, unknown>> }>('servers.json'),
+      loadBackendFixture<{ agents: unknown[] }>('agents.json'),
+    ]);
+
+    await registerBaseRoutes(page, serversResponse, agentsResponse);
 
     const planRequests: unknown[] = [];
     const applyRequests: unknown[] = [];
@@ -186,7 +160,8 @@ test.describe('@agent-create', () => {
       .getByRole('textbox', { name: 'Manifesto base (JSON)' })
       .fill('{"title":"Sentinel Watcher","capabilities":["monitoring"],"tools":[]}');
 
-    await wizard.getByRole('checkbox', { name: /Catalog MCP/ }).check();
+    const serverLabel = serversResponse.servers[0]?.name ?? 'Gemini MCP';
+    await wizard.getByRole('checkbox', { name: new RegExp(serverLabel, 'i') }).check();
 
     await wizard.getByRole('button', { name: 'Gerar plano governado' }).click();
 
@@ -200,6 +175,9 @@ test.describe('@agent-create', () => {
     );
 
     await wizard.getByRole('button', { name: 'Aplicar plano' }).click();
+    const confirmButton = page.getByRole('button', { name: 'Armar aplicação' });
+    await confirmButton.click();
+    await page.getByRole('button', { name: 'Aplicar agora' }).click();
 
     await expect(wizard.getByText(/Plano aplicado com sucesso\./)).toBeVisible();
     await expect(wizard.getByText(/Branch: feature\/add-sentinel-watcher/)).toBeVisible();

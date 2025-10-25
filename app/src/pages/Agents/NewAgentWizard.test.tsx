@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -178,6 +178,10 @@ describe('NewAgentWizard', () => {
     expect(screen.getByLabelText('Mensagem do commit')).toHaveValue(preview.commitMessage);
 
     await user.click(screen.getByRole('button', { name: 'Aplicar plano' }));
+
+    const confirmation = await screen.findByRole('dialog', { name: 'Aplicar plano governado' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Armar aplicação' }));
+    await user.click(within(confirmation).getByRole('button', { name: 'Aplicar agora' }));
 
     await screen.findByText(/Plano aplicado com sucesso\./);
     expect(screen.getByText(/Branch: feature\/add-sentinel-watcher/)).toBeInTheDocument();
