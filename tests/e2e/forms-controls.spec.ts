@@ -107,3 +107,14 @@ test('aciona upload de arquivo via teclado no UI Kit', async ({ page }) => {
   await expect(page.getByText(/Upload concluído: sample-upload\.json/i)).toBeVisible();
   await expect(page.getByText(/enviado com sucesso\./i)).toBeVisible();
 });
+
+test('exibe alerta de download bem sucedido no UI Kit', async ({ page }) => {
+  await registerBaseRoutes(page);
+  await page.goto('/');
+
+  const downloadButton = page.getByRole('button', { name: 'Baixar agora' });
+  await downloadButton.scrollIntoViewIfNeeded();
+  await downloadButton.click();
+
+  await expect(page.getByText(/Arquivo relatorio-mcp\.json salvo\./i)).toBeVisible();
+});

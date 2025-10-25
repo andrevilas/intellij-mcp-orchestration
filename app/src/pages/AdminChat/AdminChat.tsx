@@ -13,7 +13,7 @@ import useAdminChat from '../../hooks/useAdminChat';
 import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
 import PlanSummary from './PlanSummary';
 import RiskCard from './RiskCard';
-import McpOnboardingWizard from './McpOnboardingWizard';
+import OnboardingWizard from '../Onboarding/OnboardingWizard';
 import McpServersList from './McpServersList';
 import MediaLightbox from '../../components/MediaLightbox';
 import MediaPlayer, { type MediaSource } from '../../components/MediaPlayer';
@@ -714,7 +714,7 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
             </div>
           </form>
 
-          <McpOnboardingWizard />
+          <OnboardingWizard />
           <McpServersList planButtonAriaLabel={(server) => `Gerar plano para ${server.name || server.id}`} />
         </section>
 

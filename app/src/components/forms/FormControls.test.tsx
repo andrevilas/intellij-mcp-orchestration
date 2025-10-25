@@ -1,9 +1,37 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../../hooks/useMcpForm';
-import { FormErrorSummary, Input, InputGroup, Select } from '.';
+import {
+  FileDownloadControl,
+  FileUploadControl,
+  FormErrorSummary,
+  Input,
+  InputGroup,
+  Select,
+} from '.';
+
+vi.mock('../feedback/ToastProvider', () => ({
+  useToast: () => ({
+    pushToast: vi.fn(),
+  }),
+}));
+
+const originalCreateObjectURL = URL.createObjectURL;
+const originalRevokeObjectURL = URL.revokeObjectURL;
+
+beforeAll(() => {
+  // @ts-expect-error jsdom permite sobrescrever métodos de URL.
+  URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+  // @ts-expect-error jsdom permite sobrescrever métodos de URL.
+  URL.revokeObjectURL = vi.fn();
+});
+
+afterAll(() => {
+  URL.createObjectURL = originalCreateObjectURL;
+  URL.revokeObjectURL = originalRevokeObjectURL;
+});
 
 interface SampleValues {
   name: string;
@@ -101,5 +129,36 @@ describe('Form controls integration', () => {
     });
     expect(feedback).toBeVisible();
     expect(endpointInput).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('exibe feedback acessível ao concluir upload', async () => {
+    const user = userEvent.setup();
+    const onUpload = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(<FileUploadControl onUpload={onUpload} />);
+
+    const input = container.querySelector('input[type="file"]');
+    expect(input).toBeTruthy();
+
+    const file = new File([JSON.stringify({ ok: true })], 'artifact.json', { type: 'application/json' });
+    await user.upload(input as HTMLInputElement, file);
+
+    expect(onUpload).toHaveBeenCalledWith(file, expect.any(Function));
+    expect(await screen.findByText(/Arquivo artifact\.json disponível para uso\./i)).toBeVisible();
+    expect(await screen.findByText(/Upload concluído: artifact\.json/i)).toBeVisible();
+  });
+
+  it('informa conclusão de download e chama callback', async () => {
+    const user = userEvent.setup();
+    const payload = new Blob(['demo'], { type: 'text/plain' });
+    const onDownload = vi.fn().mockResolvedValue(payload);
+    const onComplete = vi.fn();
+
+    render(<FileDownloadControl onDownload={onDownload} onComplete={onComplete} />);
+
+    await user.click(screen.getByRole('button', { name: 'Baixar agora' }));
+
+    expect(onDownload).toHaveBeenCalled();
+    expect(await screen.findByText(/Arquivo relatorio-mcp\.json salvo\./i)).toBeVisible();
+    expect(onComplete).toHaveBeenCalledWith(payload);
   });
 });
