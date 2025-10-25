@@ -20,9 +20,10 @@ import {
   postConfigPlan,
   postMcpSmokeRun,
 } from '../../api';
-import PlanSummary from './PlanSummary';
+import PlanSummary from '../AdminChat/PlanSummary';
 import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
 import { FormErrorSummary, Input, Switch, TextArea } from '../../components/forms';
+import Alert from '../../components/feedback/Alert';
 import {
   McpFormProvider,
   useMcpField,
@@ -178,7 +179,7 @@ function StepErrorSummary({ step, visible }: { step: WizardStep; visible: boolea
   return <FormErrorSummary items={items} />;
 }
 
-export default function McpOnboardingWizard() {
+export default function OnboardingWizard() {
   const [activeStep, setActiveStep] = useState<WizardStep>('basic');
   const [submittedStep, setSubmittedStep] = useState<WizardStep | null>(null);
   const formMethods = useMcpForm<WizardFormValues>({
@@ -633,6 +634,7 @@ interface BasicStepProps {
 }
 
 function BasicStep({ onNext, showErrors }: BasicStepProps): JSX.Element {
+  const form = useMcpFormContext<WizardFormValues>();
   const agentIdField = useMcpField<WizardFormValues>('agentId', {
     rules: { required: 'Informe o identificador do agente.' },
   });
@@ -653,6 +655,26 @@ function BasicStep({ onNext, showErrors }: BasicStepProps): JSX.Element {
   const tagsField = useMcpField<WizardFormValues>('tags');
   const capabilitiesField = useMcpField<WizardFormValues>('capabilities');
   const descriptionField = useMcpField<WizardFormValues>('description');
+  const [agentIdValue = '', repositoryValue = '', endpointValue = ''] = form.watch([
+    'agentId',
+    'repository',
+    'endpoint',
+  ]);
+  const agentState = form.getFieldState('agentId', form.formState);
+  const repositoryState = form.getFieldState('repository', form.formState);
+  const endpointState = form.getFieldState('endpoint', form.formState);
+
+  const trimmedAgentId = agentIdValue.trim();
+  const trimmedRepository = repositoryValue.trim();
+  const trimmedEndpoint = endpointValue.trim();
+  const hasErrors = agentIdField.isInvalid || repositoryField.isInvalid || endpointField.isInvalid;
+  const hasTouched = agentState.isTouched || repositoryState.isTouched || endpointState.isTouched;
+  const canProceed =
+    trimmedAgentId.length > 0 &&
+    trimmedRepository.length > 0 &&
+    trimmedEndpoint.length > 0 &&
+    !hasErrors;
+  const shouldShowSummary = showErrors || (hasTouched && hasErrors);
 
   return (
     <form
@@ -663,7 +685,7 @@ function BasicStep({ onNext, showErrors }: BasicStepProps): JSX.Element {
         void onNext();
       }}
     >
-      <StepErrorSummary step="basic" visible={showErrors} />
+      <StepErrorSummary step="basic" visible={shouldShowSummary} />
       <div className="mcp-wizard__grid">
         <div className="mcp-wizard__field">
           <Input
@@ -737,10 +759,21 @@ function BasicStep({ onNext, showErrors }: BasicStepProps): JSX.Element {
         />
       </div>
       <div className="mcp-wizard__actions">
-        <button type="submit" className="mcp-wizard__button mcp-wizard__button--primary">
+        <button
+          type="submit"
+          className="mcp-wizard__button mcp-wizard__button--primary"
+          disabled={!canProceed}
+        >
           Avançar para autenticação
         </button>
       </div>
+      {!canProceed ? (
+        <Alert
+          variant="info"
+          title="Complete os dados obrigatórios"
+          description="Informe identificador, repositório Git e endpoint MCP válidos para prosseguir."
+        />
+      ) : null}
     </form>
   );
 }
@@ -752,8 +785,9 @@ interface AuthStepProps {
 }
 
 function AuthStep({ onBack, onNext, showErrors }: AuthStepProps): JSX.Element {
-  const { register, watch } = useMcpFormContext<WizardFormValues>();
-  const authMode = watch('authMode');
+  const form = useMcpFormContext<WizardFormValues>();
+  const { register } = form;
+  const authMode = form.watch('authMode');
   const secretField = useMcpField<WizardFormValues>('secretName', {
     rules: {
       validate: (value) => {
@@ -771,6 +805,13 @@ function AuthStep({ onBack, onNext, showErrors }: AuthStepProps): JSX.Element {
   });
   const authEnvironmentField = useMcpField<WizardFormValues>('authEnvironment');
   const authInstructionsField = useMcpField<WizardFormValues>('authInstructions');
+  const secretValue = (form.watch('secretName') ?? '').trim();
+  const secretState = form.getFieldState('secretName', form.formState);
+  const requiresSecret = authMode !== 'none';
+  const hasErrors = secretField.isInvalid && requiresSecret;
+  const hasTouched = secretState.isTouched;
+  const canProceed = (!requiresSecret || secretValue.length > 0) && !hasErrors;
+  const shouldShowSummary = showErrors || (hasErrors && (hasTouched || secretValue.length > 0));
 
   return (
     <form
@@ -781,7 +822,7 @@ function AuthStep({ onBack, onNext, showErrors }: AuthStepProps): JSX.Element {
         void onNext();
       }}
     >
-      <StepErrorSummary step="auth" visible={showErrors} />
+      <StepErrorSummary step="auth" visible={shouldShowSummary} />
       <fieldset className="mcp-wizard__fieldset">
         <legend>Modo de autenticação</legend>
         <label className="mcp-wizard__radio">
@@ -827,10 +868,21 @@ function AuthStep({ onBack, onNext, showErrors }: AuthStepProps): JSX.Element {
         <button type="button" className="mcp-wizard__button" onClick={onBack}>
           Voltar
         </button>
-        <button type="submit" className="mcp-wizard__button mcp-wizard__button--primary">
+        <button
+          type="submit"
+          className="mcp-wizard__button mcp-wizard__button--primary"
+          disabled={!canProceed}
+        >
           Avançar para tools
         </button>
       </div>
+      {requiresSecret && !canProceed ? (
+        <Alert
+          variant="warning"
+          title="Credencial obrigatória"
+          description="Informe o nome da credencial antes de avançar ou selecione 'Sem autenticação'."
+        />
+      ) : null}
     </form>
   );
 }
@@ -860,7 +912,17 @@ function ToolsStep({
   connectionFeedback,
   showErrors,
 }: ToolsStepProps): JSX.Element {
-  const disableNext = isValidating || connectionStatus === 'error';
+  const form = useMcpFormContext<WizardFormValues>();
+  const toolsValue = (form.watch('tools') ?? []) as ToolDraft[];
+  const toolStates = fields.map((_, index) => ({
+    name: form.getFieldState(`tools.${index}.name`, form.formState),
+    entry: form.getFieldState(`tools.${index}.entryPoint`, form.formState),
+  }));
+  const hasIncomplete = toolsValue.some((tool) => !tool?.name?.trim() || !tool?.entryPoint?.trim());
+  const hasErrors = toolStates.some((state) => state.name.invalid || state.entry.invalid);
+  const hasTouched = toolStates.some((state) => state.name.isTouched || state.entry.isTouched);
+  const canProceed = !isValidating && connectionStatus !== 'error' && !hasIncomplete && !hasErrors;
+  const shouldShowSummary = showErrors || ((hasErrors || hasIncomplete) && hasTouched);
 
   return (
     <form
@@ -868,13 +930,13 @@ function ToolsStep({
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (connectionStatus === 'error') {
+        if (!canProceed) {
           return;
         }
         void onNext();
       }}
     >
-      <StepErrorSummary step="tools" visible={showErrors} />
+      <StepErrorSummary step="tools" visible={shouldShowSummary} />
       <div className="mcp-wizard__tools">
         {fields.map((field, index) => (
           <ToolFields
@@ -900,10 +962,21 @@ function ToolsStep({
         >
           {isValidating ? 'Testando conexão…' : 'Testar conexão'}
         </button>
-        <button type="submit" className="mcp-wizard__button mcp-wizard__button--primary" disabled={disableNext}>
+        <button
+          type="submit"
+          className="mcp-wizard__button mcp-wizard__button--primary"
+          disabled={!canProceed}
+        >
           Ir para validação
         </button>
       </div>
+      {!canProceed && connectionStatus !== 'error' ? (
+        <Alert
+          variant="info"
+          title="Finalize as tools obrigatórias"
+          description="Informe nome e entry point para cada tool listada para habilitar a próxima etapa."
+        />
+      ) : null}
       {connectionStatus === 'success' && connectionFeedback ? (
         <p className="mcp-wizard__helper" role="status">
           {connectionFeedback}

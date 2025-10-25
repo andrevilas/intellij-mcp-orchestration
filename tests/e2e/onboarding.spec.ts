@@ -202,6 +202,10 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await page.goto('/');
   await page.getByRole('button', { name: 'Admin Chat' }).click();
 
+  const basicNextButton = page.getByRole('button', { name: 'Avançar para autenticação' });
+  await expect(basicNextButton).toBeDisabled();
+  await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toBeVisible();
+
   await page.getByLabel('Identificador do agente').fill('openai-gpt4o');
   await page.getByLabel('Nome exibido').fill('OpenAI GPT-4o');
   await page.getByLabel('Repositório Git').fill('agents/openai-gpt4o');
@@ -210,20 +214,32 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await page.getByLabel('Tags (separadas por vírgula)').fill('openai,prod');
   await page.getByLabel('Capacidades (separadas por vírgula)').fill('chat');
   await page.getByLabel('Descrição').fill('Agente com fallback para GPT-4o.');
-  await page.getByRole('button', { name: 'Avançar para autenticação' }).click();
+  await expect(basicNextButton).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toHaveCount(0);
+  await basicNextButton.click();
 
   await page.getByLabel('API Key').check();
+  const authNextButton = page.getByRole('button', { name: 'Avançar para tools' });
+  await expect(authNextButton).toBeDisabled();
+  await expect(page.getByRole('heading', { name: 'Credencial obrigatória' })).toBeVisible();
   await page.getByLabel('Nome da credencial').fill('OPENAI_API_KEY');
   await page.getByLabel('Ambiente/namespace').fill('production');
   await page.getByLabel('Instruções para provisionamento').fill('Gerar no vault e replicar.');
-  await page.getByRole('button', { name: 'Avançar para tools' }).click();
+  await expect(authNextButton).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Credencial obrigatória' })).toHaveCount(0);
+  await authNextButton.click();
 
   await page.getByLabel('Nome da tool 1').fill('catalog.search');
   await page.getByLabel('Descrição da tool 1').fill('Busca recursos homologados.');
   await page.getByLabel('Entry point da tool 1').fill('catalog/search.py');
+  const toolsNextButton = page.getByRole('button', { name: 'Ir para validação' });
+  await expect(toolsNextButton).toBeDisabled();
+  await expect(page.getByRole('heading', { name: 'Finalize as tools obrigatórias' })).toBeVisible();
   await page.getByRole('button', { name: 'Testar conexão' }).click();
   await expect.poll(() => onboardPayloads.length).toBe(1);
-  await page.getByRole('button', { name: 'Ir para validação' }).click();
+  await expect(toolsNextButton).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Finalize as tools obrigatórias' })).toHaveCount(0);
+  await toolsNextButton.click();
 
   const wizardPanel = page.locator('.mcp-wizard__panel');
 
@@ -303,22 +319,25 @@ test('@onboarding-accessibility validates keyboard flow and aria feedback', asyn
   await page.keyboard.press('Shift+Tab');
   await expect(idInput).toBeFocused();
 
-  await page.getByRole('button', { name: 'Avançar para autenticação' }).click();
-
   const repoInput = page.getByLabel('Repositório Git');
   const endpointInput = page.getByLabel('Endpoint MCP (ws/wss)');
 
-  await expect(page.getByRole('alert', { name: 'Revise os campos destacados.' })).toBeVisible();
-  await expect(repoInput).toHaveAttribute('aria-invalid', 'true');
-  await expect(repoInput).toHaveClass(/is-invalid/);
-  await expect(endpointInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Avançar para autenticação' })).toBeDisabled();
 
   await idInput.fill('openai-gpt4o');
   await repoInput.fill('agents/openai-gpt4o');
-  await endpointInput.fill('wss://openai.example.com/ws');
-  await repoInput.blur();
+  await endpointInput.fill('ftp://example');
   await endpointInput.blur();
 
-  await expect(repoInput).toHaveAttribute('aria-invalid', 'false');
+  await expect(page.getByRole('alert', { name: 'Revise os campos destacados.' })).toBeVisible();
+  await expect(endpointInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(endpointInput).toHaveClass(/is-invalid/);
+
+  await endpointInput.fill('wss://openai.example.com/ws');
+  await endpointInput.blur();
+
   await expect(endpointInput).toHaveAttribute('aria-invalid', 'false');
+  await expect(page.getByRole('button', { name: 'Avançar para autenticação' })).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toHaveCount(0);
 });
