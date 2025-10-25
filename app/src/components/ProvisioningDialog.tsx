@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import type { PolicyOverridesConfig, ProviderSummary } from '../api';
+import Alert, { type AlertVariant } from './feedback/Alert';
+import FormModal from './modals/FormModal';
+import { useToast } from './feedback/ToastProvider';
 
 export interface ProvisioningSubmission {
   reason: string;
@@ -96,6 +98,7 @@ export default function ProvisioningDialog({
   onCancel,
   onConfirm,
 }: ProvisioningDialogProps) {
+  const { pushToast } = useToast();
   const [reason, setReason] = useState('');
   const [maxIters, setMaxIters] = useState('');
   const [requestTimeout, setRequestTimeout] = useState('');
@@ -103,11 +106,18 @@ export default function ProvisioningDialog({
   const [sampleRate, setSampleRate] = useState('10');
   const [requireHitl, setRequireHitl] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const dialogRef = useRef<HTMLDivElement | null>(null);
   const reasonRef = useRef<HTMLInputElement | null>(null);
+  const liveCounter = useRef(0);
+  const [liveMessage, setLiveMessage] = useState('');
+
+  const statusLabel = useMemo(
+    () =>
+      requireHitl ? 'Aprovação humana obrigatória' : 'Execução automática com overrides opcionais',
+    [requireHitl],
+  );
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || !provider) {
       return;
     }
 
@@ -117,40 +127,43 @@ export default function ProvisioningDialog({
     setTotalTimeout('');
     setSampleRate('10');
     setRequireHitl(false);
-    setReason(provider ? `Provisionamento para ${provider.name}` : 'Provisionamento manual');
+    setReason(`Provisionamento para ${provider.name}`);
+    setLiveMessage('');
 
     const frame = requestAnimationFrame(() => {
       reasonRef.current?.focus({ preventScroll: true });
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [isOpen, provider?.id]);
+  }, [isOpen, provider]);
 
-  useEffect(() => {
-    if (!isOpen) {
+  const announce = useCallback(
+    (message: string, variant: AlertVariant) => {
+      liveCounter.current += 1;
+      const identifier = `${liveCounter.current}. ${message}`;
+      setLiveMessage(identifier);
+      pushToast({
+        id: `provision-${liveCounter.current}-${Date.now()}`,
+        description: message,
+        variant,
+      });
+    },
+    [pushToast],
+  );
+
+  const handleCancel = useCallback(() => {
+    if (!provider) {
       return;
     }
-
-    function handleKeydown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCancel();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeydown);
-    return () => document.removeEventListener('keydown', handleKeydown);
-  }, [isOpen, onCancel]);
+    announce(`Provisionamento cancelado para ${provider.name}.`, 'warning');
+    onCancel();
+  }, [announce, onCancel, provider]);
 
   if (!isOpen || !provider) {
     return null;
   }
 
-  const statusLabel = requireHitl
-    ? 'Aprovação humana obrigatória'
-    : 'Execução automática com overrides opcionais';
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors: FormErrors = {};
@@ -181,6 +194,7 @@ export default function ProvisioningDialog({
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
+      announce('Não foi possível enviar overrides; revise os campos destacados.', 'error');
       return;
     }
 
@@ -192,153 +206,140 @@ export default function ProvisioningDialog({
       requireHitl,
     });
 
-    onConfirm({ reason: reason.trim(), overrides });
-  }
+    const trimmedReason = reason.trim();
+    onConfirm({ reason: trimmedReason, overrides });
+    announce(`Provisionamento enviado para ${provider.name} com motivo "${trimmedReason}".`, 'success');
+  };
 
-  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
-    if (event.target === dialogRef.current) {
-      onCancel();
-    }
-  }
+  const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <div
-      className="provisioning-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="provisioning-dialog-title"
-      onClick={handleBackdropClick}
-      ref={dialogRef}
+    <FormModal
+      isOpen={isOpen}
+      title={`Overrides táticos para ${provider.name}`}
+      description={statusLabel}
+      onSubmit={handleSubmit}
+      onCancel={handleCancel}
+      isSubmitting={isSubmitting}
+      submitLabel={isSubmitting ? 'Provisionando…' : 'Provisionar com overrides'}
     >
-      <div className="provisioning-dialog__content">
-        <header className="provisioning-dialog__header">
-          <div>
-            <h2 id="provisioning-dialog-title">Overrides táticos para {provider.name}</h2>
-            <p>{statusLabel}</p>
-          </div>
-          <button type="button" className="button button--ghost" onClick={onCancel} disabled={isSubmitting}>
-            Cancelar
-          </button>
-        </header>
-        <form className="provisioning-dialog__form" onSubmit={handleSubmit}>
+      <div className="provisioning-dialog__form">
+        {hasErrors ? (
+          <Alert variant="error" description="Revise os campos destacados antes de provisionar." />
+        ) : null}
+        <label className="form-field">
+          <span>Motivo</span>
+          <input
+            ref={reasonRef}
+            data-autofocus="true"
+            type="text"
+            name="reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            aria-invalid={errors.reason ? 'true' : 'false'}
+            aria-describedby={errors.reason ? 'reason-error' : undefined}
+            placeholder="Descreva o porquê deste provisionamento"
+          />
+          {errors.reason ? (
+            <span id="reason-error" className="form-field__error">
+              {errors.reason}
+            </span>
+          ) : null}
+        </label>
+
+        <div className="provisioning-dialog__grid">
           <label className="form-field">
-            <span>Motivo</span>
+            <span>Máximo de iterações</span>
             <input
-              ref={reasonRef}
-              type="text"
-              name="reason"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              aria-invalid={errors.reason ? 'true' : 'false'}
-              aria-describedby={errors.reason ? 'reason-error' : undefined}
-              placeholder="Descreva o porquê deste provisionamento"
+              type="number"
+              min={1}
+              name="maxIters"
+              value={maxIters}
+              onChange={(event) => setMaxIters(event.target.value)}
+              aria-invalid={errors.maxIters ? 'true' : 'false'}
+              aria-describedby={errors.maxIters ? 'maxiters-error' : undefined}
+              placeholder="ex.: 3"
             />
-            {errors.reason && (
-              <span id="reason-error" className="form-field__error">
-                {errors.reason}
+            {errors.maxIters ? (
+              <span id="maxiters-error" className="form-field__error">
+                {errors.maxIters}
               </span>
-            )}
+            ) : null}
           </label>
 
-          <div className="provisioning-dialog__grid">
-            <label className="form-field">
-              <span>Máximo de iterações</span>
-              <input
-                type="number"
-                min={1}
-                name="maxIters"
-                value={maxIters}
-                onChange={(event) => setMaxIters(event.target.value)}
-                aria-invalid={errors.maxIters ? 'true' : 'false'}
-                aria-describedby={errors.maxIters ? 'maxiters-error' : undefined}
-                placeholder="ex.: 3"
-              />
-              {errors.maxIters && (
-                <span id="maxiters-error" className="form-field__error">
-                  {errors.maxIters}
-                </span>
-              )}
-            </label>
-
-            <label className="form-field">
-              <span>Timeout por iteração (s)</span>
-              <input
-                type="number"
-                min={1}
-                name="requestTimeout"
-                value={requestTimeout}
-                onChange={(event) => setRequestTimeout(event.target.value)}
-                aria-invalid={errors.requestTimeout ? 'true' : 'false'}
-                aria-describedby={errors.requestTimeout ? 'requesttimeout-error' : undefined}
-                placeholder="ex.: 45"
-              />
-              {errors.requestTimeout && (
-                <span id="requesttimeout-error" className="form-field__error">
-                  {errors.requestTimeout}
-                </span>
-              )}
-            </label>
-
-            <label className="form-field">
-              <span>Timeout total (s)</span>
-              <input
-                type="number"
-                min={1}
-                name="totalTimeout"
-                value={totalTimeout}
-                onChange={(event) => setTotalTimeout(event.target.value)}
-                aria-invalid={errors.totalTimeout ? 'true' : 'false'}
-                aria-describedby={errors.totalTimeout ? 'totaltimeout-error' : undefined}
-                placeholder="ex.: 120"
-              />
-              {errors.totalTimeout && (
-                <span id="totaltimeout-error" className="form-field__error">
-                  {errors.totalTimeout}
-                </span>
-              )}
-            </label>
-
-            <label className="form-field">
-              <span>Sample rate de tracing (%)</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                name="sampleRate"
-                value={sampleRate}
-                onChange={(event) => setSampleRate(event.target.value)}
-                aria-invalid={errors.sampleRate ? 'true' : 'false'}
-                aria-describedby={errors.sampleRate ? 'samplerate-error' : undefined}
-                placeholder="ex.: 10"
-              />
-              {errors.sampleRate && (
-                <span id="samplerate-error" className="form-field__error">
-                  {errors.sampleRate}
-                </span>
-              )}
-            </label>
-          </div>
-
-          <label className="form-field form-field--checkbox">
+          <label className="form-field">
+            <span>Timeout por iteração (s)</span>
             <input
-              type="checkbox"
-              name="requireHitl"
-              checked={requireHitl}
-              onChange={(event) => setRequireHitl(event.target.checked)}
+              type="number"
+              min={1}
+              name="requestTimeout"
+              value={requestTimeout}
+              onChange={(event) => setRequestTimeout(event.target.value)}
+              aria-invalid={errors.requestTimeout ? 'true' : 'false'}
+              aria-describedby={errors.requestTimeout ? 'requesttimeout-error' : undefined}
+              placeholder="ex.: 45"
             />
-            <span>Exigir aprovação humana antes de executar</span>
+            {errors.requestTimeout ? (
+              <span id="requesttimeout-error" className="form-field__error">
+                {errors.requestTimeout}
+              </span>
+            ) : null}
           </label>
 
-          <div className="provisioning-dialog__actions">
-            <button type="button" className="button button--ghost" onClick={onCancel} disabled={isSubmitting}>
-              Cancelar
-            </button>
-            <button type="submit" className="button button--primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Provisionando…' : 'Provisionar com overrides'}
-            </button>
-          </div>
-        </form>
+          <label className="form-field">
+            <span>Timeout total (s)</span>
+            <input
+              type="number"
+              min={1}
+              name="totalTimeout"
+              value={totalTimeout}
+              onChange={(event) => setTotalTimeout(event.target.value)}
+              aria-invalid={errors.totalTimeout ? 'true' : 'false'}
+              aria-describedby={errors.totalTimeout ? 'totaltimeout-error' : undefined}
+              placeholder="ex.: 120"
+            />
+            {errors.totalTimeout ? (
+              <span id="totaltimeout-error" className="form-field__error">
+                {errors.totalTimeout}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="form-field">
+            <span>Sample rate de tracing (%)</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              name="sampleRate"
+              value={sampleRate}
+              onChange={(event) => setSampleRate(event.target.value)}
+              aria-invalid={errors.sampleRate ? 'true' : 'false'}
+              aria-describedby={errors.sampleRate ? 'samplerate-error' : undefined}
+              placeholder="ex.: 10"
+            />
+            {errors.sampleRate ? (
+              <span id="samplerate-error" className="form-field__error">
+                {errors.sampleRate}
+              </span>
+            ) : null}
+          </label>
+        </div>
+
+        <label className="form-field form-field--checkbox">
+          <input
+            type="checkbox"
+            name="requireHitl"
+            checked={requireHitl}
+            onChange={(event) => setRequireHitl(event.target.checked)}
+          />
+          <span>Exigir aprovação humana antes de executar</span>
+        </label>
+
+        <span className="visually-hidden" aria-live="polite" aria-atomic="true">
+          {liveMessage}
+        </span>
       </div>
-    </div>
+    </FormModal>
   );
 }

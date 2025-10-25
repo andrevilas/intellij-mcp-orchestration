@@ -84,6 +84,38 @@ describe('Dropdown', () => {
     expect(within(menu).getByTestId('dropdown-icon')).toBeInTheDocument();
   });
 
+  it('exibe mensagens de status exclusivas para loading e disabled', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const { rerender } = render(
+      <Dropdown
+        label="Sincronizar"
+        options={[{ id: 'sync', label: 'Sincronizar agora', onSelect }]}
+        loading
+        loadingLabel="Sincronizando ações"
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Sincronizar' });
+    expect(trigger).toHaveAttribute('aria-busy', 'true');
+    await user.click(trigger);
+    const status = await screen.findByRole('status', { name: /Sincronizando ações/i });
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(onSelect).not.toHaveBeenCalled();
+
+    await user.click(trigger);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    rerender(
+      <Dropdown label="Desabilitado" options={options} disabled />,
+    );
+
+    const disabledTrigger = screen.getByRole('button', { name: 'Desabilitado' });
+    expect(disabledTrigger).toBeDisabled();
+    await user.click(disabledTrigger);
+    expect(screen.queryAllByRole('menu')).toHaveLength(0);
+  });
+
   it('permite abrir pelo ArrowUp e fecha ao tabular para fora', async () => {
     const user = userEvent.setup();
     render(

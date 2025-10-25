@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import type { NotificationCategory, NotificationSeverity } from '../api';
+import Button from './actions/Button';
+import { type AlertVariant } from './feedback/Alert';
+import { useToast } from './feedback/ToastProvider';
 import './NotificationCenter.scss';
 
 export interface NotificationItem {
@@ -51,10 +54,13 @@ const NotificationCenter = ({
   onToggleRead,
   onMarkAllRead,
 }: NotificationCenterProps) => {
+  const { pushToast } = useToast();
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const filterRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [filter, setFilter] = useState<FilterOption>('all');
+  const liveCounter = useRef(0);
+  const [liveMessage, setLiveMessage] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -64,6 +70,27 @@ const NotificationCenter = ({
       });
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      liveCounter.current = 0;
+      setLiveMessage('');
+    }
+  }, [isOpen]);
+
+  const announce = useCallback(
+    (message: string, variant: AlertVariant) => {
+      liveCounter.current += 1;
+      const identifier = `${liveCounter.current}. ${message}`;
+      setLiveMessage(identifier);
+      pushToast({
+        id: `notification-${liveCounter.current}-${Date.now()}`,
+        description: message,
+        variant,
+      });
+    },
+    [pushToast],
+  );
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -142,6 +169,26 @@ const NotificationCenter = ({
     [notifications],
   );
 
+  const handleMarkAll = useCallback(() => {
+    if (unreadCount === 0) {
+      return;
+    }
+    onMarkAllRead();
+    announce('Todas as notificações foram marcadas como lidas.', 'success');
+  }, [announce, onMarkAllRead, unreadCount]);
+
+  const handleToggleNotification = useCallback(
+    (notification: NotificationItem) => {
+      const nextValue = !notification.isRead;
+      onToggleRead(notification.id, nextValue);
+      const message = nextValue
+        ? `Notificação "${notification.title}" marcada como lida.`
+        : `Notificação "${notification.title}" marcada como não lida.`;
+      announce(message, nextValue ? 'success' : 'info');
+    },
+    [announce, onToggleRead],
+  );
+
   return (
     <div
       className={isOpen ? 'notification-center__overlay notification-center__overlay--visible' : 'notification-center__overlay'}
@@ -162,6 +209,9 @@ const NotificationCenter = ({
         }
         onClick={(event) => event.stopPropagation()}
       >
+        <span className="visually-hidden" aria-live="polite" aria-atomic="true">
+          {liveMessage}
+        </span>
         <header className="notification-center__header">
           <div>
             <p className="notification-center__eyebrow">Central de notificações</p>
@@ -173,22 +223,26 @@ const NotificationCenter = ({
             </p>
           </div>
           <div className="notification-center__controls">
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="secondary"
               className="notification-center__mark-all"
-              onClick={onMarkAllRead}
+              onClick={handleMarkAll}
               disabled={unreadCount === 0}
             >
               Limpar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="sm"
+              variant="outline"
               className="notification-center__close"
               onClick={onClose}
               ref={closeButtonRef}
             >
               Fechar
-            </button>
+            </Button>
           </div>
         </header>
         <div
@@ -282,13 +336,15 @@ const NotificationCenter = ({
                   </ul>
                 )}
                 <div className="notification__actions">
-                  <button
+                  <Button
                     type="button"
-                    onClick={() => onToggleRead(notification.id, !notification.isRead)}
+                    variant="ghost"
+                    size="sm"
                     className="notification__action"
+                    onClick={() => handleToggleNotification(notification)}
                   >
                     {notification.isRead ? 'Marcar como não lida' : 'Marcar como lida'}
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))

@@ -28,6 +28,12 @@ export interface ButtonProps extends Omit<NativeButtonProps, 'type'> {
    */
   loading?: boolean;
   /**
+   * Permite interação mesmo quando `loading=true`, mantendo o spinner visível.
+   * Útil para gatilhos que exibem estados de carregamento sem bloquear foco.
+   * @default false
+   */
+  allowInteractionWhileLoading?: boolean;
+  /**
    * Ícone opcional renderizado à esquerda do conteúdo.
    */
   icon?: ReactNode;
@@ -46,6 +52,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       variant = 'primary',
       size = 'md',
       loading = false,
+      allowInteractionWhileLoading = false,
       disabled,
       icon,
       type = 'button',
@@ -53,7 +60,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    const isDisabled = disabled || loading;
+    const isDisabled = disabled || (loading && !allowInteractionWhileLoading);
     const state = loading ? 'loading' : isDisabled ? 'disabled' : 'ready';
 
     return (
