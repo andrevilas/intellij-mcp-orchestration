@@ -1,30 +1,32 @@
 # Promenade Agent Hub — Next Steps (Node + Vite)
-**Status do plano:** atualizado
+**Status do plano:** bloqueado (aguardando ambiente Playwright)
 **Missão:** console unificado para **gerenciar MCP servers**, **chaves/policies**, e **FinOps** com foco **custo/benefício** e **DX**.
 
 > Atualização 2025-10-15 08:29: roadmap revisado com **sprints explícitas (M1–M6)** e inclusão de **suporte a temas (Light/Dark)** para a UI. Consulte `ui-next-steps.md` para o detalhamento operacional.
 
 ## Governança e follow-up
+- Use `docs/audit-ui-m1-m6.md` como fonte única de verdade: qualquer mudança de status deve primeiro ser refletida na auditoria e, em seguida, sincronizada neste documento e em `ui-next-steps.md` (duplo check após cada review de sprint).
 - Ao concluir qualquer ID listado neste documento ou em `ui-next-steps.md`, registre o progresso marcando o checklist correspondente **neste arquivo** e detalhe ajustes relevantes.
 - Armazene as evidências (prints, logs, anexos) em `/docs/evidence/<ID>/`, garantindo rastreabilidade completa.
 - Atualize `docs/archive/ui-next-steps.md` quando a entrega for de escopo UI, mantendo a paridade entre os planos macro e detalhado.
 - Reavalie `docs/audit-ui-m1-m6.md` a cada sprint desbloqueada, anotando impactos e novos bloqueios.
 
-## Status auditado (2025-10-18)
-- [ ] **M1 — Fundamentos & Shell** · Em progresso — Bootstrap/FA, ThemeProvider e tokens Light/Dark entregues; seguir com dieta de bundle e métricas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
+## Status auditado (2025-10-25)
+- [ ] **M1 — Fundamentos & Shell** · Bloqueado — shell configurado, mas suite Playwright aborta por dependências ausentes; ambiente precisa de `playwright install-deps` antes de retomar (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】
   - [x] **TASK-UI-SH-010** — Shell com `skip-link`, roving tabindex e atalhos documentados.
   - [x] **TASK-UI-NAV-011** — Breadcrumbs + Pagination com tokens `--mcp-*` e foco visível.
-- [x] **M2 — Ações & Feedback** · Concluído — botões, menus, toasts e modais auditados com tokens MCP e testes de acessibilidade (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
-- [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real impede validação (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [ ] **M4 — Formulários & Validação** · Bloqueado — formulários principais indisponíveis (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).
-- [x] **M5 — Páginas Core** · Bloqueio removido — fixtures habilitadas (UI-ACT-005) destravam Dashboard/Servers/FinOps/Routing sem backend real (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
-- [x] **M6 — Performance & Observabilidade** · Concluído — UI Kit vivo publicado e métricas registradas em `/docs/evidence/TASK-UI-OBS-082/`.【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
+- [ ] **M2 — Ações & Feedback** · Bloqueado — componentes só podem ser validados após liberar runner Chromium (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
+- [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real permanece e Playwright não executa sem deps nativas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】
+- [ ] **M4 — Formulários & Validação** · Bloqueado — validações não podem ser auditadas com a suite quebrada (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】
+- [ ] **M5 — Páginas Core** · Bloqueado — smoke UI travado por `browserType.launch` e dados FinOps pendentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
+- [ ] **M6 — Performance & Observabilidade** · Bloqueado — métricas paralisadas até restabelecer as suites e telemetria (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 
 ## Auditoria Final — 2025-10-20
 - `pnpm i` e `pnpm -r dev` executados sem erros imediatos (processos encerrados manualmente após o boot) confirmam que a toolchain continua instalável em modo dev.【231433†L1-L9】【2b58dd†L1-L5】
 - Backend FastAPI validado end-to-end: `/api/v1/healthz` responde 200, templates de policies permanecem disponíveis, o simulador de routing retorna distribuição/custos coerentes e os relatórios FinOps exibem dados determinísticos dos fixtures.【2c5a62†L1-L6】【c5de4c†L1-L18】【4318f3†L1-L9】【0c07a3†L1-L39】【d2ef4c†L1-L17】【c6d23f†L1-L17】【6e0762†L1-L20】
 - Export CSV/HTML permanece acessível (HTTP 200), porém apenas o cabeçalho é gerado enquanto a base SQLite está vazia — risco de ausência de histórico até que novas ingestas/fixtures sejam aplicadas.【82a64e†L1-L2】【a7a14c†L1-L3】
 - Bloqueios críticos seguem concentrados na sprint M5: o smoke Playwright das páginas core ainda falha e o link FinOps permanece congelando a navegação inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+- Reforço 2025-10-25: a tentativa mais recente registrou falha geral (`browserType.launch`) com 45 testes abortados por dependências nativas ausentes — consultar `docs/evidence/2025-10-25/README.md` antes de qualquer rebaseline.【F:docs/evidence/2025-10-25/README.md†L1-L16】
 - Recomendação: manter **No-Go** até estabilizar smoke UI/FinOps e restaurar a telemetria; ver detalhamento atualizado no Audit Report.【F:docs/audit-ui-m1-m6.md†L1-L200】
 
 ## North Star & KPIs
