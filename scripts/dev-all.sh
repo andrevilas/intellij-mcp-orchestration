@@ -55,6 +55,12 @@ start_backend() {
 
 start_frontend() {
   local cmd=()
+
+  if [[ -z "${CONSOLE_MCP_USE_FIXTURES:-}" ]]; then
+    export CONSOLE_MCP_USE_FIXTURES=auto
+    log 'CONSOLE_MCP_USE_FIXTURES não definido — utilizando modo "auto" (fixtures MSW).'
+  fi
+
   if command -v pnpm >/dev/null 2>&1; then
     cmd=(pnpm dev)
   elif command -v npm >/dev/null 2>&1; then

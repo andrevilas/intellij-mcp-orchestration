@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.5.2",
   "scripts": {
-    "dev": "vite",
+    "dev": "node ./scripts/run-dev.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest --run",
