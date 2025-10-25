@@ -11,6 +11,14 @@ ENV_FILE="${MCP_HOME}/.env"
 mkdir -p "${MCP_HOME}"
 chmod 700 "${MCP_HOME}" 2>/dev/null || true
 
+if [[ -n "${VAULT_ADDR:-}" && -n "${VAULT_SECRET_PATH:-}" ]]; then
+  echo "[INFO] Configuração do HashiCorp Vault detectada em $VAULT_ADDR (${VAULT_SECRET_PATH})."
+  if SECRET_PROVIDER=vault "${SCRIPT_DIR}/secrets-sync.sh"; then
+    exit 0
+  fi
+  echo "[WARN] Falha ao sincronizar via Vault; tentando fallback local." >&2
+fi
+
 if [[ -f "$DEFAULT_SOPS_FILE" ]]; then
   echo "[INFO] Encontrado cofre SOPS em ${DEFAULT_SOPS_FILE}."
   if "${SCRIPT_DIR}/secrets-sync.sh"; then
