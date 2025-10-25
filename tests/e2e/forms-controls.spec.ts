@@ -83,3 +83,27 @@ test('suporta navegação por teclado no formulário do UI Kit', async ({ page }
   await mkdir(evidenceDir, { recursive: true });
   await writeFile(resolve(evidenceDir, 'forms-tab-order.json'), JSON.stringify({ order: focusLog }, null, 2));
 });
+
+test('aciona upload de arquivo via teclado no UI Kit', async ({ page }) => {
+  await registerBaseRoutes(page);
+  await page.goto('/');
+
+  await mkdir(evidenceDir, { recursive: true });
+  const uploadFixture = resolve(evidenceDir, 'sample-upload.json');
+  await writeFile(uploadFixture, JSON.stringify({ credential: 'sk-test-123' }, null, 2));
+
+  const uploadButton = page.getByRole('button', { name: 'Selecionar arquivo' });
+  await uploadButton.scrollIntoViewIfNeeded();
+  await uploadButton.focus();
+  await expect(uploadButton).toBeFocused();
+
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.keyboard.press('Enter'),
+  ]);
+
+  await fileChooser.setFiles(uploadFixture);
+
+  await expect(page.getByText(/Upload concluído: sample-upload\.json/i)).toBeVisible();
+  await expect(page.getByText(/enviado com sucesso\./i)).toBeVisible();
+});

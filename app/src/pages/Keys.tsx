@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
 
 import type { ProviderSummary, SecretMetadata, SecretTestResult, SecretValue } from '../api';
+import { FileUploadControl, type UploadProgressHandler } from '../components/forms';
+import { readFileAsText } from '../utils/readFile';
 
 export interface KeysProps {
   providers: ProviderSummary[];
@@ -270,6 +273,41 @@ export default function Keys({
     });
   }
 
+  const handleSecretFileUpload = useCallback(
+    async (providerId: string, file: File, onProgress: UploadProgressHandler) => {
+      const content = await readFileAsText(file, onProgress);
+      const normalized = content.replace(/\r\n?/g, '\n').trim();
+      if (!normalized) {
+        throw new Error('Arquivo não contém credencial para registrar.');
+      }
+
+      setFormStates((current) => {
+        const existing = current[providerId] ?? createFormState();
+        return {
+          ...current,
+          [providerId]: {
+            ...existing,
+            isEditing: true,
+            hasLoadedValue: true,
+            inputValue: normalized,
+            error: null,
+          },
+        };
+      });
+
+      if (typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          const input = document.getElementById(`secret-${providerId}`);
+          if (input instanceof HTMLInputElement) {
+            input.focus();
+            input.select();
+          }
+        });
+      }
+    },
+    [setFormStates],
+  );
+
   async function handleSave(providerId: string) {
     const snapshot = ensureFormState(providerId);
     const trimmed = snapshot.inputValue.trim();
@@ -518,6 +556,11 @@ export default function Keys({
           const isTestDisabled = !hasSecret || formState.isEditing || keyState.isTesting;
           const editLabel = hasSecret ? 'Atualizar chave' : 'Configurar chave';
 
+          const secretFieldId = `secret-${provider.id}`;
+          const secretHintId = formState.isLoadingValue ? `${secretFieldId}-hint` : undefined;
+          const secretErrorId = formState.error ? `${secretFieldId}-error` : undefined;
+          const secretDescribedBy = [secretHintId, secretErrorId].filter(Boolean).join(' ') || undefined;
+
           return (
             <article key={provider.id} className="key-card">
               <header className="key-card__header">
@@ -571,26 +614,40 @@ export default function Keys({
                   }}
                   noValidate
                 >
-                  <label className="key-form__label" htmlFor={`secret-${provider.id}`}>
+                  <label className="key-form__label" htmlFor={secretFieldId}>
                     Chave de acesso
                   </label>
                   <input
-                    id={`secret-${provider.id}`}
+                    id={secretFieldId}
                     type="password"
-                    className="key-form__input"
+                    className={clsx('key-form__input', { 'is-invalid': Boolean(formState.error) })}
                     value={formState.inputValue}
                     onChange={(event) => handleInputChange(provider.id, event.target.value)}
                     placeholder="sk-..."
                     autoComplete="off"
                     disabled={formState.isSaving || formState.isLoadingValue}
-                    aria-describedby={`secret-${provider.id}-hint`}
+                    aria-describedby={secretDescribedBy}
+                    aria-invalid={formState.error ? 'true' : 'false'}
                   />
-                  {formState.isLoadingValue && (
-                    <p id={`secret-${provider.id}-hint`} className="key-form__hint">
+                  {formState.isLoadingValue && secretHintId && (
+                    <p id={secretHintId} className="key-form__hint">
                       Carregando chave atual…
                     </p>
                   )}
-                  {formState.error && <p className="key-form__error">{formState.error}</p>}
+                  {formState.error && (
+                    <p id={secretErrorId} className="key-form__error" role="alert">
+                      {formState.error}
+                    </p>
+                  )}
+                  <FileUploadControl
+                    title="Importar chave do provedor"
+                    description="Carregue arquivo local para preencher automaticamente a credencial."
+                    accept=".txt,.json,.env,.pem"
+                    maxSizeBytes={64 * 1024}
+                    idleMessage="Ou selecione um arquivo com a credencial."
+                    actionLabel="Carregar chave"
+                    onUpload={(file, progress) => handleSecretFileUpload(provider.id, file, progress)}
+                  />
                   <div className="key-form__actions">
                     <button
                       type="submit"

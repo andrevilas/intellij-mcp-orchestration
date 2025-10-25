@@ -14,8 +14,9 @@ Este guia documenta os controles de formulário introduzidos na sprint TASK-UI-F
 
 ## Upload e download
 - `FileUploadControl` aplica limites configuráveis, barra de progresso MCP e reaproveita toasts/alerts para informar sucesso ou erro.【F:app/src/components/forms/FileUploadControl.tsx†L1-L161】
+- Fluxos de credenciais (`Keys.tsx`) e políticas (`Policies.tsx`) usam o controle para importar segredos/manifest.json com preenchimento automático e feedback visual consistente.【F:app/src/pages/Keys.tsx†L1-L676】【F:app/src/pages/Policies.tsx†L1-L1535】
 - `FileDownloadControl` acompanha progresso, gera blobs e dispara download automático, registrando feedback visual e via toast.【F:app/src/components/forms/FileDownloadControl.tsx†L1-L147】
 
 ## Testes e evidências
 - Cobertura unitária valida propagação de `aria-invalid`, resumo de erros e `InputGroup` com feedback combinada.【F:app/src/components/forms/FormControls.test.tsx†L1-L104】
-- Teste Playwright garante ordem de tabulação e gera artefato `forms-tab-order.json` em `/docs/evidence/TASK-UI-FORM-040/`.【F:tests/e2e/forms-controls.spec.ts†L1-L83】
+- Testes Playwright garantem ordem de tabulação, evidência em `/docs/evidence/TASK-UI-FORM-040/` e acionamento de upload via teclado com toasts/progresso.【F:tests/e2e/forms-controls.spec.ts†L1-L123】

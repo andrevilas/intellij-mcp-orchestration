@@ -1425,6 +1425,11 @@
   gap: 0.5rem;
 }
 
+.mcp-wizard__fieldset--invalid {
+  border-left: 3px solid var(--mcp-color-danger-500);
+  padding-left: 0.75rem;
+}
+
 .mcp-wizard__fieldset legend {
   font-weight: 600;
   margin-bottom: 0.25rem;

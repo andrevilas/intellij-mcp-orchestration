@@ -300,6 +300,42 @@ main.policies {
   gap: 1rem;
 }
 
+.runtime-settings__error-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.runtime-settings__error-helper {
+  margin: 0;
+  font-size: 0.9rem;
+  color: color-mix(in srgb, var(--mcp-danger) 70%, var(--mcp-surface-contrast) 30%);
+}
+
+.runtime-settings__error-list {
+  list-style: disc inside;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.runtime-settings__error-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.runtime-settings__error-link:focus {
+  outline: 2px solid var(--mcp-danger);
+  outline-offset: 2px;
+}
+
 .form-field {
   display: flex;
   flex-direction: column;
@@ -328,6 +364,11 @@ main.policies {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.runtime-settings__hitl--invalid {
+  border-color: color-mix(in srgb, var(--mcp-danger) 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mcp-danger) 20%, transparent);
 }
 
 .checkpoint-list {

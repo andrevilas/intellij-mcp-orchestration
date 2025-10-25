@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
 import type { ChangeEvent, FormEvent } from 'react';
 import { createTwoFilesPatch } from 'diff';
 
@@ -27,12 +28,15 @@ import {
   type ProviderSummary,
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
+import Alert from '../components/feedback/Alert';
 import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import ModalBase from '../components/modals/ModalBase';
 import { useToastNotification } from '../hooks/useToastNotification';
 import { POLICIES_TEST_IDS } from './testIds';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
+import { FileUploadControl, type UploadProgressHandler } from '../components/forms';
+import { readFileAsText } from '../utils/readFile';
 
 import './Policies.scss';
 
@@ -254,6 +258,14 @@ type RuntimeFormErrors = {
   checkpoints?: string;
 };
 
+const RUNTIME_FIELD_FOCUS_MAP: Record<keyof RuntimeFormErrors, string | null> = {
+  maxIters: 'runtime-maxIters',
+  perIteration: 'runtime-perIteration',
+  totalTimeout: 'runtime-totalTimeout',
+  sampleRate: 'runtime-sampleRate',
+  checkpoints: 'policies-hitl-checkpoints',
+};
+
 type RuntimeUpdateInput = NonNullable<PolicyManifestUpdateInput['runtime']>;
 type HitlUpdateInput = NonNullable<PolicyManifestUpdateInput['hitl']>;
 
@@ -280,6 +292,13 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     sampleRate: '10',
   });
   const [runtimeErrors, setRuntimeErrors] = useState<RuntimeFormErrors>({});
+  const runtimeErrorItems = useMemo(
+    () =>
+      Object.entries(runtimeErrors)
+        .filter(([, message]) => typeof message === 'string' && message.trim().length > 0)
+        .map(([name, message]) => ({ name, message: String(message) })),
+    [runtimeErrors],
+  );
   const [isRuntimeSaving, setIsRuntimeSaving] = useState(false);
   const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
   const [hitlEnabled, setHitlEnabled] = useState(false);
@@ -435,6 +454,17 @@ export default function Policies({ providers, isLoading, initialError }: Policie
     [],
   );
 
+  const focusRuntimeField = useCallback((field: keyof RuntimeFormErrors) => {
+    const targetId = RUNTIME_FIELD_FOCUS_MAP[field];
+    if (!targetId) {
+      return;
+    }
+    const element = document.getElementById(targetId);
+    if (element instanceof HTMLElement) {
+      element.focus();
+    }
+  }, []);
+
   const handleHitlToggle = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setHitlEnabled(event.target.checked);
     setRuntimeErrors((current) => ({ ...current, checkpoints: undefined }));
@@ -498,6 +528,48 @@ export default function Policies({ providers, isLoading, initialError }: Policie
       }
     },
     [hitlMessages.error],
+  );
+
+  const handleManifestUpload = useCallback(
+    async (file: File, onProgress: UploadProgressHandler) => {
+      if (isManifestLoading) {
+        throw new Error('Aguarde o carregamento atual antes de importar um manifesto.');
+      }
+
+      const text = await readFileAsText(file, onProgress);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch (error) {
+        throw new Error('Manifesto inválido. Forneça um arquivo JSON válido.');
+      }
+
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Manifesto inválido. Forneça um arquivo JSON válido.');
+      }
+
+      const snapshot = parsed as Partial<PolicyManifestSnapshot>;
+      if (!snapshot.runtime || !snapshot.hitl) {
+        throw new Error('Manifesto deve conter as seções `runtime` e `hitl`.');
+      }
+
+      const runtime = snapshot.runtime as PolicyManifestSnapshot['runtime'];
+      const hitl = snapshot.hitl as PolicyManifestSnapshot['hitl'];
+
+      setManifest(snapshot as PolicyManifestSnapshot);
+      setRuntimeForm({
+        maxIters: runtime.maxIters ? String(runtime.maxIters) : '',
+        perIteration: runtime.timeouts?.perIteration ? String(runtime.timeouts.perIteration) : '',
+        totalTimeout: runtime.timeouts?.total ? String(runtime.timeouts.total) : '',
+        sampleRate: String(Math.round((runtime.tracing?.sampleRate ?? 0) * 100)),
+      });
+      setHitlEnabled(Boolean(hitl.enabled));
+      setCheckpoints(Array.isArray(hitl.checkpoints) ? hitl.checkpoints : []);
+      setRuntimeErrors({});
+      setRuntimeMessage(`Manifesto ${file.name} importado. Revise antes de gerar um plano.`);
+      setManifestError(null);
+    },
+    [isManifestLoading, setManifest, setRuntimeForm, setHitlEnabled, setCheckpoints, setRuntimeErrors, setRuntimeMessage, setManifestError],
   );
 
   const handleHitlResolution = useCallback(
@@ -1352,6 +1424,15 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             <p>Edite limites operacionais aplicados durante as execuções MCP.</p>
           </div>
         </header>
+        <FileUploadControl
+          title="Importar manifesto de políticas"
+          description="Faça upload de um manifest.json para pré-preencher runtime e checkpoints HITL."
+          accept=".json"
+          maxSizeBytes={512 * 1024}
+          idleMessage="Ou selecione o manifest.json exportado anteriormente."
+          actionLabel="Importar manifesto"
+          onUpload={handleManifestUpload}
+        />
         {manifestError && <p className="error">{manifestError}</p>}
         {runtimeMessage && <p className="status status--inline">{runtimeMessage}</p>}
         <form
@@ -1359,10 +1440,37 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           onSubmit={handleRuntimeSubmit}
           data-testid={POLICIES_TEST_IDS.runtime.form}
         >
+          {runtimeErrorItems.length > 0 ? (
+            <Alert
+              variant="error"
+              title="Revise os campos destacados."
+              description={
+                <div className="runtime-settings__error-summary">
+                  <p className="runtime-settings__error-helper">
+                    Alguns valores precisam de atenção antes de gerar um plano governado.
+                  </p>
+                  <ul className="runtime-settings__error-list">
+                    {runtimeErrorItems.map((item) => (
+                      <li key={item.name}>
+                        <button
+                          type="button"
+                          className="runtime-settings__error-link"
+                          onClick={() => focusRuntimeField(item.name as keyof RuntimeFormErrors)}
+                        >
+                          {item.message}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              }
+            />
+          ) : null}
           <div className="runtime-settings__grid">
             <label className="form-field">
               <span>Máximo de iterações</span>
               <input
+                id="runtime-maxIters"
                 type="number"
                 min={1}
                 value={runtimeForm.maxIters}
@@ -1371,9 +1479,10 @@ export default function Policies({ providers, isLoading, initialError }: Policie
                 disabled={isManifestLoading || isRuntimeSaving}
                 aria-invalid={runtimeErrors.maxIters ? 'true' : 'false'}
                 aria-describedby={runtimeErrors.maxIters ? 'runtime-maxiters-error' : undefined}
+                className={clsx({ 'is-invalid': Boolean(runtimeErrors.maxIters) })}
               />
               {runtimeErrors.maxIters && (
-                <span id="runtime-maxiters-error" className="form-field__error">
+                <span id="runtime-maxiters-error" className="form-field__error" role="alert">
                   {runtimeErrors.maxIters}
                 </span>
               )}
@@ -1382,6 +1491,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             <label className="form-field">
               <span>Timeout por iteração (s)</span>
               <input
+                id="runtime-perIteration"
                 type="number"
                 min={1}
                 value={runtimeForm.perIteration}
@@ -1390,9 +1500,10 @@ export default function Policies({ providers, isLoading, initialError }: Policie
                 disabled={isManifestLoading || isRuntimeSaving}
                 aria-invalid={runtimeErrors.perIteration ? 'true' : 'false'}
                 aria-describedby={runtimeErrors.perIteration ? 'runtime-periteration-error' : undefined}
+                className={clsx({ 'is-invalid': Boolean(runtimeErrors.perIteration) })}
               />
               {runtimeErrors.perIteration && (
-                <span id="runtime-periteration-error" className="form-field__error">
+                <span id="runtime-periteration-error" className="form-field__error" role="alert">
                   {runtimeErrors.perIteration}
                 </span>
               )}
@@ -1401,6 +1512,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             <label className="form-field">
               <span>Timeout total (s)</span>
               <input
+                id="runtime-totalTimeout"
                 type="number"
                 min={1}
                 value={runtimeForm.totalTimeout}
@@ -1409,9 +1521,10 @@ export default function Policies({ providers, isLoading, initialError }: Policie
                 disabled={isManifestLoading || isRuntimeSaving}
                 aria-invalid={runtimeErrors.totalTimeout ? 'true' : 'false'}
                 aria-describedby={runtimeErrors.totalTimeout ? 'runtime-totaltimeout-error' : undefined}
+                className={clsx({ 'is-invalid': Boolean(runtimeErrors.totalTimeout) })}
               />
               {runtimeErrors.totalTimeout && (
-                <span id="runtime-totaltimeout-error" className="form-field__error">
+                <span id="runtime-totaltimeout-error" className="form-field__error" role="alert">
                   {runtimeErrors.totalTimeout}
                 </span>
               )}
@@ -1420,6 +1533,7 @@ export default function Policies({ providers, isLoading, initialError }: Policie
             <label className="form-field">
               <span>Sample rate de tracing (%)</span>
               <input
+                id="runtime-sampleRate"
                 type="number"
                 min={0}
                 max={100}
@@ -1429,9 +1543,10 @@ export default function Policies({ providers, isLoading, initialError }: Policie
                 disabled={isManifestLoading || isRuntimeSaving}
                 aria-invalid={runtimeErrors.sampleRate ? 'true' : 'false'}
                 aria-describedby={runtimeErrors.sampleRate ? 'runtime-samplerate-error' : undefined}
+                className={clsx({ 'is-invalid': Boolean(runtimeErrors.sampleRate) })}
               />
               {runtimeErrors.sampleRate && (
-                <span id="runtime-samplerate-error" className="form-field__error">
+                <span id="runtime-samplerate-error" className="form-field__error" role="alert">
                   {runtimeErrors.sampleRate}
                 </span>
               )}
@@ -1439,8 +1554,13 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           </div>
 
           <fieldset
-            className="runtime-settings__hitl"
+            className={clsx('runtime-settings__hitl', {
+              'runtime-settings__hitl--invalid': Boolean(runtimeErrors.checkpoints),
+            })}
             data-testid={POLICIES_TEST_IDS.runtime.hitlSettings}
+            id="policies-hitl-checkpoints"
+            tabIndex={-1}
+            aria-invalid={runtimeErrors.checkpoints ? 'true' : 'false'}
           >
             <legend>Checkpoints de aprovação humana (HITL)</legend>
             <label className="form-field form-field--checkbox">
@@ -1527,7 +1647,11 @@ export default function Policies({ providers, isLoading, initialError }: Policie
                 </button>
               </>
             )}
-            {runtimeErrors.checkpoints && <p className="form-field__error">{runtimeErrors.checkpoints}</p>}
+            {runtimeErrors.checkpoints && (
+              <p className="form-field__error" role="alert">
+                {runtimeErrors.checkpoints}
+              </p>
+            )}
           </fieldset>
 
           <div className="runtime-settings__actions">
