@@ -153,6 +153,47 @@
   animation: resource-table-loading 1.1s linear infinite;
 }
 
+.resource-table__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-block: 0.25rem 0.5rem;
+}
+
+.resource-table__skeleton-row {
+  display: grid;
+  grid-template-columns: repeat(var(--resource-table-skeleton-columns, 4), minmax(0, 1fr));
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 78%, transparent 22%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mcp-border-subtle) 65%, transparent 35%);
+}
+
+.resource-table__skeleton-cell {
+  display: block;
+  height: 0.85rem;
+  border-radius: 9999px;
+  background-image: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--mcp-overlay-soft) 58%, transparent 42%),
+    color-mix(in srgb, var(--mcp-overlay-strong) 68%, transparent 32%),
+    color-mix(in srgb, var(--mcp-overlay-soft) 58%, transparent 42%)
+  );
+  background-size: 200% 100%;
+  animation: resource-table-loading 1.2s ease-in-out infinite;
+}
+
+.resource-table__skeleton-cell--primary {
+  width: 60%;
+}
+
+.resource-table__skeleton-cell--action {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+}
+
 .resource-table__scroll {
   border-radius: 1rem;
   overflow: auto;

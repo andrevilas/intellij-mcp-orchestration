@@ -8,12 +8,13 @@ import { type AsyncContentStatus, type StatusMessageOverrides } from '../status/
 
 const DEFAULT_MESSAGES: StatusMessageOverrides = {
   loading: 'Carregando informações…',
+  skeleton: 'Preparando tabela…',
   empty: 'Nenhum registro encontrado para esta tabela.',
   error: 'Não foi possível carregar os dados no momento.',
 };
 
 export interface AsyncStateTableProps<T>
-  extends Omit<ResourceTableProps<T>, 'isLoading' | 'error' | 'statusMessages' | 'emptyState'> {
+  extends Omit<ResourceTableProps<T>, 'isLoading' | 'error' | 'statusMessages' | 'emptyState' | 'status'> {
   status?: AsyncContentStatus;
   statusMessages?: StatusMessageOverrides;
   errorMessage?: string | null;
@@ -46,6 +47,7 @@ export default function AsyncStateTable<T>({
   return (
     <ResourceTable
       {...props}
+      status={status}
       isLoading={isLoading}
       error={resolvedError}
       statusMessages={mergedMessages}

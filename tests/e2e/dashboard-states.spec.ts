@@ -10,6 +10,13 @@ test('exibe estados de carregamento para indicadores e sessões', async ({ page 
   await expect(sessionsSection.getByText('Carregando histórico de sessões…')).toBeVisible();
 });
 
+test('exibe placeholders skeleton durante o bootstrap', async ({ page }) => {
+  await page.goto('/?dashboardState=skeleton');
+
+  await expect(page.getByTestId('dashboard-kpi-cost')).toHaveAttribute('data-status', 'skeleton');
+  await expect(page.locator('.resource-table__skeleton-row')).toHaveCountGreaterThan(0);
+});
+
 test('exibe estados vazios quando não há dados de telemetria ou sessões', async ({ page }) => {
   await page.goto('/?dashboardState=empty');
 

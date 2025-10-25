@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import clsx from 'clsx';
 
 import {
@@ -47,6 +47,7 @@ export interface ResourceTableProps<T> {
   filters?: ReactNode;
   isLoading?: boolean;
   error?: string | null;
+  status?: ResourceTableStatus;
   emptyState: ResourceTableEmptyState;
   onRetry?: () => void;
   statusMessages?: StatusMessageOverrides;
@@ -55,6 +56,7 @@ export interface ResourceTableProps<T> {
   onRowClick?: (item: T) => void;
   getRowAriaLabel?: (item: T) => string;
   getRowDescription?: (item: T) => string | null | undefined;
+  skeletonRowCount?: number;
 }
 
 function normalizeValue(value: string | number | Date | boolean | null | undefined): number | string {
@@ -101,6 +103,7 @@ export default function ResourceTable<T>({
   filters,
   isLoading = false,
   error = null,
+  status: statusProp,
   emptyState,
   onRetry,
   statusMessages,
@@ -109,6 +112,7 @@ export default function ResourceTable<T>({
   onRowClick,
   getRowAriaLabel,
   getRowDescription,
+  skeletonRowCount,
 }: ResourceTableProps<T>) {
   const headingId = `${title.replace(/\s+/g, '-').toLowerCase()}-heading`;
   const descriptionId = description ? `${headingId}-description` : undefined;
@@ -144,23 +148,44 @@ export default function ResourceTable<T>({
     });
   }, [columns, items, sortState]);
 
-  const showEmptyState = !isLoading && !error && sortedItems.length === 0;
-  const status: ResourceTableStatus = error
-    ? 'error'
-    : isLoading
-      ? 'loading'
-      : showEmptyState
-        ? 'empty'
-        : 'default';
-  const statusMetadata = getStatusMetadata(status);
-  const hasStatus = isStatusActive(status);
+  const hasRows = sortedItems.length > 0;
+  const resolvedStatus: ResourceTableStatus =
+    statusProp ??
+    (error
+      ? 'error'
+      : isLoading
+        ? hasRows
+          ? 'loading'
+          : 'skeleton'
+        : hasRows
+          ? 'default'
+          : 'empty');
+  const statusMetadata = getStatusMetadata(resolvedStatus);
+  const hasStatus = isStatusActive(resolvedStatus);
   const statusOverride =
-    status === 'error'
+    resolvedStatus === 'error'
       ? error ?? statusMessages?.error ?? null
-      : statusMessages?.[status] ?? null;
-  const statusMessage = hasStatus ? resolveStatusMessage(status, statusOverride) : null;
+      : statusMessages?.[resolvedStatus] ?? null;
+  const statusMessage = hasStatus ? resolveStatusMessage(resolvedStatus, statusOverride) : null;
   const statusMessageText = statusMessage ?? '';
-  const shouldDescribeTable = status === 'error' || status === 'loading';
+  const shouldDescribeTable =
+    resolvedStatus === 'error' || resolvedStatus === 'loading' || resolvedStatus === 'skeleton';
+  const showEmptyState = resolvedStatus === 'empty';
+  const showSkeletonRows = resolvedStatus === 'skeleton';
+  const resolvedSkeletonRowCount = Math.max(
+    1,
+    skeletonRowCount ?? Math.min(5, Math.max(columns.length, 4)),
+  );
+  const skeletonRowIndexes = useMemo(
+    () => Array.from({ length: resolvedSkeletonRowCount }, (_, index) => index),
+    [resolvedSkeletonRowCount],
+  );
+  const hasActionColumn = Boolean(renderActions);
+  const skeletonColumnCount = Math.max(1, columns.length + (hasActionColumn ? 1 : 0));
+  const skeletonStyle = useMemo(
+    () => ({ '--resource-table-skeleton-columns': String(skeletonColumnCount) } as CSSProperties),
+    [skeletonColumnCount],
+  );
 
   function handleSort(column: ResourceTableColumn<T>): void {
     if (!column.sortable || !column.sortAccessor) {
@@ -179,7 +204,7 @@ export default function ResourceTable<T>({
   return (
     <section
       className="resource-table"
-      data-status={hasStatus ? status : undefined}
+      data-status={hasStatus ? resolvedStatus : undefined}
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
       aria-busy={statusMetadata.ariaBusy}
@@ -198,7 +223,7 @@ export default function ResourceTable<T>({
 
       {filters ? <div className="resource-table__filters">{filters}</div> : null}
 
-      {status === 'error' || status === 'loading' ? (
+      {resolvedStatus === 'error' || resolvedStatus === 'loading' || resolvedStatus === 'skeleton' ? (
         <div
           id={statusId}
           className="resource-table__status"
@@ -206,7 +231,7 @@ export default function ResourceTable<T>({
           aria-live={statusMetadata.ariaLive}
           aria-busy={statusMetadata.ariaBusy}
         >
-          {status === 'error' ? (
+          {resolvedStatus === 'error' ? (
             <div className="resource-table__error">
               <span className="resource-table__status-message">{statusMessageText}</span>
               {onRetry ? (
@@ -217,11 +242,15 @@ export default function ResourceTable<T>({
             </div>
           ) : null}
 
-          {status === 'loading' ? (
+          {resolvedStatus === 'loading' ? (
             <div className="resource-table__loading">
               <span className="resource-table__loading-bar" aria-hidden="true" />
               <span>{statusMessageText}</span>
             </div>
+          ) : null}
+
+          {resolvedStatus === 'skeleton' ? (
+            <p className="resource-table__status-message">{statusMessageText}</p>
           ) : null}
         </div>
       ) : null}
@@ -239,91 +268,121 @@ export default function ResourceTable<T>({
         </div>
       ) : (
         <div className="resource-table__scroll" role="region" aria-live="polite">
-          <table
-            className="resource-table__table"
-            aria-label={ariaLabel}
-            aria-describedby={shouldDescribeTable ? statusId : undefined}
-          >
-            <thead>
-              <tr>
-                {columns.map((column) => {
-                  const isSortedColumn = sortState?.columnId === column.id;
-                  const ariaSort = isSortedColumn ? (sortState?.direction === 'asc' ? 'ascending' : 'descending') : undefined;
-                  return (
-                    <th
+          {showSkeletonRows ? (
+            <div
+              className="resource-table__skeleton"
+              style={skeletonStyle}
+              role="presentation"
+              aria-hidden="true"
+            >
+              {skeletonRowIndexes.map((rowIndex) => (
+                <div key={`skeleton-row-${rowIndex}`} className="resource-table__skeleton-row">
+                  {columns.map((column, columnIndex) => (
+                    <span
                       key={column.id}
-                      scope="col"
-                      style={column.width ? { width: column.width } : undefined}
-                      className={clsx(column.align && `resource-table__cell--${column.align}`)}
-                      aria-sort={ariaSort}
-                    >
-                      {column.sortable && column.sortAccessor ? (
-                        <button
-                          type="button"
-                          className={clsx('resource-table__sort-button', isSortedColumn && 'is-active')}
-                          onClick={() => handleSort(column)}
-                          aria-label={column.sortAriaLabel ?? `Ordenar por ${column.header}`}
-                        >
-                          <span>{column.header}</span>
-                          <span aria-hidden="true" className="resource-table__sort-icon">
-                            {isSortedColumn && sortState?.direction === 'desc' ? '▾' : '▴'}
-                          </span>
-                        </button>
-                      ) : (
-                        column.header
+                      className={clsx(
+                        'resource-table__skeleton-cell',
+                        columnIndex === 0 && 'resource-table__skeleton-cell--primary',
                       )}
-                    </th>
+                    />
+                  ))}
+                  {hasActionColumn ? (
+                    <span className="resource-table__skeleton-cell resource-table__skeleton-cell--action" />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <table
+              className="resource-table__table"
+              aria-label={ariaLabel}
+              aria-describedby={shouldDescribeTable ? statusId : undefined}
+            >
+              <thead>
+                <tr>
+                  {columns.map((column) => {
+                    const isSortedColumn = sortState?.columnId === column.id;
+                    const ariaSort = isSortedColumn
+                      ? sortState?.direction === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : undefined;
+                    return (
+                      <th
+                        key={column.id}
+                        scope="col"
+                        style={column.width ? { width: column.width } : undefined}
+                        className={clsx(column.align && `resource-table__cell--${column.align}`)}
+                        aria-sort={ariaSort}
+                      >
+                        {column.sortable && column.sortAccessor ? (
+                          <button
+                            type="button"
+                            className={clsx('resource-table__sort-button', isSortedColumn && 'is-active')}
+                            onClick={() => handleSort(column)}
+                            aria-label={column.sortAriaLabel ?? `Ordenar por ${column.header}`}
+                          >
+                            <span>{column.header}</span>
+                            <span aria-hidden="true" className="resource-table__sort-icon">
+                              {isSortedColumn && sortState?.direction === 'desc' ? '▾' : '▴'}
+                            </span>
+                          </button>
+                        ) : (
+                          column.header
+                        )}
+                      </th>
+                    );
+                  })}
+                  {renderActions ? <th scope="col" className="resource-table__actions-header">Ações</th> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedItems.map((item) => {
+                  const rowId = getRowId(item);
+                  const rowLabel = getRowAriaLabel?.(item);
+                  const rowDescription = getRowDescription?.(item);
+                  const clickable = Boolean(onRowClick);
+                  const rowDescriptionId = rowDescription ? `${rowId}-description` : undefined;
+
+                  return (
+                    <tr
+                      key={rowId}
+                      tabIndex={clickable ? 0 : undefined}
+                      role={clickable ? 'button' : undefined}
+                      aria-label={clickable ? rowLabel : undefined}
+                      aria-describedby={clickable ? rowDescriptionId : undefined}
+                      data-clickable={clickable || undefined}
+                      onClick={clickable ? () => onRowClick?.(item) : undefined}
+                      onKeyDown={
+                        clickable
+                          ? (event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                onRowClick?.(item);
+                              }
+                            }
+                          : undefined
+                      }
+                    >
+                      {columns.map((column, columnIndex) => (
+                        <td key={column.id} className={clsx(column.align && `resource-table__cell--${column.align}`)}>
+                          {columnIndex === 0 && rowDescription ? (
+                            <span className="resource-table__sr" id={rowDescriptionId}>
+                              {rowDescription}
+                            </span>
+                          ) : null}
+                          {column.render(item)}
+                        </td>
+                      ))}
+                      {renderActions ? (
+                        <td className="resource-table__actions">{renderActions(item)}</td>
+                      ) : null}
+                    </tr>
                   );
                 })}
-                {renderActions ? <th scope="col" className="resource-table__actions-header">Ações</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedItems.map((item) => {
-                const rowId = getRowId(item);
-                const rowLabel = getRowAriaLabel?.(item);
-                const rowDescription = getRowDescription?.(item);
-                const clickable = Boolean(onRowClick);
-                const rowDescriptionId = rowDescription ? `${rowId}-description` : undefined;
-
-                return (
-                  <tr
-                    key={rowId}
-                    tabIndex={clickable ? 0 : undefined}
-                    role={clickable ? 'button' : undefined}
-                    aria-label={clickable ? rowLabel : undefined}
-                    aria-describedby={clickable ? rowDescriptionId : undefined}
-                    data-clickable={clickable || undefined}
-                    onClick={clickable ? () => onRowClick?.(item) : undefined}
-                    onKeyDown={
-                      clickable
-                        ? (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              onRowClick?.(item);
-                            }
-                          }
-                        : undefined
-                    }
-                  >
-                    {columns.map((column, columnIndex) => (
-                      <td key={column.id} className={clsx(column.align && `resource-table__cell--${column.align}`)}>
-                        {columnIndex === 0 && rowDescription ? (
-                          <span className="resource-table__sr" id={rowDescriptionId}>
-                            {rowDescription}
-                          </span>
-                        ) : null}
-                        {column.render(item)}
-                      </td>
-                    ))}
-                    {renderActions ? (
-                      <td className="resource-table__actions">{renderActions(item)}</td>
-                    ) : null}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </section>

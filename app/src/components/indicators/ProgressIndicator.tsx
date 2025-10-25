@@ -58,6 +58,9 @@ export default function ProgressIndicator({
       case 'loading':
         statusVisual = <span className="progress-indicator__skeleton" aria-hidden="true" />;
         break;
+      case 'skeleton':
+        statusVisual = <span className="progress-indicator__skeleton" aria-hidden="true" />;
+        break;
       case 'empty':
         statusVisual = (
           <span className="progress-indicator__status-icon" aria-hidden="true">

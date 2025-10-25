@@ -55,6 +55,7 @@ export function KpiCard({
   const message = isStatusActive(status)
     ? resolveStatusMessage(status, statusMessages?.[status])
     : undefined;
+  const isSkeleton = status === 'skeleton';
 
   return (
     <article
@@ -95,7 +96,14 @@ export function KpiCard({
           aria-busy={statusMetadata.ariaBusy}
         >
           {status === 'loading' ? (
-            <span className="kpi-card__skeleton" aria-hidden="true" />
+            <span className="kpi-card__skeleton kpi-card__skeleton--value" aria-hidden="true" />
+          ) : null}
+          {isSkeleton ? (
+            <div className="kpi-card__skeleton-group" aria-hidden="true">
+              <span className="kpi-card__skeleton kpi-card__skeleton--value" />
+              <span className="kpi-card__skeleton kpi-card__skeleton--caption" />
+              <span className="kpi-card__skeleton kpi-card__skeleton--trend" />
+            </div>
           ) : null}
           <p className="kpi-card__status-message">{message}</p>
           {status === 'error' && onRetry ? (

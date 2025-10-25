@@ -53,6 +53,7 @@ export default function StatusBadge({
     ? resolveStatusMessage(status, statusMessages?.[status] ?? null)
     : null;
   const labelContent = statusActive ? statusMessage : children;
+  const isSkeleton = status === 'skeleton';
 
   const fallbackLabel = (() => {
     if (ariaLabel) {
@@ -82,6 +83,7 @@ export default function StatusBadge({
       {statusActive ? (
         <>
           {status === 'loading' ? <span className="status-badge__spinner" aria-hidden="true" /> : null}
+          {isSkeleton ? <span className="status-badge__skeleton" aria-hidden="true" /> : null}
           <span className="status-badge__label">{labelContent}</span>
           {status === 'error' && onRetry ? (
             <button type="button" className="status-badge__retry" onClick={onRetry}>

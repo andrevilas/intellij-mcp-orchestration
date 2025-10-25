@@ -15,6 +15,7 @@ import notificationsFixture from '#fixtures/notifications.json';
 import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json';
 import telemetryHeatmapFixture from '#fixtures/telemetry_heatmap.json';
 import complianceFixture from '#fixtures/policies_compliance.json';
+import keysFixture from '#fixtures/keys_fixtures.json';
 
 interface ProviderFixtureEntry {
   id: string;
@@ -58,6 +59,16 @@ interface ComplianceFixturePayload {
   items?: Array<
     Omit<PolicyComplianceItem, 'description'> & {
       description?: string | null;
+    }
+  >;
+}
+
+interface KeysFixturePayload {
+  secrets?: Array<
+    {
+      provider_id: string;
+      has_secret: boolean;
+      updated_at: string | null;
     }
   >;
 }
@@ -133,11 +144,16 @@ export function createAppFixtureSnapshot(): AppFixtureSnapshot {
     (telemetryHeatmapFixture as TelemetryHeatmapFixturePayload).buckets ?? [];
   const telemetryMetrics = normalizeTelemetryMetrics(telemetryMetricsFixture);
   const compliance = mapCompliance(complianceFixture as ComplianceFixturePayload);
+  const secretEntries = (keysFixture as KeysFixturePayload).secrets ?? [];
 
   return {
     providers: providerEntries.map(mapProvider),
     sessions: sessionEntries.map(mapSession),
-    secrets: [],
+    secrets: secretEntries.map((entry) => ({
+      provider_id: entry.provider_id,
+      has_secret: entry.has_secret,
+      updated_at: entry.updated_at ?? null,
+    })),
     notifications,
     telemetryMetrics,
     telemetryHeatmap,

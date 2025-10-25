@@ -65,7 +65,7 @@ export interface DashboardProps {
 
 const SESSION_PAGE_SIZE = 6;
 
-type DashboardScenario = 'default' | 'loading' | 'empty' | 'error';
+type DashboardScenario = 'default' | 'loading' | 'empty' | 'error' | 'skeleton';
 const SESSION_EMPTY_DESCRIPTION =
   'Provisionamentos aparecerão aqui assim que novas execuções forem registradas.';
 
@@ -332,7 +332,12 @@ export function Dashboard({
     try {
       const url = new URL(window.location.href);
       const scenarioParam = url.searchParams.get('dashboardState');
-      if (scenarioParam === 'loading' || scenarioParam === 'empty' || scenarioParam === 'error') {
+      if (
+        scenarioParam === 'loading' ||
+        scenarioParam === 'empty' ||
+        scenarioParam === 'error' ||
+        scenarioParam === 'skeleton'
+      ) {
         return scenarioParam;
       }
     } catch (error) {
@@ -341,11 +346,17 @@ export function Dashboard({
     return 'default';
   }, []);
   const telemetryMetricsSource =
-    forcedScenario === 'loading' || forcedScenario === 'error' || forcedScenario === 'empty'
+    forcedScenario === 'loading' ||
+    forcedScenario === 'error' ||
+    forcedScenario === 'empty' ||
+    forcedScenario === 'skeleton'
       ? null
       : metrics;
   const telemetryHeatmapSource =
-    forcedScenario === 'loading' || forcedScenario === 'error' || forcedScenario === 'empty'
+    forcedScenario === 'loading' ||
+    forcedScenario === 'error' ||
+    forcedScenario === 'empty' ||
+    forcedScenario === 'skeleton'
       ? []
       : heatmapBuckets;
 
@@ -373,7 +384,12 @@ export function Dashboard({
   });
 
   const sessionSource = useMemo(() => {
-    if (forcedScenario === 'loading' || forcedScenario === 'empty' || forcedScenario === 'error') {
+    if (
+      forcedScenario === 'loading' ||
+      forcedScenario === 'empty' ||
+      forcedScenario === 'error' ||
+      forcedScenario === 'skeleton'
+    ) {
       return [] as Session[];
     }
     return sessions;
@@ -417,6 +433,9 @@ export function Dashboard({
     if (forcedScenario === 'loading') {
       return 'loading';
     }
+    if (forcedScenario === 'skeleton') {
+      return 'skeleton';
+    }
     if (forcedScenario === 'error') {
       return 'error';
     }
@@ -424,7 +443,7 @@ export function Dashboard({
       return 'empty';
     }
     if (isLoading) {
-      return 'loading';
+      return metrics ? 'loading' : 'skeleton';
     }
     if (initialError) {
       return 'error';
@@ -438,6 +457,7 @@ export function Dashboard({
   const telemetryStatusMessages = useMemo<StatusMessageOverrides>(
     () => ({
       loading: telemetryRequestMessages.loading,
+      skeleton: telemetryRequestMessages.loading,
       empty: 'Nenhum indicador disponível no momento.',
       error: telemetryError ?? telemetryRequestMessages.error,
     }),
@@ -450,10 +470,12 @@ export function Dashboard({
     telemetryStatusMessages[telemetryStatus] ?? null,
   );
 
-  const sessionsIsLoading = forcedScenario === 'loading' ? true : isLoading;
+  const sessionsIsLoading =
+    forcedScenario === 'loading' || forcedScenario === 'skeleton' ? true : isLoading;
   const sessionStatusMessages = useMemo<StatusMessageOverrides>(
     () => ({
       loading: sessionRequestMessages.loading,
+      skeleton: sessionRequestMessages.loading,
       empty: SESSION_EMPTY_DESCRIPTION,
       error: sessionsError ?? sessionRequestMessages.error,
     }),
@@ -486,7 +508,7 @@ export function Dashboard({
   }, [compliance]);
 
   const complianceStatus: AsyncContentStatus = (() => {
-    if (forcedScenario === 'loading') {
+    if (forcedScenario === 'loading' || forcedScenario === 'skeleton') {
       return 'loading';
     }
     if (forcedScenario === 'error') {
