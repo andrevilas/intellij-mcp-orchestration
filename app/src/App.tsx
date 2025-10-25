@@ -11,7 +11,7 @@ import {
   VIEW_DEFINITIONS,
   type ViewId,
   getViewComponent,
-  preloadCriticalViews,
+  getViewLoader,
   preloadView,
   resolveInitialView,
 } from './router';
@@ -40,15 +40,25 @@ import {
   testSecret,
   upsertSecret,
 } from './api';
-import CommandPalette from './components/CommandPalette';
-import NotificationCenter, { type NotificationItem } from './components/NotificationCenter';
-import ProvisioningDialog, { type ProvisioningSubmission } from './components/ProvisioningDialog';
+import type { NotificationItem } from './components/NotificationCenter';
+import type { ProvisioningSubmission } from './components/ProvisioningDialog';
+import type { BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import { ToastProvider } from './components/feedback/ToastProvider';
-import Breadcrumbs, { type BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import type { AppFixtureSnapshot } from './utils/appFixtures';
 import { createAppFixtureSnapshot } from './utils/appFixtures';
 import { getFixtureStatus } from './utils/fixtureStatus';
-import ThemeSwitch from './theme/ThemeSwitch';
+
+const commandPaletteLoader = () => import('./components/CommandPalette');
+const notificationCenterLoader = () => import('./components/NotificationCenter');
+const provisioningDialogLoader = () => import('./components/ProvisioningDialog');
+const breadcrumbsLoader = () => import('./components/navigation/Breadcrumbs');
+const themeSwitchLoader = () => import('./theme/ThemeSwitch');
+
+const CommandPalette = lazy(commandPaletteLoader);
+const NotificationCenter = lazy(notificationCenterLoader);
+const ProvisioningDialog = lazy(provisioningDialogLoader);
+const Breadcrumbs = lazy(breadcrumbsLoader);
+const ThemeSwitch = lazy(themeSwitchLoader);
 
 export interface Feedback {
   kind: 'success' | 'error';
@@ -149,10 +159,19 @@ function buildFallbackNotifications(): NotificationSummary[] {
   ];
 }
 
-const Dashboard = getViewComponent('dashboard');
-const Observability = getViewComponent('observability');
-const Servers = getViewComponent('servers');
-const Agents = getViewComponent('agents');
+function createLazyCriticalView(view: ViewId) {
+  const loader = getViewLoader(view);
+  if (!loader) {
+    throw new Error(`Loader not found for critical view "${view}"`);
+  }
+
+  return lazy(loader);
+}
+
+const Dashboard = createLazyCriticalView('dashboard');
+const Observability = createLazyCriticalView('observability');
+const Servers = createLazyCriticalView('servers');
+const Agents = createLazyCriticalView('agents');
 const Keys = getViewComponent('keys');
 const Security = getViewComponent('security');
 const Policies = getViewComponent('policies');
@@ -162,8 +181,6 @@ const FinOps = getViewComponent('finops');
 const Marketplace = getViewComponent('marketplace');
 const AdminChat = getViewComponent('admin-chat');
 const UiKitShowcase = lazy(() => import('./components/UiKitShowcase'));
-
-preloadCriticalViews();
 
 const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
   dashboard: 'gauge-high',
@@ -199,6 +216,11 @@ function App() {
     () => buildInitialNotificationState(fixtureSnapshot),
     [fixtureSnapshot],
   );
+
+  useEffect(() => {
+    void themeSwitchLoader();
+    void breadcrumbsLoader();
+  }, []);
 
   const [providers, setProviders] = useState<ProviderSummary[]>(
     () => fixtureSnapshot?.providers ?? [],
@@ -412,6 +434,7 @@ function App() {
   }, [applyNotifications, hasFixtureBootstrap]);
 
   const handleProvisionRequest = useCallback((provider: ProviderSummary) => {
+    void provisioningDialogLoader();
     setPendingProvider(provider);
     setProvisionDialogOpen(true);
     setPaletteOpen(false);
@@ -684,6 +707,7 @@ function App() {
       const key = event.key.toLowerCase();
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === 'k') {
         event.preventDefault();
+        void commandPaletteLoader();
         setPaletteOpen((current) => {
           const nextValue = !current;
           if (nextValue) {
@@ -699,6 +723,7 @@ function App() {
 
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'n') {
         event.preventDefault();
+        void notificationCenterLoader();
         setNotificationOpen((current) => {
           const nextValue = !current;
           if (nextValue) {
@@ -869,7 +894,16 @@ function App() {
             </div>
           </div>
           <div className="app-shell__actions">
-            <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--desktop" />
+              <Suspense
+                fallback={
+                  <div
+                    className="app-shell__theme-switch app-shell__theme-switch--desktop theme-switch-placeholder"
+                    aria-hidden="true"
+                  />
+                }
+              >
+                <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--desktop" />
+              </Suspense>
             <nav
               aria-label="Navegação principal"
               id="primary-navigation"
@@ -906,7 +940,16 @@ function App() {
                   <span className="nav-button__label">{view.label}</span>
                 </button>
               ))}
-              <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--mobile" />
+              <Suspense
+                fallback={
+                  <div
+                    className="app-shell__theme-switch app-shell__theme-switch--mobile theme-switch-placeholder"
+                    aria-hidden="true"
+                  />
+                }
+              >
+                <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--mobile" />
+              </Suspense>
             </nav>
             <div className="app-shell__quick-actions">
               <button
@@ -916,9 +959,12 @@ function App() {
                 aria-expanded={isNotificationOpen}
                 aria-controls="notification-center-panel"
                 onClick={() => {
+                  void notificationCenterLoader();
                   setNotificationOpen(true);
                   setPaletteOpen(false);
                 }}
+                onMouseEnter={() => void notificationCenterLoader()}
+                onFocus={() => void notificationCenterLoader()}
                 aria-label={notificationButtonLabel}
                 ref={notificationButtonRef}
               >
@@ -942,9 +988,12 @@ function App() {
                 aria-haspopup="dialog"
                 aria-expanded={isPaletteOpen}
                 onClick={() => {
+                  void commandPaletteLoader();
                   setPaletteOpen(true);
                   setNotificationOpen(false);
                 }}
+                onMouseEnter={() => void commandPaletteLoader()}
+                onFocus={() => void commandPaletteLoader()}
                 ref={commandButtonRef}
               >
                 <FontAwesomeIcon icon="circle-half-stroke" className="icon-leading" fixedWidth aria-hidden="true" />
@@ -955,7 +1004,11 @@ function App() {
           </div>
         </header>
       <div className="app-shell__breadcrumbs">
-        <Breadcrumbs items={breadcrumbs} />
+        <Suspense
+          fallback={<div className="breadcrumbs-loading" aria-hidden="true" role="presentation" />}
+        >
+          <Breadcrumbs items={breadcrumbs} />
+        </Suspense>
       </div>
       <main
         className="app-shell__content"
@@ -983,25 +1036,33 @@ function App() {
       <footer className="app-shell__footer">
         © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
       </footer>
-      <ProvisioningDialog
-        isOpen={isProvisionDialogOpen && pendingProvider !== null}
-        provider={pendingProvider}
-        isSubmitting={isProvisionSubmitting}
-        onCancel={handleProvisionDialogCancel}
-        onConfirm={handleProvisionDialogConfirm}
-      />
-      <NotificationCenter
-        isOpen={isNotificationOpen}
-        notifications={notifications}
-        onClose={handleCloseNotification}
-        onToggleRead={handleToggleNotification}
-        onMarkAllRead={handleMarkAllRead}
-      />
-      <CommandPalette
-        isOpen={isPaletteOpen}
-        onClose={handleClosePalette}
-        commands={commandOptions}
-      />
+      {isProvisionDialogOpen && pendingProvider !== null ? (
+        <Suspense fallback={null}>
+          <ProvisioningDialog
+            isOpen
+            provider={pendingProvider}
+            isSubmitting={isProvisionSubmitting}
+            onCancel={handleProvisionDialogCancel}
+            onConfirm={handleProvisionDialogConfirm}
+          />
+        </Suspense>
+      ) : null}
+      {isNotificationOpen ? (
+        <Suspense fallback={null}>
+          <NotificationCenter
+            isOpen={isNotificationOpen}
+            notifications={notifications}
+            onClose={handleCloseNotification}
+            onToggleRead={handleToggleNotification}
+            onMarkAllRead={handleMarkAllRead}
+          />
+        </Suspense>
+      ) : null}
+      {isPaletteOpen ? (
+        <Suspense fallback={null}>
+          <CommandPalette isOpen onClose={handleClosePalette} commands={commandOptions} />
+        </Suspense>
+      ) : null}
       </div>
     </ToastProvider>
   );

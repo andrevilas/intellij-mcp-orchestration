@@ -42,6 +42,16 @@ body {
   opacity: 1;
 }
 
+@keyframes skeletonPulse {
+  from {
+    opacity: 0.35;
+  }
+
+  to {
+    opacity: 0.75;
+  }
+}
+
 .app-shell {
   min-height: 100vh;
   background: var(--mcp-surface-subtle);
@@ -132,6 +142,17 @@ body {
   padding: 0 2rem;
 }
 
+.breadcrumbs-loading {
+  height: 1.15rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mcp-border-subtle) 85%, transparent),
+    color-mix(in srgb, var(--mcp-border-subtle) 55%, transparent)
+  );
+  animation: skeletonPulse 1.2s ease-in-out infinite alternate;
+}
+
 .app-shell__eyebrow {
   font-size: 0.85rem;
   text-transform: uppercase;
@@ -171,6 +192,18 @@ body {
   width: 100%;
   justify-content: center;
   display: none;
+}
+
+.theme-switch-placeholder {
+  min-height: 2.5rem;
+  min-width: 11.25rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mcp-border-subtle) 90%, transparent),
+    color-mix(in srgb, var(--mcp-border-subtle) 60%, transparent)
+  );
+  animation: skeletonPulse 1.2s ease-in-out infinite alternate;
 }
 
 .nav-button {
