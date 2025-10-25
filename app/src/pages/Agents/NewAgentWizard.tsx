@@ -1,4 +1,5 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useState } from 'react';
+import clsx from 'clsx';
 
 import type {
   AdminPlanPullRequestSummary,
@@ -626,7 +627,12 @@ export default function NewAgentWizard({ isOpen, onClose, onAgentCreated }: NewA
                     />
                   </div>
                   <div className="mcp-wizard__field">
-                    <fieldset className="mcp-wizard__fieldset">
+                    <fieldset
+                      className={clsx('mcp-wizard__fieldset', {
+                        'mcp-wizard__fieldset--invalid': Boolean(serversErrorMessage),
+                      })}
+                      aria-invalid={serversErrorMessage ? 'true' : 'false'}
+                    >
                       <legend>Servidores MCP envolvidos</legend>
                       {providersLoading ? (
                         <p className="mcp-wizard__helper">Carregando servidores MCP…</p>
