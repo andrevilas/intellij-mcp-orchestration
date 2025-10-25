@@ -1,0 +1,127 @@
+@use '../../styles/components/status-block' as status;
+
+@include status.status-theme(
+  '.async-state-card',
+  (
+    'async-card-bg': surface,
+    'async-card-border': border,
+    'async-card-heading': text,
+    'async-card-description': muted,
+    'async-card-toolbar': icon,
+    'async-card-status': text,
+    'async-card-status-muted': muted,
+  ),
+);
+
+@include status.status-surface('.async-state-card', 'async-card-bg', 'async-card-border');
+
+.async-state-card {
+  --async-card-radius: 1.25rem;
+  --async-card-padding: 1.5rem;
+  --async-card-gap: 1.25rem;
+  background: var(--async-card-bg);
+  border: 1px solid var(--async-card-border);
+  border-radius: var(--async-card-radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--async-card-gap);
+  padding: var(--async-card-padding);
+  box-shadow: var(--mcp-shadow-elevated);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.async-state-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.async-state-card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.async-state-card__heading > h2 {
+  margin: 0;
+  font-size: clamp(1.1rem, 1.8vw, 1.35rem);
+  color: var(--async-card-heading);
+}
+
+.async-state-card__description {
+  margin: 0;
+  color: var(--async-card-description);
+  font-size: 0.95rem;
+}
+
+.async-state-card__toolbar {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--async-card-toolbar);
+}
+
+.async-state-card__accent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.async-state-card__status {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--async-card-status);
+}
+
+.async-state-card__illustration {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.25rem;
+  color: var(--async-card-status-muted);
+}
+
+.async-state-card__status-message {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--async-card-status-muted);
+}
+
+.async-state-card__retry {
+  align-self: flex-start;
+  padding: 0.55rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--mcp-border-strong);
+  background: var(--mcp-interactive-soft);
+  color: var(--mcp-interactive);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+.async-state-card__retry:hover {
+  transform: translateY(-1px);
+}
+
+.async-state-card__retry:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  outline-offset: 2px;
+}
+
+.async-state-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.async-state-card__footer {
+  margin-top: auto;
+  font-size: 0.85rem;
+  color: var(--async-card-description);
+}
+
+[data-theme='dark'] .async-state-card {
+  --async-card-border: color-mix(in srgb, var(--async-card-border) 60%, transparent);
+}

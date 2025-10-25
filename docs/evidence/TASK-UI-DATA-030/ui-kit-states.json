@@ -15,7 +15,7 @@
       "ariaLive": "off",
       "label": "Taxa de sucesso",
       "value": "98%",
-      "description": "Dados de tests/fixtures/backend/telemetry_metrics.json",
+      "description": "Dados de tests/fixtures/backend/data/telemetry_metrics.json",
       "statusMessage": null
     },
     {

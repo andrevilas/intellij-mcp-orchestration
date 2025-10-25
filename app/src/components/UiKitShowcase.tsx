@@ -161,7 +161,7 @@ const snippetEntries: Array<UsageSnippetProps & { id: string }> = [
     docs: [
       {
         label: 'Fixture de plano governado',
-        href: `${DOC_BASE_URL}/tests/fixtures/backend/agent_governed_plan.json`,
+        href: `${DOC_BASE_URL}/tests/fixtures/backend/data/agent_governed_plan.json`,
       },
       { label: 'Handlers MSW', href: `${DOC_BASE_URL}/app/src/mocks/handlers.ts` },
     ],
@@ -657,7 +657,7 @@ export default function UiKitShowcase(): JSX.Element {
           <ProgressIndicator
             label="Taxa de sucesso"
             value={Math.round(successRatePercentage)}
-            description="Dados de tests/fixtures/backend/telemetry_metrics.json"
+            description="Dados de tests/fixtures/backend/data/telemetry_metrics.json"
             tone="success"
             status={kpiStatus}
             statusMessages={{
@@ -713,7 +713,7 @@ export default function UiKitShowcase(): JSX.Element {
         </div>
         <ResourceTable
           title="Servidores registrados"
-          description="Dados demonstrativos carregados de tests/fixtures/backend/servers.json."
+          description="Dados demonstrativos carregados de tests/fixtures/backend/data/servers.json."
           ariaLabel="Tabela de servidores MCP com ordenação, foco e estados de carregamento"
           items={tableItems}
           columns={serverColumns}
@@ -837,7 +837,7 @@ export default function UiKitShowcase(): JSX.Element {
         </div>
         <ResourceDetailCard
           title="Gemini MCP"
-          description="Resumo de health-check carregado de tests/fixtures/backend/server_health.json."
+          description="Resumo de health-check carregado de tests/fixtures/backend/data/server_health.json."
           ariaLabel="Detalhes do servidor Gemini"
           items={detailItems}
           status={detailStatus}

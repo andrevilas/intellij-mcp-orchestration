@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures';
-import manifestFixture from '../fixtures/backend/policy_manifest.json' assert { type: 'json' };
+import manifestFixture from '../fixtures/backend/data/policy_manifest.json' assert { type: 'json' };
 import { FINOPS_TEST_IDS } from '../../app/src/pages/testIds';
 
 const manifestResponse = JSON.parse(JSON.stringify(manifestFixture)) as typeof manifestFixture;

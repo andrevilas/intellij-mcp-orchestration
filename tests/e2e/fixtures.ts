@@ -82,6 +82,6 @@ export const test = base.extend({
 export const expect = baseExpect;
 
 export async function loadBackendFixture<T = unknown>(name: string): Promise<T> {
-  const module = await import(`../fixtures/backend/${name}`, { with: { type: 'json' } });
+  const module = await import(`../fixtures/backend/data/${name}`, { with: { type: 'json' } });
   return module.default as T;
 }
