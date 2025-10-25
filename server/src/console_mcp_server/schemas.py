@@ -638,6 +638,49 @@ class ServerProcessLogsResponse(BaseModel):
     cursor: Optional[str]
 
 
+class RoutingIntentConfig(BaseModel):
+    """Intent configuration forwarded by the routing simulator UI."""
+
+    intent: str = Field(default="", description="Stable identifier used for manifest generation")
+    description: Optional[str] = Field(default=None, description="Human friendly intent summary")
+    tags: List[str] = Field(default_factory=list, description="Optional tags used for filtering")
+    default_tier: Literal["economy", "balanced", "turbo"] = Field(
+        default="balanced", description="Tier automatically selected for the intent"
+    )
+    fallback_provider_id: Optional[str] = Field(
+        default=None,
+        description="Provider enforced when the default tier is unavailable",
+    )
+
+
+class RoutingRuleConfig(BaseModel):
+    """Custom rule applied by the simulator when computing the distribution."""
+
+    id: str = Field(..., description="Unique identifier for the custom rule")
+    description: Optional[str] = Field(default=None, description="Summary of what the rule enforces")
+    intent: Optional[str] = Field(
+        default=None,
+        description="Optional intent identifier affected by the rule",
+    )
+    matcher: str = Field(
+        ..., description="Condition evaluated against the simulated routes (ex.: lane == 'turbo')"
+    )
+    target_tier: Optional[Literal["economy", "balanced", "turbo"]] = Field(
+        default=None,
+        description="Optional tier targeted by the rule",
+    )
+    provider_id: Optional[str] = Field(
+        default=None,
+        description="Provider receiving priority when the rule matches",
+    )
+    weight: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Percentage of the total volume reserved when the rule matches",
+    )
+
+
 class RoutingSimulationRequest(BaseModel):
     """Payload describing how a routing plan should be simulated."""
 
@@ -657,6 +700,14 @@ class RoutingSimulationRequest(BaseModel):
         default=10.0,
         ge=0.0,
         description="Projected volume in millions of tokens for the planning horizon",
+    )
+    intents: List[RoutingIntentConfig] = Field(
+        default_factory=list,
+        description="Optional intents used to bias the simulated distribution",
+    )
+    custom_rules: List[RoutingRuleConfig] = Field(
+        default_factory=list,
+        description="Custom rules that alter lane and provider allocation during the simulation",
     )
 
 

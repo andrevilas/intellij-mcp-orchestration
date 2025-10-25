@@ -1,0 +1,141 @@
+{
+  "context": {
+    "strategy": "finops",
+    "provider_ids": [
+      "gemini",
+      "codex",
+      "glm46",
+      "claude"
+    ],
+    "provider_count": 4,
+    "volume_millions": 12.0,
+    "failover_provider_id": null
+  },
+  "cost": {
+    "total_usd": 301.81,
+    "cost_per_million_usd": 25.15
+  },
+  "latency": {
+    "avg_latency_ms": 1232.17,
+    "reliability_score": 93.57
+  },
+  "distribution": [
+    {
+      "route": {
+        "id": "gemini",
+        "provider": {
+          "id": "gemini",
+          "name": "Gemini MCP",
+          "command": "~/.local/bin/gemini-mcp",
+          "description": "Google Gemini router exposed via local MCP bridge",
+          "tags": [
+            "llm",
+            "google"
+          ],
+          "capabilities": [
+            "chat",
+            "tools"
+          ],
+          "transport": "stdio",
+          "is_available": true
+        },
+        "lane": "balanced",
+        "cost_per_million": 20.33,
+        "latency_p95": 1755.0,
+        "reliability": 98.5,
+        "capacity_score": 96.0
+      },
+      "share": 0.1669,
+      "tokens_millions": 2.0032,
+      "cost": 40.73
+    },
+    {
+      "route": {
+        "id": "codex",
+        "provider": {
+          "id": "codex",
+          "name": "Codex CLI",
+          "command": "~/.local/bin/codex-mcp",
+          "description": "OpenAI-compatible MCP CLI optimized for iterative coding",
+          "tags": [
+            "llm",
+            "openai"
+          ],
+          "capabilities": [
+            "chat",
+            "exec"
+          ],
+          "transport": "stdio",
+          "is_available": true
+        },
+        "lane": "balanced",
+        "cost_per_million": 19.0,
+        "latency_p95": 1485.0,
+        "reliability": 92.5,
+        "capacity_score": 78.0
+      },
+      "share": 0.3856,
+      "tokens_millions": 4.6276,
+      "cost": 87.92
+    },
+    {
+      "route": {
+        "id": "claude",
+        "provider": {
+          "id": "claude",
+          "name": "Claude MCP",
+          "command": "~/.local/bin/claude-mcp",
+          "description": "Claude environment orchestration via CLI",
+          "tags": [
+            "llm",
+            "anthropic"
+          ],
+          "capabilities": [
+            "chat"
+          ],
+          "transport": "stdio",
+          "is_available": true
+        },
+        "lane": "balanced",
+        "cost_per_million": 17.29,
+        "latency_p95": 1410.0,
+        "reliability": 94.2,
+        "capacity_score": 63.0
+      },
+      "share": 0.1043,
+      "tokens_millions": 1.252,
+      "cost": 21.65
+    },
+    {
+      "route": {
+        "id": "glm46",
+        "provider": {
+          "id": "glm46",
+          "name": "GLM-4.6",
+          "command": "~/.local/bin/glm46-mcp",
+          "description": "Zhipu AI GLM-4.6 stdio MCP server with guardrails",
+          "tags": [
+            "llm",
+            "zhipu"
+          ],
+          "capabilities": [
+            "chat",
+            "embedding",
+            "token_count"
+          ],
+          "transport": "stdio",
+          "is_available": true
+        },
+        "lane": "turbo",
+        "cost_per_million": 36.8,
+        "latency_p95": 640.0,
+        "reliability": 92.2,
+        "capacity_score": 61.0
+      },
+      "share": 0.3431,
+      "tokens_millions": 4.1172,
+      "cost": 151.51
+    }
+  ],
+  "excluded_route": null
+}

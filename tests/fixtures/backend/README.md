@@ -11,6 +11,7 @@ Os JSONs deste diretório são cópias das respostas de referência utilizadas p
 | `policy_templates.json`, `policy_deployments.json` | `GET /api/v1/policies/templates`, `GET/POST/DELETE /api/v1/policies/deployments` |
 | `providers.json` | `GET /api/v1/providers`, `POST /api/v1/providers/:providerId/sessions` |
 | `routing_simulation.json` | `POST /api/v1/routing/simulate` |
+| `routing/plan_with_overrides.json` | `POST /api/v1/routing/simulate` (com intents e regras personalizadas) |
 | `telemetry_metrics.json`, `telemetry_heatmap.json`, `telemetry_timeseries.json`, `telemetry_pareto.json`, `telemetry_runs.json` | `GET /api/v1/telemetry/metrics`, `GET /api/v1/telemetry/heatmap`, `GET /api/v1/telemetry/timeseries`, `GET /api/v1/telemetry/pareto`, `GET /api/v1/telemetry/runs` |
 | `telemetry_experiments.json`, `telemetry_lane_costs.json`, `telemetry_marketplace.json` | `GET /api/v1/telemetry/experiments`, `GET /api/v1/telemetry/lane-costs`, `GET /api/v1/telemetry/marketplace/performance` |
 | `finops_sprints.json`, `finops_pull_requests.json`, `finops_events.json` | `GET /api/v1/telemetry/finops/sprints`, `GET /api/v1/telemetry/finops/pull-requests`, `GET /api/v1/telemetry/finops/events` |

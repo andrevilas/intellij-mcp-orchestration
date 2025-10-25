@@ -81,6 +81,8 @@ from .registry import provider_registry, session_registry
 from .routing import (
     DistributionEntry,
     RouteProfile,
+    RoutingIntent,
+    RoutingRule,
     build_routes,
     compute_plan,
     render_plan_result,
@@ -4252,12 +4254,56 @@ def simulate_routing(payload: RoutingSimulationRequest) -> RoutingSimulationResp
                 detail="Failover provider must be included in provider_ids",
             )
 
+    def _normalise_tags(values: Sequence[str]) -> tuple[str, ...]:
+        normalised: list[str] = []
+        for value in values:
+            if not isinstance(value, str):
+                continue
+            trimmed = value.strip()
+            if trimmed:
+                normalised.append(trimmed)
+        return tuple(normalised)
+
+    intents_payload = []
+    for intent in payload.intents:
+        intents_payload.append(
+            RoutingIntent(
+                intent=intent.intent.strip(),
+                description=intent.description,
+                tags=_normalise_tags(intent.tags),
+                default_tier=intent.default_tier,
+                fallback_provider_id=intent.fallback_provider_id,
+            )
+        )
+
+    rules_payload = []
+    for rule in payload.custom_rules:
+        matcher = rule.matcher.strip()
+        if not matcher:
+            continue
+        rule_id = rule.id.strip() or rule.id
+        intent_ref = rule.intent.strip() if rule.intent else None
+        provider_ref = rule.provider_id.strip() if rule.provider_id else None
+        rules_payload.append(
+            RoutingRule(
+                id=rule_id,
+                description=rule.description,
+                intent=intent_ref,
+                matcher=matcher,
+                target_tier=rule.target_tier,
+                provider_id=provider_ref,
+                weight=rule.weight,
+            )
+        )
+
     routes = build_routes(selected_providers)
     plan = compute_plan(
         routes,
         payload.strategy,
         payload.failover_provider_id,
         payload.volume_millions,
+        intents=intents_payload,
+        rules=rules_payload,
     )
 
     if not plan.distribution:
