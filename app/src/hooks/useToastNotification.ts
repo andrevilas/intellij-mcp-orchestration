@@ -44,7 +44,10 @@ export function useToastNotification(
     });
 
     if (historyRef.current.size > 10) {
-      historyRef.current.delete(historyRef.current.values().next().value);
+      const iterator = historyRef.current.values().next();
+      if (!iterator.done && typeof iterator.value === 'string') {
+        historyRef.current.delete(iterator.value);
+      }
     }
   }, [message, id, title, variant, dismissible, autoDismiss, duration, pushToast]);
 }

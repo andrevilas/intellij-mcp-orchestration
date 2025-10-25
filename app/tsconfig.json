@@ -12,7 +12,10 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "#fixtures/*": ["../tests/fixtures/backend/*"]
+      "#fixtures/*": [
+        "../tests/fixtures/backend/*",
+        "../tests/fixtures/backend/data/*"
+      ]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,

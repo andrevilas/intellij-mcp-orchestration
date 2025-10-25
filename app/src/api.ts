@@ -1821,32 +1821,32 @@ const API_FIXTURE_ROUTES: FixtureRouteDefinition[] = [
   {
     method: 'GET',
     pattern: /^\/servers\/?$/,
-    load: () => loadJsonFixture(() => import('#fixtures/servers.json', { with: { type: 'json' } })),
+    load: () => loadJsonFixture(() => import('#fixtures/servers.json')),
   },
   {
     method: 'GET',
     pattern: /^\/sessions\/?$/,
-    load: () => loadJsonFixture(() => import('#fixtures/sessions.json', { with: { type: 'json' } })),
+    load: () => loadJsonFixture(() => import('#fixtures/sessions.json')),
   },
   {
     method: 'GET',
     pattern: /^\/telemetry\/metrics\/?$/,
-    load: () => loadJsonFixture(() => import('#fixtures/telemetry_metrics.json', { with: { type: 'json' } })),
+    load: () => loadJsonFixture(() => import('#fixtures/telemetry_metrics.json')),
   },
   {
     method: 'GET',
     pattern: /^\/telemetry\/heatmap\/?$/,
-    load: () => loadJsonFixture(() => import('#fixtures/telemetry_heatmap.json', { with: { type: 'json' } })),
+    load: () => loadJsonFixture(() => import('#fixtures/telemetry_heatmap.json')),
   },
   {
     method: 'GET',
     pattern: /^\/policies\/compliance\/?$/,
-    load: () => loadJsonFixture(() => import('#fixtures/policies_compliance.json', { with: { type: 'json' } })),
+    load: () => loadJsonFixture(() => import('#fixtures/policies_compliance.json')),
   },
   {
     method: 'GET',
     pattern: /^\/notifications\/?$/,
-    load: () => loadJsonFixture(() => import('#fixtures/notifications.json', { with: { type: 'json' } })),
+    load: () => loadJsonFixture(() => import('#fixtures/notifications.json')),
   },
 ];
 
@@ -1854,7 +1854,7 @@ const AGENT_FIXTURE_ROUTES: FixtureRouteDefinition[] = [
   {
     method: 'GET',
     pattern: /^\/agents\/?$/,
-    load: () => loadJsonFixture(() => import('#fixtures/agents.json', { with: { type: 'json' } })),
+    load: () => loadJsonFixture(() => import('#fixtures/agents.json')),
   },
 ];
 

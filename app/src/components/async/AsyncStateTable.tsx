@@ -13,7 +13,7 @@ const DEFAULT_MESSAGES: StatusMessageOverrides = {
 };
 
 export interface AsyncStateTableProps<T>
-  extends Omit<ResourceTableProps<T>, 'isLoading' | 'error' | 'statusMessages'> {
+  extends Omit<ResourceTableProps<T>, 'isLoading' | 'error' | 'statusMessages' | 'emptyState'> {
   status?: AsyncContentStatus;
   statusMessages?: StatusMessageOverrides;
   errorMessage?: string | null;

@@ -297,7 +297,7 @@ export default defineConfig(async () => {
     ],
     resolve: {
       alias: {
-        '#fixtures': path.resolve(__dirname, '../tests/fixtures/backend'),
+        '#fixtures': path.resolve(__dirname, '../tests/fixtures/backend/data'),
       },
     },
     server: serverConfig,

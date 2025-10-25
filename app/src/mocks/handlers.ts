@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse, type JsonBodyType } from 'msw';
 import type {
   AgentConfigLayer,
   MarketplacePerformanceEntry,
@@ -20,41 +20,41 @@ import type {
 } from '../api';
 import { loadFixture, resetFixtureStore } from './fixture-registry';
 
-const telemetryMetricsFixture = loadFixture('telemetry_metrics');
-const telemetryHeatmapFixture = loadFixture('telemetry_heatmap');
-const telemetryTimeseriesFixture = loadFixture('telemetry_timeseries');
-const telemetryParetoFixture = loadFixture('telemetry_pareto');
+const telemetryMetricsFixture = loadFixture<JsonBodyType>('telemetry_metrics');
+const telemetryHeatmapFixture = loadFixture<JsonBodyType>('telemetry_heatmap');
+const telemetryTimeseriesFixture = loadFixture<JsonBodyType>('telemetry_timeseries');
+const telemetryParetoFixture = loadFixture<JsonBodyType>('telemetry_pareto');
 const telemetryRunsFixture = loadFixture('telemetry_runs');
 const routingSimulationFixture = loadFixture('routing_simulation');
-const finopsSprintsFixture = loadFixture('finops_sprints');
-const finopsPullRequestsFixture = loadFixture('finops_pull_requests');
-const finopsEventsFixture = loadFixture('finops_events');
-const serversFixture = loadFixture('servers');
-const serverProcessesFixture = loadFixture('server_processes');
-const serverHealthFixture = loadFixture('server_health');
-const sessionsFixture = loadFixture('sessions');
-const notificationsFixture = loadFixture('notifications');
-const policiesComplianceFixture = loadFixture('policies_compliance');
-const policyManifestFixture = loadFixture('policy_manifest');
-const policyTemplatesFixture = loadFixture('policy_templates', () => ({
+const finopsSprintsFixture = loadFixture<JsonBodyType>('finops_sprints');
+const finopsPullRequestsFixture = loadFixture<JsonBodyType>('finops_pull_requests');
+const finopsEventsFixture = loadFixture<JsonBodyType>('finops_events');
+const serversFixture = loadFixture<JsonBodyType>('servers');
+const serverProcessesFixture = loadFixture<JsonBodyType>('server_processes');
+const serverHealthFixture = loadFixture<JsonBodyType>('server_health');
+const sessionsFixture = loadFixture<JsonBodyType>('sessions');
+const notificationsFixture = loadFixture<JsonBodyType>('notifications');
+const policiesComplianceFixture = loadFixture<JsonBodyType>('policies_compliance');
+const policyManifestFixture = loadFixture<JsonBodyType>('policy_manifest');
+const policyTemplatesFixture = loadFixture<JsonBodyType>('policy_templates', () => ({
   templates: [],
   rollout: null,
 }));
-const policyDeploymentsFixture = loadFixture('policy_deployments', () => ({
+const policyDeploymentsFixture = loadFixture<JsonBodyType>('policy_deployments', () => ({
   deployments: [],
   active_id: null,
 }));
-const telemetryExperimentsFixture = loadFixture('telemetry_experiments');
-const telemetryLaneCostsFixture = loadFixture('telemetry_lane_costs');
-const telemetryMarketplaceFixture = loadFixture('telemetry_marketplace');
-const providersFixture = loadFixture('providers');
-const smokeEndpointsFixture = loadFixture('smoke_endpoints', () => ({ endpoints: [] }));
-const agentsFixture = loadFixture('agents');
-const securityUsersFixture = loadFixture('security_users', () => ({ users: [] }));
-const securityRolesFixture = loadFixture('security_roles', () => ({ roles: [] }));
-const securityApiKeysFixture = loadFixture('security_api_keys', () => ({ keys: [] }));
-const securityAuditTrailFixture = loadFixture('security_audit_trail', () => ({ events: {} }));
-const securityAuditLogsFixture = loadFixture('security_audit_logs', () => ({ events: [] }));
+const telemetryExperimentsFixture = loadFixture<JsonBodyType>('telemetry_experiments');
+const telemetryLaneCostsFixture = loadFixture<JsonBodyType>('telemetry_lane_costs');
+const telemetryMarketplaceFixture = loadFixture<JsonBodyType>('telemetry_marketplace');
+const providersFixture = loadFixture<JsonBodyType>('providers');
+const smokeEndpointsFixture = loadFixture<JsonBodyType>('smoke_endpoints', () => ({ endpoints: [] }));
+const agentsFixture = loadFixture<JsonBodyType>('agents');
+const securityUsersFixture = loadFixture<JsonBodyType>('security_users', () => ({ users: [] }));
+const securityRolesFixture = loadFixture<JsonBodyType>('security_roles', () => ({ roles: [] }));
+const securityApiKeysFixture = loadFixture<JsonBodyType>('security_api_keys', () => ({ keys: [] }));
+const securityAuditTrailFixture = loadFixture<JsonBodyType>('security_audit_trail', () => ({ events: {} }));
+const securityAuditLogsFixture = loadFixture<JsonBodyType>('security_audit_logs', () => ({ events: [] }));
 
 const API_PREFIX = '*/api/v1';
 

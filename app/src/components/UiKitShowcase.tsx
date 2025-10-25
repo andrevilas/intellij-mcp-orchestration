@@ -28,9 +28,9 @@ import {
 import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../hooks/useMcpForm';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
 
-import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json' with { type: 'json' };
-import serversFixture from '#fixtures/servers.json' with { type: 'json' };
-import serverHealthFixture from '#fixtures/server_health.json' with { type: 'json' };
+import telemetryMetricsFixture from '#fixtures/telemetry_metrics.json';
+import serversFixture from '#fixtures/servers.json';
+import serverHealthFixture from '#fixtures/server_health.json';
 
 import './ui-kit-showcase.scss';
 
