@@ -42,6 +42,14 @@
 - **Onboarding** — `POST /api/v1/config/mcp/onboard` aceita `intent` (`plan` ou `validate`) para gerar plano completo ou apenas testar o endpoint MCP (quando `validate`, a resposta inclui somente `validation`). 【F:server/src/console_mcp_server/routes.py†L903-L988】
 - **Fluxo HITL** — quando `status` = `hitl_required`, reenvie `POST /config/apply` com `approval_id` e `approval_decision: approve|reject`. O log de auditoria grava a decisão com metadados. 【F:server/src/console_mcp_server/routes.py†L312-L374】【F:server/src/console_mcp_server/security.py†L120-L186】
 
+## Toggle fixtures ↔ proxy (frontend)
+
+1. **Modo padrão (MSW)** — `pnpm --dir app dev` agora delega para `app/scripts/run-dev.mjs`, que garante `CONSOLE_MCP_USE_FIXTURES=auto` quando a variável não está setada. O Vite inicia com os handlers MSW (`app/src/mocks/*`) e injeta `VITE_CONSOLE_USE_FIXTURES=true` para o bundle. 【F:app/scripts/run-dev.mjs†L1-L76】【F:app/vite.config.ts†L201-L282】
+2. **Forçar fixtures** — `pnpm --dir app dev -- --fixtures` (ou `--msw`) escreve `CONSOLE_MCP_USE_FIXTURES=force` antes de iniciar o Vite. Use quando o backend estiver indisponível ou para QA determinístico. O modo permanece ativo mesmo se o backend responder ao health-check. 【F:app/scripts/run-dev.mjs†L9-L55】
+3. **Forçar proxy HTTP** — `pnpm --dir app dev -- --proxy` (alias `--backend`) ajusta `CONSOLE_MCP_USE_FIXTURES=off` e habilita o proxy `/api`/`/agents` apontando para `CONSOLE_MCP_API_PROXY`. Garanta que o backend (`scripts/dev-backend.sh`) esteja saudável antes de usar. 【F:app/scripts/run-dev.mjs†L19-L55】【F:app/vite.config.ts†L201-L282】
+4. **Ambiente completo (`dev:all`)** — ao rodar `pnpm dev:all`, o wrapper exporta `CONSOLE_MCP_USE_FIXTURES=auto` se a variável estiver vazia, mantendo o frontend em MSW por padrão. Sobreponha com `CONSOLE_MCP_USE_FIXTURES=off pnpm dev:all` para validar contra o backend real. 【F:scripts/dev-all.sh†L48-L68】
+5. **Override manual** — exporte `CONSOLE_MCP_USE_FIXTURES` (`force`/`auto`/`off`) quando precisar que builds CI ou testes externos acompanhem o mesmo modo. Os handlers expõem `window.__CONSOLE_MCP_FIXTURES__` para inspeção rápida em tempo de execução. 【F:app/vite.config.ts†L201-L282】【F:app/src/mocks/handlers.ts†L812-L2859】
+
 ## Simulador de Routing e Telemetria FinOps
 
 - **Dashboard** — `GET /api/v1/telemetry/metrics|heatmap|timeseries|pareto|runs` oferecem agregações completas; quando a base SQLite está vazia o backend responde usando fixtures em `server/routes/fixtures/telemetry_*.json` (espelhadas em `tests/fixtures/backend/data/`). 【F:server/README.md†L33-L52】【F:server/src/console_mcp_server/routes.py†L2799-L3084】【F:server/src/console_mcp_server/fixtures.py†L1-L45】
