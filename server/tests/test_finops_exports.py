@@ -35,6 +35,7 @@ def test_export_finops_telemetry_valid_formats(tmp_path, monkeypatch: pytest.Mon
     html_export = export_finops_telemetry("html", provider_id="glm46")
     assert html_export.media_type.startswith("text/html")
     assert "<table" in html_export.document.lower()
+    assert "no telemetry events found" not in html_export.document.lower()
 
     time_bounds_start = datetime(2025, 10, 8, tzinfo=timezone.utc)
     time_bounds_end = datetime(2025, 10, 21, 23, 59, 59, tzinfo=timezone.utc)
@@ -49,14 +50,15 @@ def test_export_finops_telemetry_valid_formats(tmp_path, monkeypatch: pytest.Mon
     assert payload and payload[0]["provider_id"] in {"gemini", "glm46", "codex"}
 
 
+@pytest.mark.parametrize("fmt", ["csv", "html", "json"])
 def test_export_finops_telemetry_requires_events(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
+    fmt: str, tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    db_path = tmp_path / "empty.db"
+    db_path = tmp_path / f"empty-{fmt}.db"
     monkeypatch.setenv("CONSOLE_MCP_DB_PATH", str(db_path))
     database_module.reset_state()
     database_module.bootstrap_database()
     database_module.reset_state()
 
     with pytest.raises(ExportValidationError):
-        export_finops_telemetry("csv")
+        export_finops_telemetry(fmt)
