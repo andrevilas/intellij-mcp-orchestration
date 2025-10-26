@@ -79,6 +79,18 @@ hub.
 - Backend: `source server/.venv/bin/activate && console-mcp-server-dev`
 - Agents Hub: `cd agents-hub && make dev`
 
+### Testes automatizados
+
+- **Playwright (E2E)** — execute a instalação de dependências nativas do Chromium uma vez por host antes de rodar a suíte:
+
+  ```bash
+  pnpm --dir tests exec playwright install-deps
+  pnpm --dir tests exec playwright test
+  ```
+
+  O primeiro comando garante que bibliotecas do sistema como `libxkbcommon`, `libasound2`, `libgtk-3` e codecs de mídia sejam
+  provisionados. Sem ele, o Playwright aborta com erros `browserType.launch`.
+
 ### Modo offline com fixtures compartilhadas
 
 - Exporte `CONSOLE_MCP_USE_FIXTURES=true` para forçar o frontend a usar os handlers locais (`app/src/mocks/*`) em vez do proxy

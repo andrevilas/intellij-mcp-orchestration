@@ -12,13 +12,13 @@
 - Reavalie `docs/audit-ui-m1-m6.md` a cada sprint desbloqueada, anotando impactos e novos bloqueios.
 
 ## Status auditado (2025-10-25)
-- [ ] **M1 — Fundamentos & Shell** · Bloqueado — shell configurado, mas suite Playwright aborta por dependências ausentes; ambiente precisa de `playwright install-deps` antes de retomar (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】
+- [ ] **M1 — Fundamentos & Shell** · Em reteste — shell configurado e a suíte Playwright volta a executar após `pnpm --dir tests exec playwright install-deps`; falhas atuais são funcionais nas specs governadas (ver nova evidência).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
   - [x] **TASK-UI-SH-010** — Shell com `skip-link`, roving tabindex e atalhos documentados.
   - [x] **TASK-UI-NAV-011** — Breadcrumbs + Pagination com tokens `--mcp-*` e foco visível.
-- [ ] **M2 — Ações & Feedback** · Bloqueado — componentes só podem ser validados após liberar runner Chromium (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
-- [ ] **M3 — Dados & Estruturas** · Bloqueado — dependência de backend real permanece e Playwright não executa sem deps nativas (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】
-- [ ] **M4 — Formulários & Validação** · Bloqueado — validações não podem ser auditadas com a suite quebrada (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】
-- [ ] **M5 — Páginas Core** · Bloqueado — smoke UI travado por `browserType.launch` e dados FinOps pendentes (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
+- [ ] **M2 — Ações & Feedback** · Em validação — componentes aguardam revisão porque as specs Playwright ainda falham, mas o runner Chromium já sobe normalmente (ver histórico atualizado).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
+- [ ] **M3 — Dados & Estruturas** · Em validação — Playwright roda em modo fixtures, porém specs de dados ainda quebram; desbloqueio depende de correções funcionais e não mais de libs nativas.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **M4 — Formulários & Validação** · Em validação — suite executa e cobre formulários, mas regressões persistem em fluxos governados; requer ajuste funcional antes de marcar como concluído.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **M5 — Páginas Core** · Em validação — Playwright alcança asserções das páginas core; falhas agora são específicas de conteúdo (Dashboard, Marketplace, FinOps).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
 - [ ] **M6 — Performance & Observabilidade** · Bloqueado — métricas paralisadas até restabelecer as suites e telemetria (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 
 ## Auditoria Final — 2025-10-20
@@ -27,6 +27,7 @@
 - Export CSV/HTML permanece acessível (HTTP 200), porém apenas o cabeçalho é gerado enquanto a base SQLite está vazia — risco de ausência de histórico até que novas ingestas/fixtures sejam aplicadas.【82a64e†L1-L2】【a7a14c†L1-L3】
 - Bloqueios críticos seguem concentrados na sprint M5: o smoke Playwright das páginas core ainda falha e o link FinOps permanece congelando a navegação inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
 - Reforço 2025-10-25: a tentativa mais recente registrou falha geral (`browserType.launch`) com 45 testes abortados por dependências nativas ausentes — consultar `docs/evidence/2025-10-25/README.md` antes de qualquer rebaseline.【F:docs/evidence/2025-10-25/README.md†L1-L16】
+- Atualização 2025-10-26: após instalar deps via `pnpm --dir tests exec playwright install-deps`, a suíte executa 49 specs em modo fixtures; falhas remanescentes são funcionais (ver evidência dedicada).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - Recomendação: manter **No-Go** até estabilizar smoke UI/FinOps e restaurar a telemetria; ver detalhamento atualizado no Audit Report.【F:docs/audit-ui-m1-m6.md†L1-L200】
 
 ## North Star & KPIs
