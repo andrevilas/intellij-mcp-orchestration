@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useId } from 'react';
 import type { ReactNode } from 'react';
 
 import './feedback.scss';
@@ -22,6 +23,8 @@ export default function Alert({
 }: AlertProps): JSX.Element {
   const role = variant === 'error' || variant === 'warning' ? 'alert' : 'status';
   const liveMode = variant === 'error' || variant === 'warning' ? 'assertive' : 'polite';
+  const titleId = useId();
+  const descriptionId = useId();
 
   return (
     <div
@@ -29,10 +32,19 @@ export default function Alert({
       role={role}
       aria-live={liveMode}
       aria-atomic="true"
+      aria-labelledby={title ? titleId : undefined}
+      aria-describedby={descriptionId}
+      data-variant={variant}
     >
       <div className="mcp-alert__body">
-        {title ? <h4 className="mcp-alert__title">{title}</h4> : null}
-        <div className="mcp-alert__description">{description}</div>
+        {title ? (
+          <h4 id={titleId} className="mcp-alert__title">
+            {title}
+          </h4>
+        ) : null}
+        <div id={descriptionId} className="mcp-alert__description">
+          {description}
+        </div>
       </div>
       {action ? <div className="mcp-alert__action">{action}</div> : null}
       {onDismiss ? (
