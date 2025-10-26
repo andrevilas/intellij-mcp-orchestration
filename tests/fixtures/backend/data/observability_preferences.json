@@ -1,0 +1,27 @@
+{
+  "tracing": {
+    "provider": "langsmith",
+    "endpoint": "https://observability.example.com/tracing",
+    "project": "Observability",
+    "dataset": null,
+    "headers": {
+      "x-api-key": "tracing-fixture"
+    }
+  },
+  "metrics": {
+    "provider": "otlp",
+    "endpoint": "https://observability.example.com/metrics",
+    "project": "Metrics",
+    "dataset": null,
+    "headers": {
+      "authorization": "Bearer metrics-token"
+    }
+  },
+  "evals": null,
+  "updated_at": "2024-04-02T10:00:00.000Z",
+  "audit": {
+    "actor_id": "admin-1",
+    "actor_name": "Observability Admin",
+    "actor_roles": ["observability-admin"]
+  }
+}

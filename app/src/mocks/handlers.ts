@@ -736,7 +736,7 @@ const deriveDeploymentMetrics = (templateId: string) => {
   return { slo, budget, incidents, guardrail };
 };
 
-const observabilityPreferencesState = {
+const observabilityPreferencesFixture = loadFixture<JsonBodyType>('observability_preferences', () => ({
   tracing: {
     provider: 'langsmith',
     endpoint: 'https://observability.example.com/tracing',
@@ -758,7 +758,11 @@ const observabilityPreferencesState = {
     actor_name: 'Operations Bot',
     actor_roles: ['observability-admin'],
   },
-};
+}));
+
+const observabilityPreferencesState = JSON.parse(
+  JSON.stringify(observabilityPreferencesFixture),
+) as Record<string, unknown>;
 
 interface DiagnosticsComponentFixture {
   ok: boolean;

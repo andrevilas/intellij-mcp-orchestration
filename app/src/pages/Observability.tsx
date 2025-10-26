@@ -1,6 +1,7 @@
 import {
   Suspense,
   lazy,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -13,6 +14,8 @@ import './Observability.scss';
 
 import {
   ApiError,
+  fetchProviders,
+  fetchTelemetryMetrics,
   fetchObservabilityPreferences,
   updateObservabilityPreferences,
   type AdminPlanStep,
@@ -24,6 +27,7 @@ import {
   type ProviderSummary,
   type TelemetryMetrics,
 } from '../api';
+import { createDataStateMessages } from '../components/data';
 import KpiCard from '../components/KpiCard';
 import PlanSummary from './AdminChat/PlanSummary';
 import { formatCurrency, formatLatency, formatPercent, numberFormatter } from './observability/formatters';
@@ -45,10 +49,10 @@ const ObservabilityCharts = lazy(async () => {
 });
 
 export interface ObservabilityProps {
-  providers: ProviderSummary[];
-  metrics: TelemetryMetrics | null;
-  isLoading: boolean;
-  initialError: string | null;
+  providers?: ProviderSummary[];
+  metrics?: TelemetryMetrics | null;
+  isLoading?: boolean;
+  initialError?: string | null;
 }
 
 type TabId = 'metrics' | 'tracing' | 'evals';
@@ -144,6 +148,136 @@ const EMPTY_STATE: PreferenceFormState = {
   project: '',
   touched: { provider: false, endpoint: false, project: false },
 };
+
+interface ObservabilityResourceOverrides {
+  providers?: ProviderSummary[];
+  metrics?: TelemetryMetrics | null;
+  isLoading?: boolean;
+  initialError?: string | null;
+}
+
+interface ObservabilityResourceState {
+  providers: ProviderSummary[];
+  metrics: TelemetryMetrics | null;
+  isLoading: boolean;
+  error: string | null;
+  reload(): void;
+}
+
+function useObservabilityResources({
+  providers: providersOverride,
+  metrics: metricsOverride,
+  isLoading: loadingOverride,
+  initialError: errorOverride,
+}: ObservabilityResourceOverrides): ObservabilityResourceState {
+  const [providers, setProviders] = useState<ProviderSummary[]>(() => providersOverride ?? []);
+  const [metrics, setMetrics] = useState<TelemetryMetrics | null>(
+    () => (metricsOverride !== undefined ? metricsOverride : null),
+  );
+  const [internalLoading, setInternalLoading] = useState<boolean>(() => loadingOverride ?? false);
+  const [internalError, setInternalError] = useState<string | null>(
+    () => (errorOverride !== undefined ? errorOverride : null),
+  );
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    if (providersOverride !== undefined) {
+      setProviders(providersOverride);
+    }
+  }, [providersOverride]);
+
+  useEffect(() => {
+    if (metricsOverride !== undefined) {
+      setMetrics(metricsOverride);
+    }
+  }, [metricsOverride]);
+
+  useEffect(() => {
+    if (loadingOverride !== undefined) {
+      setInternalLoading(loadingOverride);
+    }
+  }, [loadingOverride]);
+
+  useEffect(() => {
+    if (errorOverride !== undefined) {
+      setInternalError(errorOverride);
+    }
+  }, [errorOverride]);
+
+  const shouldFetchProviders = providersOverride === undefined;
+  const shouldFetchMetrics = metricsOverride === undefined;
+
+  useEffect(() => {
+    if (!shouldFetchProviders && !shouldFetchMetrics) {
+      return;
+    }
+
+    const controller = new AbortController();
+    let encounteredError: string | null = null;
+
+    async function load() {
+      setInternalLoading(true);
+      setInternalError(null);
+
+      if (shouldFetchProviders) {
+        try {
+          const result = await fetchProviders(controller.signal);
+          if (!controller.signal.aborted) {
+            setProviders(result ?? []);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            encounteredError =
+              encounteredError ??
+              (error instanceof Error ? error.message : 'Falha ao carregar providers de observabilidade.');
+            console.error('Falha ao carregar providers de observabilidade', error);
+            setProviders([]);
+          }
+        }
+      }
+
+      if (shouldFetchMetrics) {
+        const now = new Date();
+        const metricsStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        try {
+          const result = await fetchTelemetryMetrics({ start: metricsStart }, controller.signal);
+          if (!controller.signal.aborted) {
+            setMetrics(result);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            encounteredError =
+              encounteredError ??
+              (error instanceof Error ? error.message : 'Falha ao carregar métricas consolidadas.');
+            console.error('Falha ao carregar métricas consolidadas de observabilidade', error);
+            setMetrics(null);
+          }
+        }
+      }
+
+      if (!controller.signal.aborted) {
+        setInternalLoading(false);
+        setInternalError(encounteredError);
+      }
+    }
+
+    void load();
+
+    return () => controller.abort();
+  }, [shouldFetchProviders, shouldFetchMetrics, reloadToken]);
+
+  const reload = useCallback(() => {
+    setReloadToken((current) => current + 1);
+  }, []);
+
+  return {
+    providers,
+    metrics,
+    isLoading: internalLoading,
+    error: internalError ?? null,
+    reload,
+  };
+}
 
 function cloneEmptyState(): PreferenceFormState {
   return {
@@ -309,11 +443,33 @@ function extractApiErrorMessage(error: ApiError, fallback: string): string {
 }
 
 export default function Observability({
-  providers,
-  metrics,
-  isLoading,
-  initialError,
+  providers: providersProp,
+  metrics: metricsProp,
+  isLoading: isLoadingProp,
+  initialError: initialErrorProp,
 }: ObservabilityProps) {
+  const {
+    providers,
+    metrics,
+    isLoading: resourcesLoading,
+    error: resourcesError,
+  } = useObservabilityResources({
+    providers: providersProp,
+    metrics: metricsProp,
+    isLoading: isLoadingProp,
+    initialError: initialErrorProp,
+  });
+
+  const isLoading = isLoadingProp !== undefined ? isLoadingProp : resourcesLoading;
+  const initialError = initialErrorProp !== undefined ? initialErrorProp : resourcesError;
+  const observabilityMessages = useMemo(
+    () =>
+      createDataStateMessages('observabilidade', {
+        loading: 'Carregando observabilidade…',
+        empty: 'Sem execuções registradas na janela selecionada.',
+      }),
+    [],
+  );
   const [activeTab, setActiveTab] = useState<TabId>('metrics');
   const [traceFilter, setTraceFilter] = useState<string>('all');
   const [selectedEvalProvider, setSelectedEvalProvider] = useState<string>('auto');
@@ -623,7 +779,7 @@ export default function Observability({
             <p>Preparando métricas e traces recentes…</p>
           </div>
         </header>
-        <p role="status" className="observability__status">Carregando observabilidade…</p>
+        <p role="status" className="observability__status">{observabilityMessages.loading}</p>
       </section>
     );
   }
@@ -638,7 +794,8 @@ export default function Observability({
           </div>
         </header>
         <p role="alert" className="observability__error">
-          Não foi possível carregar o painel de observabilidade: {initialError}. Tente novamente mais tarde.
+          {observabilityMessages.error ?? 'Não foi possível carregar o painel de observabilidade.'}
+          {initialError ? ` Detalhes: ${initialError}.` : null}
         </p>
       </section>
     );
@@ -1059,6 +1216,8 @@ export default function Observability({
     </section>
   );
 }
+
+export { Observability as ObservabilityView };
 
 const PRESETS = [
   {
