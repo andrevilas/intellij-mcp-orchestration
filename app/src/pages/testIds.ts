@@ -63,6 +63,7 @@ export const SERVERS_TEST_IDS = {
   grid: 'servers-grid',
   card: (id: string) => `server-card-${id}`,
   pingButton: (id: string) => `server-health-ping-${id}`,
+  riskNotice: (id: string) => `server-risk-${id}`,
 } as const;
 
 export const POLICIES_TEST_IDS = {
@@ -71,6 +72,7 @@ export const POLICIES_TEST_IDS = {
   hero: 'policies-hero',
   status: 'policies-status',
   templates: 'policies-templates',
+  templateRisk: 'policies-template-risk',
   actions: 'policies-actions',
   plan: 'policies-plan',
   planDiffs: 'policies-plan-diffs',

@@ -71,6 +71,8 @@ const POLICY_MANIFEST_ID = 'manifest';
 const PLAN_ACTOR_STORAGE_KEY = 'mcp-policy-plan-actor';
 const PLAN_ACTOR_EMAIL_STORAGE_KEY = 'mcp-policy-plan-actor-email';
 const PLAN_COMMIT_MESSAGE_STORAGE_KEY = 'mcp-policy-plan-commit-message';
+const TEMPLATE_RISK_MESSAGE =
+  'Seleção e aplicação são simuladas via fixtures com risco controlado antes de afetar produção.';
 
 type PendingPolicyPlan = {
   id: string;
@@ -1319,6 +1321,8 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           value={selectedTemplateId}
           onChange={setSelectedTemplateId}
           disabled={disableActions || isLoading}
+          riskNote={TEMPLATE_RISK_MESSAGE}
+          riskTestId={POLICIES_TEST_IDS.templateRisk}
         />
       </section>
 

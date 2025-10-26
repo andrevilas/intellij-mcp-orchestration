@@ -68,3 +68,18 @@ svg.svg-inline--fa path {
 .icon-leading {
   margin-inline-end: 0.5rem;
 }
+
+.server-actions__risk {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--mcp-warning-soft) 55%, transparent 45%);
+  color: var(--mcp-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.server-actions__risk strong {
+  color: var(--mcp-warning-strong);
+  display: block;
+}

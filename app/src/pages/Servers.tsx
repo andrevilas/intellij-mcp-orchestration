@@ -101,6 +101,9 @@ const SERVER_ACTION_COPY: Record<ServerAction, {
   },
 };
 
+const SERVER_ACTION_RISK_MESSAGE =
+  'Execuções são disparadas por fixtures com rollback automático. Confirme antes de aplicar alterações reais.';
+
 interface ServerProcessFixtureLog {
   id: string;
   timestamp: string;
@@ -1364,6 +1367,8 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                 onStart={() => openActionConfirmation(provider, 'start')}
                 onStop={() => openActionConfirmation(provider, 'stop')}
                 onRestart={() => openActionConfirmation(provider, 'restart')}
+                riskAcknowledgement={SERVER_ACTION_RISK_MESSAGE}
+                riskTestId={SERVERS_TEST_IDS.riskNotice(provider.id)}
               >
                 {actionMessage && (
                   <p
