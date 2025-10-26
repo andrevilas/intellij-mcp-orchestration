@@ -1,5 +1,21 @@
 # UI Kit Changelog
 
+# 2025-10-26 — Wizards & Modais acessíveis
+
+### Build & QA
+- Adicionados testes unitários (`app/src/components/modals/index.test.tsx`, `ToastProvider.test.tsx`) cobrindo armamento duplo,
+  deduplicação de toasts e persistência de erros.
+- Atualizado `tests/e2e/ui-overlays.spec.ts` para validar abertura, confirmação dupla e rollback do wizard governado.
+
+### Documentação
+- Novo guia `docs/ui-kit/modals-wizard.md` com captura de tela (`assets/wizard-flow.png`) descrevendo práticas de acessibilidade
+  para modais e toasts.
+
+### Destaques para Design/QA
+- `WizardModal` oferece indicador lateral de etapas, CTA com dupla confirmação e reset automático ao navegar para trás.
+- `ToastProvider` impede mensagens duplicadas por fingerprint (título + descrição + variante) e mantém erros persistentes até
+  ação do usuário.
+
 # 2025-10-24 — Governança de Agents
 
 ### Build & QA

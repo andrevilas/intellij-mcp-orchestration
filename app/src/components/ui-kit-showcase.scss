@@ -199,6 +199,33 @@
   margin: 0;
 }
 
+.ui-kit-showcase__option {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.95rem;
+}
+
+.ui-kit-showcase__option input[type='checkbox'],
+.ui-kit-showcase__option input[type='radio'] {
+  margin-top: 0.25rem;
+}
+
+.ui-kit-showcase__summary {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 0 0.25rem;
+}
+
+.ui-kit-showcase__summary dt {
+  font-weight: 600;
+  color: var(--mcp-text-muted);
+}
+
+.ui-kit-showcase__summary dd {
+  margin: 0;
+}
+
 .ui-kit-showcase__form {
   display: grid;
   gap: 1rem;

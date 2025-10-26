@@ -8,6 +8,7 @@ import Alert from './feedback/Alert';
 import { useToast } from './feedback/ToastProvider';
 import ConfirmationModal from './modals/ConfirmationModal';
 import FormModal from './modals/FormModal';
+import WizardModal from './modals/WizardModal';
 import KpiCard, { type KpiCardStatus } from './KpiCard';
 import ResourceTable, { type ResourceTableColumn } from './ResourceTable';
 import ResourceDetailCard, { type ResourceDetailStatus } from './ResourceDetailCard';
@@ -172,9 +173,18 @@ export default function UiKitShowcase(): JSX.Element {
   const { pushToast } = useToast();
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [isFormOpen, setFormOpen] = useState(false);
+  const [isWizardOpen, setWizardOpen] = useState(false);
   const [alertVisible, setAlertVisible] = useState(true);
   const [workflowName, setWorkflowName] = useState('Rotina semanal');
   const [isSubmitting, setSubmitting] = useState(false);
+  const [isWizardCompleting, setWizardCompleting] = useState(false);
+  const [wizardAck, setWizardAck] = useState(false);
+  const [wizardState, setWizardState] = useState({
+    name: 'Agente governado',
+    justification: 'Aplicar políticas FinOps semanalmente',
+    environment: 'produção',
+    scope: 'restrito',
+  });
   const [kpiScenario, setKpiScenario] = useState<ScenarioState>('success');
   const [tableScenario, setTableScenario] = useState<ScenarioState>('success');
   const [detailScenario, setDetailScenario] = useState<ScenarioState>('success');
@@ -224,6 +234,13 @@ export default function UiKitShowcase(): JSX.Element {
         icon: <FontAwesomeIcon icon="pen-to-square" fixedWidth aria-hidden="true" />,
         onSelect: () => setFormOpen(true),
       },
+      {
+        id: 'open-wizard',
+        label: 'Abrir wizard governado',
+        description: 'Fluxo assistido com rollback seguro',
+        icon: <FontAwesomeIcon icon="wand-magic-sparkles" fixedWidth aria-hidden="true" />,
+        onSelect: () => setWizardOpen(true),
+      },
     ],
     [pushToast],
   );
@@ -269,6 +286,44 @@ export default function UiKitShowcase(): JSX.Element {
     ],
     [pushToast],
   );
+
+  const handleWizardClose = () => {
+    setWizardOpen(false);
+    setWizardCompleting(false);
+    setWizardAck(false);
+    pushToast({
+      id: 'showcase-wizard-cancelled',
+      title: 'Fluxo governado cancelado',
+      description: 'Rollback aplicado: nenhuma alteração permanente.',
+      variant: 'warning',
+      autoDismiss: false,
+    });
+  };
+
+  const handleWizardComplete = async () => {
+    if (!wizardAck) {
+      pushToast({
+        id: 'showcase-wizard-ack',
+        title: 'Confirme a revisão',
+        description: 'Marque a caixa para habilitar a dupla confirmação.',
+        variant: 'error',
+        autoDismiss: false,
+      });
+      return false;
+    }
+    setWizardCompleting(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 600));
+    setWizardCompleting(false);
+    setWizardOpen(false);
+    setWizardAck(false);
+    pushToast({
+      id: 'showcase-wizard-success',
+      title: 'Fluxo governado habilitado',
+      description: `O agente ${wizardState.name} está autorizado em ${wizardState.environment}.`,
+      variant: 'success',
+    });
+    return true;
+  };
 
   const scenarioOptions: Array<{ id: ScenarioState; label: string }> = [
     { id: 'success', label: 'Dados' },
@@ -906,10 +961,13 @@ export default function UiKitShowcase(): JSX.Element {
           <Button variant="secondary" onClick={() => setFormOpen(true)}>
             Abrir formulário
           </Button>
+          <Button variant="secondary" onClick={() => setWizardOpen(true)}>
+            Abrir wizard
+          </Button>
         </div>
         <p className="ui-kit-showcase__note">
-          Overlays utilizam <code>--mcp-z-modal</code> &gt; <code>--mcp-z-toast</code> e os modais mantêm trap de foco com
-          confirmação em dois cliques.
+          Overlays utilizam <code>--mcp-z-modal</code> &gt; <code>--mcp-z-toast</code>; modais mantêm trap de foco, wizard em
+          etapas e confirmações em dois cliques.
         </p>
       </div>
 
@@ -956,6 +1014,147 @@ export default function UiKitShowcase(): JSX.Element {
           </select>
         </label>
       </FormModal>
+      <WizardModal
+        isOpen={isWizardOpen}
+        title="Habilitar fluxo governado"
+        description="Wizard acessível com confirmação dupla e rollback controlado."
+        onClose={handleWizardClose}
+        confirmHint="Clique para habilitar a confirmação final."
+        confirmArmedHint="Clique novamente para liberar o agente."
+        confirmLabel="Pronto para liberar"
+        confirmArmedLabel="Confirmar liberação"
+        isCompleting={isWizardCompleting}
+        steps={[
+          {
+            id: 'detalhes',
+            title: 'Detalhes',
+            description: 'Nome e justificativa obrigatórios.',
+            content: (
+              <div className="mcp-modal__wizard-pane">
+                <label className="ui-kit-showcase__field">
+                  <span>Nome do agente</span>
+                  <input
+                    value={wizardState.name}
+                    onChange={(event) =>
+                      setWizardState((current) => ({ ...current, name: event.target.value }))
+                    }
+                    data-autofocus="true"
+                  />
+                </label>
+                <label className="ui-kit-showcase__field">
+                  <span>Justificativa</span>
+                  <textarea
+                    value={wizardState.justification}
+                    rows={3}
+                    onChange={(event) =>
+                      setWizardState((current) => ({ ...current, justification: event.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+            ),
+            onNext: () => {
+              if (!wizardState.name.trim()) {
+                pushToast({
+                  id: 'showcase-wizard-name',
+                  title: 'Informe o nome do agente',
+                  description: 'Defina um identificador para continuar.',
+                  variant: 'error',
+                  autoDismiss: false,
+                });
+                return false;
+              }
+              if (wizardState.justification.trim().length < 10) {
+                pushToast({
+                  id: 'showcase-wizard-justification',
+                  title: 'Justificativa curta',
+                  description: 'Descreva com pelo menos 10 caracteres.',
+                  variant: 'error',
+                  autoDismiss: false,
+                });
+                return false;
+              }
+              return true;
+            },
+          },
+          {
+            id: 'escopo',
+            title: 'Escopo',
+            description: 'Ambiente e permissões.',
+            content: (
+              <div className="mcp-modal__wizard-pane">
+                <fieldset className="ui-kit-showcase__field" role="group" aria-labelledby="wizard-environment">
+                  <span id="wizard-environment">Ambiente alvo</span>
+                  {['produção', 'homologação', 'laboratório'].map((option) => (
+                    <label key={option} className="ui-kit-showcase__option">
+                      <input
+                        type="radio"
+                        checked={wizardState.environment === option}
+                        onChange={() =>
+                          setWizardState((current) => ({ ...current, environment: option }))
+                        }
+                      />
+                      <span>{option.charAt(0).toUpperCase() + option.slice(1)}</span>
+                    </label>
+                  ))}
+                </fieldset>
+                <label className="ui-kit-showcase__field">
+                  <span>Escopo</span>
+                  <select
+                    value={wizardState.scope}
+                    onChange={(event) =>
+                      setWizardState((current) => ({ ...current, scope: event.target.value }))
+                    }
+                  >
+                    <option value="restrito">Restrito · leitura &amp; provisionamento</option>
+                    <option value="ampliado">Ampliado · leitura, provisionamento &amp; auditoria</option>
+                    <option value="total">Total · leitura, provisionamento, auditoria &amp; rollback</option>
+                  </select>
+                </label>
+              </div>
+            ),
+          },
+          {
+            id: 'revisao',
+            title: 'Revisão',
+            description: 'Confirme antes do deploy.',
+            nextLabel: 'Habilitar confirmação',
+            content: (
+              <div className="mcp-modal__wizard-pane">
+                <dl className="ui-kit-showcase__summary">
+                  <div>
+                    <dt>Agente</dt>
+                    <dd>{wizardState.name}</dd>
+                  </div>
+                  <div>
+                    <dt>Ambiente</dt>
+                    <dd>{wizardState.environment}</dd>
+                  </div>
+                  <div>
+                    <dt>Escopo</dt>
+                    <dd>{wizardState.scope}</dd>
+                  </div>
+                  <div>
+                    <dt>Justificativa</dt>
+                    <dd>{wizardState.justification}</dd>
+                  </div>
+                </dl>
+                <label className="ui-kit-showcase__option">
+                  <input
+                    type="checkbox"
+                    checked={wizardAck}
+                    onChange={(event) => setWizardAck(event.target.checked)}
+                  />
+                  <span>
+                    Reconheço que revisei permissões, ambientes e sei que rollback exige dupla confirmação.
+                  </span>
+                </label>
+              </div>
+            ),
+          },
+        ]}
+        onComplete={handleWizardComplete}
+      />
     </section>
   );
 }

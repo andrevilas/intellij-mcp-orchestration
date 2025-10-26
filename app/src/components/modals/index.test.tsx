@@ -1,12 +1,14 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 
 import type { ProviderSummary } from '../../api';
 import ProvisioningDialog from '../ProvisioningDialog';
 import { ToastProvider } from '../feedback/ToastProvider';
 import ConfirmationModal from './ConfirmationModal';
 import FormModal from './FormModal';
+import WizardModal from './WizardModal';
 
 function setupPortal() {
   const root = document.createElement('div');
@@ -129,6 +131,85 @@ describe('modal components', () => {
         name: /Provisionamento cancelado para Gemini./i,
       }),
     ).toBeInTheDocument();
+
+    cleanupPortal();
+  });
+
+  it('guia progressão no WizardModal, reseta armamento e exige dupla confirmação', async () => {
+    const cleanupPortal = setupPortal();
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+
+    function WizardHarness() {
+      const [ack, setAck] = useState(false);
+      return (
+        <WizardModal
+          isOpen
+          title="Ativar agente governado"
+          description="Fluxo com validação e dupla confirmação."
+          onClose={() => undefined}
+          confirmHint="Clique para habilitar a confirmação final."
+          confirmArmedHint="Clique novamente para confirmar."
+          onComplete={() => {
+            if (!ack) {
+              return false;
+            }
+            onComplete();
+            return true;
+          }}
+          steps={[
+            {
+              id: 'detalhes',
+              title: 'Detalhes',
+              content: <input defaultValue="Agente" data-autofocus="true" />,
+            },
+            {
+              id: 'escopo',
+              title: 'Escopo',
+              content: <p>Configuração de escopo</p>,
+            },
+            {
+              id: 'revisao',
+              title: 'Revisão',
+              content: (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={ack}
+                    onChange={(event) => setAck(event.target.checked)}
+                  />
+                  Revisão concluída
+                </label>
+              ),
+            },
+          ]}
+        />
+      );
+    }
+
+    render(<WizardHarness />);
+
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    const confirmButton = screen.getByRole('button', { name: 'Confirmar' });
+    await user.click(confirmButton);
+    await screen.findByText('Clique para habilitar a confirmação final.');
+
+    const armedButton = screen.getByRole('button', { name: 'Confirmar agora' });
+    await user.click(armedButton);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Voltar' }));
+    await screen.findByText('Configuração de escopo');
+
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Revisão concluída'));
+    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar agora' }));
+    expect(onComplete).toHaveBeenCalledTimes(1);
 
     cleanupPortal();
   });

@@ -33,6 +33,7 @@ interface ToastInternal extends Required<Pick<ToastOptions, 'id'>> {
   dismissible: boolean;
   autoDismiss: boolean;
   duration: number;
+  fingerprint?: string;
 }
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
@@ -82,26 +83,59 @@ export function ToastProvider({ children, maxVisible = 3 }: { children: ReactNod
 
   const pushToast = useCallback(
     (options: ToastOptions): ToastHandle => {
+      const variant = options.variant ?? 'info';
       const toast: ToastInternal = {
         id: options.id ?? createId(),
         title: options.title,
         description: options.description,
-        variant: options.variant ?? 'info',
+        variant,
         dismissible: options.dismissible !== false,
-        autoDismiss: options.autoDismiss ?? true,
-        duration: options.duration ?? 6000,
+        autoDismiss: options.autoDismiss ?? (variant !== 'error'),
+        duration: options.duration ?? (variant === 'success' ? 5000 : 6000),
+        fingerprint:
+          typeof options.description === 'string'
+            ? `${variant}::${options.title ?? ''}::${options.description}`
+            : undefined,
       };
 
+      let inserted = false;
+      let duplicateToast: ToastInternal | undefined;
+      let resolvedId = toast.id;
+
       setItems((current) => {
-        const next = [toast, ...current.filter((item) => item.id !== toast.id)].slice(0, maxVisible);
-        return next;
+        if (toast.fingerprint) {
+          const existing = current.find((item) => item.fingerprint === toast.fingerprint);
+          if (existing) {
+            duplicateToast = existing;
+            resolvedId = existing.id;
+            const rest = current.filter((item) => item.id !== existing.id);
+            return [existing, ...rest];
+          }
+        }
+        inserted = true;
+        return [toast, ...current.filter((item) => item.id !== toast.id)].slice(0, maxVisible);
       });
 
-      scheduleAutoDismiss(toast);
+      if (duplicateToast) {
+        const timeout = timeoutsRef.current.get(duplicateToast.id);
+        if (timeout) {
+          window.clearTimeout(timeout);
+          timeoutsRef.current.delete(duplicateToast.id);
+        }
+        scheduleAutoDismiss(duplicateToast);
+        return {
+          id: duplicateToast.id,
+          dismiss: () => dismissToast(duplicateToast!.id),
+        };
+      }
+
+      if (inserted) {
+        scheduleAutoDismiss(toast);
+      }
 
       return {
-        id: toast.id,
-        dismiss: () => dismissToast(toast.id),
+        id: resolvedId,
+        dismiss: () => dismissToast(resolvedId),
       };
     },
     [dismissToast, maxVisible, scheduleAutoDismiss],
