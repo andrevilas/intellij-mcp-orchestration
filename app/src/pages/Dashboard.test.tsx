@@ -273,8 +273,8 @@ describe('Dashboard telemetry overview', () => {
     expect(screen.getByText('Taxa de erro')).toBeInTheDocument();
     expect(screen.getByText('12%')).toBeInTheDocument();
 
-    await screen.findByTestId(DASHBOARD_TEST_IDS.costBreakdown);
-    await screen.findByTestId(DASHBOARD_TEST_IDS.errorBreakdown);
+    expect(await screen.findByText('Distribuição de custo por rota')).toBeInTheDocument();
+    expect(await screen.findByText('Ocorrências de erro por categoria')).toBeInTheDocument();
     await screen.findByTestId(DASHBOARD_TEST_IDS.sections.heatmap);
 
     expect(screen.queryByText('Sem execuções registradas nos últimos 7 dias.')).not.toBeInTheDocument();
@@ -310,8 +310,8 @@ describe('Dashboard telemetry overview', () => {
     expect(insightCards).toHaveAttribute('data-status', 'empty');
     expect(within(insightCards).getByText('Nenhum indicador disponível no momento.')).toBeInTheDocument();
 
-    expect(screen.queryByTestId(DASHBOARD_TEST_IDS.costBreakdown)).toBeNull();
-    expect(screen.queryByTestId(DASHBOARD_TEST_IDS.errorBreakdown)).toBeNull();
+    expect(screen.queryByText('Distribuição de custo por rota')).toBeNull();
+    expect(screen.queryByText('Ocorrências de erro por categoria')).toBeNull();
 
     const sessionsSection = screen.getByTestId(DASHBOARD_TEST_IDS.sections.sessions);
     expect(

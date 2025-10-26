@@ -16,6 +16,8 @@ import {
   createPolicyDeployment,
   deletePolicyDeployment,
 } from '../api';
+import { ToastProvider } from '../components/feedback/ToastProvider';
+import { ThemeProvider } from '../theme/ThemeContext';
 
 type ApiModule = typeof import('../api');
 
@@ -191,7 +193,13 @@ describe('Policies page integration with policy APIs', () => {
   });
 
   it('renders deployments and allows applying and rolling back templates', async () => {
-    render(<Policies providers={providers} isLoading={false} initialError={null} />);
+    render(
+      <ThemeProvider>
+        <ToastProvider>
+          <Policies providers={providers} isLoading={false} initialError={null} />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Equilíbrio' })).toBeInTheDocument());
     expect(screen.getByText('Promoção Q2 liberada para toda a frota.')).toBeInTheDocument();
@@ -217,7 +225,9 @@ describe('Policies page integration with policy APIs', () => {
       note: 'Rollout manual: Turbo.',
     });
 
-    await waitFor(() => expect(screen.getByText('Turbo ativado para toda a frota.')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getAllByText('Turbo ativado para toda a frota.').length).toBeGreaterThan(0),
+    );
 
     await userEvent.click(screen.getByRole('button', { name: 'Rollback imediato' }));
 
@@ -228,13 +238,21 @@ describe('Policies page integration with policy APIs', () => {
     await userEvent.click(rollbackArmed);
 
     await waitFor(() => expect(deleteDeploymentMock).toHaveBeenCalledWith('deploy-turbo-20250420'));
-    await waitFor(() => expect(screen.getByText('Rollback concluído para Equilíbrio.')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getAllByText('Rollback concluído para Equilíbrio.').length).toBeGreaterThan(0),
+    );
   });
 
   it('exibe erro quando não é possível carregar o histórico', async () => {
     fetchDeploymentsMock.mockRejectedValueOnce(new Error('boom'));
 
-    render(<Policies providers={providers} isLoading={false} initialError={null} />);
+    render(
+      <ThemeProvider>
+        <ToastProvider>
+          <Policies providers={providers} isLoading={false} initialError={null} />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
 
     await waitFor(() => expect(screen.getByText('Templates opinativos')).toBeInTheDocument());
     await waitFor(() =>

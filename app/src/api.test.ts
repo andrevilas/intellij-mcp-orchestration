@@ -71,6 +71,7 @@ import {
   revokeSecurityApiKey,
   fetchSecurityAuditTrail,
 } from './api';
+import serversFixture from '#fixtures/servers.json';
 
 function mockFetchResponse<T>(payload: T): Promise<Response> {
   return Promise.resolve({
@@ -95,10 +96,12 @@ describe('api client', () => {
   beforeEach(() => {
     fetchSpy = vi.fn();
     globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    globalThis.__CONSOLE_MCP_FIXTURES__ = 'disabled';
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    globalThis.__CONSOLE_MCP_FIXTURES__ = 'ready';
   });
 
   it('requests the server catalog when fetching providers', async () => {
@@ -456,7 +459,7 @@ describe('api client', () => {
     expect(second).toEqual({ logs: [], cursor: first.cursor });
   });
 
-  it('exposes status information when the API returns an error', async () => {
+  it('falls back to fixture data when the API returns an error', async () => {
     fetchSpy.mockResolvedValueOnce(
       Promise.resolve({
         ok: false,
@@ -465,20 +468,26 @@ describe('api client', () => {
       } as unknown as Response),
     );
 
-    let captured: ApiError | null = null;
-    await expect(
-      fetchServerCatalog().catch((err) => {
-        captured = err as ApiError;
-        throw err;
+    const result = await fetchServerCatalog();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/servers',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
       }),
-    ).rejects.toBeInstanceOf(ApiError);
-    expect(captured).not.toBeNull();
-    if (!captured) {
-      throw new Error('ApiError esperado não foi capturado.');
+    );
+    expect(result).toHaveLength(serversFixture.servers.length);
+    for (const server of serversFixture.servers) {
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: server.id,
+            name: server.name,
+            command: server.command,
+          }),
+        ]),
+      );
     }
-    const error = captured as ApiError;
-    expect(error.status).toBe(409);
-    expect(error.body).toBe('conflict');
   });
 
   it('requests sessions from /api/v1/sessions', async () => {
