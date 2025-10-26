@@ -1,11 +1,151 @@
-import { describe, expect, it, beforeAll } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 
-import type { ProviderSummary } from '../api';
-import Dashboard from './Dashboard';
+import {
+  fetchPolicyCompliance,
+  fetchProviders,
+  fetchSessions,
+  fetchTelemetryHeatmap,
+  fetchTelemetryMetrics,
+  type ProviderSummary,
+  type PolicyComplianceSummary,
+} from '../api';
+import Dashboard, { DashboardView } from './Dashboard';
 import { ThemeProvider } from '../theme/ThemeContext';
 import { ToastProvider } from '../components/feedback/ToastProvider';
 import { DASHBOARD_TEST_IDS } from './testIds';
+
+vi.mock('../api', async () => {
+  const actual = await vi.importActual<typeof import('../api')>('../api');
+  return {
+    ...actual,
+    fetchProviders: vi.fn(),
+    fetchSessions: vi.fn(),
+    fetchTelemetryMetrics: vi.fn(),
+    fetchTelemetryHeatmap: vi.fn(),
+    fetchPolicyCompliance: vi.fn(),
+  };
+});
+
+describe('Dashboard data loader', () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.mocked(fetchProviders).mockReset();
+    vi.mocked(fetchSessions).mockReset();
+    vi.mocked(fetchTelemetryMetrics).mockReset();
+    vi.mocked(fetchTelemetryHeatmap).mockReset();
+    vi.mocked(fetchPolicyCompliance).mockReset();
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('carrega dados de fixtures quando nenhum prop é fornecido', async () => {
+    const providerFixtures: ProviderSummary[] = [
+      {
+        id: 'glm',
+        name: 'GLM 46',
+        command: 'glm46',
+        description: 'Modelo GLM 46',
+        capabilities: ['chat'],
+        tags: ['llm'],
+        transport: 'stdio',
+        is_available: true,
+      },
+    ];
+    const sessionFixtures = [
+      {
+        id: 'sess-1',
+        provider_id: 'glm',
+        created_at: '2024-04-01T10:00:00.000Z',
+        status: 'success',
+        reason: 'Provisionamento manual',
+        client: 'console-web',
+      },
+    ];
+    const metricsFixture = {
+      start: '2024-04-01T00:00:00.000Z',
+      end: '2024-04-02T00:00:00.000Z',
+      total_runs: 1,
+      total_tokens_in: 100,
+      total_tokens_out: 50,
+      total_cost_usd: 12.5,
+      avg_latency_ms: 620,
+      success_rate: 0.9,
+      providers: [
+        {
+          provider_id: 'glm',
+          run_count: 1,
+          tokens_in: 100,
+          tokens_out: 50,
+          cost_usd: 12.5,
+          avg_latency_ms: 620,
+          success_rate: 0.9,
+        },
+      ],
+      extended: {
+        cache_hit_rate: 0.5,
+        cached_tokens: 30,
+        latency_p95_ms: 700,
+        latency_p99_ms: 950,
+        error_rate: 0.1,
+        cost_breakdown: [{ label: 'Default', cost_usd: 12.5 }],
+        error_breakdown: [{ category: 'Timeout', count: 1 }],
+      },
+    } as const;
+    const heatmapFixture = [{ day: '2024-04-01', provider_id: 'glm', run_count: 1 }];
+    const complianceFixture = {
+      status: 'pass',
+      updatedAt: '2024-04-02T00:00:00.000Z',
+      items: [
+        { id: 'logging', label: 'Logging habilitado', required: true, configured: true, active: true },
+      ],
+    };
+
+    vi.mocked(fetchProviders).mockResolvedValue(providerFixtures);
+    vi.mocked(fetchSessions).mockResolvedValue(sessionFixtures);
+    vi.mocked(fetchTelemetryMetrics).mockResolvedValue(metricsFixture as any);
+    vi.mocked(fetchTelemetryHeatmap).mockResolvedValue(heatmapFixture);
+    vi.mocked(fetchPolicyCompliance).mockResolvedValue(complianceFixture as any);
+
+    render(
+      <ThemeProvider>
+        <ToastProvider>
+          <Dashboard feedback={null} provisioningId={null} />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
+
+    await waitFor(() => expect(fetchProviders).toHaveBeenCalled());
+    expect(await screen.findByText('GLM 46')).toBeInTheDocument();
+    expect(screen.getByText('Provisionamento manual')).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*12,50/)).toBeInTheDocument();
+    expect(screen.getByText('Logging habilitado')).toBeInTheDocument();
+  });
+
+  it('exibe mensagens de erro quando o carregamento falha', async () => {
+    const failure = new Error('Falha geral');
+    vi.mocked(fetchProviders).mockRejectedValue(failure);
+    vi.mocked(fetchSessions).mockRejectedValue(failure);
+    vi.mocked(fetchTelemetryMetrics).mockRejectedValue(failure);
+    vi.mocked(fetchTelemetryHeatmap).mockRejectedValue(failure);
+    vi.mocked(fetchPolicyCompliance).mockRejectedValue(failure);
+
+    render(
+      <ThemeProvider>
+        <ToastProvider>
+          <Dashboard feedback={null} provisioningId={null} />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
+
+    const errorStatus = await screen.findAllByText('Falha geral');
+    expect(errorStatus.length).toBeGreaterThan(0);
+  });
+});
 
 defineResizeObserver();
 
@@ -45,10 +185,18 @@ describe('Dashboard telemetry overview', () => {
   ];
 
   it('renders KPIs and alerts using telemetry metrics', async () => {
+    const compliance: PolicyComplianceSummary = {
+      status: 'pass',
+      updatedAt: '2024-03-08T12:00:00.000Z',
+      items: [
+        { id: 'logging', label: 'Logging habilitado', required: true, configured: true, active: true },
+      ],
+    };
+
     render(
       <ThemeProvider>
         <ToastProvider>
-          <Dashboard
+          <DashboardView
             providers={providers}
             sessions={[]}
             metrics={{
@@ -104,6 +252,7 @@ describe('Dashboard telemetry overview', () => {
             initialError={null}
             feedback={null}
             provisioningId={null}
+            compliance={compliance}
             onProvision={() => {}}
           />
         </ToastProvider>
@@ -137,7 +286,7 @@ describe('Dashboard telemetry overview', () => {
     render(
       <ThemeProvider>
         <ToastProvider>
-          <Dashboard
+          <DashboardView
             providers={[]}
             sessions={[]}
             metrics={null}
@@ -146,6 +295,7 @@ describe('Dashboard telemetry overview', () => {
             initialError={null}
             feedback={null}
             provisioningId={null}
+            compliance={null}
             onProvision={() => {}}
           />
         </ToastProvider>
@@ -178,7 +328,7 @@ describe('Dashboard telemetry overview', () => {
     render(
       <ThemeProvider>
         <ToastProvider>
-          <Dashboard
+          <DashboardView
             providers={[]}
             sessions={[]}
             metrics={null}
@@ -187,6 +337,7 @@ describe('Dashboard telemetry overview', () => {
             initialError={null}
             feedback={null}
             provisioningId={null}
+            compliance={null}
             onProvision={() => {}}
           />
         </ToastProvider>
@@ -205,7 +356,7 @@ describe('Dashboard telemetry overview', () => {
     render(
       <ThemeProvider>
         <ToastProvider>
-          <Dashboard
+          <DashboardView
             providers={[]}
             sessions={[]}
             metrics={null}
@@ -214,6 +365,7 @@ describe('Dashboard telemetry overview', () => {
             initialError="Falha ao sincronizar dados"
             feedback={null}
             provisioningId={null}
+            compliance={null}
             onProvision={() => {}}
           />
         </ToastProvider>

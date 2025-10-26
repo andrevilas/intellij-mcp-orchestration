@@ -1,17 +1,21 @@
 import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useState } from 'react';
 
-import type {
-  PolicyComplianceSummary,
-  ProviderSummary,
-  Session,
-  TelemetryHeatmapBucket,
-  TelemetryMetrics,
+import {
+  fetchPolicyCompliance,
+  fetchProviders,
+  fetchSessions,
+  fetchTelemetryHeatmap,
+  fetchTelemetryMetrics,
+  type PolicyComplianceSummary,
+  type ProviderSummary,
+  type Session,
+  type TelemetryHeatmapBucket,
+  type TelemetryMetrics,
 } from '../api';
 import type { Feedback } from '../App';
 import KpiCard, { type Trend } from '../components/KpiCard';
 import StatusBadge, { type StatusBadgeTone } from '../components/indicators/StatusBadge';
 import { useToastNotification } from '../hooks/useToastNotification';
-import { describeFixtureRequest } from '../utils/fixtureStatus';
 import {
   getStatusMetadata,
   resolveStatusMessage,
@@ -26,6 +30,7 @@ import {
   percentFormatter,
 } from './dashboard/formatters';
 import { DASHBOARD_TEST_IDS } from './testIds';
+import { createDataStateMessages } from '../components/data';
 
 import './Dashboard.scss';
 
@@ -51,16 +56,16 @@ const DashboardHeatmap = lazy(async () => {
 });
 
 export interface DashboardProps {
-  providers: ProviderSummary[];
-  sessions: Session[];
-  metrics: TelemetryMetrics | null;
-  heatmapBuckets: TelemetryHeatmapBucket[];
-  isLoading: boolean;
-  initialError: string | null;
-  feedback: Feedback | null;
-  provisioningId: string | null;
+  providers?: ProviderSummary[];
+  sessions?: Session[];
+  metrics?: TelemetryMetrics | null;
+  heatmapBuckets?: TelemetryHeatmapBucket[];
+  isLoading?: boolean;
+  initialError?: string | null;
+  feedback?: Feedback | null;
+  provisioningId?: string | null;
   compliance?: PolicyComplianceSummary | null;
-  onProvision(provider: ProviderSummary): void;
+  onProvision?(provider: ProviderSummary): void;
 }
 
 const SESSION_PAGE_SIZE = 6;
@@ -68,6 +73,259 @@ const SESSION_PAGE_SIZE = 6;
 type DashboardScenario = 'default' | 'loading' | 'empty' | 'error' | 'skeleton';
 const SESSION_EMPTY_DESCRIPTION =
   'Provisionamentos aparecerão aqui assim que novas execuções forem registradas.';
+
+interface DashboardResourceOverrides {
+  providers?: ProviderSummary[];
+  sessions?: Session[];
+  metrics?: TelemetryMetrics | null;
+  heatmapBuckets?: TelemetryHeatmapBucket[];
+  compliance?: PolicyComplianceSummary | null;
+  isLoading?: boolean;
+  initialError?: string | null;
+}
+
+interface DashboardResourceState {
+  providers: ProviderSummary[];
+  sessions: Session[];
+  metrics: TelemetryMetrics | null;
+  heatmapBuckets: TelemetryHeatmapBucket[];
+  compliance: PolicyComplianceSummary | null;
+  isLoading: boolean;
+  error: string | null;
+  reload(): void;
+}
+
+function sortSessionsByDate(list: Session[]): Session[] {
+  return list
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+function useDashboardResources({
+  providers: providersOverride,
+  sessions: sessionsOverride,
+  metrics: metricsOverride,
+  heatmapBuckets: heatmapOverride,
+  compliance: complianceOverride,
+  isLoading: loadingOverride,
+  initialError: errorOverride,
+}: DashboardResourceOverrides): DashboardResourceState {
+  const [providers, setProviders] = useState<ProviderSummary[]>(() => providersOverride ?? []);
+  const [sessions, setSessions] = useState<Session[]>(() =>
+    sessionsOverride !== undefined ? sortSessionsByDate(sessionsOverride) : [],
+  );
+  const [metrics, setMetrics] = useState<TelemetryMetrics | null>(
+    () => (metricsOverride !== undefined ? metricsOverride : null),
+  );
+  const [heatmapBuckets, setHeatmapBuckets] = useState<TelemetryHeatmapBucket[]>(
+    () => heatmapOverride ?? [],
+  );
+  const [compliance, setCompliance] = useState<PolicyComplianceSummary | null>(
+    () => (complianceOverride !== undefined ? complianceOverride : null),
+  );
+  const [internalLoading, setInternalLoading] = useState<boolean>(() => loadingOverride ?? false);
+  const [internalError, setInternalError] = useState<string | null>(
+    () => (errorOverride !== undefined ? errorOverride : null),
+  );
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    if (providersOverride !== undefined) {
+      setProviders(providersOverride);
+    }
+  }, [providersOverride]);
+
+  useEffect(() => {
+    if (sessionsOverride !== undefined) {
+      setSessions(sortSessionsByDate(sessionsOverride));
+    }
+  }, [sessionsOverride]);
+
+  useEffect(() => {
+    if (metricsOverride !== undefined) {
+      setMetrics(metricsOverride);
+    }
+  }, [metricsOverride]);
+
+  useEffect(() => {
+    if (heatmapOverride !== undefined) {
+      setHeatmapBuckets(heatmapOverride);
+    }
+  }, [heatmapOverride]);
+
+  useEffect(() => {
+    if (complianceOverride !== undefined) {
+      setCompliance(complianceOverride);
+    }
+  }, [complianceOverride]);
+
+  useEffect(() => {
+    if (loadingOverride !== undefined) {
+      setInternalLoading(loadingOverride);
+    }
+  }, [loadingOverride]);
+
+  useEffect(() => {
+    if (errorOverride !== undefined) {
+      setInternalError(errorOverride);
+    }
+  }, [errorOverride]);
+
+  const shouldFetchProviders = providersOverride === undefined;
+  const shouldFetchSessions = sessionsOverride === undefined;
+  const shouldFetchMetrics = metricsOverride === undefined;
+  const shouldFetchHeatmap = heatmapOverride === undefined;
+  const shouldFetchCompliance = complianceOverride === undefined;
+
+  useEffect(() => {
+    if (
+      !shouldFetchProviders &&
+      !shouldFetchSessions &&
+      !shouldFetchMetrics &&
+      !shouldFetchHeatmap &&
+      !shouldFetchCompliance
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    let encounteredError: string | null = null;
+
+    async function load() {
+      setInternalLoading(true);
+      setInternalError(null);
+
+      const now = new Date();
+      const metricsStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const heatmapStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+      if (shouldFetchProviders) {
+        try {
+          const result = await fetchProviders(controller.signal);
+          if (!controller.signal.aborted) {
+            setProviders(result ?? []);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            encounteredError =
+              encounteredError ??
+              (error instanceof Error ? error.message : 'Falha ao carregar provedores do dashboard.');
+            console.error('Falha ao carregar provedores do dashboard', error);
+            setProviders([]);
+          }
+        }
+      }
+
+      if (shouldFetchSessions) {
+        try {
+          const result = await fetchSessions(controller.signal);
+          if (!controller.signal.aborted) {
+            setSessions(sortSessionsByDate(result ?? []));
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            encounteredError =
+              encounteredError ??
+              (error instanceof Error ? error.message : 'Falha ao carregar sessões do dashboard.');
+            console.error('Falha ao carregar sessões do dashboard', error);
+            setSessions([]);
+          }
+        }
+      }
+
+      if (shouldFetchMetrics) {
+        try {
+          const result = await fetchTelemetryMetrics({ start: metricsStart }, controller.signal);
+          if (!controller.signal.aborted) {
+            setMetrics(result);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            encounteredError =
+              encounteredError ??
+              (error instanceof Error
+                ? error.message
+                : 'Falha ao carregar métricas de telemetria do dashboard.');
+            console.error('Falha ao carregar métricas de telemetria do dashboard', error);
+            setMetrics(null);
+          }
+        }
+      }
+
+      if (shouldFetchHeatmap) {
+        try {
+          const result = await fetchTelemetryHeatmap(
+            { start: heatmapStart, end: now },
+            controller.signal,
+          );
+          if (!controller.signal.aborted) {
+            setHeatmapBuckets(result ?? []);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            encounteredError =
+              encounteredError ??
+              (error instanceof Error
+                ? error.message
+                : 'Falha ao carregar heatmap de telemetria do dashboard.');
+            console.error('Falha ao carregar heatmap de telemetria do dashboard', error);
+            setHeatmapBuckets([]);
+          }
+        }
+      }
+
+      if (shouldFetchCompliance) {
+        try {
+          const result = await fetchPolicyCompliance(controller.signal);
+          if (!controller.signal.aborted) {
+            setCompliance(result ?? null);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            encounteredError =
+              encounteredError ??
+              (error instanceof Error
+                ? error.message
+                : 'Falha ao carregar checklist de conformidade.');
+            console.error('Falha ao carregar checklist de conformidade do dashboard', error);
+            setCompliance(null);
+          }
+        }
+      }
+
+      if (!controller.signal.aborted) {
+        setInternalLoading(false);
+        setInternalError(encounteredError);
+      }
+    }
+
+    void load();
+
+    return () => controller.abort();
+  }, [
+    shouldFetchProviders,
+    shouldFetchSessions,
+    shouldFetchMetrics,
+    shouldFetchHeatmap,
+    shouldFetchCompliance,
+    reloadToken,
+  ]);
+
+  const reload = useCallback(() => {
+    setReloadToken((current) => current + 1);
+  }, []);
+
+  return {
+    providers,
+    sessions,
+    metrics,
+    heatmapBuckets,
+    compliance,
+    isLoading: internalLoading,
+    error: internalError ?? null,
+    reload,
+  };
+}
 
 export interface HeatmapPoint {
   day: string;
@@ -289,39 +547,71 @@ function deriveDashboardData(
 }
 
 export function Dashboard({
-  providers,
-  sessions,
-  metrics,
-  heatmapBuckets,
-  isLoading,
-  initialError,
+  providers: providersProp,
+  sessions: sessionsProp,
+  metrics: metricsProp,
+  heatmapBuckets: heatmapProp,
+  isLoading: isLoadingProp,
+  initialError: initialErrorProp,
   feedback,
   provisioningId,
-  compliance,
+  compliance: complianceProp,
   onProvision,
 }: DashboardProps) {
+  const {
+    providers: providerState,
+    sessions: sessionState,
+    metrics: metricsState,
+    heatmapBuckets: heatmapState,
+    compliance: complianceResource,
+    isLoading: resourcesLoading,
+    error: resourcesError,
+    reload: reloadResources,
+  } = useDashboardResources({
+    providers: providersProp,
+    sessions: sessionsProp,
+    metrics: metricsProp,
+    heatmapBuckets: heatmapProp,
+    compliance: complianceProp,
+    isLoading: isLoadingProp,
+    initialError: initialErrorProp,
+  });
+
+  const providers = providersProp !== undefined ? providersProp : providerState;
+  const sessions = sessionsProp !== undefined ? sessionsProp : sessionState;
+  const metrics = metricsProp !== undefined ? metricsProp : metricsState;
+  const heatmapBuckets = heatmapProp !== undefined ? heatmapProp : heatmapState;
+  const compliance = complianceProp !== undefined ? complianceProp : complianceResource;
+  const isLoading = isLoadingProp !== undefined ? isLoadingProp : resourcesLoading;
+  const initialError = initialErrorProp !== undefined ? initialErrorProp : resourcesError;
   const [currentSessionPage, setCurrentSessionPage] = useState(1);
-  const providerRequestMessages = useMemo(
-    () => describeFixtureRequest('provedores MCP'),
+  const providerMessages = useMemo(
+    () => createDataStateMessages('provedores MCP'),
     [],
   );
-  const telemetryRequestMessages = useMemo(
-    () => describeFixtureRequest('indicadores de telemetria'),
-    [],
-  );
-  const sessionRequestMessages = useMemo(
+  const telemetryMessages = useMemo(
     () =>
-      describeFixtureRequest('histórico de sessões', {
-        action: 'Carregando',
-        errorPrefix: 'carregar',
+      createDataStateMessages('indicadores de telemetria', {
+        empty: 'Nenhum indicador disponível no momento.',
+        skeleton: 'Preparando indicadores…',
       }),
     [],
   );
-  const complianceRequestMessages = useMemo(
+  const sessionMessages = useMemo(
     () =>
-      describeFixtureRequest('checklist de conformidade', {
+      createDataStateMessages('histórico de sessões', {
+        action: 'Carregando',
+        errorPrefix: 'carregar',
+        empty: SESSION_EMPTY_DESCRIPTION,
+      }),
+    [],
+  );
+  const complianceMessages = useMemo(
+    () =>
+      createDataStateMessages('checklist de conformidade', {
         action: 'Sincronizando',
         errorPrefix: 'sincronizar',
+        empty: 'Checklist indisponível no momento.',
       }),
     [],
   );
@@ -424,9 +714,9 @@ export function Dashboard({
     return { start, end };
   }, [sessionSource, currentSessionPage]);
 
-  const telemetryError = forcedScenario === 'error' ? telemetryRequestMessages.error : initialError;
-  const sessionsError = forcedScenario === 'error' ? sessionRequestMessages.error : initialError;
-  const bootstrapError = forcedScenario === 'error' ? providerRequestMessages.error : initialError;
+  const telemetryError = forcedScenario === 'error' ? telemetryMessages.error : initialError;
+  const sessionsError = forcedScenario === 'error' ? sessionMessages.error : initialError;
+  const bootstrapError = forcedScenario === 'error' ? providerMessages.error : initialError;
   const providersLoading = forcedScenario === 'loading' ? true : isLoading;
 
   const telemetryStatus: AsyncContentStatus = (() => {
@@ -456,12 +746,12 @@ export function Dashboard({
 
   const telemetryStatusMessages = useMemo<StatusMessageOverrides>(
     () => ({
-      loading: telemetryRequestMessages.loading,
-      skeleton: telemetryRequestMessages.loading,
-      empty: 'Nenhum indicador disponível no momento.',
-      error: telemetryError ?? telemetryRequestMessages.error,
+      loading: telemetryMessages.loading,
+      skeleton: telemetryMessages.skeleton ?? telemetryMessages.loading,
+      empty: telemetryMessages.empty ?? 'Nenhum indicador disponível no momento.',
+      error: telemetryError ?? telemetryMessages.error,
     }),
-    [telemetryRequestMessages, telemetryError],
+    [telemetryMessages, telemetryError],
   );
 
   const telemetryStatusMetadata = getStatusMetadata(telemetryStatus);
@@ -474,12 +764,12 @@ export function Dashboard({
     forcedScenario === 'loading' || forcedScenario === 'skeleton' ? true : isLoading;
   const sessionStatusMessages = useMemo<StatusMessageOverrides>(
     () => ({
-      loading: sessionRequestMessages.loading,
-      skeleton: sessionRequestMessages.loading,
-      empty: SESSION_EMPTY_DESCRIPTION,
-      error: sessionsError ?? sessionRequestMessages.error,
+      loading: sessionMessages.loading,
+      skeleton: sessionMessages.skeleton ?? sessionMessages.loading,
+      empty: sessionMessages.empty ?? SESSION_EMPTY_DESCRIPTION,
+      error: sessionsError ?? sessionMessages.error,
     }),
-    [sessionRequestMessages, sessionsError],
+    [sessionMessages, sessionsError],
   );
 
   const handleSessionPageChange = useCallback((page: number) => {
@@ -530,11 +820,11 @@ export function Dashboard({
 
   const complianceStatusMessages = useMemo<StatusMessageOverrides>(
     () => ({
-      loading: complianceRequestMessages.loading,
-      empty: 'Checklist indisponível no momento.',
-      error: complianceRequestMessages.error,
+      loading: complianceMessages.loading,
+      empty: complianceMessages.empty ?? 'Checklist indisponível no momento.',
+      error: complianceMessages.error,
     }),
-    [complianceRequestMessages],
+    [complianceMessages],
   );
 
   const kpis = useMemo(() => {
@@ -847,7 +1137,7 @@ export function Dashboard({
           </div>
         </header>
 
-        {providersLoading && <p className="info">{providerRequestMessages.loading}</p>}
+        {providersLoading && <p className="info">{providerMessages.loading}</p>}
         {bootstrapError && <p className="error">{bootstrapError}</p>}
 
         {!providersLoading && !bootstrapError && providers.length === 0 && (
@@ -926,10 +1216,12 @@ export function Dashboard({
         error={sessionsError}
         statusMessages={sessionStatusMessages}
         emptyDescription={SESSION_EMPTY_DESCRIPTION}
+        onRetry={reloadResources}
         testId={DASHBOARD_TEST_IDS.sections.sessions}
       />
     </main>
   );
 }
 
+export { Dashboard as DashboardView };
 export default Dashboard;
