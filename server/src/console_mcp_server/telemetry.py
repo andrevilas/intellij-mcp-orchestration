@@ -49,6 +49,57 @@ class TelemetryEvent:
     experiment_tag: str | None
 
 
+@dataclass(frozen=True)
+class TelemetryUIEvent:
+    """UI telemetry record persisted from frontend beacons."""
+
+    event_type: str
+    event_timestamp: str
+    attributes_json: str
+    received_at: str
+    user_agent: str | None
+    referer: str | None
+    client_ip: str | None
+
+
+def record_ui_events(events: Sequence[TelemetryUIEvent]) -> int:
+    """Persist the provided UI telemetry events into the SQLite database."""
+
+    if not events:
+        return 0
+
+    engine = bootstrap_database()
+    inserted = 0
+    with engine.begin() as connection:
+        for event in events:
+            result = connection.execute(
+                text(
+                    """
+                    INSERT INTO ui_telemetry_events (
+                        event_type,
+                        event_timestamp,
+                        attributes,
+                        received_at,
+                        user_agent,
+                        referer,
+                        client_ip
+                    ) VALUES (
+                        :event_type,
+                        :event_timestamp,
+                        :attributes_json,
+                        :received_at,
+                        :user_agent,
+                        :referer,
+                        :client_ip
+                    )
+                    """
+                ),
+                event.__dict__,
+            )
+            inserted += max(result.rowcount or 0, 0)
+    return inserted
+
+
 def ingest_logs(provider_id: str | None = None, logs_dir: Path | None = None) -> int:
     """Ingest telemetry JSONL files into the SQLite database.
 
@@ -2627,4 +2678,3 @@ def _render_html(
         "</body>\n"
         "</html>\n"
     )
-

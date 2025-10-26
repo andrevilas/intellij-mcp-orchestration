@@ -482,6 +482,100 @@ def test_telemetry_lane_costs_endpoint_returns_breakdown(
     assert total_runs == 4
 
 
+def test_ui_telemetry_endpoint_persists_event(client: TestClient) -> None:
+    payload = {
+        'type': 'app_loaded',
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'attributes': {'path': '/dashboard', 'duration_ms': 280},
+    }
+
+    response = client.post(
+        '/api/v1/telemetry/ui-events',
+        json=payload,
+        headers={
+            'User-Agent': 'telemetry-integration-test',
+            'Referer': 'http://localhost/dashboard',
+        },
+    )
+
+    assert response.status_code == 202
+
+    import console_mcp_server.database as database_module
+
+    engine = database_module.get_engine()
+    with engine.begin() as connection:
+        row = (
+            connection.execute(
+                text(
+                    """
+                    SELECT event_type, event_timestamp, attributes, user_agent, referer, client_ip
+                    FROM ui_telemetry_events
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """
+                )
+            )
+            .mappings()
+            .first()
+        )
+
+    assert row is not None
+    assert row['event_type'] == 'app_loaded'
+    stored_attributes = json.loads(row['attributes'])
+    assert stored_attributes['path'] == '/dashboard'
+    assert stored_attributes['duration_ms'] == 280
+    assert row['user_agent'] == 'telemetry-integration-test'
+    assert row['referer'] == 'http://localhost/dashboard'
+
+
+def test_ui_telemetry_endpoint_accepts_batch(client: TestClient) -> None:
+    naive_timestamp = datetime(2025, 5, 1, 12, 30, 15)
+    payload = [
+        {
+            'type': 'view_changed',
+            'timestamp': naive_timestamp.isoformat(),
+            'attributes': {'view': 'alerts'},
+        },
+        {
+            'type': 'panel_opened',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'attributes': {'panel': 'settings', 'intent': 'configure'},
+        },
+    ]
+
+    response = client.post('/api/v1/telemetry/ui-events', json=payload)
+    assert response.status_code == 202
+
+    import console_mcp_server.database as database_module
+
+    engine = database_module.get_engine()
+    with engine.begin() as connection:
+        rows = (
+            connection.execute(
+                text(
+                    """
+                    SELECT event_type, event_timestamp, attributes
+                    FROM ui_telemetry_events
+                    ORDER BY id ASC
+                    """
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+    assert len(rows) == 2
+    first = rows[0]
+    assert first['event_type'] == 'view_changed'
+    # naive timestamps should be normalized to UTC
+    assert first['event_timestamp'].endswith('+00:00')
+    assert json.loads(first['attributes'])['view'] == 'alerts'
+
+    second = rows[1]
+    assert second['event_type'] == 'panel_opened'
+    assert json.loads(second['attributes'])['panel'] == 'settings'
+
+
 def test_marketplace_performance_endpoint_returns_entries(
     database, client: TestClient
 ) -> None:

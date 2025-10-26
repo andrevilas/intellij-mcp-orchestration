@@ -12,7 +12,8 @@
     "test": "pnpm -r test",
     "test:frontend": "pnpm --dir app test",
     "build": "bash scripts/build-local.sh",
-    "package:electron": "bash scripts/package-electron.sh"
+    "package:electron": "bash scripts/package-electron.sh",
+    "evidence:ui-obs-082": "node ./scripts/update-ui-obs-evidence.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/parser": "^8.46.2"

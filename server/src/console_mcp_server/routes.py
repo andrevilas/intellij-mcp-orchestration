@@ -173,6 +173,7 @@ from .schemas import (
     TelemetryMetricsExtended,
     TelemetryMetricsResponse,
     TelemetryProviderMetrics,
+    TelemetryUIEventPayload,
     TelemetryParetoResponse,
     TelemetryRouteBreakdownEntry as TelemetryRouteBreakdownModel,
     TelemetryRunEntry as TelemetryRunEntryModel,
@@ -283,6 +284,8 @@ from .telemetry import (
     query_runs,
     query_timeseries,
     render_telemetry_export,
+    record_ui_events,
+    TelemetryUIEvent,
 )
 from .schemas_plan import DiffSummary, Plan, PlanExecutionMode, PlanExecutionStatus, PlanStep, Risk
 from .security import (
@@ -305,6 +308,7 @@ from .supervisor import (
 router = APIRouter(prefix="/api/v1", tags=["console"])
 assistant_logger = structlog.get_logger("console.config.routes")
 security_logger = structlog.get_logger("console.security.routes")
+telemetry_logger = structlog.get_logger("console.telemetry.routes")
 
 
 class RoleNotFoundError(LookupError):
@@ -2803,6 +2807,66 @@ def trigger_observability_eval(
     )
 
 
+def _extract_client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",", 1)[0].strip()
+        if first:
+            return first
+    if request.client and request.client.host:
+        return request.client.host
+    return None
+
+
+@router.post("/telemetry/ui-events", status_code=status.HTTP_202_ACCEPTED)
+def ingest_ui_telemetry_events(
+    request: Request, payload: TelemetryUIEventPayload | list[TelemetryUIEventPayload]
+) -> Response:
+    events = payload if isinstance(payload, list) else [payload]
+    if not events:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="no telemetry events provided")
+
+    client_ip = _extract_client_ip(request)
+    user_agent = request.headers.get("user-agent")
+    referer = request.headers.get("referer")
+
+    records: list[TelemetryUIEvent] = []
+    for item in events:
+        try:
+            attributes_json = json.dumps(item.attributes, ensure_ascii=False, sort_keys=True)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="attributes must be JSON serializable",
+            ) from exc
+
+        timestamp = item.timestamp
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        else:
+            timestamp = timestamp.astimezone(timezone.utc)
+
+        records.append(
+            TelemetryUIEvent(
+                event_type=item.type.value,
+                event_timestamp=timestamp.isoformat(),
+                attributes_json=attributes_json,
+                received_at=datetime.now(tz=timezone.utc).isoformat(),
+                user_agent=user_agent,
+                referer=referer,
+                client_ip=client_ip,
+            )
+        )
+
+    try:
+        record_ui_events(records)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        telemetry_logger.exception("failed to persist ui telemetry", exc_info=exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="failed to persist telemetry")
+
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+
+
 @router.get("/telemetry/metrics", response_model=TelemetryMetricsResponse)
 def read_telemetry_metrics(
     start: datetime | None = Query(
@@ -4419,4 +4483,3 @@ def read_notifications() -> NotificationsResponse:
             for item in notifications
         ]
     )
-

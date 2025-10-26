@@ -768,6 +768,24 @@ class RoutingSimulationResponse(BaseModel):
     excluded_route: Optional[RoutingRouteProfile] = None
 
 
+class TelemetryUIEventType(str, Enum):
+    """Telemetry event types emitted by the UI."""
+
+    APP_LOADED = "app_loaded"
+    VIEW_CHANGED = "view_changed"
+    PANEL_OPENED = "panel_opened"
+
+
+class TelemetryUIEventPayload(BaseModel):
+    """Request payload accepted for UI telemetry ingestion."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: TelemetryUIEventType
+    timestamp: datetime
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+
+
 class TelemetryProviderMetrics(BaseModel):
     """Aggregated telemetry metrics grouped by provider."""
 

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
+import cssnano from 'cssnano';
 import path from 'node:path';
 import net from 'node:net';
 
@@ -252,6 +253,20 @@ export default defineConfig(async () => {
     console.info('Console MCP frontend operando em modo proxy. Destino: %s', API_PROXY_TARGET);
   }
 
+  const isProduction = process.env.NODE_ENV === 'production';
+  const postcssPlugins = isProduction
+    ? [
+        cssnano({
+          preset: [
+            'default',
+            {
+              discardComments: { removeAll: true },
+            },
+          ],
+        }),
+      ]
+    : [];
+
   const serverConfig: Record<string, unknown> = {
     port: frontendPort,
     host: frontendHost,
@@ -322,6 +337,11 @@ export default defineConfig(async () => {
             return undefined;
           },
         },
+      },
+    },
+    css: {
+      postcss: {
+        plugins: postcssPlugins,
       },
     },
   };

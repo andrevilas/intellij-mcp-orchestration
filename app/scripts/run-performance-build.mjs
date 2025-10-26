@@ -29,11 +29,18 @@ function run(command, args, env) {
 
 async function main() {
   const baseEnv = { ...process.env };
+  const skipTypecheck = baseEnv.SKIP_TYPECHECK === '1';
 
-  await run('pnpm', ['run', 'build'], {
+  const analyzeEnv = {
     ...baseEnv,
     ANALYZE_BUNDLE: '1',
-  });
+  };
+
+  if (skipTypecheck) {
+    await run('pnpm', ['exec', 'vite', 'build'], analyzeEnv);
+  } else {
+    await run('pnpm', ['run', 'build'], analyzeEnv);
+  }
 
   await run('pnpm', ['run', 'report:bundle'], baseEnv);
 

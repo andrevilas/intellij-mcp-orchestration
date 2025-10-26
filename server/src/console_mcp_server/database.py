@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator, Iterable, Sequence
 
-from sqlalchemy import ForeignKey, String, create_engine, text
+from sqlalchemy import ForeignKey, Integer, String, Text, create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -481,6 +481,32 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=14,
+        description="track ui telemetry events",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS ui_telemetry_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                event_timestamp TEXT NOT NULL,
+                attributes TEXT NOT NULL,
+                received_at TEXT NOT NULL,
+                user_agent TEXT,
+                referer TEXT,
+                client_ip TEXT
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_ui_telemetry_events_timestamp
+                ON ui_telemetry_events (event_timestamp)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_ui_telemetry_events_type
+                ON ui_telemetry_events (event_type)
+            """,
+        ),
+    ),
 )
 
 _engine: Engine | None = None
@@ -638,6 +664,7 @@ __all__ = [
     "Role",
     "UserRole",
     "UserToken",
+    "UITelemetryEvent",
     "bootstrap_database",
     "database_path",
     "get_engine",
@@ -708,3 +735,17 @@ class UserToken(Base):
     expires_at: Mapped[str | None] = mapped_column(String, nullable=True)
     revoked_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
+
+class UITelemetryEvent(Base):
+    """UI telemetry event emitted by the frontend application."""
+
+    __tablename__ = "ui_telemetry_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_type: Mapped[str] = mapped_column(String, nullable=False)
+    event_timestamp: Mapped[str] = mapped_column(String, nullable=False)
+    attributes: Mapped[str] = mapped_column(Text, nullable=False)
+    received_at: Mapped[str] = mapped_column(String, nullable=False)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    referer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    client_ip: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -47,6 +47,7 @@ import { ToastProvider } from './components/feedback/ToastProvider';
 import type { AppFixtureSnapshot } from './utils/appFixtures';
 import { createAppFixtureSnapshot } from './utils/appFixtures';
 import { getFixtureStatus } from './utils/fixtureStatus';
+import { useTelemetry } from './telemetry';
 
 const commandPaletteLoader = () => import('./components/CommandPalette');
 const notificationCenterLoader = () => import('./components/NotificationCenter');
@@ -213,6 +214,10 @@ const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
 
 function App() {
   const initialViewRef = useRef<ViewId>(resolveInitialView());
+  const telemetry = useTelemetry();
+  const loadStartRef = useRef(typeof performance !== 'undefined' ? performance.now() : 0);
+  const didReportLoadRef = useRef(false);
+  const previousViewRef = useRef<ViewId>(initialViewRef.current);
   const fixtureStatus = getFixtureStatus();
   const fixtureSnapshot = useMemo(() => {
     if (fixtureStatus !== 'ready') {
@@ -279,6 +284,34 @@ function App() {
   const navRef = useRef<HTMLElement | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const commandButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (didReportLoadRef.current || isLoading) {
+      return;
+    }
+
+    didReportLoadRef.current = true;
+
+    let domInteractive: number | undefined;
+    if (typeof performance !== 'undefined') {
+      const [entry] = performance.getEntriesByType('navigation');
+      if (entry && typeof (entry as PerformanceNavigationTiming)?.domInteractive === 'number') {
+        domInteractive = Math.round((entry as PerformanceNavigationTiming).domInteractive);
+      }
+    }
+
+    telemetry.appLoaded({
+      active_view: activeView,
+      fixture_status: fixtureStatus,
+      load_duration_ms:
+        typeof performance !== 'undefined'
+          ? Math.round(performance.now() - loadStartRef.current)
+          : undefined,
+      dom_interactive_ms: domInteractive,
+      providers: providers.length,
+      notifications: notifications.length,
+    });
+  }, [activeView, fixtureStatus, isLoading, notifications.length, providers.length, telemetry]);
 
   useEffect(() => {
     preloadView('observability');
@@ -553,9 +586,24 @@ function App() {
   }, []);
 
   const handleNavigate = useCallback(
-    (view: ViewId, options: { focusContent?: boolean } = {}) => {
+    (
+      view: ViewId,
+      options: {
+        focusContent?: boolean;
+        trigger?: 'click' | 'keyboard' | 'command' | 'programmatic' | 'preload';
+      } = {},
+    ) => {
+      if (view !== activeView) {
+        telemetry.viewChanged({
+          from_view: previousViewRef.current,
+          to_view: view,
+          trigger: options.trigger ?? 'programmatic',
+          fixture_status: fixtureStatus,
+        });
+      }
       preloadView(view);
       setActiveView(view);
+      previousViewRef.current = view;
       setPaletteOpen(false);
       setNotificationOpen(false);
       setSidebarOpen(false);
@@ -565,7 +613,7 @@ function App() {
         });
       }
     },
-    [],
+    [activeView, fixtureStatus, telemetry],
   );
 
   const handleNavKeyDown = useCallback(
@@ -623,7 +671,7 @@ function App() {
       const nextView = VIEW_DEFINITIONS[nextIndex];
       if (nextView) {
         preloadView(nextView.id);
-        handleNavigate(nextView.id, { focusContent: false });
+        handleNavigate(nextView.id, { focusContent: false, trigger: 'keyboard' });
       }
     },
     [handleNavigate],
@@ -635,7 +683,7 @@ function App() {
       title: view.label,
       subtitle: view.description,
       keywords: view.keywords,
-      onSelect: () => handleNavigate(view.id),
+      onSelect: () => handleNavigate(view.id, { trigger: 'command' }),
     }));
 
     const providerCommands = providers.map((provider) => ({
@@ -939,12 +987,12 @@ function App() {
                   aria-current={activeView === view.id ? 'page' : undefined}
                   onFocus={() => {
                     preloadView(view.id);
-                    handleNavigate(view.id, { focusContent: false });
+                    handleNavigate(view.id, { focusContent: false, trigger: 'keyboard' });
                   }}
                   onClick={(event) => {
                     event.preventDefault();
                     preloadView(view.id);
-                    handleNavigate(view.id);
+                    handleNavigate(view.id, { trigger: 'click' });
                   }}
                 >
                   <FontAwesomeIcon
@@ -974,10 +1022,15 @@ function App() {
                 aria-haspopup="dialog"
                 aria-expanded={isNotificationOpen}
                 aria-controls="notification-center-panel"
-                onClick={() => {
+                onClick={(event) => {
                   void notificationCenterLoader();
                   setNotificationOpen(true);
                   setPaletteOpen(false);
+                  const trigger = event.detail === 0 ? 'keyboard' : 'click';
+                  telemetry.panelOpened('notification_center', {
+                    trigger,
+                    unread: unreadCount,
+                  });
                 }}
                 onMouseEnter={() => void notificationCenterLoader()}
                 onFocus={() => void notificationCenterLoader()}
@@ -1003,10 +1056,15 @@ function App() {
                 className="command-button"
                 aria-haspopup="dialog"
                 aria-expanded={isPaletteOpen}
-                onClick={() => {
+                onClick={(event) => {
                   void commandPaletteLoader();
                   setPaletteOpen(true);
                   setNotificationOpen(false);
+                  const trigger = event.detail === 0 ? 'keyboard' : 'click';
+                  telemetry.panelOpened('command_palette', {
+                    trigger,
+                    active_view: activeView,
+                  });
                 }}
                 onMouseEnter={() => void commandPaletteLoader()}
                 onFocus={() => void commandPaletteLoader()}
