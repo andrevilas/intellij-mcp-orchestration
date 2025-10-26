@@ -149,6 +149,32 @@ main.policies {
   color: var(--mcp-text-muted);
 }
 
+.policy-picker {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.policy-picker__risk {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--mcp-warning-soft) 60%, transparent 40%);
+  color: var(--mcp-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.policy-picker__risk strong {
+  color: var(--mcp-warning-strong);
+}
+
 .policies__actions {
   display: flex;
   flex-wrap: wrap;

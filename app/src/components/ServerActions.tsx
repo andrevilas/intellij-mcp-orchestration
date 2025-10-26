@@ -17,6 +17,8 @@ export interface ServerActionsProps {
   onStop(): void;
   onRestart(): void;
   children?: ReactNode;
+  riskAcknowledgement?: string | null;
+  riskTestId?: string;
 }
 
 function getPendingLabel(action: ServerAction | null): string | undefined {
@@ -40,6 +42,8 @@ export default function ServerActions({
   onStop,
   onRestart,
   children,
+  riskAcknowledgement,
+  riskTestId,
 }: ServerActionsProps) {
   const pendingLabel = getPendingLabel(pendingAction);
   const disableStart = status === 'running' || Boolean(pendingAction);
@@ -58,6 +62,16 @@ export default function ServerActions({
         {pendingAction === 'restart' ? pendingLabel : ACTION_LABEL.restart}
       </button>
       {children && <div className="server-actions__extra">{children}</div>}
+      {riskAcknowledgement ? (
+        <p
+          className="server-actions__risk"
+          role="note"
+          data-testid={riskTestId}
+          aria-live={pendingAction ? 'assertive' : 'polite'}
+        >
+          <strong>Risco controlado.</strong> {riskAcknowledgement}
+        </p>
+      ) : null}
     </div>
   );
 }

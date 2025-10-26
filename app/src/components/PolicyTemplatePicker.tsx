@@ -5,12 +5,26 @@ export interface PolicyTemplatePickerProps {
   value: PolicyTemplateId;
   onChange: (templateId: PolicyTemplateId) => void;
   disabled?: boolean;
+  riskNote?: string | null;
+  riskTestId?: string;
 }
 
-export default function PolicyTemplatePicker({ templates, value, onChange, disabled = false }: PolicyTemplatePickerProps) {
+export default function PolicyTemplatePicker({
+  templates,
+  value,
+  onChange,
+  disabled = false,
+  riskNote,
+  riskTestId,
+}: PolicyTemplatePickerProps) {
   return (
     <fieldset className="policy-picker">
       <legend>Selecione um template de política</legend>
+      {riskNote ? (
+        <p className="policy-picker__risk" role="note" data-testid={riskTestId}>
+          <strong>Risco controlado.</strong> {riskNote}
+        </p>
+      ) : null}
       <div className="policy-picker__options">
         {templates.map((template) => {
           const isSelected = template.id === value;
