@@ -5,8 +5,8 @@ PYTHON := python3
 
 .PHONY: doctor bootstrap reset clean install install-frontend install-backend \
         dev dev-frontend dev-backend test test-suite test-frontend test-backend \
-        test-agents smoke check ci secrets-sync secrets-audit \
-	build package-electron
+        test-agents test-playwright playwright-install-deps smoke check ci secrets-sync secrets-audit \
+        build package-electron
 
 doctor:
 	bash scripts/doctor.sh
@@ -62,10 +62,16 @@ test-frontend:
 	$(PNPM) --dir app test
 
 test-backend:
-	cd server && $(PYTHON) -m pytest
+        cd server && $(PYTHON) -m pytest
 
 test-agents:
-	cd agents-hub && $(PYTHON) -m pytest
+        cd agents-hub && $(PYTHON) -m pytest
+
+playwright-install-deps:
+        $(PNPM) --dir tests exec playwright install-deps
+
+test-playwright: playwright-install-deps
+        $(PNPM) --dir tests exec playwright test
 
 smoke:
 	$(PYTHON) scripts/smoke.py

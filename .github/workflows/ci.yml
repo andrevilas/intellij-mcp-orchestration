@@ -103,6 +103,14 @@ jobs:
       - name: Enable Corepack (pnpm)
         run: corepack enable
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml', 'tests/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -251,6 +259,12 @@ jobs:
       - name: Install dependencies via Makefile
         run: make install
 
+      - name: Install Playwright system dependencies
+        run: pnpm --dir tests exec playwright install-deps
+
+      - name: Install Playwright browsers
+        run: pnpm --dir tests exec playwright install
+
       - name: Run smoke tests
         id: run-smoke
         run: |
@@ -316,11 +330,22 @@ jobs:
       - name: Enable Corepack (pnpm)
         run: corepack enable
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml', 'tests/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install project dependencies
         run: make install
 
-      - name: Install Playwright browsers and deps
-        run: pnpm --dir tests exec playwright install --with-deps
+      - name: Install Playwright system dependencies
+        run: pnpm --dir tests exec playwright install-deps
+
+      - name: Install Playwright browsers
+        run: pnpm --dir tests exec playwright install
 
       - name: Run Playwright E2E suite
         env:

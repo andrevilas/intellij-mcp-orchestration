@@ -16,32 +16,32 @@
 - Telemetria leve de UI (console/log dev) para rastrear interações críticas.
 
 ## Status auditado (2025-10-25)
-- `[x]` indica implementado, porém o valor de sprint continua **bloqueado** enquanto o ambiente Playwright não sobe.
-- [x] **TASK-UI-SH-010** · Implementação concluída, mas ver bloqueio global de execução da suíte.【4ea611†L1-L205】
-- [x] **TASK-UI-NAV-011** · Breadcrumbs/Pagination entregues, aguardando revalidação após `playwright install-deps`.【4ea611†L1-L205】
-- [x] **TASK-UI-ACT-020** · Componentes prontos, sem possibilidade de auditoria enquanto Chromium não inicia.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
-- [x] **TASK-UI-ACT-021** · Dropdowns/tooltips implementados, revalidação bloqueada pelo runner Chromium.【4ea611†L1-L205】
-- [x] **TASK-UI-FB-022** · Alerts/toasts entregues, aguardando smoke real para fechar sprint.【4ea611†L1-L205】
-- [x] **TASK-UI-MOD-023** · Modais auditados previamente; bloqueio persiste por falha da suíte E2E.【4ea611†L1-L205】
-- [x] **UI-ACT-005** · Toggle de fixtures ativo, mas sem suite não há evidência atualizada de desbloqueio da sprint.【4ea611†L1-L205】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
-- [ ] **TASK-UI-DATA-030** · Bloqueado — componentes de dados aguardam validação com Playwright operacional.【4ea611†L1-L205】
-- [ ] **TASK-UI-DATA-031** · Bloqueado — tabela/EmptyState continuam sem cobertura de teste por falha geral do runner.【4ea611†L1-L205】
-- [ ] **TASK-UI-DATA-032** · Bloqueado — progresso depende das mesmas dependências nativas ausentes.【4ea611†L1-L205】
+- `[x]` indica implementado, porém o valor de sprint continua **bloqueado** até que as specs Playwright passem sem falhas funcionais.
+- [x] **TASK-UI-SH-010** · Implementação concluída; Playwright volta a executar após `install-deps`, mas falhas de fluxo governado permanecem.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-NAV-011** · Breadcrumbs/Pagination entregues; revalidação em andamento agora que o runner Chromium sobe normalmente.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-ACT-020** · Componentes prontos, aguardando ajustes funcionais detectados pela suíte (não mais por falta de deps).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
+- [x] **TASK-UI-ACT-021** · Dropdowns/tooltips executam em Playwright; revisar asserções de UI após correções de dados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-FB-022** · Alerts/toasts entregues; smoke continua falhando por lógica de negócio, não mais por Chromium.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-MOD-023** · Modais auditados; reexecução aponta regressões de fluxo governado pendentes.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **UI-ACT-005** · Toggle de fixtures ativo; suite roda usando fixtures e destaca cenários quebrados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
+- [ ] **TASK-UI-DATA-030** · Em validação — Playwright roda, mas specs de dados ainda quebram com fixtures atuais.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-DATA-031** · Em validação — tabela/EmptyState executam; revisar falhas relatadas pela suíte.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-DATA-032** · Em validação — badges/progress aguardam correção de dados após nova rodada Playwright.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [x] **TASK-UI-FORM-040** · Controles disponíveis; suite inacessível impede validação contínua.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
-- [ ] **TASK-UI-FORM-041** · Bloqueado — validações aguardam reexecução após corrigir ambiente.【4ea611†L1-L205】
-- [ ] **TASK-UI-FORM-042** · Bloqueado — upload/download pendentes e sem evidência atualizada.【4ea611†L1-L205】
-- [ ] **TASK-UI-PG-070** · Bloqueado — dashboard depende das fixtures porém Chromium não inicia para validar.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [ ] **TASK-UI-PG-071** · Bloqueado — página Servers sem smoke por `browserType.launch` falhando.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [ ] **TASK-UI-PG-072** · Bloqueado — console de segurança não pode ser auditado até restaurar suíte.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [ ] **TASK-UI-PG-073** · Bloqueado — policies HITL aguardam reexecução da suíte para confirmar fluxo.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [ ] **TASK-UI-PG-074** · Bloqueado — Routing Lab segue sem evidência nova por falha global do Chromium.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
-- [ ] **TASK-UI-PG-075** · Bloqueado — FinOps continua sem teste automatizado válido pela falta de dependências do host.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- [ ] **TASK-UI-FORM-041** · Em validação — validações executam; ajustar regressões apontadas nas specs de formulários governados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-FORM-042** · Em validação — upload/download testados; falhas restantes são funcionais.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-PG-070** · Em validação — dashboard roda em fixtures; resolver falhas listadas na nova evidência.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-PG-071** · Em validação — página Servers executa; investigar falhas específicas de smoke e auditoria.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-PG-072** · Em validação — console de segurança cobre fluxos principais; revisar falhas apontadas nas specs.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-PG-073** · Em validação — policies HITL exercitam a UI; regressões permanecem listadas na suíte.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-PG-074** · Em validação — Routing Lab passa pelasserções iniciais; corrigir erros funcionais reportados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [ ] **TASK-UI-PG-075** · Em validação — FinOps abre, mas specs falham por dados; ajustar fixtures/fluxos conforme logs.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [x] **TASK-UI-OBS-082** · UI Kit entregue; bloquear sprint até retestar com Playwright operacional.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 
 ## Auditoria Final UI — 2025-10-20
 - `pnpm -r dev` inicializa o shell Vite e permanece em execução até ser encerrado manualmente, confirmando que o toolkit React continua pronto para desenvolvimento local.【2b58dd†L1-L5】
 - Fixtures ativados (`UI-ACT-005`) e backend simulador entregam respostas de FinOps/Routing consistentes, mas o export CSV segue sem eventos — apenas cabeçalho — até que a base SQLite receba ingestão real ou fixtures atualizados.【F:docs/evidence/UI-ACT-005/README.md†L1-L17】【d2ef4c†L1-L17】【a7a14c†L1-L3】
-- Fluxos das páginas core dependem do runner com dependências Chromium instaladas; no contêiner padrão, o smoke Playwright aborta ainda na inicialização do browser (`browserType.launch`).【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L21】
+- Fluxos das páginas core dependem do runner com dependências Chromium instaladas; após `install-deps`, a suíte executa e evidencia falhas funcionais nas páginas core (consultar reexecução mais recente).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - Mantemos recomendação **No-Go** para UI até restabelecer dados de telemetria e fechar as lacunas da sprint M5/M6 (vide atualização em `docs/audit-ui-m1-m6.md`).【F:docs/audit-ui-m1-m6.md†L1-L200】
 
 ## Plano UI — Próximo ciclo (handover)
