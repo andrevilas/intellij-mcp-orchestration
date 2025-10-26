@@ -1,0 +1,20 @@
+@use '../tokens' as *;
+
+@mixin register() {
+  :root {
+    --mcp-form-field-gap: 0.35rem;
+    --mcp-form-control-bg: var(--mcp-surface);
+    --mcp-form-control-border: color-mix(in srgb, var(--mcp-border-strong) 65%, transparent 35%);
+    --mcp-form-control-color: var(--mcp-surface-contrast);
+    --mcp-form-control-placeholder: var(--mcp-text-muted);
+    --mcp-form-control-radius: 0.75rem;
+    --mcp-form-control-padding-y: 0.65rem;
+    --mcp-form-control-padding-x: 0.85rem;
+    --mcp-form-control-height: 2.75rem;
+    --mcp-form-control-shadow-focus: 0 0 0 1px color-mix(in srgb, var(--mcp-interactive) 55%, transparent 45%);
+    --mcp-form-control-shadow-error: 0 0 0 1px color-mix(in srgb, var(--mcp-danger-strong) 45%, transparent 55%);
+    --mcp-form-feedback-color: var(--mcp-danger-strong);
+    --mcp-form-feedback-muted: var(--mcp-text-subtle);
+    --mcp-form-feedback-success: var(--mcp-success-strong);
+  }
+}

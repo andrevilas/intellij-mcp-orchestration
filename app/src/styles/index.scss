@@ -1,6 +1,8 @@
 @use './tokens' as tokens;
+@use './forms' as forms;
 
 @include tokens.register();
+@include forms.register();
 
 :root {
   color-scheme: light;
