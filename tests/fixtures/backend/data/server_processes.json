@@ -99,6 +99,31 @@
         }
       ],
       "cursor": "glm46-cursor"
+    },
+    {
+      "server_id": "provider-turbo-1",
+      "status": "running",
+      "command": "/opt/mcp/provider-turbo-1",
+      "pid": 7301,
+      "started_at": "2025-03-07T07:55:00Z",
+      "stopped_at": null,
+      "return_code": null,
+      "last_error": null,
+      "logs": [
+        {
+          "id": "provider-turbo-1-log-1",
+          "timestamp": "2025-03-07T07:56:00Z",
+          "level": "info",
+          "message": "Turbo provider aquecido e operacional."
+        },
+        {
+          "id": "provider-turbo-1-log-2",
+          "timestamp": "2025-03-07T08:10:00Z",
+          "level": "info",
+          "message": "Latência dentro dos limites configurados."
+        }
+      ],
+      "cursor": "provider-turbo-1-cursor"
     }
   ]
 }

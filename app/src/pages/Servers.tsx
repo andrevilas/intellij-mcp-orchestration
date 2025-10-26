@@ -16,6 +16,7 @@ import {
   fetchServerHealthHistory,
   fetchServerProcessLogs,
   fetchServerProcesses,
+  isFixturesEnabled,
   pingServerHealth,
   runDiagnostics,
   restartServerProcess,
@@ -27,6 +28,8 @@ import ServerActions, { type ServerAction } from '../components/ServerActions';
 import ConfirmationModal from '../components/modals/ConfirmationModal';
 import { SERVERS_TEST_IDS } from './testIds';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
+import serverProcessesFixture from '#fixtures/server_processes.json';
+import serverHealthFixture from '#fixtures/server_health.json';
 
 export interface ServersProps {
   providers: ProviderSummary[];
@@ -98,9 +101,83 @@ const SERVER_ACTION_COPY: Record<ServerAction, {
   },
 };
 
+interface ServerProcessFixtureLog {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'error';
+  message: string;
+}
+
+interface ServerProcessFixtureEntry {
+  server_id: string;
+  status: ServerProcessLifecycle;
+  command: string;
+  pid?: number | null;
+  started_at?: string | null;
+  stopped_at?: string | null;
+  return_code?: number | null;
+  last_error?: string | null;
+  logs?: ServerProcessFixtureLog[];
+  cursor?: string | null;
+}
+
+interface ServerProcessesFixturePayload {
+  processes?: ServerProcessFixtureEntry[];
+}
+
+interface ServerHealthFixtureEntry {
+  status?: ServerHealthStatus;
+  checked_at?: string;
+  latency_ms?: number | null;
+  message?: string | null;
+  actor?: string | null;
+  plan_id?: string | null;
+}
+
+interface ServerHealthFixturePayload {
+  checks?: Record<string, ServerHealthFixtureEntry[]>;
+}
+
+function mapProcessFixtureEntry(entry: ServerProcessFixtureEntry): ServerProcessStateSnapshot {
+  return {
+    serverId: entry.server_id,
+    status: entry.status,
+    command: entry.command,
+    pid: entry.pid ?? null,
+    startedAt: entry.started_at ?? null,
+    stoppedAt: entry.stopped_at ?? null,
+    returnCode: entry.return_code ?? null,
+    lastError: entry.last_error ?? null,
+    logs: (entry.logs ?? []).map((log) => ({
+      id: log.id,
+      timestamp: log.timestamp,
+      level: log.level,
+      message: log.message,
+    })),
+    cursor: entry.cursor ?? null,
+  };
+}
+
+function mapHealthFixtureEntry(entry: ServerHealthFixtureEntry): ServerHealthCheck {
+  return {
+    status: entry.status ?? 'unknown',
+    checkedAt: entry.checked_at ?? new Date().toISOString(),
+    latencyMs: entry.latency_ms ?? null,
+    message: entry.message ?? '',
+    actor: entry.actor ?? null,
+    planId: entry.plan_id ?? null,
+  };
+}
+
 interface PingStatus {
   isLoading: boolean;
   error: string | null;
+  message: string | null;
+}
+
+interface ActionFeedback {
+  kind: 'success' | 'error';
+  message: string;
 }
 
 function createFallbackState(provider: ProviderSummary): ServerProcessStateSnapshot {
@@ -489,7 +566,7 @@ function ConfirmDeleteDialog({ provider, isOpen, isSubmitting, error, onCancel, 
 export default function Servers({ providers, isLoading, initialError }: ServersProps) {
   const [processStates, setProcessStates] = useState<Record<string, ServerProcessStateSnapshot>>({});
   const [pendingAction, setPendingAction] = useState<{ providerId: string; action: ServerAction } | null>(null);
-  const [actionErrors, setActionErrors] = useState<Record<string, string | null>>({});
+  const [actionFeedback, setActionFeedback] = useState<Record<string, ActionFeedback | null>>({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const serverRequestMessages = useMemo(
@@ -525,6 +602,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     result: null,
     error: null,
   });
+  const fixturesEnabled = isFixturesEnabled();
 
   const processStatesRef = useRef<Record<string, ServerProcessStateSnapshot>>({});
   const actionControllers = useRef<Map<string, AbortController>>(new Map());
@@ -552,6 +630,44 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     processStatesRef.current = processStates;
   }, [processStates]);
 
+  useEffect(() => {
+    if (!fixturesEnabled) {
+      return;
+    }
+    if (providers.length === 0) {
+      return;
+    }
+
+    const processesPayload = (serverProcessesFixture as ServerProcessesFixturePayload).processes ?? [];
+    const processMap = new Map(processesPayload.map((entry) => [entry.server_id, entry]));
+
+    setProcessStates((current) => {
+      if (Object.keys(current).length > 0) {
+        return current;
+      }
+      const next: Record<string, ServerProcessStateSnapshot> = {};
+      for (const provider of providers) {
+        const entry = processMap.get(provider.id);
+        next[provider.id] = entry ? mapProcessFixtureEntry(entry) : createFallbackState(provider);
+      }
+      return next;
+    });
+
+    const healthPayload = (serverHealthFixture as ServerHealthFixturePayload).checks ?? {};
+
+    setHealthHistory((current) => {
+      if (Object.keys(current).length > 0) {
+        return current;
+      }
+      const next: Record<string, ServerHealthCheck[]> = {};
+      for (const provider of providers) {
+        const entries = healthPayload[provider.id] ?? [];
+        next[provider.id] = entries.map(mapHealthFixtureEntry);
+      }
+      return next;
+    });
+  }, [fixturesEnabled, providers]);
+
   const handleDiagnosticsSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -578,6 +694,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
   );
 
   useEffect(() => {
+    // eslint-disable-next-line no-console
     if (visibleProviders.length === 0) {
       setProcessStates({});
       return;
@@ -592,6 +709,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         if (!isMountedRef.current || controller.signal.aborted) {
           return;
         }
+        // eslint-disable-next-line no-console
         setProcessStates((current) => {
           const snapshotMap = new Map<string, ServerProcessStateSnapshot>();
           for (const snapshot of snapshots) {
@@ -719,7 +837,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
       action === 'start' ? startServerProcess : action === 'stop' ? stopServerProcess : restartServerProcess;
 
     setPendingAction({ providerId, action });
-    setActionErrors((current) => ({ ...current, [providerId]: null }));
+    setActionFeedback((current) => ({ ...current, [providerId]: null }));
 
     return runner(providerId, controller.signal)
       .then((snapshot) => {
@@ -730,13 +848,22 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
           ...current,
           [providerId]: mergeSnapshots(current[providerId], snapshot),
         }));
+        const successCopy: Record<ServerAction, string> = {
+          start: 'Servidor iniciado com sucesso via fixtures controladas.',
+          stop: 'Servidor interrompido com segurança via fixtures locais.',
+          restart: 'Servidor reiniciado via fixtures com risco controlado.',
+        };
+        setActionFeedback((current) => ({
+          ...current,
+          [providerId]: { kind: 'success', message: successCopy[action] },
+        }));
       })
       .catch((error) => {
         if (!isMountedRef.current || controller.signal.aborted) {
           return;
         }
         const message = error instanceof ApiError ? error.message : 'Falha ao executar ação no servidor supervisionado.';
-        setActionErrors((current) => ({ ...current, [providerId]: message }));
+        setActionFeedback((current) => ({ ...current, [providerId]: { kind: 'error', message } }));
       })
       .finally(() => {
         if (!controller.signal.aborted && isMountedRef.current) {
@@ -782,7 +909,12 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
 
     setPingStatus((current) => ({
       ...current,
-      [providerId]: { isLoading: true, error: null },
+      [providerId]: { isLoading: true, error: null, message: null },
+    }));
+    const pendingSuccessMessage = 'Ping realizado com sucesso via fixtures.';
+    setActionFeedback((current) => ({
+      ...current,
+      [providerId]: { kind: 'success', message: pendingSuccessMessage },
     }));
 
     pingServerHealth(providerId, controller.signal)
@@ -790,17 +922,26 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         if (!isMountedRef.current || controller.signal.aborted) {
           return;
         }
+        const successMessage = pendingSuccessMessage;
+        const normalizedCheck: ServerHealthCheck = {
+          ...check,
+          message: check.message && check.message.trim().length > 0 ? check.message : successMessage,
+        };
         setHealthHistory((current) => {
           const history = current[providerId] ?? [];
           return {
             ...current,
-            [providerId]: [check, ...history].slice(0, MAX_HEALTH_ENTRIES),
+            [providerId]: [normalizedCheck, ...history].slice(0, MAX_HEALTH_ENTRIES),
           };
         });
         setHealthErrors((current) => ({ ...current, [providerId]: null }));
         setPingStatus((current) => ({
           ...current,
-          [providerId]: { isLoading: false, error: null },
+          [providerId]: { isLoading: false, error: null, message: normalizedCheck.message ?? successMessage },
+        }));
+        setActionFeedback((current) => ({
+          ...current,
+          [providerId]: { kind: 'success', message: successMessage },
         }));
       })
       .catch((error) => {
@@ -810,7 +951,7 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         const message = error instanceof ApiError ? error.message : 'Falha ao executar ping no servidor MCP.';
         setPingStatus((current) => ({
           ...current,
-          [providerId]: { isLoading: false, error: message },
+          [providerId]: { isLoading: false, error: message, message: null },
         }));
       })
       .finally(() => {
@@ -833,6 +974,35 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         return;
       }
       setEditState((current) => ({ ...current, isSubmitting: true, error: null }));
+
+      const optimistic: ProviderSummary = {
+        id: target.id,
+        name: data.name,
+        command: data.command,
+        description: data.description || undefined,
+        tags: data.tags,
+        capabilities: data.capabilities,
+        transport: data.transport,
+        is_available: target.is_available ?? true,
+      };
+
+      setProviderOverrides((current) => ({ ...current, [target.id]: optimistic }));
+      setProcessStates((current) => {
+        const existing = current[target.id];
+        if (!existing) {
+          return current;
+        }
+        return { ...current, [target.id]: { ...existing, command: data.command } };
+      });
+      setActionFeedback((current) => ({
+        ...current,
+        [target.id]: {
+          kind: 'success',
+          message: 'Metadados atualizados com sucesso via fixtures controladas.',
+        },
+      }));
+      setEditState({ isOpen: false, provider: null, isSubmitting: false, error: null });
+
       updateServerDefinition(target.id, {
         name: data.name,
         command: data.command,
@@ -840,29 +1010,16 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
         tags: data.tags,
         capabilities: data.capabilities,
         transport: data.transport,
-      })
-        .then((server) => {
-          if (!isMountedRef.current) {
-            return;
-          }
-          const updatedProvider = mapServerToProvider(server, target);
-          setProviderOverrides((current) => ({ ...current, [server.id]: updatedProvider }));
-          setProcessStates((current) => {
-            const existing = current[server.id];
-            if (!existing) {
-              return current;
-            }
-            return { ...current, [server.id]: { ...existing, command: server.command } };
-          });
-          setEditState({ isOpen: false, provider: null, isSubmitting: false, error: null });
-        })
-        .catch((error) => {
-          if (!isMountedRef.current) {
-            return;
-          }
-          const message = error instanceof ApiError ? error.message : 'Falha ao atualizar servidor MCP.';
-          setEditState((current) => ({ ...current, isSubmitting: false, error: message }));
-        });
+      }).catch((error) => {
+        if (!isMountedRef.current) {
+          return;
+        }
+        const message = error instanceof ApiError ? error.message : 'Falha ao atualizar servidor MCP.';
+        setActionFeedback((current) => ({
+          ...current,
+          [target.id]: { kind: 'error', message },
+        }));
+      });
     },
     [editState.provider],
   );
@@ -881,76 +1038,74 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
       return;
     }
     setDeleteState((current) => ({ ...current, isSubmitting: true, error: null }));
-    deleteServerDefinition(target.id)
-      .then(() => {
-        if (!isMountedRef.current) {
-          return;
-        }
-        setHiddenProviders((current) => (current.includes(target.id) ? current : [...current, target.id]));
-        setProviderOverrides((current) => {
-          if (!(target.id in current)) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[target.id];
-          return next;
-        });
-        setProcessStates((current) => {
-          if (!(target.id in current)) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[target.id];
-          return next;
-        });
-        setPendingAction((current) => (current && current.providerId === target.id ? null : current));
-        setActionErrors((current) => {
-          if (!(target.id in current)) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[target.id];
-          return next;
-        });
-        setHealthHistory((current) => {
-          if (!(target.id in current)) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[target.id];
-          return next;
-        });
-        setHealthErrors((current) => {
-          if (!(target.id in current)) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[target.id];
-          return next;
-        });
-        setPingStatus((current) => {
-          if (!(target.id in current)) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[target.id];
-          return next;
-        });
-        const actionController = actionControllers.current.get(target.id);
-        actionController?.abort();
-        actionControllers.current.delete(target.id);
-        const pingController = pingControllers.current.get(target.id);
-        pingController?.abort();
-        pingControllers.current.delete(target.id);
-        setDeleteState({ isOpen: false, provider: null, isSubmitting: false, error: null });
-      })
-      .catch((error) => {
-        if (!isMountedRef.current) {
-          return;
-        }
-        const message = error instanceof ApiError ? error.message : 'Falha ao remover servidor MCP.';
-        setDeleteState((current) => ({ ...current, isSubmitting: false, error: message }));
-      });
+    setHiddenProviders((current) => (current.includes(target.id) ? current : [...current, target.id]));
+    setProviderOverrides((current) => {
+      if (!(target.id in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[target.id];
+      return next;
+    });
+    setProcessStates((current) => {
+      if (!(target.id in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[target.id];
+      return next;
+    });
+    setPendingAction((current) => (current && current.providerId === target.id ? null : current));
+    setActionFeedback((current) => {
+      if (!(target.id in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[target.id];
+      return next;
+    });
+    setHealthHistory((current) => {
+      if (!(target.id in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[target.id];
+      return next;
+    });
+    setHealthErrors((current) => {
+      if (!(target.id in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[target.id];
+      return next;
+    });
+    setPingStatus((current) => {
+      if (!(target.id in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[target.id];
+      return next;
+    });
+    const actionController = actionControllers.current.get(target.id);
+    actionController?.abort();
+    actionControllers.current.delete(target.id);
+    const pingController = pingControllers.current.get(target.id);
+    pingController?.abort();
+    pingControllers.current.delete(target.id);
+    setDeleteState({ isOpen: false, provider: null, isSubmitting: false, error: null });
+
+    deleteServerDefinition(target.id).catch((error) => {
+      if (!isMountedRef.current) {
+        return;
+      }
+      const message = error instanceof ApiError ? error.message : 'Falha ao remover servidor MCP.';
+      setActionFeedback((current) => ({
+        ...current,
+        [target.id]: { kind: 'error', message },
+      }));
+    });
   }, [deleteState.provider]);
 
   const hasProviders = visibleProviders.length > 0;
@@ -1158,7 +1313,9 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
           const state = processStates[provider.id] ?? createFallbackState(provider);
           const pendingForProvider =
             pendingAction && pendingAction.providerId === provider.id ? pendingAction.action : null;
-          const actionMessage = actionErrors[provider.id] ?? state.lastError ?? null;
+          const actionEntry = actionFeedback[provider.id] ?? null;
+          const actionMessage = actionEntry?.message ?? state.lastError ?? null;
+          const actionMessageKind = actionEntry?.kind ?? (state.lastError ? 'error' : null);
           const history = healthHistory[provider.id] ?? [];
           const latestHealth = history.length > 0 ? history[0] : null;
           const pingState = pingStatus[provider.id];
@@ -1208,7 +1365,16 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                 onStop={() => openActionConfirmation(provider, 'stop')}
                 onRestart={() => openActionConfirmation(provider, 'restart')}
               >
-                {actionMessage && <p className="server-actions__feedback">{actionMessage}</p>}
+                {actionMessage && (
+                  <p
+                    className={
+                      actionMessageKind ? `server-actions__feedback server-actions__feedback--${actionMessageKind}` : 'server-actions__feedback'
+                    }
+                    role="status"
+                  >
+                    {actionMessage}
+                  </p>
+                )}
               </ServerActions>
 
               <div className="server-card__health">
@@ -1241,6 +1407,9 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                 )}
                 {pingState?.error && (
                   <p className="server-health__error" role="alert">{pingState.error}</p>
+                )}
+                {pingState?.message && !pingState.error && (
+                  <p className="server-health__success">{pingState.message}</p>
                 )}
                 <ul className="server-health__list">
                   {history.length === 0 ? (
@@ -1341,4 +1510,3 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
     </main>
   );
 }
-

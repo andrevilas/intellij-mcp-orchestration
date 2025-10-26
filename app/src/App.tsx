@@ -579,11 +579,9 @@ function App() {
         return;
       }
 
-      const buttons = Array.from(
-        navRef.current.querySelectorAll<HTMLButtonElement>('button.nav-button'),
-      );
+      const navItems = Array.from(navRef.current.querySelectorAll<HTMLButtonElement>('button.nav-button'));
 
-      if (buttons.length === 0) {
+      if (navItems.length === 0) {
         return;
       }
 
@@ -592,10 +590,10 @@ function App() {
       );
       const activeElement =
         document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
-      let currentIndex = targetElement ? buttons.indexOf(targetElement) : -1;
+      let currentIndex = targetElement ? navItems.indexOf(targetElement) : -1;
 
       if (currentIndex === -1 && activeElement) {
-        currentIndex = buttons.indexOf(activeElement);
+        currentIndex = navItems.indexOf(activeElement);
       }
 
       if (currentIndex === -1) {
@@ -607,19 +605,19 @@ function App() {
       let nextIndex = currentIndex;
 
       if (event.key === 'ArrowRight') {
-        nextIndex = (currentIndex + 1) % buttons.length;
+        nextIndex = (currentIndex + 1) % navItems.length;
       } else if (event.key === 'ArrowLeft') {
-        nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+        nextIndex = (currentIndex - 1 + navItems.length) % navItems.length;
       } else if (event.key === 'Home') {
         nextIndex = 0;
       } else if (event.key === 'End') {
-        nextIndex = buttons.length - 1;
+        nextIndex = navItems.length - 1;
       }
 
-      const nextButton = buttons[nextIndex];
+      const nextItem = navItems[nextIndex];
 
-      if (nextButton) {
-        nextButton.focus();
+      if (nextItem) {
+        nextItem.focus();
       }
 
       const nextView = VIEW_DEFINITIONS[nextIndex];

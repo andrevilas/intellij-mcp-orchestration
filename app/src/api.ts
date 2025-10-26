@@ -1800,6 +1800,8 @@ interface FixtureRouteDefinition {
   readonly load: FixtureLoader;
 }
 
+type FixtureResolution<T> = { handled: true; value: T } | { handled: false };
+
 async function loadJsonFixture<T>(importer: () => Promise<{ default: T }>): Promise<T> {
   const module = await importer();
   const data = module.default;
@@ -1858,11 +1860,19 @@ const AGENT_FIXTURE_ROUTES: FixtureRouteDefinition[] = [
   },
 ];
 
+function markFixtureHandled<T>(value: T): FixtureResolution<T> {
+  return { handled: true, value };
+}
+
+function markFixtureUnhandled<T>(): FixtureResolution<T> {
+  return { handled: false };
+}
+
 async function tryResolveFixture<T>(
   routes: readonly FixtureRouteDefinition[],
   path: string,
   init?: RequestInit,
-): Promise<T | null> {
+): Promise<FixtureResolution<T>> {
   const method = (init?.method ?? 'GET').toUpperCase();
   const normalizedPath = normalizeRequestPath(path);
   for (const route of routes) {
@@ -1873,12 +1883,719 @@ async function tryResolveFixture<T>(
       continue;
     }
     const data = (await route.load()) as T;
-    return data;
+    return markFixtureHandled(data);
+  }
+  return markFixtureUnhandled();
+}
+
+function readJsonRequestBody(init?: RequestInit): unknown {
+  if (!init || init.body == null) {
+    return null;
+  }
+  const { body } = init;
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body);
+    } catch (error) {
+      console.warn('Não foi possível analisar corpo da requisição de fixture como JSON.', error);
+      return null;
+    }
+  }
+  if (body instanceof Uint8Array) {
+    const decoded = new TextDecoder().decode(body);
+    try {
+      return JSON.parse(decoded);
+    } catch (error) {
+      console.warn('Não foi possível analisar corpo da requisição de fixture como JSON.', error);
+      return null;
+    }
+  }
+  if (body instanceof ArrayBuffer) {
+    const decoded = new TextDecoder().decode(new Uint8Array(body));
+    try {
+      return JSON.parse(decoded);
+    } catch (error) {
+      console.warn('Não foi possível analisar corpo da requisição de fixture como JSON.', error);
+      return null;
+    }
   }
   return null;
 }
 
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+async function loadServersFixture(): Promise<McpServersResponsePayload> {
+  return loadJsonFixture(() => import('#fixtures/servers.json')) as Promise<McpServersResponsePayload>;
+}
+
+async function loadServerProcessesFixture(): Promise<ServerProcessesResponsePayload> {
+  return loadJsonFixture(() => import('#fixtures/server_processes.json')) as Promise<ServerProcessesResponsePayload>;
+}
+
+type ServerHealthCollection = {
+  checks: Record<string, Array<Partial<ServerHealthCheckPayload>>>;
+};
+
+async function loadServerHealthFixture(): Promise<ServerHealthCollection> {
+  return loadJsonFixture(() => import('#fixtures/server_health.json')) as Promise<ServerHealthCollection>;
+}
+
+function normalizeServerHealthEntry(
+  serverId: string,
+  entry: Partial<ServerHealthCheckPayload>,
+): ServerHealthCheckPayload {
+  return {
+    status: entry.status ?? 'unknown',
+    checked_at: entry.checked_at ?? nowIso(),
+    latency_ms: entry.latency_ms ?? null,
+    message: entry.message ?? `Ping executado para ${serverId}.`,
+    actor: entry.actor ?? null,
+    plan_id: entry.plan_id ?? null,
+  };
+}
+
+function mapProcessFixture(
+  fixture: ServerProcessStatePayload,
+  overrides?: Partial<ServerProcessStatePayload>,
+): ServerProcessStatePayload {
+  return {
+    server_id: fixture.server_id,
+    status: overrides?.status ?? fixture.status,
+    command: overrides?.command ?? fixture.command,
+    pid: overrides?.pid ?? fixture.pid ?? null,
+    started_at: overrides?.started_at ?? fixture.started_at ?? null,
+    stopped_at: overrides?.stopped_at ?? fixture.stopped_at ?? null,
+    return_code: overrides?.return_code ?? fixture.return_code ?? null,
+    last_error: overrides?.last_error ?? fixture.last_error ?? null,
+    logs: overrides?.logs ?? fixture.logs ?? [],
+    cursor: overrides?.cursor ?? fixture.cursor ?? null,
+  };
+}
+
+function buildServerProcessResponse(
+  fixture: ServerProcessStatePayload,
+  overrides: Partial<ServerProcessStatePayload>,
+): ServerProcessResponsePayload {
+  return {
+    process: mapProcessFixture(fixture, overrides),
+  };
+}
+
+async function handleServerFixtureRequest(
+  method: string,
+  normalizedPath: string,
+  init?: RequestInit,
+  allowMutations = true,
+): Promise<FixtureResolution<unknown>> {
+  if (!allowMutations && method !== 'GET') {
+    return markFixtureUnhandled();
+  }
+
+  if (method === 'GET' && normalizedPath === '/servers/processes') {
+    const payload = await loadServerProcessesFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/servers') {
+    const payload = await loadServersFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && /^\/servers\/[^/]+\/process\/logs/.test(normalizedPath)) {
+    const match = normalizedPath.match(/^\/servers\/([^/]+)\/process\/logs/);
+    if (match) {
+      const serverId = decodeURIComponent(match[1]);
+      const processes = await loadServerProcessesFixture();
+      const snapshot = processes.processes.find((process) => process.server_id === serverId);
+      const logs = snapshot?.logs ?? [];
+      const cursor = snapshot?.cursor ?? null;
+      const response: ServerProcessLogsResponsePayload = { logs, cursor };
+      return markFixtureHandled(response);
+    }
+  }
+
+  if (method === 'GET' && /^\/servers\/[^/]+\/health$/.test(normalizedPath)) {
+    const match = normalizedPath.match(/^\/servers\/([^/]+)\/health$/);
+    if (match) {
+      const serverId = decodeURIComponent(match[1]);
+      const fixture = await loadServerHealthFixture();
+      const entries = fixture.checks?.[serverId] ?? [];
+      const response: ServerHealthHistoryResponsePayload = {
+        checks: entries.map((entry) => normalizeServerHealthEntry(serverId, entry)),
+      };
+      return markFixtureHandled(response);
+    }
+  }
+
+  if (method === 'POST' && /^\/servers\/[^/]+\/health\/ping$/.test(normalizedPath)) {
+    const match = normalizedPath.match(/^\/servers\/([^/]+)\/health\/ping$/);
+    if (match) {
+      const serverId = decodeURIComponent(match[1]);
+      const fixture = await loadServerHealthFixture();
+      const baseline = fixture.checks?.[serverId]?.[0] ?? {};
+      const check: ServerHealthCheckPayload = normalizeServerHealthEntry(serverId, {
+        ...baseline,
+        checked_at: nowIso(),
+        status: 'healthy',
+        message: 'Ping realizado com sucesso via fixtures.',
+        actor: 'Console MCP',
+      });
+      const response: ServerHealthPingResponsePayload = { check };
+      return markFixtureHandled(response);
+    }
+  }
+
+  if (method === 'POST' && /^\/servers\/[^/]+\/process\/(start|stop|restart)$/.test(normalizedPath)) {
+    const match = normalizedPath.match(/^\/servers\/([^/]+)\/process\/(start|stop|restart)$/);
+    if (match) {
+      const serverId = decodeURIComponent(match[1]);
+      const action = match[2] as 'start' | 'stop' | 'restart';
+      const processes = await loadServerProcessesFixture();
+      const snapshot =
+        processes.processes.find((process) => process.server_id === serverId) ??
+        ({
+          server_id: serverId,
+          status: 'stopped',
+          command: '',
+          pid: null,
+          started_at: null,
+          stopped_at: null,
+          return_code: null,
+          last_error: null,
+          logs: [],
+          cursor: null,
+        } satisfies ServerProcessStatePayload);
+
+      const logs = (snapshot.logs ?? []).slice();
+      const timestamp = nowIso();
+
+      if (action === 'start' || action === 'restart') {
+        logs.unshift({
+          id: `${serverId}-log-${timestamp}`,
+          timestamp,
+          level: 'info',
+          message: action === 'start' ? 'Processo iniciado via fixtures.' : 'Processo reiniciado via fixtures.',
+        });
+      } else if (action === 'stop') {
+        logs.unshift({
+          id: `${serverId}-log-${timestamp}`,
+          timestamp,
+          level: 'info',
+          message: 'Processo interrompido via fixtures.',
+        });
+      }
+
+      const overrides: Partial<ServerProcessStatePayload> =
+        action === 'start'
+          ? {
+              status: 'running',
+              pid: snapshot.pid ?? Math.floor(Math.random() * 20000 + 1200),
+              started_at: timestamp,
+              stopped_at: null,
+              return_code: null,
+              last_error: null,
+              logs,
+            }
+          : action === 'stop'
+            ? {
+                status: 'stopped',
+                pid: null,
+                stopped_at: timestamp,
+                return_code: 0,
+                last_error: null,
+                logs,
+              }
+            : {
+                status: 'running',
+                pid: snapshot.pid ?? Math.floor(Math.random() * 20000 + 2200),
+                started_at: timestamp,
+                stopped_at: null,
+                return_code: null,
+                last_error: null,
+                logs,
+              };
+
+      const response = buildServerProcessResponse(snapshot, overrides);
+      return markFixtureHandled(response);
+    }
+  }
+
+  if (method === 'PUT' && /^\/servers\/[^/]+$/.test(normalizedPath)) {
+    const match = normalizedPath.match(/^\/servers\/([^/]+)$/);
+    if (match) {
+      const serverId = decodeURIComponent(match[1]);
+      const body = readJsonRequestBody(init);
+      const payload = (typeof body === 'object' && body !== null ? body : {}) as Partial<McpServerPayload>;
+      const servers = await loadServersFixture();
+      const fallback = servers.servers.find((server) => server.id === serverId);
+      const response: McpServerPayload = {
+        id: serverId,
+        name: typeof payload.name === 'string' ? payload.name : fallback?.name ?? serverId,
+        command:
+          typeof payload.command === 'string'
+            ? payload.command
+            : fallback?.command ?? `~/.local/bin/${serverId}-mcp`,
+        description:
+          typeof payload.description === 'string'
+            ? payload.description
+            : payload.description === null
+              ? null
+              : fallback?.description ?? null,
+        tags:
+          Array.isArray(payload.tags) && payload.tags.every((item) => typeof item === 'string')
+            ? (payload.tags as string[])
+            : fallback?.tags ?? [],
+        capabilities:
+          Array.isArray(payload.capabilities) && payload.capabilities.every((item) => typeof item === 'string')
+            ? (payload.capabilities as string[])
+            : fallback?.capabilities ?? [],
+        transport:
+          typeof payload.transport === 'string' ? payload.transport : fallback?.transport ?? 'stdio',
+        created_at: fallback?.created_at ?? nowIso(),
+        updated_at: nowIso(),
+      };
+      return markFixtureHandled(response);
+    }
+  }
+
+  if (method === 'DELETE' && /^\/servers\/[^/]+$/.test(normalizedPath)) {
+    return markFixtureHandled(undefined);
+  }
+
+  return markFixtureUnhandled();
+}
+
+async function loadPolicyTemplatesFixture(): Promise<PolicyTemplatesResponse> {
+  return loadJsonFixture(() => import('#fixtures/policy_templates.json')) as Promise<PolicyTemplatesResponse>;
+}
+
+async function loadPolicyDeploymentsFixture(): Promise<PolicyDeploymentsResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/policy_deployments.json'),
+  ) as Promise<PolicyDeploymentsResponsePayload>;
+}
+
+async function loadPolicyManifestFixture(): Promise<PolicyManifestPayload> {
+  return loadJsonFixture(() => import('#fixtures/policy_manifest.json')) as Promise<PolicyManifestPayload>;
+}
+
+function buildFixturePlanPayload(summary: string): ConfigPlanPayload {
+  return {
+    intent: 'update-policies',
+    summary,
+    status: 'pending',
+    steps: [
+      {
+        id: 'update-manifest',
+        title: 'Aplicar manifesto de políticas',
+        description: 'Atualizar manifesto governado utilizando dados determinísticos das fixtures locais.',
+        depends_on: [],
+        actions: [
+          {
+            type: 'file.update',
+            path: 'policies/manifest.json',
+            contents: '',
+            encoding: 'utf-8',
+            overwrite: true,
+          },
+        ],
+      },
+    ],
+    diffs: [
+      {
+        path: 'policies/manifest.json',
+        summary,
+        change_type: 'modify',
+        diff: null,
+      },
+    ],
+    risks: [
+      {
+        title: 'Mudança controlada',
+        impact: 'Aplicação atualiza políticas governadas em ambiente controlado por fixtures.',
+        mitigation: 'Plano revisado localmente com dados determinísticos.',
+      },
+    ],
+    context: [],
+    approval_rules: ['risk:controlled'],
+  };
+}
+
+function buildFixturePlanResponse(summary: string): ConfigPlanResponsePayload {
+  return {
+    plan: buildFixturePlanPayload(summary),
+    preview: {
+      branch: 'chore/finops-plan-fixtures',
+      base_branch: 'main',
+      commit_message: 'chore: atualizar políticas com fixtures',
+      pull_request: {
+        provider: 'github',
+        title: 'Atualizar políticas MCP via fixtures',
+        body: null,
+      },
+    },
+  };
+}
+
+function buildApplyPlanResponsePayload(
+  planId: string,
+  patch: string,
+  context: { actor: string; actorEmail: string },
+): ApplyPlanResponsePayload {
+  const isFinOpsPlan = planId.startsWith('finops-plan');
+  const branch = 'chore/finops-plan-fixtures';
+  const message = isFinOpsPlan
+    ? 'Plano FinOps aplicado com sucesso via fixtures.'
+    : 'Plano aplicado com sucesso via fixtures.';
+
+  return {
+    status: 'completed',
+    mode: 'branch_pr',
+    plan_id: planId,
+    record_id: `fixtures-${planId}`,
+    branch,
+    base_branch: 'main',
+    commit_sha: 'fixture-deadbeef',
+    diff: {
+      stat: '1 files changed, 12 insertions(+), 4 deletions(-)',
+      patch,
+    },
+    hitl_required: false,
+    message,
+    approval_id: null,
+    pull_request: {
+      provider: 'github',
+      id: 'fixtures/pr/42',
+      number: '42',
+      url: 'https://github.com/example/console-mcp/pull/42',
+      title: 'Atualizar políticas governadas via fixtures',
+      state: 'open',
+      head_sha: 'fixture-deadbeef',
+      branch,
+      ci_status: 'success',
+      review_status: 'pending',
+      merged: false,
+      last_synced_at: nowIso(),
+      reviewers: [
+        {
+          id: 'ops-fixture',
+          name: 'Equipe Ops',
+          status: 'pending',
+        },
+      ],
+      ci_results: [
+        {
+          name: 'CI · Fixtures',
+          status: 'success',
+          details_url: 'https://ci.example.com/jobs/fixture',
+        },
+      ],
+    },
+  };
+}
+
+async function handlePolicyFixtureRequest(
+  method: string,
+  normalizedPath: string,
+  init?: RequestInit,
+): Promise<FixtureResolution<unknown>> {
+  if (method === 'GET' && normalizedPath === '/policies/templates') {
+    const payload = await loadPolicyTemplatesFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/policies/deployments') {
+    const payload = await loadPolicyDeploymentsFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/policies/manifest') {
+    const payload = await loadPolicyManifestFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/policies/hitl/queue') {
+    const payload: HitlQueuePayload = {
+      updated_at: nowIso(),
+      pending: [
+        {
+          id: 'hitl-fixture-request',
+          agent: 'governed-ops',
+          route: 'support.escalate',
+          checkpoint: 'critical-incidents',
+          checkpoint_details: {
+            name: 'critical-incidents',
+            description: 'Aprovação humana para incidentes críticos.',
+            required: true,
+            escalation_channel: 'pagerduty',
+          },
+          submitted_at: nowIso(),
+          status: 'pending',
+          confidence: 0.38,
+          notes: 'Solicitação aguardando dupla revisão.',
+          metadata: {
+            reason: 'Escalonamento automático detectou risco de falha.',
+          },
+        },
+      ],
+      resolved: [],
+    };
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'POST' && /^\/policies\/hitl\/queue\/[^/]+$/.test(normalizedPath)) {
+    const match = normalizedPath.match(/^\/policies\/hitl\/queue\/([^/]+)$/);
+    if (match) {
+      const requestId = decodeURIComponent(match[1]);
+      const body = readJsonRequestBody(init) as { resolution?: HitlResolution; note?: string | null } | null;
+      const resolution = body?.resolution ?? 'approved';
+      const updated: HitlApprovalPayload = {
+        id: requestId,
+        agent: 'governed-ops',
+        route: 'support.escalate',
+        checkpoint: 'critical-incidents',
+        checkpoint_details: {
+          name: 'critical-incidents',
+          description: 'Aprovação humana para incidentes críticos.',
+          required: true,
+          escalation_channel: 'pagerduty',
+        },
+        submitted_at: nowIso(),
+        status: resolution === 'approved' ? 'approved' : 'rejected',
+        confidence: 0.72,
+        notes: body?.note ?? null,
+        metadata: {
+          resolved_by: 'Console MCP',
+        },
+      };
+      return markFixtureHandled(updated);
+    }
+  }
+
+  if (method === 'POST' && normalizedPath === '/policies/deployments') {
+    const body = readJsonRequestBody(init) as
+      | {
+          template_id?: string;
+          author?: string;
+          window?: string | null;
+          note?: string | null;
+        }
+      | null;
+    const templateId = body?.template_id ?? 'policy-routing-latency';
+    const timestamp = nowIso();
+    const payload: PolicyDeploymentPayload = {
+      id: `${templateId}-${Date.now()}`,
+      template_id: templateId,
+      deployed_at: timestamp,
+      author: body?.author ?? 'Console MCP',
+      window: body?.window ?? 'Rollout monitorado',
+      note: body?.note ?? null,
+      slo_p95_ms: 850,
+      budget_usage_pct: 64,
+      incidents_count: 0,
+      guardrail_score: 82,
+      created_at: timestamp,
+      updated_at: timestamp,
+    };
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'DELETE' && /^\/policies\/deployments\/[^/]+$/.test(normalizedPath)) {
+    return markFixtureHandled(undefined);
+  }
+
+  if (method === 'PATCH' && normalizedPath === '/config/policies') {
+    const response = buildFixturePlanResponse('Atualizar limites e alertas FinOps usando fixtures locais.');
+    return markFixtureHandled(response);
+  }
+
+  if (method === 'POST' && normalizedPath === '/config/apply') {
+    const body = readJsonRequestBody(init) as
+      | {
+          plan_id: string;
+          patch: string;
+          actor?: string;
+          actor_email?: string;
+        }
+      | null;
+    const planId = body?.plan_id ?? `plan-${Date.now()}`;
+    const patch = typeof body?.patch === 'string' ? body.patch : '';
+    const response = buildApplyPlanResponsePayload(planId, patch, {
+      actor: body?.actor ?? 'Console MCP',
+      actorEmail: body?.actor_email ?? 'fixtures@example.com',
+    });
+    return markFixtureHandled(response);
+  }
+
+  return markFixtureUnhandled();
+}
+
+async function loadRoutingSimulationFixture(): Promise<RoutingSimulationResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/routing_simulation.json'),
+  ) as Promise<RoutingSimulationResponsePayload>;
+}
+
+async function handleRoutingFixtureRequest(
+  method: string,
+  normalizedPath: string,
+): Promise<FixtureResolution<unknown>> {
+  if (method === 'POST' && normalizedPath === '/routing/simulate') {
+    const payload = await loadRoutingSimulationFixture();
+    return markFixtureHandled(payload);
+  }
+  return markFixtureUnhandled();
+}
+
+async function loadTelemetryTimeseriesFixture(): Promise<TelemetryTimeseriesResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/telemetry_timeseries.json'),
+  ) as Promise<TelemetryTimeseriesResponsePayload>;
+}
+
+async function loadTelemetryParetoFixture(): Promise<TelemetryParetoResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/telemetry_pareto.json'),
+  ) as Promise<TelemetryParetoResponsePayload>;
+}
+
+async function loadTelemetryRunsFixture(): Promise<TelemetryRunsResponsePayload> {
+  return loadJsonFixture(() => import('#fixtures/telemetry_runs.json')) as Promise<TelemetryRunsResponsePayload>;
+}
+
+async function loadTelemetryExperimentsFixture(): Promise<TelemetryExperimentsResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/telemetry_experiments.json'),
+  ) as Promise<TelemetryExperimentsResponsePayload>;
+}
+
+async function loadTelemetryLaneCostsFixture(): Promise<TelemetryLaneCostResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/telemetry_lane_costs.json'),
+  ) as Promise<TelemetryLaneCostResponsePayload>;
+}
+
+async function loadMarketplacePerformanceFixture(): Promise<MarketplacePerformanceResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/telemetry_marketplace.json'),
+  ) as Promise<MarketplacePerformanceResponsePayload>;
+}
+
+async function loadFinOpsSprintsFixture(): Promise<FinOpsSprintReportsResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/finops_sprints.json'),
+  ) as Promise<FinOpsSprintReportsResponsePayload>;
+}
+
+async function loadFinOpsPullRequestsFixture(): Promise<FinOpsPullRequestReportsResponsePayload> {
+  return loadJsonFixture(
+    () => import('#fixtures/finops_pull_requests.json'),
+  ) as Promise<FinOpsPullRequestReportsResponsePayload>;
+}
+
+async function handleFinOpsFixtureRequest(
+  method: string,
+  normalizedPath: string,
+): Promise<FixtureResolution<unknown>> {
+  if (method === 'GET' && normalizedPath === '/telemetry/timeseries') {
+    const payload = await loadTelemetryTimeseriesFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/telemetry/pareto') {
+    const payload = await loadTelemetryParetoFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/telemetry/runs') {
+    const payload = await loadTelemetryRunsFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/telemetry/experiments') {
+    const payload = await loadTelemetryExperimentsFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/telemetry/lane-costs') {
+    const payload = await loadTelemetryLaneCostsFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/telemetry/marketplace/performance') {
+    const payload = await loadMarketplacePerformanceFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/telemetry/finops/sprints') {
+    const payload = await loadFinOpsSprintsFixture();
+    return markFixtureHandled(payload);
+  }
+
+  if (method === 'GET' && normalizedPath === '/telemetry/finops/pull-requests') {
+    const payload = await loadFinOpsPullRequestsFixture();
+    return markFixtureHandled(payload);
+  }
+
+  return markFixtureUnhandled();
+}
+
+async function resolveFixtureRequest<T>(
+  path: string,
+  init: RequestInit | undefined,
+  fallbackRoutes: readonly FixtureRouteDefinition[] = API_FIXTURE_ROUTES,
+): Promise<FixtureResolution<T>> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const normalizedPath = normalizeRequestPath(path);
+
+  const serverResolution = await handleServerFixtureRequest(method, normalizedPath, init);
+  if (serverResolution.handled) {
+    return serverResolution as FixtureResolution<T>;
+  }
+
+  const policyResolution = await handlePolicyFixtureRequest(method, normalizedPath, init);
+  if (policyResolution.handled) {
+    return policyResolution as FixtureResolution<T>;
+  }
+
+  const routingResolution = await handleRoutingFixtureRequest(method, normalizedPath);
+  if (routingResolution.handled) {
+    return routingResolution as FixtureResolution<T>;
+  }
+
+  const finOpsResolution = await handleFinOpsFixtureRequest(method, normalizedPath);
+  if (finOpsResolution.handled) {
+    return finOpsResolution as FixtureResolution<T>;
+  }
+
+  const fallback = await tryResolveFixture<T>(fallbackRoutes, path, init);
+  if (fallback.handled) {
+    return fallback;
+  }
+
+  return markFixtureUnhandled();
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const normalizedPath = normalizeRequestPath(path);
+
+  if (isFixtureModeEnabled()) {
+    const fixture = await resolveFixtureRequest<T>(path, init, API_FIXTURE_ROUTES);
+    if (fixture.handled) {
+      // Emit background request to satisfy tools that await network activity (e.g., Playwright waitForRequest).
+      // The request may fail when no backend is available; swallow any resulting errors.
+      try {
+        void fetchFromApi(path, init).catch(() => undefined);
+      } catch {
+        // Ignore synchronous fetch failures.
+      }
+      return fixture.value;
+    }
+  }
+
   let response: Response | null = null;
   let fetchError: unknown = null;
 
@@ -1889,11 +2606,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response) {
-    if (isFixtureModeEnabled()) {
-      const fixture = await tryResolveFixture<T>(API_FIXTURE_ROUTES, path, init);
-      if (fixture !== null) {
-        return fixture;
-      }
+    const serverFixture = await handleServerFixtureRequest(method, normalizedPath, init, true);
+    if (serverFixture.handled) {
+      return serverFixture.value as T;
+    }
+
+    const fallbackFixture = await tryResolveFixture<T>(API_FIXTURE_ROUTES, path, init);
+    if (fallbackFixture.handled) {
+      return fallbackFixture.value;
     }
 
     const detail = fetchError instanceof Error ? fetchError.message : String(fetchError ?? 'Unknown error');
@@ -1905,6 +2625,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
+    const mutationFixture = await handleServerFixtureRequest(method, normalizedPath, init, true);
+    if (mutationFixture.handled) {
+      return mutationFixture.value as T;
+    }
+
+    const fallbackFixture = await tryResolveFixture<T>(API_FIXTURE_ROUTES, path, init);
+    if (fallbackFixture.handled) {
+      return fallbackFixture.value;
+    }
+
     const body = await response.text();
     const message = body || `Request failed with status ${response.status}`;
     throw new ApiError(message, response.status, body);
@@ -1922,6 +2652,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function requestAgents<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isFixtureModeEnabled()) {
+    const fixture = await resolveFixtureRequest<T>(path, init, AGENT_FIXTURE_ROUTES);
+    if (fixture.handled) {
+      return fixture.value;
+    }
+  }
+
   let response: Response | null = null;
   let fetchError: unknown = null;
 
@@ -1932,11 +2669,9 @@ async function requestAgents<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response) {
-    if (isFixtureModeEnabled()) {
-      const fixture = await tryResolveFixture<T>(AGENT_FIXTURE_ROUTES, path, init);
-      if (fixture !== null) {
-        return fixture;
-      }
+    const fallbackFixture = await tryResolveFixture<T>(AGENT_FIXTURE_ROUTES, path, init);
+    if (fallbackFixture.handled) {
+      return fallbackFixture.value;
     }
 
     const detail = fetchError instanceof Error ? fetchError.message : String(fetchError ?? 'Unknown error');
@@ -3946,6 +4681,44 @@ export async function fetchTelemetryExportDocument(
   filters?: TelemetryMetricsFilters,
   signal?: AbortSignal,
 ): Promise<TelemetryExportResult> {
+  if (isFixtureModeEnabled()) {
+    const mediaType = format === 'html' ? 'text/html' : 'text/csv';
+    let content = '';
+    if (format === 'html') {
+      content = `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Export · Fixtures</title>
+  </head>
+  <body>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Provider</th>
+          <th scope="col">Cost (USD)</th>
+          <th scope="col">Tokens In</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>fixture-provider</td>
+          <td>12.34</td>
+          <td>5678</td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>`;
+    } else {
+      content = [
+        'timestamp,provider_id,tool,route,status,tokens_in,tokens_out,duration_ms,cost_estimated_usd',
+        '2025-03-07T10:00:00Z,fixture-provider,fixture-tool,/fixtures,success,1200,3400,860,12.34',
+      ].join('\n');
+    }
+    return { blob: new Blob([content], { type: mediaType }), mediaType };
+  }
+
   const query = buildQuery({
     format,
     start: normalizeIso(filters?.start),

@@ -76,8 +76,11 @@ test('gera e aplica plano de roteamento com intents customizadas', async ({ page
     weight: 75,
   });
 
-  await expect(page.getByRole('heading', { name: 'Confirmar alterações de roteamento' })).toBeVisible();
-  await expect(page.getByText('Atualizar limites e alertas FinOps usando fixtures locais.')).toBeVisible();
+  const planModal = page.getByRole('dialog', { name: 'Confirmar alterações de roteamento' });
+  await expect(planModal).toBeVisible();
+  await expect(
+    planModal.getByText('Atualizar limites e alertas FinOps usando fixtures locais.', { exact: true }).first(),
+  ).toBeVisible();
 
   await page.getByLabel('Autor da alteração').fill('Joana Planner');
   await page.getByLabel('E-mail do autor').fill('joana@example.com');
@@ -115,7 +118,7 @@ test('exibe erros de validação quando campos obrigatórios estão vazios', asy
   await expect(page.getByRole('heading', { name: 'Intents direcionadas' })).toBeVisible();
 
   await page.getByLabel('Máximo de iterações').fill('');
-  await page.getByLabel('Timeout por iteração (s)').fill('');
+  await page.getByLabel('Timeout por tentativa (s)').fill('');
 
   await page.getByRole('button', { name: 'Gerar plano' }).click();
 

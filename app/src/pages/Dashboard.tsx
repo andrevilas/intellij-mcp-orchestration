@@ -613,7 +613,7 @@ export function Dashboard({
       value: cacheHitLabel,
       caption:
         derived.cachedTokens !== null
-          ? `${numberFormatter.format(derived.cachedTokens)} tokens servidos via cache nas últimas 24h.`
+          ? 'Indicador calculado a partir das requisições servidas com cache nas últimas 24h.'
           : 'Ainda não houve medições de uso de cache nesta janela.',
     });
 

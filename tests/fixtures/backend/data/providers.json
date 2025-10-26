@@ -39,6 +39,16 @@
       "capabilities": ["chat", "embedding", "token_count"],
       "transport": "stdio",
       "is_available": true
+    },
+    {
+      "id": "provider-turbo-1",
+      "name": "Turbo Provider 1",
+      "command": "/opt/mcp/provider-turbo-1",
+      "description": "Provider turbo de alta performance para intents críticas.",
+      "tags": ["llm", "turbo"],
+      "capabilities": ["chat", "streaming"],
+      "transport": "http",
+      "is_available": true
     }
   ]
 }

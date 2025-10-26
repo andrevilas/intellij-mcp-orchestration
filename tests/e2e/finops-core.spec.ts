@@ -19,7 +19,7 @@ test('@finops-plan gera e aplica plano FinOps com fixtures', async ({ page }) =>
   ]);
 
   await page.goto('/');
-  await page.getByRole('link', { name: 'FinOps' }).click();
+  await page.getByRole('button', { name: 'FinOps' }).click();
 
   const alertsSection = page.getByTestId(FINOPS_TEST_IDS.alerts.section);
   await expect(alertsSection.getByText('Escalada de custo diário')).toBeVisible();
@@ -87,7 +87,11 @@ test('@finops-plan gera e aplica plano FinOps com fixtures', async ({ page }) =>
     message: manifestFinOps.graceful_degradation?.message ?? null,
   });
 
-  await expect(page.getByText('Atualizar limites e alertas FinOps usando fixtures locais.')).toBeVisible();
+  await expect(
+    page.getByTestId(FINOPS_TEST_IDS.plan.summary).getByText(
+      'Atualizar limites e alertas FinOps usando fixtures locais.',
+    ),
+  ).toBeVisible();
   await expect(page.getByTestId(FINOPS_TEST_IDS.plan.diffs)).toContainText('policies/manifest.json');
 
   await page.getByRole('button', { name: 'Aplicar plano' }).click();
@@ -110,8 +114,14 @@ test('@finops-plan gera e aplica plano FinOps com fixtures', async ({ page }) =>
   expect(applyPayload.actor_email).toBe('finops@console.mcp');
   expect(applyPayload.commit_message).toBe('chore: atualizar políticas FinOps');
 
-  await expect(page.getByText('Plano FinOps aplicado com sucesso via fixtures.')).toBeVisible();
-  await expect(page.getByText('Branch: chore/finops-plan-fixtures')).toBeVisible();
-  await expect(page.getByText('PR: https://github.com/example/console-mcp/pull/42')).toBeVisible();
+  await expect(
+    page.getByTestId(FINOPS_TEST_IDS.policy.section).getByText('Plano FinOps aplicado com sucesso via fixtures.'),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId(FINOPS_TEST_IDS.policy.section).getByText('Branch: chore/finops-plan-fixtures'),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId(FINOPS_TEST_IDS.policy.section).getByText('PR: https://github.com/example/console-mcp/pull/42'),
+  ).toBeVisible();
   await expect(page.getByTestId(FINOPS_TEST_IDS.plan.summary)).toContainText('Aplicado');
 });

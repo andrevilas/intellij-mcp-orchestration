@@ -244,7 +244,7 @@ type PendingFinOpsPlan = {
 function generatePlanId(): string {
   const cryptoApi = (globalThis as { crypto?: Crypto }).crypto;
   if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
-    return cryptoApi.randomUUID();
+    return `finops-plan-${cryptoApi.randomUUID()}`;
   }
   return `finops-plan-${Date.now()}`;
 }
@@ -450,6 +450,12 @@ const HOTSPOT_SEVERITY_WEIGHT: Record<HotspotSeverity, number> = {
   high: 2,
   medium: 1,
 };
+
+const COST_SURGE_THRESHOLD = 0.25;
+const TOKENS_SURGE_THRESHOLD = 0.25;
+const TOKENS_DROP_THRESHOLD = 0.2;
+const COST_CONCENTRATION_THRESHOLD = 0.35;
+const SUCCESS_RATE_ALERT_THRESHOLD = 0.97;
 
 const RANGE_TO_DAYS: Record<RangeOption, number> = {
   '7d': 7,
@@ -2235,22 +2241,24 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
     if (trailingDays >= 3) {
       const recentWindow = availableSeries.slice(-trailingDays);
       const previousWindow = availableSeries.slice(0, -trailingDays);
+      const minimumPreviousSamples = Math.max(3, Math.floor(trailingDays / 2));
+      const hasPreviousWindow = previousWindow.length >= minimumPreviousSamples;
 
-      if (previousWindow.length >= Math.max(3, Math.floor(trailingDays / 2))) {
-        const recentCostAverage = averageSeries(recentWindow, 'costUsd');
-        const previousCostAverage = averageSeries(previousWindow, 'costUsd');
+      const recentCostAverage = averageSeries(recentWindow, 'costUsd');
+      const previousCostAverage = hasPreviousWindow ? averageSeries(previousWindow, 'costUsd') : 0;
 
-        if (previousCostAverage > 0) {
+      if (recentCostAverage > 0) {
+        if (hasPreviousWindow && previousCostAverage > 0) {
           const costChange = (recentCostAverage - previousCostAverage) / previousCostAverage;
 
-          if (costChange >= 0.25) {
+          if (costChange >= COST_SURGE_THRESHOLD) {
             alerts.push({
               id: 'cost-surge',
               kind: 'warning',
               title: 'Escalada de custo diário',
               description: `O custo médio diário dos últimos ${trailingDays} dias está ${formatSignedPercent(costChange)} em relação à janela anterior para ${selectedProviderLabel}.`,
             });
-          } else if (costChange <= -0.25) {
+          } else if (costChange <= -COST_SURGE_THRESHOLD) {
             alerts.push({
               id: 'cost-drop',
               kind: 'info',
@@ -2258,22 +2266,31 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               description: `O custo médio diário reduziu ${formatPercent(Math.abs(costChange))} nas últimas ${trailingDays} execuções. Valide se houve otimizações permanentes.`,
             });
           }
+        } else {
+          alerts.push({
+            id: 'cost-surge',
+            kind: 'warning',
+            title: 'Escalada de custo diário',
+            description: `Custos diários passaram a ser registrados para ${selectedProviderLabel} nas últimas ${trailingDays} execuções.`,
+          });
         }
+      }
 
-        const recentTokensAverage = averageSeries(recentWindow, 'tokensMillions');
-        const previousTokensAverage = averageSeries(previousWindow, 'tokensMillions');
+      const recentTokensAverage = averageSeries(recentWindow, 'tokensMillions');
+      const previousTokensAverage = hasPreviousWindow ? averageSeries(previousWindow, 'tokensMillions') : 0;
 
-        if (previousTokensAverage > 0) {
+      if (recentTokensAverage > 0) {
+        if (hasPreviousWindow && previousTokensAverage > 0) {
           const tokensChange = (recentTokensAverage - previousTokensAverage) / previousTokensAverage;
 
-          if (tokensChange <= -0.2) {
+          if (tokensChange <= -TOKENS_DROP_THRESHOLD) {
             alerts.push({
               id: 'tokens-drop',
               kind: 'info',
               title: 'Queda de volume de tokens',
               description: `O volume processado caiu ${formatPercent(Math.abs(tokensChange))} no período recente. Investigue se há rotas ociosas ou caches inválidos.`,
             });
-          } else if (tokensChange >= 0.25) {
+          } else if (tokensChange >= TOKENS_SURGE_THRESHOLD) {
             alerts.push({
               id: 'tokens-surge',
               kind: 'warning',
@@ -2281,21 +2298,31 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
               description: `O volume de tokens cresceu ${formatSignedPercent(tokensChange)}. Considere validar limites de custo e reaproveitamento de contexto.`,
             });
           }
+        } else {
+          alerts.push({
+            id: 'tokens-surge',
+            kind: 'warning',
+            title: 'Pico de tokens consumidos',
+            description: `Novas execuções consumiram tokens após período sem atividade para ${selectedProviderLabel}.`,
+          });
         }
       }
     }
 
     const topPareto = paretoEntries[0];
-    if (topPareto && topPareto.share >= 0.45) {
+    if (topPareto) {
+      const severity: FinOpsAlertKind = topPareto.share >= COST_CONCENTRATION_THRESHOLD ? 'warning' : 'info';
       alerts.push({
         id: 'pareto-concentration',
-        kind: 'warning',
+        kind: severity,
         title: 'Custo concentrado em uma rota',
         description: `${topPareto.label} (${topPareto.providerName}) responde por ${formatPercent(topPareto.share)} do gasto observado. Considere alternativas para diluir o risco.`,
       });
     }
 
-    const lowSuccessRoutes = breakdownEntries.filter((entry) => entry.successRate <= 0.9).slice(0, 2);
+    const lowSuccessRoutes = breakdownEntries
+      .filter((entry) => entry.successRate <= SUCCESS_RATE_ALERT_THRESHOLD)
+      .slice(0, 2);
     if (lowSuccessRoutes.length > 0) {
       const labels = lowSuccessRoutes
         .map((entry) => `${entry.label} (${formatPercent(entry.successRate)})`)
@@ -2305,7 +2332,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
         id: 'success-rate',
         kind: 'error',
         title: 'Taxa de sucesso abaixo do esperado',
-        description: `As rotas ${labels} estão abaixo de 90% de sucesso. Revise retries, limites e políticas de fallback.`,
+        description: `As rotas ${labels} estão abaixo da meta de ${formatPercent(SUCCESS_RATE_ALERT_THRESHOLD)}. Revise retries, limites e políticas de fallback.`,
       });
     }
 

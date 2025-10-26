@@ -19,6 +19,7 @@ import {
   type RoutingRuleConfig,
   type PolicyPlanResponse,
   type ConfigPlanDiffSummary,
+  type ApplyPolicyPlanResponse,
 } from '../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
 import ModalBase from '../components/modals/ModalBase';
@@ -638,6 +639,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
   });
   const [routingErrors, setRoutingErrors] = useState<RoutingFormErrors>({});
   const [routingMessage, setRoutingMessage] = useState<string | null>(null);
+  const [lastPlanResult, setLastPlanResult] = useState<ApplyPolicyPlanResponse | null>(null);
   const [isRoutingSaving, setRoutingSaving] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<PendingRoutingPlan | null>(null);
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
@@ -934,6 +936,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
       });
       const message = response.message || 'Plano aplicado com sucesso.';
       setRoutingMessage(message);
+      setLastPlanResult(response);
       setManifest(pendingPlan.nextSnapshot);
       setPendingPlan(null);
       setPlanModalOpen(false);
@@ -945,6 +948,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           ? error.message
           : 'Falha ao aplicar plano. Tente novamente.';
       setPlanError(message);
+      setLastPlanResult(null);
     } finally {
       setPlanApplying(false);
       setRoutingSaving(false);
@@ -1109,6 +1113,7 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
           diffs,
           nextSnapshot,
         });
+        setLastPlanResult(null);
         setPlanModalOpen(true);
         setRoutingErrors({});
         setRoutingMessage('Plano gerado. Revise as alterações antes de aplicar.');
@@ -1277,6 +1282,16 @@ export default function Routing({ providers, isLoading, initialError }: RoutingP
         </header>
         {manifestError && <p className="error">{manifestError}</p>}
         {routingMessage && <p className="status status--inline">{routingMessage}</p>}
+        {lastPlanResult?.branch ? (
+          <p className="status status--inline" data-testid="routing-plan-branch">
+            Branch: {lastPlanResult.branch}
+          </p>
+        ) : null}
+        {lastPlanResult?.pullRequest?.url ? (
+          <p className="status status--inline" data-testid="routing-plan-pr">
+            PR: {lastPlanResult.pullRequest.url}
+          </p>
+        ) : null}
         <form
           className="routing-manifest__form"
           onSubmit={handleRoutingSubmit}

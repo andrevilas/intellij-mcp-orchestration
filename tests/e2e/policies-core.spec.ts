@@ -39,7 +39,7 @@ test('@policies-core aplica e executa rollback de templates com fixtures', async
   }
 
   await page.goto('/');
-  await page.getByRole('link', { name: 'Políticas' }).click();
+  await page.getByRole('button', { name: 'Políticas' }).click();
 
   await expect(page.getByRole('heading', { name: 'Políticas MCP · roteamento inteligente' })).toBeVisible();
 
@@ -87,8 +87,12 @@ test('@policies-core aplica e executa rollback de templates com fixtures', async
   expect(deploymentPayload.window).toBe('Rollout monitorado');
   expect(deploymentPayload.note).toContain('Routing focado em latência');
 
-  await expect(page.getByText('Routing focado em latência ativado para toda a frota.')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Routing focado em latência' })).toBeVisible();
+  await expect(
+    page.getByTestId(POLICIES_TEST_IDS.main).getByText('Routing focado em latência ativado para toda a frota.'),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId(POLICIES_TEST_IDS.status).getByRole('heading', { name: 'Routing focado em latência' }),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Rollback imediato' }).click();
   const rollbackModal = page.getByRole('dialog', { name: 'Rollback imediato · FinOps burn-rate' });
@@ -103,6 +107,10 @@ test('@policies-core aplica e executa rollback de templates com fixtures', async
   ]);
 
   expect(rollbackRequest.url()).toContain('policy-routing-latency-');
-  await expect(page.getByText('Rollback concluído para FinOps burn-rate.')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'FinOps burn-rate' })).toBeVisible();
+  await expect(
+    page.getByTestId(POLICIES_TEST_IDS.main).getByText('Rollback concluído para FinOps burn-rate.'),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId(POLICIES_TEST_IDS.status).getByRole('heading', { name: 'FinOps burn-rate' }),
+  ).toBeVisible();
 });
