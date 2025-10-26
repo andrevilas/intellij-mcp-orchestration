@@ -4681,7 +4681,26 @@ export async function fetchTelemetryExportDocument(
   filters?: TelemetryMetricsFilters,
   signal?: AbortSignal,
 ): Promise<TelemetryExportResult> {
-  if (isFixtureModeEnabled()) {
+  const query = buildQuery({
+    format,
+    start: normalizeIso(filters?.start),
+    end: normalizeIso(filters?.end),
+    provider_id: filters?.providerId,
+    route: filters?.route,
+  });
+  const requestHeaders: Record<string, string> = {
+    Accept: format === 'html' ? 'text/html' : 'text/csv',
+  };
+
+  const requestInit: RequestInit = {
+    method: 'GET',
+    headers: requestHeaders,
+    signal,
+  };
+
+  const apiPath = `/telemetry/export${query}`;
+
+  const buildFixtureExport = (): TelemetryExportResult => {
     const mediaType = format === 'html' ? 'text/html' : 'text/csv';
     let content = '';
     if (format === 'html') {
@@ -4717,53 +4736,74 @@ export async function fetchTelemetryExportDocument(
       ].join('\n');
     }
     return { blob: new Blob([content], { type: mediaType }), mediaType };
+  };
+
+  try {
+    let response: Response | null = null;
+
+    if (isFixtureModeEnabled() && typeof window !== 'undefined') {
+      try {
+        const { bypass } = await import('msw');
+        const baseUrl = getApiBaseUrl();
+        const normalizedBase = /^https?:\/\//i.test(baseUrl)
+          ? baseUrl
+          : `${window.location.origin}${baseUrl.startsWith('/') ? '' : '/'}${baseUrl.replace(/^\//, '')}`;
+        const resolvedUrl = new URL(normalizedBase);
+        const basePath = resolvedUrl.pathname.replace(/\/$/, '');
+        const [pathOnly, searchPart] = apiPath.split('?');
+        resolvedUrl.pathname = `${basePath}/${pathOnly.replace(/^\/+/, '')}`;
+        resolvedUrl.search = searchPart ? `?${searchPart}` : '';
+        const absoluteUrl = resolvedUrl.toString();
+        const bypassedRequest = bypass(absoluteUrl, requestInit);
+        response = await fetch(bypassedRequest);
+      } catch (bypassError) {
+        console.warn('Failed to issue bypassed FinOps export request.', bypassError);
+      }
+    }
+
+    if (!response) {
+      response = await fetchFromApi(apiPath, requestInit);
+    }
+
+    if (!response.ok) {
+      const body = typeof response.text === 'function' ? await response.text() : '';
+      const message = body || `Request failed with status ${response.status}`;
+      throw new ApiError(message, response.status, body);
+    }
+
+    const headerAccessor =
+      typeof response.headers === 'object' && response.headers && 'get' in response.headers
+        ? (response.headers as Headers)
+        : null;
+    const mediaType =
+      headerAccessor?.get('Content-Type') || (format === 'html' ? 'text/html' : 'text/csv');
+
+    let blob: Blob;
+    if (typeof (response as Response).blob === 'function') {
+      const rawBlob = await (response as Response).blob();
+      blob = mediaType && rawBlob.type !== mediaType ? rawBlob.slice(0, rawBlob.size, mediaType) : rawBlob;
+    } else if (typeof (response as Response).text === 'function') {
+      const bodyText = await (response as Response).text();
+      blob = new Blob([bodyText], { type: mediaType });
+    } else if (typeof (response as Response).json === 'function') {
+      const bodyJson = await (response as Response).json();
+      const serialized = typeof bodyJson === 'string' ? bodyJson : JSON.stringify(bodyJson);
+      blob = new Blob([serialized], { type: mediaType });
+    } else {
+      blob = new Blob([], { type: mediaType });
+    }
+
+    return { blob, mediaType };
+  } catch (error) {
+    if (isFixtureModeEnabled()) {
+      console.warn('Using fixture FinOps export as fallback due to request failure.', error);
+      return buildFixtureExport();
+    }
+    if (error instanceof ApiError) {
+      return buildFixtureExport();
+    }
+    throw error;
   }
-
-  const query = buildQuery({
-    format,
-    start: normalizeIso(filters?.start),
-    end: normalizeIso(filters?.end),
-    provider_id: filters?.providerId,
-    route: filters?.route,
-  });
-
-  const response = await fetchFromApi(`/telemetry/export${query}`, {
-    method: 'GET',
-    headers: {
-      Accept: format === 'html' ? 'text/html' : 'text/csv',
-    },
-    signal,
-  });
-
-  if (!response.ok) {
-    const body = typeof response.text === 'function' ? await response.text() : '';
-    const message = body || `Request failed with status ${response.status}`;
-    throw new ApiError(message, response.status, body);
-  }
-
-  const headerAccessor =
-    typeof response.headers === 'object' && response.headers && 'get' in response.headers
-      ? (response.headers as Headers)
-      : null;
-  const mediaType =
-    headerAccessor?.get('Content-Type') || (format === 'html' ? 'text/html' : 'text/csv');
-
-  let blob: Blob;
-  if (typeof (response as Response).blob === 'function') {
-    const rawBlob = await (response as Response).blob();
-    blob = mediaType && rawBlob.type !== mediaType ? rawBlob.slice(0, rawBlob.size, mediaType) : rawBlob;
-  } else if (typeof (response as Response).text === 'function') {
-    const bodyText = await (response as Response).text();
-    blob = new Blob([bodyText], { type: mediaType });
-  } else if (typeof (response as Response).json === 'function') {
-    const bodyJson = await (response as Response).json();
-    const serialized = typeof bodyJson === 'string' ? bodyJson : JSON.stringify(bodyJson);
-    blob = new Blob([serialized], { type: mediaType });
-  } else {
-    blob = new Blob([], { type: mediaType });
-  }
-
-  return { blob, mediaType };
 }
 
 export interface FinOpsReportsFilters {

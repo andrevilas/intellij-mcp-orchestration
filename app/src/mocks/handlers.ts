@@ -1,4 +1,4 @@
-import { http, HttpResponse, type JsonBodyType } from 'msw';
+import { http, HttpResponse, passthrough, type JsonBodyType } from 'msw';
 import type {
   AgentConfigLayer,
   MarketplacePerformanceEntry,
@@ -2088,87 +2088,6 @@ export const handlers = [
   http.get(`${API_PREFIX}/telemetry/marketplace/performance`, () =>
     HttpResponse.json({ items: marketplaceEntries }),
   ),
-  http.get(`${API_PREFIX}/telemetry/export`, ({ request }) => {
-    let format = 'csv';
-    let providerId = 'all';
-    let start = '2025-03-01';
-    let end = '2025-03-07';
-
-    try {
-      const url = new URL(request.url);
-      format = url.searchParams.get('format') ?? format;
-      providerId = url.searchParams.get('provider_id') ?? providerId;
-      start = url.searchParams.get('start') ?? start;
-      end = url.searchParams.get('end') ?? end;
-    } catch (error) {
-      console.warn('Falha ao interpretar parâmetros de export de telemetria', error);
-    }
-
-    const windowLabel = `${start} → ${end}`;
-
-    if (format === 'html') {
-      const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <title>FinOps Export Fixture</title>
-    <style>
-      body { font-family: system-ui, sans-serif; padding: 1.5rem; }
-      table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-      th, td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: left; }
-      thead { background: #f1f5f9; }
-    </style>
-  </head>
-  <body>
-    <h1>Relatório FinOps — janela ${windowLabel}</h1>
-    <p>Dados gerados pelas fixtures locais para desbloquear export sem backend.</p>
-    <table>
-      <thead>
-        <tr>
-          <th>Horário</th>
-          <th>Provider</th>
-          <th>Custo (USD)</th>
-          <th>Tokens (M)</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>2025-03-06T12:00:00Z</td>
-          <td>${providerId}</td>
-          <td>128.4</td>
-          <td>3.2</td>
-          <td>success</td>
-        </tr>
-        <tr>
-          <td>2025-03-06T13:00:00Z</td>
-          <td>${providerId}</td>
-          <td>142.1</td>
-          <td>3.9</td>
-          <td>success</td>
-        </tr>
-      </tbody>
-    </table>
-  </body>
-</html>`;
-
-      return new HttpResponse(html, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-    }
-
-    const csvRows = [
-      'timestamp,provider_id,cost_usd,tokens_millions,latency_ms,status',
-      `2025-03-06T12:00:00Z,${providerId},128.4,3.2,820,success`,
-      `2025-03-06T13:00:00Z,${providerId},142.1,3.9,790,success`,
-    ].join('\n');
-
-    return new HttpResponse(csvRows, {
-      status: 200,
-      headers: { 'Content-Type': 'text/csv; charset=utf-8' },
-    });
-  }),
   http.get(`${API_PREFIX}/telemetry/finops/sprints`, () => HttpResponse.json(finopsSprintsFixture)),
   http.get(`${API_PREFIX}/telemetry/finops/pull-requests`, () =>
     HttpResponse.json(finopsPullRequestsFixture),

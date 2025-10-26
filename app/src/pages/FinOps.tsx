@@ -827,8 +827,13 @@ function triggerDownloadBlob(filename: string, blob: Blob): void {
   const link = document.createElement('a');
   link.href = url;
   link.setAttribute('download', filename);
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  console.info('FinOps export download triggered', filename);
 }
 
 function triggerDownload(filename: string, mimeType: string, contents: string): void {
@@ -1598,6 +1603,7 @@ export default function FinOps({ providers, isLoading, initialError }: FinOpsPro
 
       setTelemetryExportError(null);
       setIsTelemetryExporting(true);
+      console.info('FinOps export starting', format);
 
       try {
         const timestamp = new Date().toISOString().slice(0, 10);

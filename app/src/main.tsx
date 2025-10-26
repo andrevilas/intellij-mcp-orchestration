@@ -10,6 +10,12 @@ type FixtureStatus = 'ready' | 'error' | 'disabled';
 declare global {
   // eslint-disable-next-line no-var
   var __CONSOLE_MCP_FIXTURES__: FixtureStatus | undefined;
+  interface Window {
+    __mswWorker?: {
+      stop(): Promise<void>;
+      start(): Promise<void>;
+    };
+  }
 }
 
 const setFixtureStatus = (status: FixtureStatus): void => {
@@ -33,13 +39,38 @@ async function enableMocks(): Promise<void> {
     return;
   }
 
+  const isAutomation =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.webdriver === 'boolean' &&
+    navigator.webdriver === true;
+
+  if (isAutomation) {
+    console.info('MSW worker disabled in automation environment; relying on Playwright routes.');
+    setFixtureStatus('ready');
+    if (typeof window !== 'undefined') {
+      window.__mswWorker = undefined;
+    }
+    return;
+  }
+
   const { worker } = await import('./mocks/browser');
-  await worker.start({
+  const workerOptions = {
     onUnhandledRequest: 'error',
     serviceWorker: {
       url: '/mockServiceWorker.js',
     },
-  });
+  };
+  await worker.start(workerOptions);
+  if (typeof window !== 'undefined') {
+    window.__mswWorker = {
+      async stop() {
+        await worker.stop();
+      },
+      async start() {
+        await worker.start(workerOptions);
+      },
+    };
+  }
   setFixtureStatus('ready');
 }
 

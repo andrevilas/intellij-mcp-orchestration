@@ -579,17 +579,17 @@ function App() {
         return;
       }
 
-      const navItems = Array.from(navRef.current.querySelectorAll<HTMLButtonElement>('button.nav-button'));
+      const navItems = Array.from(navRef.current.querySelectorAll<HTMLAnchorElement>('a.nav-button'));
 
       if (navItems.length === 0) {
         return;
       }
 
-      const targetElement = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>(
-        'button.nav-button',
+      const targetElement = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>(
+        'a.nav-button',
       );
       const activeElement =
-        document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
+        document.activeElement instanceof HTMLAnchorElement ? document.activeElement : null;
       let currentIndex = targetElement ? navItems.indexOf(targetElement) : -1;
 
       if (currentIndex === -1 && activeElement) {
@@ -929,20 +929,20 @@ function App() {
               onKeyDown={handleNavKeyDown}
             >
               {VIEW_DEFINITIONS.map((view) => (
-                <button
+                <a
                   key={view.id}
-                  type="button"
+                  href={`#${view.id}`}
                   className={clsx('nav-button', {
                     'nav-button--active': activeView === view.id,
                   })}
                   id={`nav-${view.id}`}
-                  tabIndex={activeView === view.id ? 0 : -1}
                   aria-current={activeView === view.id ? 'page' : undefined}
                   onFocus={() => {
                     preloadView(view.id);
                     handleNavigate(view.id, { focusContent: false });
                   }}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.preventDefault();
                     preloadView(view.id);
                     handleNavigate(view.id);
                   }}
@@ -954,7 +954,7 @@ function App() {
                     aria-hidden="true"
                   />
                   <span className="nav-button__label">{view.label}</span>
-                </button>
+                </a>
               ))}
               <Suspense
                 fallback={
