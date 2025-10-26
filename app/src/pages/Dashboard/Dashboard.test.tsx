@@ -1,11 +1,11 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 
-import type { ProviderSummary } from '../api';
-import Dashboard from './Dashboard';
-import { ThemeProvider } from '../theme/ThemeContext';
-import { ToastProvider } from '../components/feedback/ToastProvider';
-import { DASHBOARD_TEST_IDS } from './testIds';
+import type { ProviderSummary } from '../../api';
+import Dashboard from './index';
+import { ThemeProvider } from '../../theme/ThemeContext';
+import { ToastProvider } from '../../components/feedback/ToastProvider';
+import { DASHBOARD_TEST_IDS } from '../testIds';
 
 defineResizeObserver();
 

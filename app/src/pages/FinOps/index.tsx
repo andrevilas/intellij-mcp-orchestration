@@ -14,7 +14,7 @@ import type {
   TelemetryExperimentSummaryEntry,
   TelemetryLaneCostEntry,
   MarketplacePerformanceEntry,
-} from '../api';
+} from '../../api';
 import {
   fetchFinOpsPullRequestReports,
   fetchFinOpsSprintReports,
@@ -40,27 +40,27 @@ import {
   type AdminPlanSummary,
   type AdminPlanPullRequestSummary,
   type PlanExecutionPullRequest,
-} from '../api';
-import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
-import ConfirmationModal from '../components/modals/ConfirmationModal';
+} from '../../api';
+import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
 import type {
   FinOpsMetricAccessor,
   FinOpsTimeseriesDatum,
-} from '../components/charts/FinOpsTimeseriesChart';
-import PlanSummary from './AdminChat/PlanSummary';
-import { useToastNotification } from '../hooks/useToastNotification';
-import { describeFixtureRequest } from '../utils/fixtureStatus';
-import { FINOPS_TEST_IDS } from './testIds';
+} from '../../components/charts/FinOpsTimeseriesChart';
+import PlanSummary from '../AdminChat/PlanSummary';
+import { useToastNotification } from '../../hooks/useToastNotification';
+import { describeFixtureRequest } from '../../utils/fixtureStatus';
+import { FINOPS_TEST_IDS } from '../testIds';
 
 import './FinOps.scss';
 
 let finOpsChartsModulePromise:
-  | Promise<typeof import('../components/charts/FinOpsTimeseriesChart')>
+  | Promise<typeof import('../../components/charts/FinOpsTimeseriesChart')>
   | null = null;
 
 const loadFinOpsChartsModule = () => {
   if (!finOpsChartsModulePromise) {
-    finOpsChartsModulePromise = import('../components/charts/FinOpsTimeseriesChart');
+    finOpsChartsModulePromise = import('../../components/charts/FinOpsTimeseriesChart');
   }
   return finOpsChartsModulePromise;
 };

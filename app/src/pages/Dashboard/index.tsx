@@ -6,36 +6,36 @@ import type {
   Session,
   TelemetryHeatmapBucket,
   TelemetryMetrics,
-} from '../api';
-import type { Feedback } from '../App';
-import KpiCard, { type Trend } from '../components/KpiCard';
-import StatusBadge, { type StatusBadgeTone } from '../components/indicators/StatusBadge';
-import { useToastNotification } from '../hooks/useToastNotification';
-import { describeFixtureRequest } from '../utils/fixtureStatus';
+} from '../../api';
+import type { Feedback } from '../../App';
+import KpiCard, { type Trend } from '../../components/KpiCard';
+import StatusBadge, { type StatusBadgeTone } from '../../components/indicators/StatusBadge';
+import { useToastNotification } from '../../hooks/useToastNotification';
+import { describeFixtureRequest } from '../../utils/fixtureStatus';
 import {
   getStatusMetadata,
   resolveStatusMessage,
   type AsyncContentStatus,
   type StatusMessageOverrides,
-} from '../components/status/statusUtils';
-import SessionHistorySection from '../views/dashboard/SessionHistorySection';
+} from '../../components/status/statusUtils';
+import SessionHistorySection from '../../views/dashboard/SessionHistorySection';
 import {
   LATENCY_FORMATTER,
   currencyFormatter,
   numberFormatter,
   percentFormatter,
-} from './dashboard/formatters';
-import { DASHBOARD_TEST_IDS } from './testIds';
+} from '../dashboard/formatters';
+import { DASHBOARD_TEST_IDS } from '../testIds';
 
 import './Dashboard.scss';
 
 let dashboardVisualSectionsPromise:
-  | Promise<typeof import('./dashboard/visual-sections')>
+  | Promise<typeof import('../dashboard/visual-sections')>
   | null = null;
 
 const loadDashboardVisualSections = () => {
   if (!dashboardVisualSectionsPromise) {
-    dashboardVisualSectionsPromise = import('./dashboard/visual-sections');
+    dashboardVisualSectionsPromise = import('../dashboard/visual-sections');
   }
   return dashboardVisualSectionsPromise;
 };

@@ -22,11 +22,11 @@ import {
   startServerProcess,
   stopServerProcess,
   updateServerDefinition,
-} from '../api';
-import ServerActions, { type ServerAction } from '../components/ServerActions';
-import ConfirmationModal from '../components/modals/ConfirmationModal';
-import { SERVERS_TEST_IDS } from './testIds';
-import { describeFixtureRequest } from '../utils/fixtureStatus';
+} from '../../api';
+import ServerActions, { type ServerAction } from '../../components/ServerActions';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
+import { SERVERS_TEST_IDS } from '../testIds';
+import { describeFixtureRequest } from '../../utils/fixtureStatus';
 
 export interface ServersProps {
   providers: ProviderSummary[];
@@ -1207,6 +1207,8 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                 onStart={() => openActionConfirmation(provider, 'start')}
                 onStop={() => openActionConfirmation(provider, 'stop')}
                 onRestart={() => openActionConfirmation(provider, 'restart')}
+                riskLevel={state.status === 'running' ? 'elevated' : 'controlled'}
+                riskMessage={`As operações em ${provider.name} exigem confirmação de risco controlado antes do supervisor MCP atuar.`}
               >
                 {actionMessage && <p className="server-actions__feedback">{actionMessage}</p>}
               </ServerActions>

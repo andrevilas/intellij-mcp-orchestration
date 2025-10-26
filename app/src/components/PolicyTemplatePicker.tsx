@@ -1,16 +1,61 @@
+import { useId } from 'react';
+
 import type { PolicyTemplate, PolicyTemplateId } from '../api';
+
+type PolicyTemplateRiskLevel = 'controlled' | 'staged' | 'critical';
+
+const POLICY_RISK_METADATA: Record<PolicyTemplateRiskLevel, { title: string; description: string }> = {
+  controlled: {
+    title: 'Risco controlado',
+    description: 'Aplicar templates exige confirmação dupla e gera plano auditável via fixtures.',
+  },
+  staged: {
+    title: 'Rollout monitorado',
+    description: 'Use janelas menores e monitore métricas antes de expandir para toda a frota.',
+  },
+  critical: {
+    title: 'Mudança crítica',
+    description: 'Aplique apenas após revisar com FinOps e Routing; impacta guardrails globais.',
+  },
+};
 
 export interface PolicyTemplatePickerProps {
   templates: PolicyTemplate[];
   value: PolicyTemplateId;
   onChange: (templateId: PolicyTemplateId) => void;
   disabled?: boolean;
+  riskLevel?: PolicyTemplateRiskLevel;
+  riskMessage?: string;
 }
 
-export default function PolicyTemplatePicker({ templates, value, onChange, disabled = false }: PolicyTemplatePickerProps) {
+export default function PolicyTemplatePicker({
+  templates,
+  value,
+  onChange,
+  disabled = false,
+  riskLevel = 'controlled',
+  riskMessage,
+}: PolicyTemplatePickerProps) {
+  const riskDescriptorId = useId();
+  const baseMetadata = POLICY_RISK_METADATA[riskLevel];
+  const resolvedMessage = riskMessage && riskMessage.trim().length > 0 ? riskMessage : baseMetadata.description;
+  const hasMessage = resolvedMessage.trim().length > 0;
+  const describedBy = hasMessage ? riskDescriptorId : undefined;
+
   return (
-    <fieldset className="policy-picker">
+    <fieldset className="policy-picker" aria-describedby={describedBy}>
       <legend>Selecione um template de política</legend>
+      {hasMessage && (
+        <div
+          id={riskDescriptorId}
+          className="policy-picker__risk"
+          data-risk-level={riskLevel}
+          aria-live="polite"
+        >
+          <strong className="policy-picker__risk-title">{baseMetadata.title}</strong>
+          <p className="policy-picker__risk-message">{resolvedMessage}</p>
+        </div>
+      )}
       <div className="policy-picker__options">
         {templates.map((template) => {
           const isSelected = template.id === value;

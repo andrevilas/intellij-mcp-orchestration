@@ -3,24 +3,24 @@ import type { Mock } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import Policies from './Policies';
+import Policies from './index';
 import type {
   PolicyDeployment,
   PolicyRolloutOverview,
   PolicyTemplate,
   ProviderSummary,
-} from '../api';
+} from '../../api';
 import {
   fetchPolicyTemplates,
   fetchPolicyDeployments,
   createPolicyDeployment,
   deletePolicyDeployment,
-} from '../api';
+} from '../../api';
 
-type ApiModule = typeof import('../api');
+type ApiModule = typeof import('../../api');
 
-vi.mock('../api', async () => {
-  const actual = await vi.importActual<ApiModule>('../api');
+vi.mock('../../api', async () => {
+  const actual = await vi.importActual<ApiModule>('../../api');
   return {
     ...actual,
     fetchPolicyTemplates: vi.fn(),

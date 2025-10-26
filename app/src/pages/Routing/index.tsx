@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { createTwoFilesPatch } from 'diff';
 import './Routing.scss';
-import { ROUTING_TEST_IDS } from './testIds';
+import { ROUTING_TEST_IDS } from '../testIds';
 
 import {
   fetchPolicyManifest,
@@ -19,11 +19,11 @@ import {
   type RoutingRuleConfig,
   type PolicyPlanResponse,
   type ConfigPlanDiffSummary,
-} from '../api';
-import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
-import ModalBase from '../components/modals/ModalBase';
-import ConfirmationModal from '../components/modals/ConfirmationModal';
-import { describeFixtureRequest } from '../utils/fixtureStatus';
+} from '../../api';
+import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
+import ModalBase from '../../components/modals/ModalBase';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
+import { describeFixtureRequest } from '../../utils/fixtureStatus';
 
 export interface RoutingProps {
   providers: ProviderSummary[];

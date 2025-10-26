@@ -3,15 +3,15 @@ import type { Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import Routing from './Routing';
-import type { ProviderSummary, RoutingSimulationResult } from '../api';
-import { simulateRouting } from '../api';
-import { ROUTING_TEST_IDS } from './testIds';
+import Routing from './index';
+import type { ProviderSummary, RoutingSimulationResult } from '../../api';
+import { simulateRouting } from '../../api';
+import { ROUTING_TEST_IDS } from '../testIds';
 
-type ApiModule = typeof import('../api');
+type ApiModule = typeof import('../../api');
 
-vi.mock('../api', async () => {
-  const actual = await vi.importActual<ApiModule>('../api');
+vi.mock('../../api', async () => {
+  const actual = await vi.importActual<ApiModule>('../../api');
   return {
     ...actual,
     simulateRouting: vi.fn(),

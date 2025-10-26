@@ -3,7 +3,7 @@ import type { Mock } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import FinOps from './FinOps';
+import FinOps from './index';
 import type {
   ProviderSummary,
   PolicyManifestSnapshot,
@@ -12,7 +12,7 @@ import type {
   ConfigPlanDiffSummary,
   TelemetryTimeseriesPoint,
   TelemetryRouteBreakdownEntry,
-} from '../api';
+} from '../../api';
 import {
   fetchPolicyManifest,
   fetchTelemetryTimeseries,
@@ -25,12 +25,12 @@ import {
   fetchFinOpsPullRequestReports,
   patchConfigPoliciesPlan,
   postPolicyPlanApply,
-} from '../api';
-import { ThemeProvider } from '../theme/ThemeContext';
-import { ToastProvider } from '../components/feedback/ToastProvider';
-import { FINOPS_TEST_IDS } from './testIds';
+} from '../../api';
+import { ThemeProvider } from '../../theme/ThemeContext';
+import { ToastProvider } from '../../components/feedback/ToastProvider';
+import { FINOPS_TEST_IDS } from '../testIds';
 
-type ApiModule = typeof import('../api');
+type ApiModule = typeof import('../../api');
 
 declare global {
   // eslint-disable-next-line no-var
@@ -57,8 +57,8 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
   value: ResizeObserverMock,
 });
 
-vi.mock('../api', async () => {
-  const actual = await vi.importActual<ApiModule>('../api');
+vi.mock('../../api', async () => {
+  const actual = await vi.importActual<ApiModule>('../../api');
   return {
     ...actual,
     fetchPolicyManifest: vi.fn(),

@@ -26,17 +26,17 @@ import {
   type PolicyTemplate,
   type PolicyTemplateId,
   type ProviderSummary,
-} from '../api';
-import PlanDiffViewer, { type PlanDiffItem } from '../components/PlanDiffViewer';
-import Alert from '../components/feedback/Alert';
-import PolicyTemplatePicker from '../components/PolicyTemplatePicker';
-import ConfirmationModal from '../components/modals/ConfirmationModal';
-import ModalBase from '../components/modals/ModalBase';
-import { useToastNotification } from '../hooks/useToastNotification';
-import { POLICIES_TEST_IDS } from './testIds';
-import { describeFixtureRequest } from '../utils/fixtureStatus';
-import { FileUploadControl, type UploadProgressHandler } from '../components/forms';
-import { readFileAsText } from '../utils/readFile';
+} from '../../api';
+import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
+import Alert from '../../components/feedback/Alert';
+import PolicyTemplatePicker from '../../components/PolicyTemplatePicker';
+import ConfirmationModal from '../../components/modals/ConfirmationModal';
+import ModalBase from '../../components/modals/ModalBase';
+import { useToastNotification } from '../../hooks/useToastNotification';
+import { POLICIES_TEST_IDS } from '../testIds';
+import { describeFixtureRequest } from '../../utils/fixtureStatus';
+import { FileUploadControl, type UploadProgressHandler } from '../../components/forms';
+import { readFileAsText } from '../../utils/readFile';
 
 import './Policies.scss';
 
@@ -1319,6 +1319,8 @@ export default function Policies({ providers, isLoading, initialError }: Policie
           value={selectedTemplateId}
           onChange={setSelectedTemplateId}
           disabled={disableActions || isLoading}
+          riskLevel={disableActions ? 'controlled' : 'staged'}
+          riskMessage="Aplicar um template publica um plano versionado e exige confirmação de risco controlado via fixtures."
         />
       </section>
 
