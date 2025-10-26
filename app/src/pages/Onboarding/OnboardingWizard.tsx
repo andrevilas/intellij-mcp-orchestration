@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import type {
@@ -14,6 +14,7 @@ import type {
   McpSmokeRunResponse,
 } from '../../api';
 import {
+  fetchAgents,
   fetchMcpOnboardingStatus,
   postConfigApply,
   postConfigMcpOnboard,
@@ -70,11 +71,24 @@ interface WizardFormValues {
   authInstructions: string;
   authEnvironment: string;
   tools: ToolDraft[];
+  connectionTested: boolean;
   runSmokeTests: boolean;
   qualityGates: string;
   validationNotes: string;
   applyNote: string;
 }
+
+type AgentAvailabilityStatus = 'idle' | 'validating' | 'available' | 'unavailable' | 'error';
+
+interface AgentAvailabilityCache {
+  value: string;
+  status: 'available' | 'unavailable' | 'error';
+  message: string;
+}
+
+const AGENT_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-_]{1,62}[a-z0-9])?$/;
+const AGENT_ID_PATTERN_MESSAGE =
+  'Use letras minúsculas, números, hífens ou underlines (3 a 64 caracteres).';
 
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -91,6 +105,19 @@ function splitValues(value: string): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function getToolValidationFields(
+  values: WizardFormValues,
+  includeConnectionCheck = true,
+): Path<WizardFormValues>[] {
+  const baseFields = (values.tools ?? []).flatMap((_, index) =>
+    [`tools.${index}.name`, `tools.${index}.entryPoint`].map((field) => field as Path<WizardFormValues>),
+  );
+  if (includeConnectionCheck) {
+    baseFields.push('connectionTested' as Path<WizardFormValues>);
+  }
+  return baseFields;
 }
 
 const STEP_DEFINITIONS: WizardStepDefinition[] = [
@@ -121,13 +148,13 @@ const STEP_DEFINITIONS: WizardStepDefinition[] = [
   },
 ];
 
+const CONNECTION_REQUIRED_MESSAGE = 'Teste a conexão com o servidor MCP antes de avançar.';
+const CONNECTION_PREREQUISITES_MESSAGE = 'Preencha os campos obrigatórios antes de validar a conexão.';
+
 const STEP_VALIDATION_FIELDS: Record<WizardStep, (values: WizardFormValues) => Path<WizardFormValues>[]> = {
   basic: () => ['agentId', 'repository', 'endpoint'],
   auth: (values) => (values.authMode === 'none' ? [] : ['secretName']),
-  tools: (values) =>
-    values.tools.flatMap((_, index) =>
-      [`tools.${index}.name`, `tools.${index}.entryPoint`].map((field) => field as Path<WizardFormValues>),
-    ),
+  tools: (values) => getToolValidationFields(values),
   validation: () => [],
   verification: () => [],
 };
@@ -135,7 +162,7 @@ const STEP_VALIDATION_FIELDS: Record<WizardStep, (values: WizardFormValues) => P
 const STEP_ERROR_PREFIXES: Record<WizardStep, string[]> = {
   basic: ['agentId', 'displayName', 'repository', 'endpoint', 'description', 'owner', 'tags', 'capabilities'],
   auth: ['authMode', 'secretName', 'authInstructions', 'authEnvironment'],
-  tools: ['tools'],
+  tools: ['tools', 'connectionTested'],
   validation: ['validationNotes', 'qualityGates', 'runSmokeTests', 'applyNote'],
   verification: [],
 };
@@ -197,6 +224,7 @@ export default function OnboardingWizard() {
       authInstructions: '',
       authEnvironment: '',
       tools: [{ name: '', description: '', entryPoint: '' }],
+      connectionTested: false,
       runSmokeTests: true,
       qualityGates: 'operacao,finops',
       validationNotes: '',
@@ -204,7 +232,25 @@ export default function OnboardingWizard() {
     },
     mode: 'onBlur',
   });
-  const { control, getValues, trigger } = formMethods;
+  const {
+    control,
+    getValues,
+    trigger,
+    setValue,
+    clearErrors,
+    setError: setFormError,
+    register,
+    unregister,
+  } = formMethods;
+
+  useEffect(() => {
+    register('connectionTested', {
+      validate: (value) => (value ? true : CONNECTION_REQUIRED_MESSAGE),
+    });
+    return () => {
+      unregister('connectionTested');
+    };
+  }, [register, unregister]);
   const { fields: toolFields, append: appendTool, remove: removeTool } = useFieldArray({
     control,
     name: 'tools',
@@ -224,6 +270,7 @@ export default function OnboardingWizard() {
   const authInstructionsValue = useWatch({ control, name: 'authInstructions' });
   const authEnvironmentValue = useWatch({ control, name: 'authEnvironment' });
   const toolsValue = useWatch({ control, name: 'tools' }) ?? [];
+  const connectionTestedValue = useWatch({ control, name: 'connectionTested' }) ?? false;
   const [isPlanning, setPlanning] = useState(false);
   const [isApplying, setApplying] = useState(false);
   const [isRunningSmoke, setRunningSmoke] = useState(false);
@@ -260,6 +307,34 @@ export default function OnboardingWizard() {
     [diffs],
   );
 
+  const goToStep = (step: WizardStep) => {
+    setActiveStep(step);
+    setSubmittedStep(null);
+  };
+
+  const handleStepChange = (nextStep: WizardStep) => {
+    const currentIndex = stepIndex;
+    const nextIndex = STEP_DEFINITIONS.findIndex((step) => step.id === nextStep);
+    if (nextIndex <= currentIndex) {
+      goToStep(nextStep);
+    }
+  };
+
+  const invalidateConnection = useCallback(
+    (shouldValidate = false) => {
+      setConnectionStatus('idle');
+      setConnectionFeedback(null);
+      setValidationDetails(null);
+      setValue('connectionTested', false, {
+        shouldDirty: true,
+        shouldTouch: false,
+        shouldValidate,
+      });
+      clearErrors('connectionTested');
+    },
+    [clearErrors, setValue],
+  );
+
   useEffect(() => {
     invalidateConnection();
   }, [
@@ -276,26 +351,8 @@ export default function OnboardingWizard() {
     authInstructionsValue,
     authEnvironmentValue,
     toolsValue,
+    invalidateConnection,
   ]);
-
-  const goToStep = (step: WizardStep) => {
-    setActiveStep(step);
-    setSubmittedStep(null);
-  };
-
-  const handleStepChange = (nextStep: WizardStep) => {
-    const currentIndex = stepIndex;
-    const nextIndex = STEP_DEFINITIONS.findIndex((step) => step.id === nextStep);
-    if (nextIndex <= currentIndex) {
-      goToStep(nextStep);
-    }
-  };
-
-  const invalidateConnection = () => {
-    setConnectionStatus('idle');
-    setConnectionFeedback(null);
-    setValidationDetails(null);
-  };
 
   const handleNextStep = async (next: WizardStep) => {
     const values = getValues();
@@ -362,10 +419,26 @@ export default function OnboardingWizard() {
 
   const handleValidateConnection = async () => {
     setValidatingConnection(true);
-    setConnectionStatus('idle');
-    setConnectionFeedback(null);
-    setValidationDetails(null);
+    invalidateConnection();
     try {
+      const values = getValues();
+      const fieldSet = new Set<Path<WizardFormValues>>([
+        ...STEP_VALIDATION_FIELDS.basic(values),
+        ...STEP_VALIDATION_FIELDS.auth(values),
+        ...getToolValidationFields(values, false),
+      ]);
+      const requiredFields = Array.from(fieldSet);
+      if (requiredFields.length > 0) {
+        const isValid = await trigger(requiredFields, { shouldFocus: true });
+        if (!isValid) {
+          setSubmittedStep('tools');
+          setConnectionStatus('error');
+          setConnectionFeedback(CONNECTION_PREREQUISITES_MESSAGE);
+          setFormError('connectionTested', { type: 'manual', message: CONNECTION_PREREQUISITES_MESSAGE });
+          return;
+        }
+      }
+
       const payload = buildPayload();
       if (!payload.endpoint) {
         throw new Error('Informe o endpoint do servidor MCP.');
@@ -380,9 +453,21 @@ export default function OnboardingWizard() {
       setConnectionStatus('success');
       setConnectionFeedback(response.message || 'Conexão validada com sucesso.');
       setValidationDetails(response.validation ?? null);
+      setValue('connectionTested', true, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+      clearErrors('connectionTested');
     } catch (cause) {
+      const message = extractErrorMessage(cause);
+      setSubmittedStep('tools');
       setConnectionStatus('error');
-      setConnectionFeedback(extractErrorMessage(cause));
+      setConnectionFeedback(message);
+      setFormError('connectionTested', {
+        type: 'manual',
+        message: message || CONNECTION_REQUIRED_MESSAGE,
+      });
     } finally {
       setValidatingConnection(false);
     }
@@ -525,6 +610,7 @@ export default function OnboardingWizard() {
             isValidating={isValidatingConnection}
             connectionStatus={connectionStatus}
             connectionFeedback={connectionFeedback}
+            connectionTested={connectionTestedValue}
             showErrors={submittedStep === 'tools'}
           />
         );
@@ -635,8 +721,85 @@ interface BasicStepProps {
 
 function BasicStep({ onNext, showErrors }: BasicStepProps): JSX.Element {
   const form = useMcpFormContext<WizardFormValues>();
+  const agentAvailabilityCacheRef = useRef<AgentAvailabilityCache | null>(null);
+  const isMountedRef = useRef(true);
+  const [agentValidationStatus, setAgentValidationStatus] = useState<AgentAvailabilityStatus>('idle');
+  const [agentValidationMessage, setAgentValidationMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const updateAvailability = useCallback(
+    (status: AgentAvailabilityStatus, message: string | null = null) => {
+      if (!isMountedRef.current) {
+        return;
+      }
+      setAgentValidationStatus(status);
+      setAgentValidationMessage(message);
+    },
+    [],
+  );
+
+  const agentIdValidatorRef = useRef<((value: unknown) => Promise<true | string> | string | boolean) | null>(null);
+
+  if (agentIdValidatorRef.current === null) {
+    agentIdValidatorRef.current = async (rawValue: unknown) => {
+      const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+      if (!value) {
+        agentAvailabilityCacheRef.current = null;
+        updateAvailability('idle');
+        return true;
+      }
+
+      if (!AGENT_ID_PATTERN.test(value)) {
+        agentAvailabilityCacheRef.current = null;
+        updateAvailability('idle');
+        return true;
+      }
+
+      const cached = agentAvailabilityCacheRef.current;
+      if (cached && cached.value === value) {
+        updateAvailability(cached.status, cached.message);
+        return cached.status === 'available' ? true : cached.message;
+      }
+
+      updateAvailability('validating', 'Validando disponibilidade…');
+      try {
+        const agents = await fetchAgents();
+        const normalized = value.toLowerCase();
+        const exists = agents.some((agent) => (agent.name ?? '').toLowerCase() === normalized);
+        if (exists) {
+          const message = `Identificador ${value} já está em uso.`;
+          agentAvailabilityCacheRef.current = { value, status: 'unavailable', message };
+          updateAvailability('unavailable', message);
+          return message;
+        }
+        const message = 'Identificador disponível.';
+        agentAvailabilityCacheRef.current = { value, status: 'available', message };
+        updateAvailability('available', message);
+        return true;
+      } catch (error) {
+        const resolvedMessage =
+          extractErrorMessage(error) || 'Não foi possível validar o identificador. Tente novamente.';
+        agentAvailabilityCacheRef.current = { value, status: 'error', message: resolvedMessage };
+        updateAvailability('error', resolvedMessage);
+        return resolvedMessage;
+      }
+    };
+  }
+
   const agentIdField = useMcpField<WizardFormValues>('agentId', {
-    rules: { required: 'Informe o identificador do agente.' },
+    rules: {
+      required: 'Informe o identificador do agente.',
+      pattern: {
+        value: AGENT_ID_PATTERN,
+        message: AGENT_ID_PATTERN_MESSAGE,
+      },
+      validate: agentIdValidatorRef.current,
+    },
   });
   const displayNameField = useMcpField<WizardFormValues>('displayName');
   const repositoryField = useMcpField<WizardFormValues>('repository', {
@@ -667,14 +830,66 @@ function BasicStep({ onNext, showErrors }: BasicStepProps): JSX.Element {
   const trimmedAgentId = agentIdValue.trim();
   const trimmedRepository = repositoryValue.trim();
   const trimmedEndpoint = endpointValue.trim();
+  useEffect(() => {
+    const cached = agentAvailabilityCacheRef.current;
+    if (!trimmedAgentId) {
+      agentAvailabilityCacheRef.current = null;
+      updateAvailability('idle');
+      return;
+    }
+    if (!cached || cached.value !== trimmedAgentId) {
+      updateAvailability('idle');
+    } else {
+      updateAvailability(cached.status, cached.message);
+    }
+  }, [trimmedAgentId, updateAvailability]);
+
   const hasErrors = agentIdField.isInvalid || repositoryField.isInvalid || endpointField.isInvalid;
   const hasTouched = agentState.isTouched || repositoryState.isTouched || endpointState.isTouched;
+  const isAgentChecking = agentValidationStatus === 'validating';
   const canProceed =
     trimmedAgentId.length > 0 &&
     trimmedRepository.length > 0 &&
     trimmedEndpoint.length > 0 &&
-    !hasErrors;
+    !hasErrors &&
+    !isAgentChecking;
   const shouldShowSummary = showErrors || (hasTouched && hasErrors);
+
+  const agentHelperStatus =
+    agentValidationStatus === 'validating'
+      ? (
+          <span className="mcp-form-helper__status" role="status">
+            Validando disponibilidade…
+          </span>
+        )
+      : agentValidationStatus === 'available'
+      ? (
+          <span className="mcp-form-helper__status" data-variant="success" role="status">
+            {agentValidationMessage}
+          </span>
+        )
+      : agentValidationStatus === 'unavailable' || agentValidationStatus === 'error'
+      ? (
+          <span className="mcp-form-helper__status" data-variant="error" role="alert">
+            {agentValidationMessage}
+          </span>
+        )
+      : agentValidationMessage
+      ? (
+          <span className="mcp-form-helper__status" role="status">
+            {agentValidationMessage}
+          </span>
+        )
+      : null;
+
+  const agentHelperText = agentHelperStatus ? (
+    <>
+      <span>{AGENT_ID_PATTERN_MESSAGE}</span>
+      {agentHelperStatus}
+    </>
+  ) : (
+    AGENT_ID_PATTERN_MESSAGE
+  );
 
   return (
     <form
@@ -687,15 +902,16 @@ function BasicStep({ onNext, showErrors }: BasicStepProps): JSX.Element {
     >
       <StepErrorSummary step="basic" visible={shouldShowSummary} />
       <div className="mcp-wizard__grid">
-        <div className="mcp-wizard__field">
-          <Input
-            {...agentIdField.inputProps}
-            label="Identificador do agente"
-            placeholder="Ex.: openai-gpt4o"
-            required
-            error={agentIdField.error}
-          />
-        </div>
+      <div className="mcp-wizard__field">
+        <Input
+          {...agentIdField.inputProps}
+          label="Identificador do agente"
+          placeholder="Ex.: openai-gpt4o"
+          required
+          helperText={agentHelperText}
+          error={agentIdField.error}
+        />
+      </div>
         <div className="mcp-wizard__field">
           <Input
             {...displayNameField.inputProps}
@@ -795,11 +1011,15 @@ function AuthStep({ onBack, onNext, showErrors }: AuthStepProps): JSX.Element {
           return true;
         }
 
-        if (typeof value === 'string' && value.trim()) {
-          return true;
+        if (typeof value !== 'string' || !value.trim()) {
+          return 'Informe o nome da credencial.';
+        }
+        const normalized = value.trim();
+        if (!/^[A-Z0-9._-]{3,}$/.test(normalized)) {
+          return 'Use letras maiúsculas, números, hífens, pontos ou underscores.';
         }
 
-        return 'Informe o nome da credencial.';
+        return true;
       },
     },
   });
@@ -897,6 +1117,7 @@ interface ToolsStepProps {
   isValidating: boolean;
   connectionStatus: 'idle' | 'success' | 'error';
   connectionFeedback: string | null;
+  connectionTested: boolean;
   showErrors: boolean;
 }
 
@@ -910,6 +1131,7 @@ function ToolsStep({
   isValidating,
   connectionStatus,
   connectionFeedback,
+  connectionTested,
   showErrors,
 }: ToolsStepProps): JSX.Element {
   const form = useMcpFormContext<WizardFormValues>();
@@ -921,8 +1143,11 @@ function ToolsStep({
   const hasIncomplete = toolsValue.some((tool) => !tool?.name?.trim() || !tool?.entryPoint?.trim());
   const hasErrors = toolStates.some((state) => state.name.invalid || state.entry.invalid);
   const hasTouched = toolStates.some((state) => state.name.isTouched || state.entry.isTouched);
-  const canProceed = !isValidating && connectionStatus !== 'error' && !hasIncomplete && !hasErrors;
+  const isConnectionSuccessful = connectionStatus === 'success' && connectionTested;
+  const canProceed = !isValidating && isConnectionSuccessful && !hasIncomplete && !hasErrors;
   const shouldShowSummary = showErrors || ((hasErrors || hasIncomplete) && hasTouched);
+  const showMissingToolsAlert = (hasIncomplete || hasErrors) && !isValidating;
+  const showConnectionPrompt = !connectionTested && connectionStatus !== 'error';
 
   return (
     <form
@@ -970,22 +1195,25 @@ function ToolsStep({
           Ir para validação
         </button>
       </div>
-      {!canProceed && connectionStatus !== 'error' ? (
+      {showMissingToolsAlert ? (
         <Alert
           variant="info"
           title="Finalize as tools obrigatórias"
           description="Informe nome e entry point para cada tool listada para habilitar a próxima etapa."
         />
       ) : null}
+      {showConnectionPrompt ? (
+        <Alert
+          variant="warning"
+          title="Teste a conexão do MCP"
+          description="Execute o teste de conexão para validar endpoint e habilitar a próxima etapa."
+        />
+      ) : null}
       {connectionStatus === 'success' && connectionFeedback ? (
-        <p className="mcp-wizard__helper" role="status">
-          {connectionFeedback}
-        </p>
+        <Alert variant="success" title="Conexão validada" description={connectionFeedback} />
       ) : null}
       {connectionStatus === 'error' && connectionFeedback ? (
-        <p className="mcp-wizard__helper mcp-wizard__helper--error" role="alert">
-          {connectionFeedback}
-        </p>
+        <Alert variant="error" title="Erro ao validar conexão" description={connectionFeedback} />
       ) : null}
     </form>
   );
@@ -998,12 +1226,35 @@ interface ToolFieldsProps {
 }
 
 function ToolFields({ index, onRemove, canRemove }: ToolFieldsProps): JSX.Element {
+  const form = useMcpFormContext<WizardFormValues>();
   const nameField = useMcpField<WizardFormValues>(`tools.${index}.name`, {
-    rules: { required: 'Informe o nome da tool.' },
+    rules: {
+      required: 'Informe o nome da tool.',
+      validate: (value) => {
+        const trimmed = typeof value === 'string' ? value.trim() : '';
+        if (!trimmed) {
+          return 'Informe o nome da tool.';
+        }
+        const tools = (form.getValues('tools') ?? []) as ToolDraft[];
+        const duplicates = tools.filter((tool, toolIndex) =>
+          toolIndex !== index && (tool?.name ?? '').trim() === trimmed,
+        );
+        if (duplicates.length > 0) {
+          return 'Nome de tool duplicado.';
+        }
+        return true;
+      },
+    },
   });
   const descriptionField = useMcpField<WizardFormValues>(`tools.${index}.description`);
   const entryPointField = useMcpField<WizardFormValues>(`tools.${index}.entryPoint`, {
-    rules: { required: 'Informe o entry point da tool.' },
+    rules: {
+      required: 'Informe o entry point da tool.',
+      pattern: {
+        value: /^\S+$/,
+        message: 'O entry point não deve conter espaços.',
+      },
+    },
   });
 
   return (

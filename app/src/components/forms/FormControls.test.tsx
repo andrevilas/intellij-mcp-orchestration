@@ -147,6 +147,25 @@ describe('Form controls integration', () => {
     expect(await screen.findByText(/Upload concluído: artifact\.json/i)).toBeVisible();
   });
 
+  it('permite baixar arquivo enviado quando callback é fornecido', async () => {
+    const user = userEvent.setup();
+    const onUpload = vi.fn().mockResolvedValue(undefined);
+    const payload = new Blob(['conteúdo'], { type: 'text/plain' });
+    const onDownload = vi.fn().mockResolvedValue(payload);
+
+    const { container } = render(<FileUploadControl onUpload={onUpload} onDownload={onDownload} />);
+
+    const input = container.querySelector('input[type="file"]');
+    const file = new File(['conteúdo'], 'bundle.txt', { type: 'text/plain' });
+    await user.upload(input as HTMLInputElement, file);
+
+    const downloadButton = await screen.findByRole('button', { name: /Baixar arquivo enviado/i });
+    await user.click(downloadButton);
+
+    expect(onDownload).toHaveBeenCalledWith(file, expect.any(Function));
+    expect(await screen.findByText(/Arquivo bundle\.txt baixado\./i)).toBeVisible();
+  });
+
   it('informa conclusão de download e chama callback', async () => {
     const user = userEvent.setup();
     const payload = new Blob(['demo'], { type: 'text/plain' });

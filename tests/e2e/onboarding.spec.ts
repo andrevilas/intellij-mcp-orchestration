@@ -181,6 +181,10 @@ async function registerOnboardingRoutes(
     return route.fulfill({ status: 200, body: JSON.stringify(fixtures.onboardingResponse), contentType: 'application/json' });
   });
 
+  await page.route('**/api/v1/agents', (route) =>
+    route.fulfill({ status: 200, body: JSON.stringify({ agents: [] }), contentType: 'application/json' }),
+  );
+
   await page.route('**/api/v1/config/apply', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify(fixtures.applyResponse), contentType: 'application/json' }),
   );
@@ -214,6 +218,7 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await page.getByLabel('Tags (separadas por vírgula)').fill('openai,prod');
   await page.getByLabel('Capacidades (separadas por vírgula)').fill('chat');
   await page.getByLabel('Descrição').fill('Agente com fallback para GPT-4o.');
+  await expect(page.getByText('Identificador disponível.')).toBeVisible();
   await expect(basicNextButton).toBeEnabled();
   await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toHaveCount(0);
   await basicNextButton.click();
@@ -234,11 +239,12 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await page.getByLabel('Entry point da tool 1').fill('catalog/search.py');
   const toolsNextButton = page.getByRole('button', { name: 'Ir para validação' });
   await expect(toolsNextButton).toBeDisabled();
-  await expect(page.getByRole('heading', { name: 'Finalize as tools obrigatórias' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Teste a conexão do MCP' })).toBeVisible();
   await page.getByRole('button', { name: 'Testar conexão' }).click();
   await expect.poll(() => onboardPayloads.length).toBe(1);
+  await expect(page.getByRole('heading', { name: 'Teste a conexão do MCP' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Conexão validada' })).toBeVisible();
   await expect(toolsNextButton).toBeEnabled();
-  await expect(page.getByRole('heading', { name: 'Finalize as tools obrigatórias' })).toHaveCount(0);
   await toolsNextButton.click();
 
   const wizardPanel = page.locator('.mcp-wizard__panel');
