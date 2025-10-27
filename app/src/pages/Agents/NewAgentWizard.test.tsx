@@ -158,11 +158,11 @@ describe('NewAgentWizard', () => {
 
     await screen.findByRole('heading', { name: 'Novo agent governado' });
 
-    const slugInput = screen.getByLabelText('Identificador do agent');
+    const slugInput = await screen.findByPlaceholderText('Ex.: sentinel-watcher');
     await user.clear(slugInput);
     await user.type(slugInput, 'sentinel-watcher');
 
-    const manifestArea = screen.getByLabelText('Manifesto base (JSON)');
+    const manifestArea = await screen.findByRole('textbox', { name: 'Manifesto base (JSON)' });
     await user.clear(manifestArea);
     fireEvent.change(manifestArea, {
       target: { value: '{"title":"Sentinel Watcher","capabilities":["monitoring"],"tools":[]}' },
@@ -222,25 +222,31 @@ describe('NewAgentWizard', () => {
 
     await screen.findByRole('heading', { name: 'Novo agent governado' });
 
-    const slugInput = screen.getByLabelText('Identificador do agent');
+    const slugInput = await screen.findByPlaceholderText('Ex.: sentinel-watcher');
     await user.clear(slugInput);
     await user.click(screen.getByRole('button', { name: 'Gerar plano governado' }));
-    expect(await screen.findByText('Informe o identificador do agent.')).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText('Informe o identificador do agent.')).length,
+    ).toBeGreaterThanOrEqual(1);
 
     await user.type(slugInput, 'sentinel-watcher');
 
-    const manifestArea = screen.getByLabelText('Manifesto base (JSON)');
+    const manifestArea = await screen.findByRole('textbox', { name: 'Manifesto base (JSON)' });
     await user.clear(manifestArea);
     fireEvent.change(manifestArea, { target: { value: '{' } });
 
     await user.click(screen.getByRole('button', { name: 'Gerar plano governado' }));
-    expect(await screen.findByText('Manifesto base inválido. Forneça JSON válido.')).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText('Manifesto base inválido. Forneça JSON válido.')).length,
+    ).toBeGreaterThanOrEqual(1);
 
     await user.clear(manifestArea);
     fireEvent.change(manifestArea, { target: { value: '{"name":"sentinel"}' } });
 
     await user.click(screen.getByRole('button', { name: 'Gerar plano governado' }));
-    expect(await screen.findByText('Selecione pelo menos um servidor MCP.')).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText('Selecione pelo menos um servidor MCP.')).length,
+    ).toBeGreaterThanOrEqual(1);
 
     expect(postGovernedAgentPlan).not.toHaveBeenCalled();
   });

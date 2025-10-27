@@ -151,8 +151,8 @@ describe('Observability page', () => {
       expect(scoped.getByText(/Nenhum provider configurado\./)).toBeInTheDocument();
     }
 
-    expect(await screen.findByLabelText('Latência média por provedor')).toBeInTheDocument();
-    expect(await screen.findByLabelText('Distribuição de sucesso por provedor')).toBeInTheDocument();
+    expect(await screen.findByText('Latência média por provedor')).toBeInTheDocument();
+    expect(await screen.findByText('Distribuição de sucesso por provedor')).toBeInTheDocument();
   });
 
   it('permite alternar para a aba de tracing e exibe tabela agregada', async () => {

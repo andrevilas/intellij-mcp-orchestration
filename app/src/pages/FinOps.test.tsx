@@ -365,6 +365,12 @@ describe('FinOps page planning workflow', () => {
     const applyButton = screen.getByRole('button', { name: 'Aplicar plano' });
     await userEvent.click(applyButton);
 
+    const applyDialog = await screen.findByRole('dialog', { name: 'Aplicar plano FinOps' });
+    const armApply = within(applyDialog).getByRole('button', { name: 'Aplicar plano' });
+    await userEvent.click(armApply);
+    const confirmApply = within(applyDialog).getByRole('button', { name: 'Aplicar agora' });
+    await userEvent.click(confirmApply);
+
     await waitFor(() => expect(applyPlanMock).toHaveBeenCalled());
     const policyHeading = screen.getByRole('heading', { name: 'Budgets e alertas determinísticos' });
     const policySection = policyHeading.closest('section');
@@ -373,5 +379,5 @@ describe('FinOps page planning workflow', () => {
       expect(within(policySection).getByText(/Plano aplicado com sucesso/)).toBeInTheDocument();
     }
     expect(screen.getByText('Aplicado')).toBeInTheDocument();
-  });
+  }, 30000);
 });

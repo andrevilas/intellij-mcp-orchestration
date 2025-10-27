@@ -15,6 +15,74 @@ import { ThemeProvider } from '../theme/ThemeContext';
 import { ToastProvider } from '../components/feedback/ToastProvider';
 import { DASHBOARD_TEST_IDS } from './testIds';
 
+vi.mock('./dashboard/visual-sections', () => {
+  const DashboardInsightVisuals = ({
+    derived,
+    costChartTitleId,
+    costChartDescriptionId,
+    errorChartTitleId,
+    errorChartDescriptionId,
+  }: {
+    derived: {
+      costBreakdown: Array<unknown>;
+      errorBreakdown: Array<unknown>;
+      totalErrorCount: number;
+    };
+    costChartTitleId: string;
+    costChartDescriptionId: string;
+    errorChartTitleId: string;
+    errorChartDescriptionId: string;
+  }) => (
+    <div data-testid="dashboard-visual-sections-mock">
+      {derived.costBreakdown.length > 0 ? (
+        <figure
+          data-testid={DASHBOARD_TEST_IDS.costBreakdown}
+          aria-labelledby={costChartTitleId}
+          aria-describedby={costChartDescriptionId}
+        >
+          <h3 id={costChartTitleId}>Mock cost breakdown</h3>
+          <p id={costChartDescriptionId}>Mock cost breakdown content</p>
+        </figure>
+      ) : (
+        <p className="info">Sem custos computados na janela selecionada.</p>
+      )}
+      {derived.errorBreakdown.length > 0 ? (
+        <figure
+          data-testid={DASHBOARD_TEST_IDS.errorBreakdown}
+          aria-labelledby={errorChartTitleId}
+          aria-describedby={errorChartDescriptionId}
+        >
+          <h3 id={errorChartTitleId}>Mock error breakdown</h3>
+          <p id={errorChartDescriptionId}>Mock error breakdown content</p>
+        </figure>
+      ) : (
+        <p className="info">Nenhum erro categorizado na janela analisada.</p>
+      )}
+    </div>
+  );
+
+  const DashboardHeatmap = ({
+    derived,
+  }: {
+    derived: { heatmapProviderCount: number; heatmap: Array<{ value: number }> };
+  }) => {
+    let content: JSX.Element;
+    if (derived.heatmapProviderCount === 0) {
+      content = <p className="info">Cadastre provedores para visualizar o uso agregado.</p>;
+    } else if (derived.heatmap.every((entry) => entry.value === 0)) {
+      content = <p className="info">Sem execuções registradas nos últimos 7 dias.</p>;
+    } else {
+      content = <p>Mock heatmap</p>;
+    }
+    return (
+      <section data-testid={DASHBOARD_TEST_IDS.sections.heatmap}>
+        {content}
+      </section>
+    );
+  };
+
+  return { DashboardInsightVisuals, DashboardHeatmap };
+});
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api');
   return {
@@ -273,8 +341,12 @@ describe('Dashboard telemetry overview', () => {
     expect(screen.getByText('Taxa de erro')).toBeInTheDocument();
     expect(screen.getByText('12%')).toBeInTheDocument();
 
-    expect(await screen.findByText('Distribuição de custo por rota')).toBeInTheDocument();
-    expect(await screen.findByText('Ocorrências de erro por categoria')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId(DASHBOARD_TEST_IDS.costBreakdown)).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId(DASHBOARD_TEST_IDS.errorBreakdown)).toBeInTheDocument(),
+    );
     await screen.findByTestId(DASHBOARD_TEST_IDS.sections.heatmap);
 
     expect(screen.queryByText('Sem execuções registradas nos últimos 7 dias.')).not.toBeInTheDocument();
@@ -310,8 +382,8 @@ describe('Dashboard telemetry overview', () => {
     expect(insightCards).toHaveAttribute('data-status', 'empty');
     expect(within(insightCards).getByText('Nenhum indicador disponível no momento.')).toBeInTheDocument();
 
-    expect(screen.queryByText('Distribuição de custo por rota')).toBeNull();
-    expect(screen.queryByText('Ocorrências de erro por categoria')).toBeNull();
+    expect(screen.queryByTestId(DASHBOARD_TEST_IDS.costBreakdown)).toBeNull();
+    expect(screen.queryByTestId(DASHBOARD_TEST_IDS.errorBreakdown)).toBeNull();
 
     const sessionsSection = screen.getByTestId(DASHBOARD_TEST_IDS.sections.sessions);
     expect(

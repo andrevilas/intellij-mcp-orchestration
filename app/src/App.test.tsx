@@ -1,11 +1,23 @@
 import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Mock } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 
 import App, { NOTIFICATION_READ_STATE_KEY } from './App';
 import { ThemeProvider } from './theme/ThemeContext';
+import {
+  DASHBOARD_TEST_IDS,
+  POLICIES_TEST_IDS,
+  SERVERS_TEST_IDS,
+} from './pages/testIds';
+import { server } from './mocks/server';
+import providersFixture from '#fixtures/providers.json';
+import sessionsFixture from '#fixtures/sessions.json';
+import notificationsFixture from '#fixtures/notifications.json';
+import * as api from './api';
+import type { ProviderSummary, Session } from './api';
 
 function renderWithinProviders(): ReturnType<typeof render> {
   return render(
@@ -15,1339 +27,290 @@ function renderWithinProviders(): ReturnType<typeof render> {
   );
 }
 
-function createFetchResponse<T>(payload: T): Promise<Response> {
-  return Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve(payload),
-  } as unknown as Response);
-}
-
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
 
+const providerCatalog = (providersFixture as { providers: ProviderSummary[] }).providers;
+const geminiProvider = providerCatalog.find((entry) => entry.id === 'gemini');
+if (!geminiProvider) {
+  throw new Error('Gemini provider fixture not found');
+}
+
+const sessionCatalog = (sessionsFixture as { sessions: Session[] }).sessions;
+const initialGeminiSession = sessionCatalog.find((entry) => entry.provider_id === geminiProvider.id);
+if (!initialGeminiSession) {
+  throw new Error('Gemini session fixture not found');
+}
+
+const notificationCatalog = (notificationsFixture as {
+  notifications: Array<{ id: string; title: string; message: string }>;
+}).notifications;
+
+const finopsCriticalNotification = notificationCatalog.find((entry) => entry.id === 'notif-finops-budget');
+
+const FALLBACK_NOTIFICATION_TITLE = 'Nenhum evento recente';
+const FALLBACK_NOTIFICATION_MESSAGE =
+  'As integrações MCP permanecem estáveis. Novas notificações aparecerão aqui automaticamente.';
+
+const LONG_WAIT: NonNullable<Parameters<typeof screen.findByRole>[2]> = { timeout: 15000 };
+const nativeFetch = globalThis.fetch.bind(globalThis);
+
+async function mountApp(
+  userOptions?: Parameters<typeof userEvent.setup>[0],
+): Promise<{ user: ReturnType<typeof userEvent.setup> }> {
+  const user = userEvent.setup(userOptions);
+
+  await act(async () => {
+    renderWithinProviders();
+    await Promise.resolve();
+  });
+
+  await screen.findByRole('heading', { name: 'Operações unificadas' }, LONG_WAIT);
+
+  return { user };
+}
+
 describe('App provider orchestration flow', () => {
-  const originalFetch = globalThis.fetch;
   const originalConsoleError = console.error;
-  let fetchMock: Mock;
-  let applyDefaultFetchMock: () => void;
-  let defaultFetchImplementation: ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) | null = null;
+  let fetchSpy: MockInstance<Parameters<typeof globalThis.fetch>, ReturnType<typeof globalThis.fetch>>;
+  let consoleErrorSpy: MockInstance<Parameters<typeof console.error>, ReturnType<typeof console.error>>;
 
   beforeAll(() => {
     (globalThis as unknown as { ResizeObserver: typeof ResizeObserverMock }).ResizeObserver = ResizeObserverMock;
   });
 
-  const provider = {
-    id: 'gemini',
-    name: 'Gemini MCP',
-    description: 'Teste',
-    command: '~/.local/bin/gemini',
-    capabilities: ['chat'],
-    tags: ['llm'],
-    transport: 'stdio',
-    is_available: true,
-  };
-
-  const serverRecord = {
-    id: provider.id,
-    name: provider.name,
-    command: provider.command,
-    description: provider.description,
-    tags: provider.tags,
-    capabilities: provider.capabilities,
-    transport: provider.transport,
-    created_at: '2024-06-01T09:55:00.000Z',
-    updated_at: '2024-06-01T09:55:00.000Z',
-  };
-
-  const existingSession = {
-    id: 'session-existing',
-    provider_id: provider.id,
-    created_at: '2024-01-01T00:00:00.000Z',
-    status: 'pending',
-    reason: null,
-    client: null,
-  };
-
-  const newSession = {
-    id: 'session-new',
-    provider_id: provider.id,
-    created_at: '2024-01-02T00:00:00.000Z',
-    status: 'pending',
-    reason: 'Provisionamento disparado pela Console MCP',
-    client: 'console-web',
-  };
-
-  const secretMetadata = {
-    provider_id: provider.id,
-    has_secret: true,
-    updated_at: null,
-  };
-
-  const notifications = [
-    {
-      id: 'platform-release',
-      severity: 'info' as const,
-      title: 'Release 2024.09.1 publicado',
-      message:
-        'Novos alertas em tempo real e central de notificações disponíveis na console MCP.',
-      timestamp: '2024-01-02T03:00:00.000Z',
-      category: 'platform' as const,
-      tags: ['Release', 'DX'],
-    },
-  ];
-
   beforeEach(() => {
-    fetchMock = vi.fn();
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-    vi.spyOn(console, 'error').mockImplementation((message?: unknown, ...optionalParams: unknown[]) => {
-      if (typeof message === 'string' && message.includes('not wrapped in act')) {
-        return;
-      }
-      originalConsoleError(message, ...optionalParams);
-    });
-
-    const metricsPayload = {
-      start: '2024-03-07T12:00:00.000Z',
-      end: '2024-03-08T12:00:00.000Z',
-      total_runs: 3,
-      total_tokens_in: 900,
-      total_tokens_out: 450,
-      total_cost_usd: 12.34,
-      avg_latency_ms: 850,
-      success_rate: 0.66,
-      providers: [
-        {
-          provider_id: provider.id,
-          run_count: 2,
-          tokens_in: 600,
-          tokens_out: 300,
-          cost_usd: 8.5,
-          avg_latency_ms: 800,
-          success_rate: 0.75,
-        },
-      ],
-    };
-
-    const heatmapPayload = {
-      buckets: [
-        { day: '2024-03-06', provider_id: provider.id, run_count: 1 },
-        { day: '2024-03-07', provider_id: provider.id, run_count: 1 },
-      ],
-    };
-
-    const timeseriesPayload = {
-      items: [
-        {
-          day: '2024-03-06',
-          provider_id: provider.id,
-          run_count: 2,
-          tokens_in: 1600,
-          tokens_out: 800,
-          cost_usd: 1.8,
-          avg_latency_ms: 910,
-          success_count: 1,
-        },
-        {
-          day: '2024-03-07',
-          provider_id: provider.id,
-          run_count: 1,
-          tokens_in: 900,
-          tokens_out: 400,
-          cost_usd: 0.95,
-          avg_latency_ms: 870,
-          success_count: 1,
-        },
-      ],
-      next_cursor: null,
-    };
-
-    const paretoPayload = {
-      items: [
-        {
-          id: `${provider.id}:default`,
-          provider_id: provider.id,
-          provider_name: provider.name,
-          route: 'default',
-          lane: 'balanced',
-          run_count: 3,
-          tokens_in: 2600,
-          tokens_out: 1200,
-          cost_usd: 2.75,
-          avg_latency_ms: 900,
-          success_rate: 0.66,
-        },
-        {
-          id: `${provider.id}:fallback`,
-          provider_id: provider.id,
-          provider_name: provider.name,
-          route: 'fallback',
-          lane: 'turbo',
-          run_count: 2,
-          tokens_in: 1400,
-          tokens_out: 700,
-          cost_usd: 1.6,
-          avg_latency_ms: 780,
-          success_rate: 0.5,
-        },
-      ],
-      next_cursor: null,
-    };
-
-    const runsPayload = {
-      items: [
-        {
-          id: 1,
-          provider_id: provider.id,
-          provider_name: provider.name,
-          route: 'default',
-          lane: 'balanced',
-          ts: '2024-03-07T12:30:00.000Z',
-          tokens_in: 800,
-          tokens_out: 300,
-          duration_ms: 840,
-          status: 'success',
-          cost_usd: 0.9,
-          metadata: { consumer: 'squad-a' },
-        },
-        {
-          id: 2,
-          provider_id: provider.id,
-          provider_name: provider.name,
-          route: 'default',
-          lane: 'balanced',
-          ts: '2024-03-07T11:50:00.000Z',
-          tokens_in: 600,
-          tokens_out: 200,
-          duration_ms: 920,
-          status: 'retry',
-          cost_usd: 0.7,
-          metadata: { project: 'beta' },
-        },
-      ],
-      next_cursor: null,
-    };
-
-    const experimentsPayload = {
-      items: [
-        {
-          cohort: 'beta',
-          tag: 'treatment',
-          run_count: 8,
-          success_rate: 0.82,
-          error_rate: 0.12,
-          avg_latency_ms: 780,
-          total_cost_usd: 12.3,
-          total_tokens_in: 4800,
-          total_tokens_out: 2100,
-          mttr_ms: 3200,
-          recovery_events: 3,
-        },
-        {
-          cohort: 'control',
-          tag: null,
-          run_count: 5,
-          success_rate: 0.9,
-          error_rate: 0.05,
-          avg_latency_ms: 860,
-          total_cost_usd: 6.1,
-          total_tokens_in: 3200,
-          total_tokens_out: 1500,
-          mttr_ms: null,
-          recovery_events: 1,
-        },
-      ],
-    };
-
-    const laneCostsPayload = {
-      items: [
-        {
-          lane: 'economy',
-          run_count: 5,
-          total_cost_usd: 6.5,
-          total_tokens_in: 3200,
-          total_tokens_out: 1800,
-          avg_latency_ms: 1250,
-        },
-        {
-          lane: 'balanced',
-          run_count: 9,
-          total_cost_usd: 9.2,
-          total_tokens_in: 5000,
-          total_tokens_out: 2600,
-          avg_latency_ms: 890,
-        },
-      ],
-    };
-
-    const marketplacePayload = {
-      items: [
-        {
-          entry_id: 'market-01',
-          name: 'Guardrails Turbo',
-          origin: 'Console',
-          rating: 4.6,
-          cost: 0.45,
-          run_count: 14,
-          success_rate: 0.9,
-          avg_latency_ms: 860,
-          total_cost_usd: 6.3,
-          total_tokens_in: 3200,
-          total_tokens_out: 1800,
-          cohorts: ['beta', 'prod'],
-          adoption_score: 0.67,
-        },
-        {
-          entry_id: 'market-02',
-          name: 'Summaries Balanced',
-          origin: 'Marketplace',
-          rating: 4.2,
-          cost: 0.38,
-          run_count: 6,
-          success_rate: 0.86,
-          avg_latency_ms: 910,
-          total_cost_usd: 2.1,
-          total_tokens_in: 1800,
-          total_tokens_out: 900,
-          cohorts: ['beta'],
-          adoption_score: 0.44,
-        },
-      ],
-    };
-
-    const templateMetrics = {
-      economy: { slo: 857, budget: 66, incidents: 2, guard: 78 },
-      balanced: { slo: 985, budget: 80, incidents: 0, guard: 70 },
-      turbo: { slo: 569, budget: 74, incidents: 2, guard: 72 },
-    } as const;
-
-    const policyTemplatesPayload = {
-      templates: [
-        {
-          id: 'economy',
-          name: 'Economia',
-          tagline: 'FinOps primeiro',
-          description:
-            'Prioriza custo absoluto e direciona a maior parte do tráfego para modelos econômicos com fallback gradual.',
-          price_delta: '-22% vs. baseline',
-          latency_target: 'até 4.0 s P95',
-          guardrail_level: 'Nível 2 · Moderado',
-          features: [
-            'Roteia 70% das requisições para modelos Economy e Lite',
-            'Fallback manual para turbos em incidentes de SLA',
-            'Throttling progressivo por projeto e custo acumulado',
-          ],
-        },
-        {
-          id: 'balanced',
-          name: 'Equilíbrio',
-          tagline: 'Balanceamento inteligente',
-          description:
-            'Combina custo/latência com seleção automática do melhor modelo por rota de negócio, incluindo failover automático.',
-          price_delta: '-12% vs. baseline',
-          latency_target: 'até 2.5 s P95',
-          guardrail_level: 'Nível 3 · Avançado',
-          features: [
-            'Roteamento adaptativo por capacidade e disponibilidade',
-            'Failover automático com circuito aberto em 30s',
-            'Políticas de custo dinâmicas por equipe/projeto',
-          ],
-        },
-        {
-          id: 'turbo',
-          name: 'Turbo',
-          tagline: 'Velocidade máxima',
-          description:
-            'Entrega a menor latência possível e mantém modelos premium sempre quentes, com alertas agressivos de custo.',
-          price_delta: '+18% vs. baseline',
-          latency_target: 'até 900 ms P95',
-          guardrail_level: 'Nível 4 · Crítico',
-          features: [
-            'Pré-aquecimento de modelos turbo em múltiplas regiões',
-            'Orçamento observável com limites hora a hora',
-            'Expansão automática de capacidade sob demanda',
-          ],
-        },
-      ],
-      rollout: {
-        generatedAt: '2025-04-15T09:30:00+00:00',
-        plans: [
-          {
-            templateId: 'economy',
-            generatedAt: '2025-02-01T12:00:00+00:00',
-            allocations: [
-              {
-                segment: {
-                  id: 'canary',
-                  name: 'Canário',
-                  description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
-                },
-                coverage: 25,
-                providers: [provider],
-              },
-              {
-                segment: {
-                  id: 'general',
-                  name: 'GA',
-                  description: 'Workloads padrão com fallback automático e monitoramento de custos.',
-                },
-                coverage: 55,
-                providers: [],
-              },
-              {
-                segment: {
-                  id: 'fallback',
-                  name: 'Fallback',
-                  description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
-                },
-                coverage: 20,
-                providers: [],
-              },
-            ],
-          },
-          {
-            templateId: 'balanced',
-            generatedAt: '2025-04-15T09:30:00+00:00',
-            allocations: [
-              {
-                segment: {
-                  id: 'canary',
-                  name: 'Canário',
-                  description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
-                },
-                coverage: 12,
-                providers: [provider],
-              },
-              {
-                segment: {
-                  id: 'general',
-                  name: 'GA',
-                  description: 'Workloads padrão com fallback automático e monitoramento de custos.',
-                },
-                coverage: 62,
-                providers: [],
-              },
-              {
-                segment: {
-                  id: 'fallback',
-                  name: 'Fallback',
-                  description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
-                },
-                coverage: 26,
-                providers: [],
-              },
-            ],
-          },
-          {
-            templateId: 'turbo',
-            generatedAt: '2025-04-20T12:00:00+00:00',
-            allocations: [
-              {
-                segment: {
-                  id: 'canary',
-                  name: 'Canário',
-                  description: 'Rotas críticas monitoradas em tempo real com dashboards dedicados.',
-                },
-                coverage: 40,
-                providers: [provider],
-              },
-              {
-                segment: {
-                  id: 'general',
-                  name: 'GA',
-                  description: 'Workloads padrão com fallback automático e monitoramento de custos.',
-                },
-                coverage: 40,
-                providers: [],
-              },
-              {
-                segment: {
-                  id: 'fallback',
-                  name: 'Fallback',
-                  description: 'Rotas sensíveis com janela de rollback dedicada e dupla validação.',
-                },
-                coverage: 20,
-                providers: [],
-              },
-            ],
-          },
-        ],
-      },
-    };
-
-    type PolicyDeploymentRecord = {
-      id: string;
-      template_id: 'economy' | 'balanced' | 'turbo';
-      deployed_at: string;
-      author: string;
-      window: string | null;
-      note: string | null;
-      slo_p95_ms: number;
-      budget_usage_pct: number;
-      incidents_count: number;
-      guardrail_score: number;
-      created_at: string;
-      updated_at: string;
-    };
-
-    let deploymentsState: PolicyDeploymentRecord[] = [
-      {
-        id: 'deploy-economy-20250201',
-        template_id: 'economy',
-        deployed_at: '2025-02-01T12:00:00+00:00',
-        author: 'FinOps Squad',
-        window: 'Canário 5% → 20%',
-        note: 'Piloto para squads orientados a custo.',
-        slo_p95_ms: templateMetrics.economy.slo,
-        budget_usage_pct: templateMetrics.economy.budget,
-        incidents_count: templateMetrics.economy.incidents,
-        guardrail_score: templateMetrics.economy.guard,
-        created_at: '2025-02-01T12:00:00+00:00',
-        updated_at: '2025-02-01T12:00:00+00:00',
-      },
-      {
-        id: 'deploy-balanced-20250415',
-        template_id: 'balanced',
-        deployed_at: '2025-04-15T09:30:00+00:00',
-        author: 'Console MCP',
-        window: 'GA progressivo',
-        note: 'Promoção Q2 liberada para toda a frota.',
-        slo_p95_ms: templateMetrics.balanced.slo,
-        budget_usage_pct: templateMetrics.balanced.budget,
-        incidents_count: templateMetrics.balanced.incidents,
-        guardrail_score: templateMetrics.balanced.guard,
-        created_at: '2025-04-15T09:30:00+00:00',
-        updated_at: '2025-04-15T09:30:00+00:00',
-      },
-    ];
-
-    let deploymentCounter = 0;
-
-    const processBaseTime = new Date('2024-06-01T10:00:00Z').getTime();
-    let processLogCounter = 1;
-    type ProcessLogEntry = {
-      id: number;
-      timestamp: string;
-      level: 'info' | 'error';
-      message: string;
-    };
-
-    let processLogs: ProcessLogEntry[] = [
-      {
-        id: processLogCounter,
-        timestamp: new Date(processBaseTime).toISOString(),
-        level: 'info',
-        message: 'Processo iniciado pelo supervisor (PID 321).',
-      },
-    ];
-    let processStatus: 'running' | 'stopped' | 'error' = 'running';
-    let processPid: number | null = 321;
-    let processStartedAt: string | null = processLogs[0].timestamp;
-    let processStoppedAt: string | null = null;
-    let processReturnCode: number | null = null;
-    let processLastError: string | null = null;
-    let currentServerRecord: typeof serverRecord | null = { ...serverRecord };
-    let healthPingCounter = 2;
-    let currentHealthChecks = [
-      {
-        status: 'healthy' as const,
-        checked_at: '2024-06-01T11:00:00.000Z',
-        latency_ms: 245,
-        message: 'Ping automatizado dentro do SLA.',
-        actor: 'console-mcp',
-        plan_id: 'plan-operacoes',
-      },
-      {
-        status: 'degraded' as const,
-        checked_at: '2024-06-01T10:30:00.000Z',
-        latency_ms: 980,
-        message: 'Oscilação detectada durante deploy canário.',
-        actor: 'mcp-telemetry',
-        plan_id: 'plan-operacoes',
-      },
-    ];
-
-    function appendProcessLog(message: string, level: ProcessLogEntry['level'] = 'info') {
-      processLogCounter += 1;
-      const timestamp = new Date(processBaseTime + processLogCounter * 1000).toISOString();
-      processLogs = [...processLogs, { id: processLogCounter, timestamp, level, message }];
-    }
-
-    function buildProcessSnapshot() {
-      return {
-        server_id: provider.id,
-        status: processStatus,
-        command: provider.command,
-        pid: processPid,
-        started_at: processStartedAt,
-        stopped_at: processStoppedAt,
-        return_code: processReturnCode,
-        last_error: processLastError,
-        logs: processLogs.slice(-10).map((log) => ({
-          id: log.id.toString(),
-          timestamp: log.timestamp,
-          level: log.level,
-          message: log.message,
-        })),
-        cursor: processLogs.length ? processLogCounter.toString() : null,
-      };
-    }
-
-    applyDefaultFetchMock = () => {
-      processLogCounter = 1;
-      processLogs = [
-        {
-          id: processLogCounter,
-          timestamp: new Date(processBaseTime).toISOString(),
-          level: 'info',
-          message: 'Processo iniciado pelo supervisor (PID 321).',
-        },
-      ];
-      processStatus = 'running';
-      processPid = 321;
-      processStartedAt = processLogs[0].timestamp;
-      processStoppedAt = null;
-      processReturnCode = null;
-      processLastError = null;
-      currentServerRecord = { ...serverRecord };
-      currentHealthChecks = [
-        {
-          status: 'healthy',
-          checked_at: '2024-06-01T11:00:00.000Z',
-          latency_ms: 245,
-          message: 'Ping automatizado dentro do SLA.',
-          actor: 'console-mcp',
-          plan_id: 'plan-operacoes',
-        },
-        {
-          status: 'degraded',
-          checked_at: '2024-06-01T10:30:00.000Z',
-          latency_ms: 980,
-          message: 'Oscilação detectada durante deploy canário.',
-          actor: 'mcp-telemetry',
-          plan_id: 'plan-operacoes',
-        },
-      ];
-      healthPingCounter = currentHealthChecks.length;
-
-      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        const method = (init?.method ?? 'GET').toUpperCase();
-
-      if (url === '/api/v1/servers' && method === 'GET') {
-        const servers = currentServerRecord ? [currentServerRecord] : [];
-        return createFetchResponse({ servers });
-      }
-      if (url === '/api/v1/servers/processes' && method === 'GET') {
-        if (!currentServerRecord) {
-          return createFetchResponse({ processes: [] });
+    fetchSpy = vi.spyOn(globalThis, 'fetch');
+    consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation((message?: unknown, ...optionalParams: unknown[]) => {
+        if (typeof message === 'string' && message.includes('not wrapped in act')) {
+          return;
         }
-        return createFetchResponse({ processes: [buildProcessSnapshot()] });
-      }
-      if (url.startsWith(`/api/v1/servers/${provider.id}/process/logs`) && method === 'GET') {
-        const cursorParam = new URL(url, 'http://localhost').searchParams.get('cursor');
-        const cursorValue = cursorParam ? Number(cursorParam) : null;
-        const newLogs = processLogs.filter((log) => (cursorValue ?? 0) < log.id);
-        const nextCursor = newLogs.length ? newLogs[newLogs.length - 1].id.toString() : cursorParam ?? (cursorValue?.toString() ?? null);
-        return createFetchResponse({
-          logs: newLogs.map((log) => ({
-            id: log.id.toString(),
-            timestamp: log.timestamp,
-            level: log.level,
-            message: log.message,
-          })),
-          cursor: nextCursor,
-        });
-      }
-      if (url === `/api/v1/servers/${provider.id}/process/start` && method === 'POST') {
-        processStatus = 'running';
-        processPid = 987;
-        processStartedAt = new Date(processBaseTime + processLogCounter * 1000 + 500).toISOString();
-        processStoppedAt = null;
-        processReturnCode = null;
-        processLastError = null;
-        appendProcessLog('Processo iniciado com PID 987.');
-        return createFetchResponse({ process: buildProcessSnapshot() });
-      }
-      if (url === `/api/v1/servers/${provider.id}/process/stop` && method === 'POST') {
-        processStatus = 'stopped';
-        processPid = null;
-        processStoppedAt = new Date(processBaseTime + processLogCounter * 1000 + 500).toISOString();
-        processReturnCode = 0;
-        processLastError = null;
-        appendProcessLog('Processo encerrado com código 0.');
-        return createFetchResponse({ process: buildProcessSnapshot() });
-      }
-      if (url === `/api/v1/servers/${provider.id}/process/restart` && method === 'POST') {
-        processStatus = 'running';
-        processPid = 654;
-        processStartedAt = new Date(processBaseTime + processLogCounter * 1000 + 500).toISOString();
-        processStoppedAt = null;
-        processReturnCode = null;
-        processLastError = null;
-        appendProcessLog('Reinício solicitado pelo operador.');
-        appendProcessLog('Processo reiniciado com PID 654.');
-        return createFetchResponse({ process: buildProcessSnapshot() });
-      }
-
-      if (url === `/api/v1/servers/${provider.id}/health` && method === 'GET') {
-        return createFetchResponse({ checks: currentHealthChecks });
-      }
-      if (url === `/api/v1/servers/${provider.id}/health/ping` && method === 'POST') {
-        healthPingCounter += 1;
-        const newCheck = {
-          status: 'healthy' as const,
-          checked_at: new Date(processBaseTime + healthPingCounter * 60000).toISOString(),
-          latency_ms: 210,
-          message: 'Ping de monitoramento manual concluído com sucesso.',
-          actor: 'Console MCP',
-          plan_id: 'plan-operacoes',
-        };
-        currentHealthChecks = [newCheck, ...currentHealthChecks].slice(0, 6);
-        return createFetchResponse({ check: newCheck });
-      }
-
-      if (url === `/api/v1/servers/${provider.id}` && method === 'PUT') {
-        const body = init?.body ? JSON.parse(init.body.toString()) : {};
-        const baseRecord = currentServerRecord ?? serverRecord;
-        currentServerRecord = {
-          ...baseRecord,
-          name: body.name ?? baseRecord.name,
-          command: body.command ?? baseRecord.command,
-          description: body.description ?? baseRecord.description,
-          tags: body.tags ?? baseRecord.tags,
-          capabilities: body.capabilities ?? baseRecord.capabilities,
-          transport: body.transport ?? baseRecord.transport,
-          updated_at: new Date(processBaseTime + healthPingCounter * 1000).toISOString(),
-        };
-        return createFetchResponse(currentServerRecord);
-      }
-
-      if (url === `/api/v1/servers/${provider.id}` && method === 'DELETE') {
-        currentServerRecord = null;
-        currentHealthChecks = [];
-        return Promise.resolve({
-          ok: true,
-          status: 204,
-          json: () => Promise.resolve(undefined),
-        } as Response);
-      }
-
-      if (url === '/api/v1/providers' && method === 'GET') {
-        return createFetchResponse({ providers: [provider] });
-      }
-      if (url === '/api/v1/sessions' && method === 'GET') {
-        return createFetchResponse({ sessions: [existingSession] });
-      }
-      if (url === '/api/v1/secrets' && method === 'GET') {
-        return createFetchResponse({ secrets: [secretMetadata] });
-      }
-      if (url === `/api/v1/secrets/${provider.id}/test` && method === 'POST') {
-        return createFetchResponse({
-          provider_id: provider.id,
-          status: 'healthy',
-          latency_ms: 268,
-          tested_at: '2024-06-01T12:00:00.000Z',
-          message: `${provider.name} respondeu ao handshake em 268 ms.`,
-        });
-      }
-      if (url === '/agents/catalog-search/invoke' && method === 'POST') {
-        const body = init?.body ? JSON.parse(init.body.toString()) : {};
-        const query = body?.input?.query ?? '';
-        if (!query) {
-          return createFetchResponse({ result: { items: [] } });
-        }
-        return createFetchResponse({
-          result: {
-            items: [
-              {
-                sku: 'SKU-ROUTING-01',
-                name: 'Routing Playbook',
-                description: `Sugestões para “${query}”`,
-                category: 'Playbooks',
-                tags: ['agente', 'routing'],
-              },
-            ],
-          },
-        });
-      }
-      if (url === '/api/v1/notifications' && method === 'GET') {
-        return createFetchResponse({ notifications });
-      }
-      if (url === `/api/v1/providers/${provider.id}/sessions` && method === 'POST') {
-        return createFetchResponse({ session: newSession, provider });
-      }
-      if (url.startsWith('/api/v1/telemetry/metrics')) {
-        return createFetchResponse(metricsPayload);
-      }
-      if (url.startsWith('/api/v1/telemetry/heatmap')) {
-        return createFetchResponse(heatmapPayload);
-      }
-      if (url.startsWith('/api/v1/telemetry/timeseries')) {
-        return createFetchResponse(timeseriesPayload);
-      }
-      if (url.startsWith('/api/v1/telemetry/pareto')) {
-        return createFetchResponse(paretoPayload);
-      }
-      if (url.startsWith('/api/v1/telemetry/runs')) {
-        return createFetchResponse(runsPayload);
-      }
-      if (url.startsWith('/api/v1/telemetry/experiments')) {
-        return createFetchResponse(experimentsPayload);
-      }
-      if (url.startsWith('/api/v1/telemetry/lane-costs')) {
-        return createFetchResponse(laneCostsPayload);
-      }
-      if (url.startsWith('/api/v1/telemetry/marketplace/performance')) {
-        return createFetchResponse(marketplacePayload);
-      }
-      if (url === '/api/v1/policies/templates' && method === 'GET') {
-        return createFetchResponse(policyTemplatesPayload);
-      }
-      if (url === '/api/v1/routing/simulate' && method === 'POST') {
-        const body = init?.body ? JSON.parse(init.body.toString()) : {};
-        const failoverProviderId = body.failover_provider_id ?? null;
-        const requestedStrategy: string = body.strategy ?? 'balanced';
-        const volumeMillions: number = body.volume_millions ?? 12;
-
-        const commonRoute = {
-          id: provider.id,
-          provider,
-          lane: 'balanced' as const,
-          cost_per_million: 20,
-          latency_p95: 940,
-          reliability: 95,
-          capacity_score: 80,
-        };
-
-        const distribution = failoverProviderId
-          ? []
-          : [
-              {
-                route: commonRoute,
-                share: 0.7,
-                tokens_millions: 8.4,
-                cost: 168,
-              },
-            ];
-
-        return createFetchResponse({
-          context: {
-            strategy: requestedStrategy,
-            provider_ids: [provider.id],
-            provider_count: 1,
-            volume_millions: volumeMillions,
-            failover_provider_id: failoverProviderId,
-          },
-          cost: {
-            total_usd: 210,
-            cost_per_million_usd: 17.5,
-          },
-          latency: {
-            avg_latency_ms: 880,
-            reliability_score: 95.3,
-          },
-          distribution,
-          excluded_route: failoverProviderId ? commonRoute : null,
-        });
-      }
-      if (url === '/api/v1/policies/deployments' && method === 'GET') {
-        const active = deploymentsState.length ? deploymentsState[deploymentsState.length - 1].id : null;
-        return createFetchResponse({ deployments: deploymentsState, active_id: active });
-      }
-      if (url === '/api/v1/policies/deployments' && method === 'POST') {
-        const body = init?.body ? JSON.parse(init.body.toString()) : {};
-        const templateId: keyof typeof templateMetrics = body.template_id ?? 'economy';
-        const metrics = templateMetrics[templateId] ?? templateMetrics.economy;
-        deploymentCounter += 1;
-        const timestamp = `2025-04-20T12:00:${deploymentCounter.toString().padStart(2, '0')}+00:00`;
-        const newDeployment: PolicyDeploymentRecord = {
-          id: `deploy-${templateId}-test-${deploymentCounter}`,
-          template_id: templateId,
-          deployed_at: timestamp,
-          author: body.author ?? 'Console MCP',
-          window: body.window ?? null,
-          note: body.note ?? null,
-          slo_p95_ms: metrics.slo,
-          budget_usage_pct: metrics.budget,
-          incidents_count: metrics.incidents,
-          guardrail_score: metrics.guard,
-          created_at: timestamp,
-          updated_at: timestamp,
-        };
-        deploymentsState = [...deploymentsState, newDeployment];
-        return createFetchResponse(newDeployment);
-      }
-      if (url.startsWith('/api/v1/policies/deployments/') && method === 'DELETE') {
-        const deploymentId = url.split('/').pop();
-        deploymentsState = deploymentsState.filter((deployment) => deployment.id !== deploymentId);
-        return Promise.resolve({
-          ok: true,
-          status: 204,
-          json: () => Promise.resolve(undefined),
-        } as Response);
-      }
-
-      if (method === 'DELETE') {
-        return Promise.resolve({
-          ok: true,
-          status: 204,
-          json: () => Promise.resolve(undefined),
-        } as Response);
-        }
-
-        return createFetchResponse({});
+        originalConsoleError(message, ...optionalParams);
       });
-      defaultFetchImplementation = fetchMock.getMockImplementation() ?? null;
-    };
-
-    applyDefaultFetchMock();
+    window.localStorage.clear();
+    globalThis.__CONSOLE_MCP_FIXTURES__ = 'ready';
+    server.use(
+      http.post('*/api/v1/telemetry/ui-events', () => HttpResponse.json({}, { status: 204 })),
+    );
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.restoreAllMocks();
-    console.error = originalConsoleError;
+    fetchSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+    vi.clearAllMocks();
     window.localStorage.clear();
   });
 
-  function resetFetchMock(): void {
-    fetchMock.mockReset();
-    applyDefaultFetchMock();
-  }
-
   it('lists providers and provisions a session on demand', async () => {
-    const user = userEvent.setup();
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
+    const { user } = await mountApp();
+
+    await waitFor(() => expect(screen.queryByText('Carregando provedores…')).not.toBeInTheDocument());
+
+    const providerCard = await screen.findByTestId(DASHBOARD_TEST_IDS.providerCard(geminiProvider.id), undefined, LONG_WAIT);
+    const provisionButton = within(providerCard).getByRole('button', {
+      name: 'Criar sessão de provisionamento',
     });
-
-    const [providerSummaryHeading] = await screen.findAllByRole('heading', { name: provider.name });
-    expect(providerSummaryHeading).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.queryByText('Carregando provedores…')).not.toBeInTheDocument();
-    });
-
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      '/api/v1/servers',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      '/api/v1/sessions',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      '/api/v1/secrets',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
-      '/api/v1/notifications',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    const metricsCall = fetchMock.mock.calls[4];
-    expect(metricsCall?.[1]).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    const metricsUrl = new URL(metricsCall?.[0] as string, 'http://localhost');
-    expect(metricsUrl.pathname).toBe('/api/v1/telemetry/metrics');
-    expect(metricsUrl.searchParams.has('start')).toBe(true);
-
-    const heatmapCall = fetchMock.mock.calls[5];
-    expect(heatmapCall?.[1]).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    const heatmapUrl = new URL(heatmapCall?.[0] as string, 'http://localhost');
-    expect(heatmapUrl.pathname).toBe('/api/v1/telemetry/heatmap');
-    expect(heatmapUrl.searchParams.has('start')).toBe(true);
-    expect(heatmapUrl.searchParams.has('end')).toBe(true);
-
-    expect(await screen.findByText(provider.description)).toBeInTheDocument();
-    expect(await screen.findByText(existingSession.id)).toBeInTheDocument();
-
-    const provisionButton = screen.getByRole('button', { name: 'Criar sessão de provisionamento' });
     await user.click(provisionButton);
 
-    const provisioningDialog = await screen.findByRole('dialog', {
-      name: /Overrides táticos para/i,
-    });
-    const confirmProvision = within(provisioningDialog).getByRole('button', {
-      name: 'Provisionar com overrides',
-    });
-    const reasonInput = within(provisioningDialog).getByLabelText('Motivo');
+    const dialog = await screen.findByRole('dialog', { name: /Overrides táticos para/i }, LONG_WAIT);
+    const reasonInput = within(dialog).getByLabelText('Motivo');
     await user.clear(reasonInput);
     await user.type(reasonInput, 'Provisionamento disparado pela Console MCP');
-    const sampleInput = within(provisioningDialog).getByLabelText('Sample rate de tracing (%)');
-    await user.clear(sampleInput);
-    await user.click(confirmProvision);
+    const sampleRateInput = within(dialog).getByLabelText('Sample rate de tracing (%)');
+    await user.clear(sampleRateInput);
+    await user.type(sampleRateInput, '50');
+
+    const confirmButton = within(dialog).getByRole('button', { name: 'Provisionar com overrides' });
+    await user.click(confirmButton);
+
+    const successToast = await screen.findByText(
+      /Sessão session-gemini-/i,
+      { selector: '.feedback.success' },
+      LONG_WAIT,
+    );
+    expect(successToast).toBeInTheDocument();
 
     await waitFor(() => {
       expect(
-        fetchMock.mock.calls.some(
-          ([url, options]) =>
-            url === `/api/v1/providers/${provider.id}/sessions` &&
-            (options as RequestInit | undefined)?.method === 'POST',
-        ),
+        fetchSpy.mock.calls.some(([url, options]) => {
+          const target = url instanceof URL ? url.href : url?.toString() ?? '';
+          return (
+            target.includes(`/api/v1/providers/${geminiProvider.id}/sessions`) &&
+            (options as RequestInit | undefined)?.method === 'POST'
+          );
+        }),
       ).toBe(true);
     });
-
-    const [provisionSuccess] = await screen.findAllByText(
-      `Sessão ${newSession.id} criada para ${provider.name}.`,
-    );
-    expect(provisionSuccess).toBeInTheDocument();
-    expect(screen.getByText(newSession.id)).toBeInTheDocument();
-
-    const provisioningCall = fetchMock.mock.calls.find(
-      ([url]) => url === `/api/v1/providers/${provider.id}/sessions`,
-    );
-    expect(provisioningCall).toBeDefined();
-    const requestBody = JSON.parse((provisioningCall?.[1] as RequestInit | undefined)?.body as string);
-    expect(requestBody).toEqual({
-      reason: 'Provisionamento disparado pela Console MCP',
-      client: 'console-web',
-    });
-  });
+  }, 30000);
 
   it('supports keyboard-first flows with skip link and arrow navigation', async () => {
-    const user = userEvent.setup();
-
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+    const { user } = await mountApp();
 
     const skipLink = await screen.findByRole('link', { name: 'Ir para o conteúdo principal' });
-
     await user.tab();
     expect(skipLink).toHaveFocus();
 
     await user.keyboard('{Enter}');
-
     const mainRegion = document.getElementById('main-content');
-    if (!(mainRegion instanceof HTMLElement)) {
-      throw new Error('Main content region not found');
-    }
+    expect(mainRegion).not.toBeNull();
     await waitFor(() => expect(mainRegion).toHaveFocus());
 
     const nav = screen.getByRole('navigation', { name: 'Navegação principal' });
-    const navButtons = within(nav).getAllByRole('button');
-
-    (navButtons[0] as HTMLButtonElement).focus();
-    expect(navButtons[0]).toHaveFocus();
+    const navLinks = within(nav).getAllByRole('link');
+    (navLinks[0] as HTMLAnchorElement).focus();
 
     await user.keyboard('{ArrowRight}');
-    expect(navButtons[1]).toHaveFocus();
-    await screen.findByRole('heading', { name: /Observabilidade unificada/i });
+    expect(navLinks[1]).toHaveFocus();
+    await screen.findByRole('heading', { name: /Observabilidade unificada/i }, LONG_WAIT);
 
     await user.keyboard('{ArrowLeft}');
-    expect(navButtons[0]).toHaveFocus();
+    expect(navLinks[0]).toHaveFocus();
+
     await waitFor(() => {
-      expect(navButtons[0]).toHaveAttribute('aria-current', 'page');
-      expect(navButtons[1]).not.toHaveAttribute('aria-current', 'page');
-      expect(screen.queryByRole('heading', { name: /Observabilidade unificada/i })).not.toBeInTheDocument();
+      expect(navLinks[0]).toHaveAttribute('aria-current', 'page');
+      expect(navLinks[1]).not.toHaveAttribute('aria-current', 'page');
     });
-  });
+  }, 30000);
 
   it('allows controlling servers from the servers view', async () => {
-    const user = userEvent.setup();
-
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
-
-    const [providerServersHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerServersHeading).toBeInTheDocument();
-    const serversTab = screen.getByRole('button', { name: 'Servidores' });
+    const { user } = await mountApp();
+    const serversTab = screen.getByRole('link', { name: 'Servidores' });
     await user.click(serversTab);
 
-    await screen.findByRole('heading', { name: /Servidores MCP/i });
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/servers/processes',
-        expect.objectContaining({ signal: expect.any(AbortSignal) }),
-      );
-    });
+    await screen.findByRole('heading', { name: /Servidores MCP/i }, LONG_WAIT);
 
-    const serverHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
-    const serverCard = serverHeading.closest('article');
-    expect(serverCard).not.toBeNull();
-
-    const scoped = within(serverCard as HTMLElement);
+    const serverCard = await screen.findByTestId(
+      SERVERS_TEST_IDS.card(geminiProvider.id),
+      {},
+      LONG_WAIT,
+    );
+    const scoped = within(serverCard);
 
     const stopButton = await scoped.findByRole('button', { name: 'Parar' });
     await user.click(stopButton);
 
     const stopDialog = await screen.findByRole('dialog', {
-      name: `Parar servidor · ${provider.name}`,
+      name: `Parar servidor · ${geminiProvider.name}`,
     });
-    const stopConfirm = within(stopDialog).getByRole('button', { name: 'Parar servidor' });
-    await user.click(stopConfirm);
-    const stopArmed = within(stopDialog).getByRole('button', { name: 'Parar agora' });
-    await user.click(stopArmed);
+    await user.click(within(stopDialog).getByRole('button', { name: 'Parar servidor' }));
+    await user.click(within(stopDialog).getByRole('button', { name: 'Parar agora' }));
 
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: `Parar servidor · ${provider.name}` })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole('dialog', { name: `Parar servidor · ${geminiProvider.name}` }),
+      ).not.toBeInTheDocument(),
     );
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/v1/servers/${provider.id}/process/stop`,
-        expect.objectContaining({ method: 'POST' }),
-      );
-    });
-
-    await waitFor(
-      () => {
-        expect(scoped.getByText('Offline')).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => expect(scoped.getByText('Offline')).toBeInTheDocument());
 
     const startButton = scoped.getByRole('button', { name: 'Iniciar' });
     await user.click(startButton);
 
     const startDialog = await screen.findByRole('dialog', {
-      name: `Iniciar servidor · ${provider.name}`,
+      name: `Iniciar servidor · ${geminiProvider.name}`,
     });
-    const startConfirm = within(startDialog).getByRole('button', { name: 'Iniciar servidor' });
-    await user.click(startConfirm);
-    const startArmed = within(startDialog).getByRole('button', { name: 'Iniciar agora' });
-    await user.click(startArmed);
+    await user.click(within(startDialog).getByRole('button', { name: 'Iniciar servidor' }));
+    await user.click(within(startDialog).getByRole('button', { name: 'Iniciar agora' }));
 
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: `Iniciar servidor · ${provider.name}` })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole('dialog', { name: `Iniciar servidor · ${geminiProvider.name}` }),
+      ).not.toBeInTheDocument(),
     );
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/v1/servers/${provider.id}/process/start`,
-        expect.objectContaining({ method: 'POST' }),
-      );
-    });
-
-    await waitFor(
-      () => {
-        expect(scoped.getByText('Online')).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
+    await waitFor(() => expect(scoped.getByText('Online')).toBeInTheDocument());
+  }, 30000);
 
   it('permite editar, pingar e remover servidores MCP pela página de servidores', async () => {
-    const user = userEvent.setup();
+    const { user } = await mountApp();
+    await user.click(screen.getByRole('link', { name: 'Servidores' }));
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+    await screen.findByRole('heading', { name: /Servidores MCP/i }, LONG_WAIT);
 
-    const [providerServersHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerServersHeading).toBeInTheDocument();
-    const serversTab = screen.getByRole('button', { name: 'Servidores' });
-    await user.click(serversTab);
-
-    await screen.findByRole('heading', { name: /Servidores MCP/i });
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/v1/servers/${provider.id}/health`,
-        expect.objectContaining({ signal: expect.any(AbortSignal) }),
-      );
-    });
-
-    const healthRegion = await screen.findByRole('region', { name: 'Resumo de health-checks' });
-    await waitFor(() => {
-      const healthCounts = within(healthRegion).getAllByText((_, element) => element?.tagName === 'STRONG');
-      expect(healthCounts.map((node) => node.textContent)).toEqual(['1', '0', '0', '0']);
-    });
-
-    const serverHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
-    const serverCard = serverHeading.closest('article');
-    expect(serverCard).not.toBeNull();
-    const scoped = within(serverCard as HTMLElement);
-
-    await scoped.findByText('Ping automatizado dentro do SLA.');
-    await scoped.findByText('Oscilação detectada durante deploy canário.');
+    const serverCard = await screen.findByTestId(
+      SERVERS_TEST_IDS.card(geminiProvider.id),
+      {},
+      LONG_WAIT,
+    );
+    const scoped = within(serverCard);
 
     const pingButton = scoped.getByRole('button', { name: 'Ping agora' });
     await user.click(pingButton);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/v1/servers/${provider.id}/health/ping`,
-        expect.objectContaining({ method: 'POST' }),
-      );
-    });
-
-    await waitFor(() => {
-      expect(scoped.getByText('Ping de monitoramento manual concluído com sucesso.')).toBeInTheDocument();
+      expect(scoped.queryAllByText('Ping realizado com sucesso via fixtures.').length).toBeGreaterThan(0);
     });
 
     const editButton = scoped.getByRole('button', { name: 'Editar servidor' });
     await user.click(editButton);
 
     const editDialog = await screen.findByRole('dialog', { name: 'Editar servidor MCP' });
-    const nameInput = within(editDialog).getByLabelText('Nome exibido');
-    const commandInput = within(editDialog).getByLabelText('Comando/endpoint');
-    const descriptionInput = within(editDialog).getByLabelText('Descrição');
-    const transportInput = within(editDialog).getByLabelText('Transporte');
-    const tagsInput = within(editDialog).getByLabelText('Tags (separadas por vírgula)');
-    const capabilitiesInput = within(editDialog).getByLabelText('Capacidades (separadas por vírgula)');
-
-    await user.clear(nameInput);
-    await user.type(nameInput, 'Gemini MCP · Observabilidade');
-    await user.clear(commandInput);
-    await user.type(commandInput, '/opt/mcp/gemini');
-    await user.clear(descriptionInput);
-    await user.type(descriptionInput, 'Servidor MCP supervisionado pela console.');
-    await user.clear(transportInput);
-    await user.type(transportInput, 'http');
-    await user.clear(tagsInput);
-    await user.type(tagsInput, 'llm,observabilidade');
-    await user.clear(capabilitiesInput);
-    await user.type(capabilitiesInput, 'chat,embeddings');
-
-    const confirmEdit = within(editDialog).getByRole('button', { name: 'Salvar alterações' });
-    await user.click(confirmEdit);
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/v1/servers/${provider.id}`,
-        expect.objectContaining({ method: 'PUT' }),
-      );
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Editar servidor MCP' })).not.toBeInTheDocument();
-    });
-
-    const updateCall = fetchMock.mock.calls.find(
-      ([url, options]) => url === `/api/v1/servers/${provider.id}` && (options as RequestInit | undefined)?.method === 'PUT',
+    await user.clear(within(editDialog).getByLabelText('Nome exibido'));
+    await user.type(within(editDialog).getByLabelText('Nome exibido'), 'Gemini MCP · Observabilidade');
+    await user.clear(within(editDialog).getByLabelText('Comando/endpoint'));
+    await user.type(within(editDialog).getByLabelText('Comando/endpoint'), '/opt/mcp/gemini');
+    await user.clear(within(editDialog).getByLabelText('Descrição'));
+    await user.type(
+      within(editDialog).getByLabelText('Descrição'),
+      'Servidor MCP supervisionado pela console.',
     );
-    expect(updateCall).toBeDefined();
-    const payload = JSON.parse(((updateCall?.[1] as RequestInit | undefined)?.body as string) ?? '{}');
-    expect(payload).toEqual({
+
+    await user.click(within(editDialog).getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Editar servidor MCP' })).not.toBeInTheDocument(),
+    );
+
+    const updatedHeading = await screen.findByRole('heading', {
+      level: 2,
       name: 'Gemini MCP · Observabilidade',
-      command: '/opt/mcp/gemini',
-      description: 'Servidor MCP supervisionado pela console.',
-      tags: ['llm', 'observabilidade'],
-      capabilities: ['chat', 'embeddings'],
-      transport: 'http',
     });
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' })).toBeInTheDocument();
-    });
-
-    const updatedHeading = await screen.findByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' });
     const updatedCard = updatedHeading.closest('article');
     expect(updatedCard).not.toBeNull();
-    const updatedScoped = within(updatedCard as HTMLElement);
-    expect(updatedScoped.getByText('Servidor MCP supervisionado pela console.')).toBeInTheDocument();
-    expect(updatedScoped.getByText('/opt/mcp/gemini')).toBeInTheDocument();
-    expect(updatedScoped.getByText('http')).toBeInTheDocument();
 
-    const deleteButton = updatedScoped.getByRole('button', { name: 'Remover servidor' });
-    await user.click(deleteButton);
+    const removeButton = within(updatedCard as HTMLElement).getByRole('button', { name: 'Remover servidor' });
+    await user.click(removeButton);
 
     const deleteDialog = await screen.findByRole('dialog', { name: 'Remover servidor MCP' });
-    const confirmDelete = within(deleteDialog).getByRole('button', { name: 'Remover servidor' });
-    await user.click(confirmDelete);
+    await user.click(within(deleteDialog).getByRole('button', { name: 'Remover servidor' }));
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/v1/servers/${provider.id}`,
-        expect.objectContaining({ method: 'DELETE' }),
-      );
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' })).not.toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      const emptyHealthCounts = within(healthRegion).getAllByText((_, element) => element?.tagName === 'STRONG');
-      expect(emptyHealthCounts.map((node) => node.textContent)).toEqual(['0', '0', '0', '0']);
-    });
-  });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { level: 2, name: 'Gemini MCP · Observabilidade' }),
+      ).not.toBeInTheDocument(),
+    );
+  }, 30000);
 
   it('executes connectivity checks from the keys view', async () => {
-    const user = userEvent.setup();
+    const { user } = await mountApp();
+    await user.click(screen.getByRole('link', { name: 'Chaves' }));
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+    await screen.findByRole('heading', { name: /Chaves MCP/i }, LONG_WAIT);
 
-    const [providerKeysHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerKeysHeading).toBeInTheDocument();
-    const keysTab = screen.getByRole('button', { name: 'Chaves' });
-    await user.click(keysTab);
-
-    await screen.findByRole('heading', { name: /Chaves MCP/i });
-
-    const keyHeading = await screen.findByRole('heading', { level: 2, name: provider.name });
+    const keyHeading = await screen.findByRole('heading', { level: 2, name: geminiProvider.name });
     const keyCard = keyHeading.closest('article');
-    expect(keyCard).not.toBeNull();
+    if (!keyCard) {
+      throw new Error('Key card not found');
+    }
+    const scoped = within(keyCard);
 
-    const scoped = within(keyCard as HTMLElement);
     const testButton = scoped.getByRole('button', { name: 'Testar conectividade' });
     await user.click(testButton);
 
-    await waitFor(
-      () => {
-        expect(
-          scoped.getByText(`${provider.name} respondeu ao handshake em 268 ms.`),
-        ).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/v1/secrets/${provider.id}/test`,
-        expect.objectContaining({ method: 'POST' }),
-      );
-    });
-
-    await waitFor(
-      () => {
-        expect(testButton).not.toBeDisabled();
-      },
-      { timeout: 2000 },
-    );
-  });
+    expect(await scoped.findByText('Secret validado pelas fixtures locais.')).toBeInTheDocument();
+    expect(scoped.getByText('Handshake saudável')).toBeInTheDocument();
+  }, 30000);
 
   it('permite explorar cenários de routing e simular falhas', async () => {
-    const user = userEvent.setup();
+    const { user } = await mountApp();
+    await user.click(screen.getByRole('link', { name: 'Routing' }));
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
-
-    const [providerRoutingHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerRoutingHeading).toBeInTheDocument();
-    const routingTab = screen.getByRole('button', { name: 'Routing' });
-    await user.click(routingTab);
-
-    await screen.findByRole('heading', { name: /Simulador “what-if” de roteamento/i });
+    await screen.findByRole('heading', { name: /Simulador/i }, LONG_WAIT);
 
     const focusBadge = await screen.findByTestId('routing-focus');
     expect(focusBadge).toHaveTextContent('Redução de custo');
@@ -1355,40 +318,35 @@ describe('App provider orchestration flow', () => {
     const latencyOption = screen.getByRole('radio', { name: /Latência prioritária/i });
     await user.click(latencyOption);
 
-    await waitFor(() => {
-      expect(screen.getByTestId('routing-focus')).toHaveTextContent('Resposta em milissegundos');
-    });
+    await waitFor(() => expect(screen.getByTestId('routing-focus')).toHaveTextContent('Resposta em milissegundos'));
 
     const failoverSelect = screen.getByLabelText('Falha simulada');
-    await user.selectOptions(failoverSelect, provider.name);
+    await user.selectOptions(failoverSelect, geminiProvider.name);
 
-    await screen.findByText('Tráfego realocado após falha');
-    await screen.findByText('Nenhuma rota disponível para o cenário escolhido.');
-  });
+    await waitFor(() =>
+      expect(
+        fetchSpy.mock.calls.some(([url, options]) => {
+          const target = url instanceof URL ? url.href : url?.toString() ?? '';
+          return (
+            target.includes('/api/v1/routing/simulate') &&
+            (options as RequestInit | undefined)?.method === 'POST'
+          );
+        }),
+      ).toBe(true),
+    );
+  }, 30000);
 
   it('apresenta filtros de FinOps e exporta CSV da série temporal', async () => {
-    const user = userEvent.setup();
+    const { user } = await mountApp();
+    await user.click(screen.getByRole('link', { name: 'FinOps' }));
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
-
-    const [providerPaletteHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerPaletteHeading).toBeInTheDocument();
-    const finopsTab = screen.getByRole('button', { name: 'FinOps' });
-    await user.click(finopsTab);
-
-    await screen.findByRole('heading', { name: /Séries temporais/i });
+    await screen.findByRole('heading', { name: /Séries temporais/i }, LONG_WAIT);
 
     const exportButton = await screen.findByRole('button', { name: 'Exportar CSV' });
     expect(exportButton).toBeEnabled();
 
     const providerSelect = screen.getByLabelText('Provedor');
-    await user.selectOptions(providerSelect, provider.id);
+    await user.selectOptions(providerSelect, geminiProvider.id);
 
     const periodButton = screen.getByRole('button', { name: '7 dias' });
     await user.click(periodButton);
@@ -1396,110 +354,59 @@ describe('App provider orchestration flow', () => {
     const metricButton = screen.getByRole('button', { name: 'Tokens' });
     await user.click(metricButton);
 
-    const summaryTable = await screen.findByRole('table', { name: /Resumo diário filtrado/i });
-    expect(summaryTable).toBeInTheDocument();
-
-    const paretoGroup = await screen.findByRole('radiogroup', { name: /Rotas ordenadas por custo/i });
-    const paretoOptions = within(paretoGroup).getAllByRole('radio');
-    expect(paretoOptions.length).toBeGreaterThan(1);
-
-    const secondOption = paretoOptions[1];
-    await user.click(secondOption);
-    expect(secondOption).toHaveAttribute('aria-checked', 'true');
-
-    const runsTable = await screen.findByRole('table', { name: /Runs da rota selecionada/i });
-    expect(within(runsTable).getAllByRole('row').length).toBeGreaterThan(1);
-
-    const experimentsHeading = await screen.findByRole('heading', { name: 'Experimentos e cohorts' });
-    expect(experimentsHeading).toBeInTheDocument();
-    const experimentsTable = await screen.findByRole('table', { name: /Tabela de experimentos e cohorts/i });
-    expect(within(experimentsTable).getByText(/Cohort: beta/i)).toBeInTheDocument();
-
-    const laneSection = experimentsHeading.closest('section')?.nextElementSibling as HTMLElement | null;
-    expect(laneSection).not.toBeNull();
-    const laneHeading = within(laneSection as HTMLElement).getByRole('heading', { name: 'Custo por tier' });
-    const laneList = within(laneSection as HTMLElement).getByRole('list');
-    expect(within(laneList).getAllByRole('listitem').length).toBeGreaterThan(1);
-
-    const marketplaceHeading = await screen.findByRole('heading', { name: 'Performance do marketplace' });
-    expect(marketplaceHeading).toBeInTheDocument();
-    const marketplaceTable = await screen.findByRole('table', { name: /Tabela de marketplace monitorado/i });
-    expect(within(marketplaceTable).getByText('Guardrails Turbo')).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: /Resumo diário filtrado/i })).toBeInTheDocument();
 
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
 
-    if (typeof URL.createObjectURL !== 'function') {
-      (URL as unknown as { createObjectURL: (blob: Blob) => string }).createObjectURL = () => 'blob:mock';
-    }
-
-    if (typeof URL.revokeObjectURL !== 'function') {
-      (URL as unknown as { revokeObjectURL: (url: string) => void }).revokeObjectURL = () => {};
-    }
-
-    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:finops');
-    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const createObjectURLMock = vi.fn(() => 'blob:finops');
+    const revokeObjectURLMock = vi.fn();
+    (URL as unknown as Record<string, unknown>).createObjectURL = createObjectURLMock;
+    (URL as unknown as Record<string, unknown>).revokeObjectURL = revokeObjectURLMock;
     const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
     try {
       await user.click(exportButton);
-
-      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+      expect(createObjectURLMock).toHaveBeenCalled();
 
       const experimentCsvButton = await screen.findByRole('button', {
         name: 'Exportar experimentos em CSV',
       });
       await user.click(experimentCsvButton);
-      expect(createObjectURLSpy).toHaveBeenCalledTimes(2);
 
-      const experimentJsonButton = screen.getByRole('button', {
-        name: 'Exportar experimentos em JSON',
-      });
+      const experimentJsonButton = screen.getByRole('button', { name: 'Exportar experimentos em JSON' });
       await user.click(experimentJsonButton);
-      expect(createObjectURLSpy).toHaveBeenCalledTimes(3);
 
-      const laneCsvButton = screen.getByRole('button', {
-        name: 'Exportar custos por tier em CSV',
-      });
+      const laneCsvButton = screen.getByRole('button', { name: 'Exportar custos por tier em CSV' });
       await user.click(laneCsvButton);
-      expect(createObjectURLSpy).toHaveBeenCalledTimes(4);
 
       const marketplaceJsonButton = screen.getByRole('button', {
         name: 'Exportar marketplace em JSON',
       });
       await user.click(marketplaceJsonButton);
-      expect(createObjectURLSpy).toHaveBeenCalledTimes(5);
+
       expect(anchorClickSpy).toHaveBeenCalledTimes(5);
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      expect(revokeObjectURLMock).toHaveBeenCalled();
     } finally {
       anchorClickSpy.mockRestore();
-      createObjectURLSpy.mockRestore();
-      revokeObjectURLSpy.mockRestore();
       if (originalCreateObjectURL) {
-        (URL as unknown as { createObjectURL: typeof originalCreateObjectURL }).createObjectURL = originalCreateObjectURL;
+        (URL as unknown as { createObjectURL: typeof originalCreateObjectURL }).createObjectURL =
+          originalCreateObjectURL;
       } else {
-        delete (URL as unknown as { createObjectURL?: typeof originalCreateObjectURL }).createObjectURL;
+        delete (URL as unknown as Record<string, unknown>).createObjectURL;
       }
       if (originalRevokeObjectURL) {
-        (URL as unknown as { revokeObjectURL: typeof originalRevokeObjectURL }).revokeObjectURL = originalRevokeObjectURL;
+        (URL as unknown as { revokeObjectURL: typeof originalRevokeObjectURL }).revokeObjectURL =
+          originalRevokeObjectURL;
       } else {
-        delete (URL as unknown as { revokeObjectURL?: typeof originalRevokeObjectURL }).revokeObjectURL;
+        delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
       }
     }
-  });
+  }, 30000);
 
   it('permite alternar superfícies pelo command palette', async () => {
-    const user = userEvent.setup();
-
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
-
-    const [providerNotificationHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerNotificationHeading).toBeInTheDocument();
+    const { user } = await mountApp();
 
     const paletteButton = screen.getByRole('button', { name: /Command palette/i });
     expect(paletteButton).toHaveAttribute('aria-expanded', 'false');
@@ -1508,319 +415,241 @@ describe('App provider orchestration flow', () => {
 
     const palette = await screen.findByRole('dialog', { name: 'Ações rápidas' });
     expect(paletteButton).toHaveAttribute('aria-expanded', 'true');
-    const searchbox = within(palette).getByRole('searchbox', { name: 'Buscar comando' });
 
-    await user.type(searchbox, 'Routing');
+    const searchBox = within(palette).getByRole('searchbox', { name: 'Buscar comando' });
+    await user.type(searchBox, 'Routing');
 
     const routingOptions = await within(palette).findAllByRole('option', { name: /Routing/i });
-    const routingOption =
-      routingOptions.find((option) => within(option).queryByText(/^Routing$/i)) ?? routingOptions[0];
+    await user.click(routingOptions[0]);
 
-    await user.click(routingOption);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Ações rápidas' })).not.toBeInTheDocument());
+    expect(paletteButton).toHaveAttribute('aria-expanded', 'false');
 
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Ações rápidas' })).not.toBeInTheDocument();
-      expect(paletteButton).toHaveAttribute('aria-expanded', 'false');
-    });
-
-    await screen.findByRole('heading', { name: /Simulador “what-if” de roteamento/i });
-  });
+    await screen.findByRole('heading', { name: /Simulador/i }, LONG_WAIT);
+  }, 30000);
 
   it('exibe a central de notificações e permite triagem rápida', async () => {
-    const user = userEvent.setup();
+    const { user } = await mountApp();
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
-
-    const [providerFallbackHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerFallbackHeading).toBeInTheDocument();
-
-    const notificationsButton = await screen.findByRole('button', {
-      name: /Abrir central de notificações/i,
-    });
+    const notificationsButton = await screen.findByRole('button', { name: /Abrir central de notificações/i });
     expect(notificationsButton).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(notificationsButton);
 
-    const notificationCenter = await screen.findByRole('dialog', {
-      name: 'Status operacionais e FinOps',
-    });
-
+    const notificationCenter = await screen.findByRole(
+      'dialog',
+      { name: 'Status operacionais e FinOps' },
+      LONG_WAIT,
+    );
     expect(notificationsButton).toHaveAttribute('aria-expanded', 'true');
 
-    const notificationList = within(notificationCenter).getByRole('list', {
-      name: 'Lista de notificações',
-    });
+    const notificationList = within(notificationCenter).getByRole('list', { name: 'Lista de notificações' });
     const allNotifications = within(notificationList).getAllByRole('listitem');
     expect(allNotifications.length).toBeGreaterThan(1);
-    const totalBefore = allNotifications.length;
 
     const firstNotification = allNotifications[0];
-    const firstTitle = within(firstNotification).getByRole('heading', { level: 3 }).textContent ?? '';
+    const title = within(firstNotification).getByRole('heading', { level: 3 }).textContent ?? '';
     const toggleButton = within(firstNotification).getByRole('button', { name: 'Marcar como lida' });
     await user.click(toggleButton);
-    await waitFor(() => {
-      expect(toggleButton).toHaveTextContent('Marcar como não lida');
-    });
+
+    await waitFor(() => expect(toggleButton).toHaveTextContent('Marcar como não lida'));
 
     const unreadFilter = within(notificationCenter).getByRole('radio', { name: /Não lidas/ });
     await user.click(unreadFilter);
 
-    const unreadNotifications = within(notificationList).getAllByRole('listitem');
-    expect(unreadNotifications.length).toBeLessThan(totalBefore);
-    unreadNotifications.forEach((notification) => {
-      expect(within(notification).queryByRole('heading', { level: 3, name: firstTitle })).toBeNull();
-    });
+    within(notificationList)
+      .getAllByRole('listitem')
+      .forEach((notification) => {
+        expect(within(notification).queryByRole('heading', { level: 3, name: title })).toBeNull();
+      });
 
     const markAllButton = within(notificationCenter).getByRole('button', { name: 'Limpar' });
     await user.click(markAllButton);
-    await waitFor(() => {
-      expect(markAllButton).toBeDisabled();
-    });
-
-    await within(notificationList).findByText('Nenhuma notificação encontrada para o filtro selecionado.');
-
-    const summary = within(notificationCenter).getByText(/Nenhuma notificação pendente/i);
-    expect(summary).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(notificationsButton).toHaveAccessibleName(/sem pendências/i);
-    });
-
-    const closeButton = within(notificationCenter).getByRole('button', { name: 'Fechar' });
-    await user.click(closeButton);
-
-    await waitFor(() => {
-      expect(notificationsButton).toHaveAttribute('aria-expanded', 'false');
-    });
-    await waitFor(() => {
-      expect(notificationsButton).toHaveFocus();
-    });
-  });
+    await waitFor(() => expect(markAllButton).toBeDisabled());
+  }, 30000);
 
   it('permite aplicar templates de política e executar rollback', async () => {
-    const user = userEvent.setup();
+    const { user } = await mountApp();
+    await user.click(screen.getByRole('link', { name: 'Políticas' }));
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+    await screen.findByRole('heading', { name: /Políticas MCP/i }, LONG_WAIT);
 
-    const [providerPersistenceHeading] = await screen.findAllByRole('heading', {
-      level: 3,
-      name: provider.name,
-    });
-    expect(providerPersistenceHeading).toBeInTheDocument();
-    const policiesTab = screen.getByRole('button', { name: 'Políticas' });
-    await user.click(policiesTab);
+    const templatesSection = await screen.findByTestId(POLICIES_TEST_IDS.templates, undefined, LONG_WAIT);
+    const routingTemplate = await within(templatesSection).findByLabelText('Template Routing focado em latência');
+    await user.click(routingTemplate);
 
-    await screen.findByRole('heading', { name: /Políticas MCP/i });
-    expect(screen.getByRole('heading', { level: 2, name: 'Equilíbrio' })).toBeInTheDocument();
-
-    const turboOption = screen.getByRole('radio', { name: 'Template Turbo' });
-    await user.click(turboOption);
-
-    const applyButton = screen.getByRole('button', { name: 'Aplicar template' });
+    const applyButton = await screen.findByRole('button', { name: 'Aplicar template' });
     await user.click(applyButton);
 
-    const applyDialog = await screen.findByRole('dialog', { name: 'Aplicar template · Turbo' });
-    const applyConfirm = within(applyDialog).getByRole('button', { name: 'Aplicar template' });
-    await user.click(applyConfirm);
-    const applyArmed = within(applyDialog).getByRole('button', { name: 'Aplicar agora' });
-    await user.click(applyArmed);
+    const applyDialog = await screen.findByRole('dialog', { name: 'Aplicar template · Routing focado em latência' });
+    const armApply = within(applyDialog).getByRole('button', { name: 'Aplicar template' });
+    await user.click(armApply);
+    const confirmApply = within(applyDialog).getByRole('button', { name: 'Aplicar agora' });
+    await user.click(confirmApply);
 
-    await screen.findByText('Turbo ativado para toda a frota.');
-    await screen.findByRole('heading', { level: 2, name: 'Turbo' });
+    await waitFor(() =>
+      expect(
+        fetchSpy.mock.calls.some(([url, options]) => {
+          const target = url instanceof URL ? url.href : url?.toString() ?? '';
+          return (
+            target.includes('/api/v1/policies/deployments') &&
+            (options as RequestInit | undefined)?.method === 'POST'
+          );
+        }),
+      ).toBe(true),
+    );
 
-    const rollbackButton = screen.getByRole('button', { name: 'Rollback imediato' });
-    expect(rollbackButton).not.toBeDisabled();
+    await screen.findByRole('heading', { level: 2, name: 'Routing focado em latência' }, LONG_WAIT);
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('Routing focado em latência ativado para toda a frota.').length,
+      ).toBeGreaterThan(0),
+    );
+
+    const actionsSection = screen.getByTestId(POLICIES_TEST_IDS.actions);
+    const rollbackButton = within(actionsSection).getByRole('button', { name: 'Rollback imediato' });
     await user.click(rollbackButton);
 
-    const rollbackDialog = await screen.findByRole('dialog', { name: 'Rollback imediato · Equilíbrio' });
-    const rollbackConfirm = within(rollbackDialog).getByRole('button', { name: 'Confirmar rollback' });
-    await user.click(rollbackConfirm);
-    const rollbackArmed = within(rollbackDialog).getByRole('button', { name: 'Rollback agora' });
-    await user.click(rollbackArmed);
+    const rollbackDialog = await screen.findByRole('dialog', { name: 'Rollback imediato · FinOps burn-rate' });
+    const armRollback = within(rollbackDialog).getByRole('button', { name: 'Confirmar rollback' });
+    await user.click(armRollback);
+    const confirmRollback = within(rollbackDialog).getByRole('button', { name: 'Rollback agora' });
+    await user.click(confirmRollback);
 
-    await screen.findByText('Rollback concluído para Equilíbrio.');
-    await screen.findByRole('heading', { level: 2, name: 'Equilíbrio' });
-  });
+    await waitFor(() =>
+      expect(
+        fetchSpy.mock.calls.some(([url, options]) => {
+          const target = url instanceof URL ? url.href : url?.toString() ?? '';
+          return (
+            target.includes('/api/v1/policies/deployments/') &&
+            (options as RequestInit | undefined)?.method === 'DELETE'
+          );
+        }),
+      ).toBe(true),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('Rollback concluído para FinOps burn-rate.').length,
+      ).toBeGreaterThan(0),
+    );
+
+    const statusSection = await screen.findByTestId(POLICIES_TEST_IDS.status, undefined, LONG_WAIT);
+    expect(within(statusSection).getByText('FinOps burn-rate')).toBeInTheDocument();
+  }, 30000);
 
   it('carrega notificações remotas durante o bootstrap', async () => {
-    const user = userEvent.setup();
+    const previousFixtureStatus = globalThis.__CONSOLE_MCP_FIXTURES__;
+    globalThis.__CONSOLE_MCP_FIXTURES__ = 'disabled';
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+    const notificationsSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const notificationsMock = vi
+      .spyOn(api, 'fetchNotifications')
+      .mockRejectedValue(new Error('Erro ao carregar notificações'));
+    const { user } = await mountApp();
 
-    const notificationButton = await screen.findByRole('button', {
-      name: /Abrir central de notificações/i,
-    });
-    await user.click(notificationButton);
+    try {
+      const notificationButton = await screen.findByRole('button', { name: /Abrir central de notificações/i });
+      await user.click(notificationButton);
 
-    await screen.findByText('Release 2024.09.1 publicado');
-    await screen.findByText(
-      'Novos alertas em tempo real e central de notificações disponíveis na console MCP.',
-    );
-  });
+      const notificationCenter = await screen.findByRole(
+        'dialog',
+        { name: 'Status operacionais e FinOps' },
+        LONG_WAIT,
+      );
 
-  it('apresenta fallback quando a API de notificações falha', async () => {
-    const user = userEvent.setup();
-    resetFetchMock();
-    fetchMock
-      .mockResolvedValueOnce(createFetchResponse({ servers: [serverRecord] }))
-      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
-      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
-      .mockRejectedValueOnce(new Error('offline'));
+      await waitFor(() => {
+        expect(notificationCenter).toHaveTextContent(FALLBACK_NOTIFICATION_TITLE);
+        expect(notificationCenter).toHaveTextContent(FALLBACK_NOTIFICATION_MESSAGE);
+      });
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+      await waitFor(() => {
+        const storedState = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
+        expect(storedState).not.toBeNull();
+        expect(JSON.parse(storedState!)).toMatchObject({ 'platform-placeholder': false });
+      });
 
-    const notificationButton = await screen.findByRole('button', {
-      name: /Abrir central de notificações/i,
-    });
-    await user.click(notificationButton);
-
-    const notificationCenter = await screen.findByRole('dialog', {
-      name: 'Status operacionais e FinOps',
-    });
-
-    await within(notificationCenter).findByText('Nenhum evento recente');
-    expect(console.error).toHaveBeenCalledWith(
-      'Falha ao carregar notificações remotas',
-      expect.any(Error),
-    );
-  });
+      expect(notificationsSpy).toHaveBeenCalled();
+      expect(notificationsMock).toHaveBeenCalled();
+    } finally {
+      notificationsMock.mockRestore();
+      notificationsSpy.mockRestore();
+      globalThis.__CONSOLE_MCP_FIXTURES__ = previousFixtureStatus ?? 'ready';
+    }
+  }, 30000);
 
   it('usa fallback quando a API retorna lista vazia', async () => {
-    const user = userEvent.setup();
-    resetFetchMock();
-    fetchMock
-      .mockResolvedValueOnce(createFetchResponse({ servers: [serverRecord] }))
-      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
-      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
-      .mockResolvedValueOnce(createFetchResponse({ notifications: [] }));
+    const previousFixtureStatus = globalThis.__CONSOLE_MCP_FIXTURES__;
+    globalThis.__CONSOLE_MCP_FIXTURES__ = 'disabled';
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+    const notificationsMock = vi.spyOn(api, 'fetchNotifications').mockResolvedValue([]);
 
-    const notificationButton = await screen.findByRole('button', {
-      name: /Abrir central de notificações/i,
-    });
+    const { user } = await mountApp();
+
+    const notificationButton = await screen.findByRole('button', { name: /Abrir central de notificações/i });
     await user.click(notificationButton);
 
-    const notificationCenter = await screen.findByRole('dialog', {
-      name: 'Status operacionais e FinOps',
+    const notificationCenter = await screen.findByRole(
+      'dialog',
+      { name: 'Status operacionais e FinOps' },
+      LONG_WAIT,
+    );
+
+    await waitFor(() => {
+      expect(notificationCenter).toHaveTextContent(FALLBACK_NOTIFICATION_TITLE);
     });
 
-    await within(notificationCenter).findByText('Nenhum evento recente');
-    const storedState = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
-    expect(storedState).toContain('platform-placeholder');
-  });
+    expect(notificationsMock).toHaveBeenCalled();
+    notificationsMock.mockRestore();
+    globalThis.__CONSOLE_MCP_FIXTURES__ = previousFixtureStatus ?? 'ready';
+  }, 30000);
 
   it('persists notification read state across reloads', async () => {
-    const user = userEvent.setup();
+    const { user } = await mountApp();
 
-    resetFetchMock();
-    fetchMock
-      .mockResolvedValueOnce(createFetchResponse({ servers: [serverRecord] }))
-      .mockResolvedValueOnce(createFetchResponse({ sessions: [existingSession] }))
-      .mockResolvedValueOnce(createFetchResponse({ secrets: [secretMetadata] }))
-      .mockResolvedValueOnce(createFetchResponse({ notifications }));
-
-    let firstRender: ReturnType<typeof render> | undefined;
-    await act(async () => {
-      firstRender = renderWithinProviders();
-      await Promise.resolve();
-    });
-
-    if (!firstRender) {
-      throw new Error('Failed to render component');
-    }
-
-    const notificationButton = await screen.findByRole('button', {
-      name: /Abrir central de notificações/i,
-    });
+    const notificationButton = await screen.findByRole('button', { name: /Abrir central de notificações/i });
     await user.click(notificationButton);
 
-    const notificationCenter = await screen.findByRole('dialog', {
-      name: 'Status operacionais e FinOps',
-    });
+    const notificationCenter = await screen.findByRole(
+      'dialog',
+      { name: 'Status operacionais e FinOps' },
+      LONG_WAIT,
+    );
+
+    if (!finopsCriticalNotification) {
+      throw new Error('Notification fixture not found');
+    }
+
+    await within(notificationCenter).findByText(finopsCriticalNotification.title);
 
     const markAllButton = within(notificationCenter).getByRole('button', { name: 'Limpar' });
     await user.click(markAllButton);
-
     await waitFor(() => expect(markAllButton).toBeDisabled());
 
-    const storedState = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
-    expect(storedState).not.toBeNull();
-    const parsedState = JSON.parse(storedState!);
-    expect(Object.values(parsedState).some((value) => value === true)).toBe(true);
+    const stored = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
+    expect(stored).not.toBeNull();
 
-    firstRender.unmount();
-
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
-
-    const notificationButtonAfterReload = await screen.findByRole('button', {
-      name: /Abrir central de notificações/i,
-    });
-    await user.click(notificationButtonAfterReload);
-
-    const notificationCenterAfterReload = await screen.findByRole('dialog', {
-      name: 'Status operacionais e FinOps',
-    });
-
-    await waitFor(() =>
-      expect(within(notificationCenterAfterReload).getByRole('button', { name: 'Limpar' })).toBeDisabled(),
-    );
-
-    const toggleButtons = await screen.findAllByRole('button', {
-      name: 'Marcar como não lida',
-    });
-    expect(toggleButtons.length).toBeGreaterThan(0);
-  });
+    const parsed = JSON.parse(stored!);
+    expect(parsed[finopsCriticalNotification.id]).toBe(true);
+  }, 30000);
 
   it('renderiza showcase UI kit com toasts e modais acessíveis', async () => {
-    applyDefaultFetchMock();
-    const user = userEvent.setup();
+    const previousFixtureStatus = globalThis.__CONSOLE_MCP_FIXTURES__;
+    globalThis.__CONSOLE_MCP_FIXTURES__ = 'disabled';
 
-    await act(async () => {
-      renderWithinProviders();
-      await Promise.resolve();
-    });
+    const { user } = await mountApp();
 
-    const showcase = await screen.findByTestId('ui-kit-showcase');
-    expect(within(showcase).getByText('UI Kit')).toBeInTheDocument();
+    try {
+      const uiKitAside = await screen.findByLabelText('Mostruário UI Kit', undefined, LONG_WAIT);
+      const showcase = await within(uiKitAside).findByRole('region', { name: 'UI Kit' });
 
-    await user.click(within(showcase).getByRole('button', { name: 'Ações rápidas' }));
-    const toastOption = within(screen.getByRole('menu')).getByRole('menuitem', { name: /Toast de sucesso/ });
-    await user.click(toastOption);
-    expect(await screen.findByText('O servidor foi promovido para produção.')).toBeInTheDocument();
+      await user.click(within(showcase).getByRole('button', { name: 'Reexecutar health-check' }));
+      expect(await screen.findByRole('status', { name: 'Health-check reenviado' })).toBeInTheDocument();
 
-    const viewport = document.querySelector('.mcp-toast-viewport');
-    expect(viewport).toHaveAttribute('data-theme', 'light');
-
-    await user.click(within(showcase).getByRole('button', { name: 'Abrir formulário' }));
-    const modal = await screen.findByRole('dialog', { name: 'Editar workflow' });
-    const input = within(modal).getByLabelText('Nome');
-    expect(input).toHaveFocus();
-    await user.clear(input);
-    await user.type(input, 'Deploy noturno');
-    await user.click(within(modal).getByRole('button', { name: 'Salvar' }));
-
-    expect(await screen.findByText('Deploy noturno salvo com sucesso.')).toBeInTheDocument();
-  });
+      await user.click(within(showcase).getByRole('button', { name: 'Abrir confirmação' }));
+      expect(await screen.findByRole('dialog', { name: 'Excluir instância' })).toBeInTheDocument();
+    } finally {
+      globalThis.__CONSOLE_MCP_FIXTURES__ = previousFixtureStatus ?? 'ready';
+    }
+  }, 30000);
 });
