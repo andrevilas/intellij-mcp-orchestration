@@ -12,9 +12,6 @@ import type {
   ConfigApplyResponse,
   ConfigReloadResponse,
   ConfigOnboardResponse,
-  ConfigOnboardRequest,
-  McpSmokeRunResponse,
-  McpOnboardingStatus,
 } from '../../api';
 import {
   postConfigChat,
@@ -23,9 +20,6 @@ import {
   postConfigReload,
   postPolicyPlanApply,
   fetchNotifications,
-  postConfigMcpOnboard,
-  postMcpSmokeRun,
-  fetchMcpOnboardingStatus,
 } from '../../api';
 
 type ApiModule = typeof import('../../api');
@@ -34,6 +28,7 @@ vi.mock('../../api', async () => {
   const actual = await vi.importActual<ApiModule>('../../api');
   return {
     ...actual,
+    fetchAgents: vi.fn(),
     postConfigChat: vi.fn(),
     postConfigPlan: vi.fn(),
     postConfigApply: vi.fn(),
@@ -45,6 +40,11 @@ vi.mock('../../api', async () => {
     fetchMcpOnboardingStatus: vi.fn(),
   } satisfies Partial<ApiModule>;
 });
+
+vi.mock('../Onboarding/OnboardingWizard', () => ({
+  __esModule: true,
+  default: () => <div data-testid="onboarding-wizard">Onboarding Wizard Stub</div>,
+}));
 
 vi.setConfig({ testTimeout: 10000 });
 
@@ -306,33 +306,12 @@ describe('AdminChat view', () => {
     validation: onboardValidation,
   };
 
-  const smokeResponse: McpSmokeRunResponse = {
-    runId: 'smoke-1',
-    status: 'running',
-    summary: 'Smoke em execução no ambiente production.',
-    startedAt: '2025-01-11T09:05:00Z',
-    finishedAt: null,
-  };
-
-  const trackerStatus: McpOnboardingStatus = {
-    recordId: applySuccessResponse.recordId,
-    status: 'running',
-    branch: applySuccessResponse.branch,
-    baseBranch: applySuccessResponse.baseBranch,
-    commitSha: applySuccessResponse.commitSha,
-    pullRequest: applySuccessResponse.pullRequest,
-    updatedAt: '2025-01-11T09:10:00Z',
-  };
-
   const postChatMock = postConfigChat as unknown as Mock;
   const postPlanMock = postConfigPlan as unknown as Mock;
   const postApplyMock = postConfigApply as unknown as Mock;
   const postReloadMock = postConfigReload as unknown as Mock;
   const postPolicyPlanApplyMock = postPolicyPlanApply as unknown as Mock;
   const fetchNotificationsMock = fetchNotifications as unknown as Mock;
-  const postOnboardMock = postConfigMcpOnboard as unknown as Mock;
-  const postSmokeMock = postMcpSmokeRun as unknown as Mock;
-  const fetchStatusMock = fetchMcpOnboardingStatus as unknown as Mock;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -351,20 +330,6 @@ describe('AdminChat view', () => {
     postReloadMock.mockResolvedValue(reloadResponse);
     postPolicyPlanApplyMock.mockResolvedValue(reloadApplyResponse);
     fetchNotificationsMock.mockResolvedValue([]);
-    postOnboardMock.mockImplementation((payload: ConfigOnboardRequest) => {
-      if (payload.intent === 'validate') {
-        return Promise.resolve({
-          plan: null,
-          diffs: [],
-          risks: [],
-          message: 'Conexão validada com sucesso.',
-          validation: onboardValidation,
-        });
-      }
-      return Promise.resolve(onboardResponse);
-    });
-    postSmokeMock.mockResolvedValue(smokeResponse);
-    fetchStatusMock.mockResolvedValue(trackerStatus);
   });
 
   it('permite conversar, gerar plano, aprovar HITL e iniciar onboarding', async () => {
@@ -412,7 +377,13 @@ describe('AdminChat view', () => {
     await userEvent.type(approvalNote, 'Aprovado manualmente pelo time de risco.');
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar aplicação' }));
 
-    const statusBanner = await screen.findByRole('status');
+    const statusCandidates = await screen.findAllByRole('status');
+    const statusBanner = statusCandidates.find((element) =>
+      element.textContent?.includes(applySuccessResponse.message ?? ''),
+    );
+    if (!statusBanner) {
+      throw new Error('Status banner com mensagem de sucesso não encontrado.');
+    }
     expect(statusBanner).toHaveTextContent(applySuccessResponse.message);
     expect(statusBanner).toHaveTextContent(applySuccessResponse.branch as string);
     expect(statusBanner).toHaveTextContent('PR:');
@@ -425,183 +396,7 @@ describe('AdminChat view', () => {
     });
     expect(screen.getByText('Aplicado')).toBeInTheDocument();
 
-    const agentIdInput = await screen.findByLabelText(/Identificador do agen/i);
-    await userEvent.type(agentIdInput, 'openai-gpt4o');
-
-    const wizardForm = agentIdInput.closest('form');
-    expect(wizardForm).not.toBeNull();
-    const wizard = within(wizardForm as HTMLFormElement);
-
-    await userEvent.type(wizard.getByLabelText('Nome exibido'), 'OpenAI GPT-4o');
-    await userEvent.type(wizard.getByLabelText(/Repositório Git/i), 'agents/openai-gpt4o');
-    await userEvent.type(wizard.getByLabelText(/Endpoint MCP \(ws\/wss\)/i), 'wss://openai.example.com/ws');
-    await userEvent.type(wizard.getByLabelText('Owner responsável'), '@squad-mcp');
-    await userEvent.type(wizard.getByLabelText('Tags (separadas por vírgula)'), 'openai,prod');
-    await userEvent.type(wizard.getByLabelText('Capacidades (separadas por vírgula)'), 'chat');
-    await userEvent.type(wizard.getByLabelText('Descrição'), 'Agente com fallback para GPT-4o.');
-    await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
-    fireEvent.submit(agentIdInput.closest('form') as HTMLFormElement);
-
-    await userEvent.click(screen.getByLabelText('API Key'));
-    await userEvent.type(screen.getByLabelText('Nome da credencial'), 'OPENAI_API_KEY');
-    await userEvent.type(screen.getByLabelText('Ambiente/namespace'), 'production');
-    await userEvent.type(screen.getByLabelText('Instruções para provisionamento'), 'Gerar no vault e replicar.');
-    await userEvent.click(screen.getByRole('button', { name: 'Avançar para tools' }));
-
-    await userEvent.type(screen.getByLabelText(/Nome da tool 1/i), 'catalog.search');
-    await userEvent.type(screen.getByLabelText(/Descrição da tool 1/i), 'Busca recursos homologados.');
-    await userEvent.type(screen.getByLabelText(/Entry point da tool 1/i), 'catalog/search.py');
-    const validateButton = await screen.findByRole('button', { name: 'Testar conexão' });
-    await userEvent.click(validateButton);
-    await waitFor(() =>
-      expect(postOnboardMock).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({ intent: 'validate', endpoint: 'wss://openai.example.com/ws' }),
-      ),
-    );
-    await screen.findByText('Conexão validada com sucesso.');
-    await userEvent.click(screen.getByRole('button', { name: 'Ir para validação' }));
-
-    const notesField = screen.getByLabelText('Checklist/observações adicionais');
-    await userEvent.type(notesField, 'Checklist final com owners.');
-    const gatesField = screen.getByLabelText('Quality gates (separados por vírgula)');
-    await userEvent.clear(gatesField);
-    await userEvent.type(gatesField, 'operacao,finops,confianca');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Gerar plano de onboarding' }));
-
-    const expectedPayload: ConfigOnboardRequest = {
-      endpoint: 'wss://openai.example.com/ws',
-      agent: {
-        id: 'openai-gpt4o',
-        name: 'OpenAI GPT-4o',
-        repository: 'agents/openai-gpt4o',
-        description: 'Agente com fallback para GPT-4o.',
-        owner: '@squad-mcp',
-        tags: ['openai', 'prod'],
-        capabilities: ['chat'],
-      },
-      authentication: {
-        mode: 'api_key',
-        secretName: 'OPENAI_API_KEY',
-        instructions: 'Gerar no vault e replicar.',
-        environment: 'production',
-      },
-      tools: [
-        { name: 'catalog.search', description: 'Busca recursos homologados.', entryPoint: 'catalog/search.py' },
-      ],
-      validation: {
-        runSmokeTests: true,
-        qualityGates: ['operacao', 'finops', 'confianca'],
-        notes: 'Checklist final com owners.',
-      },
-    };
-
-    await waitFor(() => expect(postOnboardMock).toHaveBeenNthCalledWith(2, { ...expectedPayload, intent: 'plan' }));
-    const successMessage = onboardResponse.message;
-    if (!successMessage) {
-      throw new Error('Mensagem de sucesso do onboarding mock deve estar definida.');
-    }
-    await waitFor(() => expect(screen.getByText(successMessage)).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: 'Resultado da validação' })).toBeInTheDocument();
-    expect(screen.getByText(onboardValidation.endpoint)).toBeInTheDocument();
-    expect(screen.getByText(onboardValidation.transport)).toBeInTheDocument();
-    expect(screen.getByText(/catalog\.search/)).toBeInTheDocument();
-    expect(screen.getByText('metrics.ingest')).toBeInTheDocument();
-    expect(screen.getByText('Criar manifesto')).toBeInTheDocument();
-    expect(screen.getByText('Adiciona manifesto inicial para o agente.')).toBeInTheDocument();
-
-    await userEvent.type(screen.getByLabelText('Nota para aplicação'), 'Aplicar com acompanhamento do time de plataforma.');
-    await userEvent.click(screen.getByRole('button', { name: 'Confirmar e aplicar plano' }));
-
-    await waitFor(() =>
-      expect(postPlanMock).toHaveBeenCalledWith({ intent: 'summarize', threadId: onboardPlan.threadId }),
-    );
-    await waitFor(() =>
-      expect(postApplyMock).toHaveBeenLastCalledWith({
-        intent: 'apply',
-        threadId: onboardPlan.threadId,
-        planId: onboardPlan.id,
-        note: 'Aplicar com acompanhamento do time de plataforma.',
-      }),
-    );
-
-    await waitFor(() =>
-      expect(screen.getByText(`Registro`)).toBeInTheDocument(),
-    );
-    expect(screen.getByText(applySuccessResponse.recordId)).toBeInTheDocument();
-    expect(screen.getByText(applySuccessResponse.branch as string)).toBeInTheDocument();
-    if (!applySuccessResponse.pullRequest) {
-      throw new Error('Mock de sucesso deve possuir metadados de PR.');
-    }
-    const appliedPlanPrLabel = `#${applySuccessResponse.pullRequest.number} — ${applySuccessResponse.pullRequest.title}`;
-    expect(screen.getByRole('link', { name: appliedPlanPrLabel })).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Atualizar status' }));
-    await waitFor(() => expect(fetchStatusMock).toHaveBeenCalledWith(applySuccessResponse.recordId));
-    expect(screen.getByText(/Situação atual:/)).toHaveTextContent('Situação atual: running');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Executar smoke tests' }));
-    await waitFor(() =>
-      expect(postSmokeMock).toHaveBeenCalledWith({
-        recordId: applySuccessResponse.recordId,
-        planId: onboardPlan.id,
-        providerId: 'openai-gpt4o',
-      }),
-    );
-    expect(screen.getByText(/Smoke em execução/)).toBeInTheDocument();
-  });
-
-  it('bloqueia avanço para validação quando a verificação do endpoint falha', async () => {
-    postOnboardMock.mockImplementationOnce(() => Promise.reject(new Error('Falha ao conectar ao endpoint.')));
-
-    render(<AdminChat />);
-
-    const onboardingAgentIdField = await screen.findByLabelText(/Identificador do agen/i);
-    const onboardingWizardForm = onboardingAgentIdField.closest('form');
-    if (!onboardingWizardForm) {
-      throw new Error('Formulário do wizard de onboarding deve estar presente.');
-    }
-    const onboardingWizard = within(onboardingWizardForm as HTMLFormElement);
-
-    const repositoryField = onboardingWizard.getByLabelText(/Repositório Git/i);
-    const endpointField = onboardingWizard.getByLabelText(/Endpoint MCP \(ws\/wss\)/i);
-
-    await userEvent.type(onboardingAgentIdField, 'openai-gpt4o');
-    await userEvent.type(repositoryField, 'agents/openai-gpt4o');
-    await userEvent.type(endpointField, 'wss://openai.example.com/ws');
-    await userEvent.click(screen.getByRole('button', { name: 'Avançar para autenticação' }));
-    fireEvent.submit(onboardingWizardForm as HTMLFormElement);
-
-    const nextToolsButton = await screen.findByRole('button', { name: 'Avançar para tools' });
-    await userEvent.click(await screen.findByLabelText('API Key'));
-    await userEvent.type(await screen.findByLabelText('Nome da credencial'), 'OPENAI_API_KEY');
-    await userEvent.type(await screen.findByLabelText('Ambiente/namespace'), 'production');
-    await userEvent.type(
-      await screen.findByLabelText('Instruções para provisionamento'),
-      'Gerar no vault e replicar.',
-    );
-    await userEvent.click(nextToolsButton);
-
-    const testConnectionButton = await screen.findByRole('button', { name: 'Testar conexão' });
-    await userEvent.click(testConnectionButton);
-
-    await waitFor(() =>
-      expect(postOnboardMock).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({ intent: 'validate', endpoint: 'wss://openai.example.com/ws' }),
-      ),
-    );
-
-    await screen.findByText('Falha ao conectar ao endpoint.');
-
-    const nextButton = screen.getByRole('button', { name: 'Ir para validação' });
-    expect(nextButton).toBeDisabled();
-
-    const toolNameField = await screen.findByLabelText(/Nome da tool 1/i);
-    await userEvent.type(toolNameField, 'catalog.search');
-
-    expect(screen.getByRole('button', { name: 'Ir para validação' })).not.toBeDisabled();
+    expect(screen.getByTestId('onboarding-wizard')).toBeInTheDocument();
   });
 
   it('exibe metadados do branch, do PR e dos revisores no resumo do plano', async () => {

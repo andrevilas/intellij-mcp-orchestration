@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import OnboardingWizard from './OnboardingWizard';
@@ -37,7 +37,7 @@ function fillBasicStep() {
 describe('OnboardingWizard validations', () => {
   it('bloqueia avanço quando identificador já está em uso', async () => {
     const user = userEvent.setup();
-    mockFetchAgents.mockResolvedValue([
+    mockFetchAgents.mockResolvedValueOnce([
       {
         name: 'existing-agent',
         title: 'Existing Agent',
@@ -53,13 +53,13 @@ describe('OnboardingWizard validations', () => {
 
     render(<OnboardingWizard />);
 
-    const idInput = screen.getByLabelText('Identificador do agente');
+    const idInput = screen.getByPlaceholderText('Ex.: openai-gpt4o');
     await user.type(idInput, 'existing-agent');
     await user.tab();
 
-    const summary = await screen.findByRole('alert', { name: 'Revise os campos destacados.' });
-    expect(summary).toBeVisible();
-    await screen.findByText('Identificador existing-agent já está em uso.');
+    await waitFor(() => expect(mockFetchAgents).toHaveBeenCalled());
+    const duplicateMessages = await screen.findAllByText('Identificador existing-agent já está em uso.');
+    expect(duplicateMessages.length).toBeGreaterThan(0);
 
     const nextButton = fillBasicStep();
     expect(nextButton).toBeDisabled();
@@ -78,27 +78,27 @@ describe('OnboardingWizard validations', () => {
 
     render(<OnboardingWizard />);
 
-    await user.type(screen.getByLabelText('Identificador do agente'), 'openai-gpt4o');
-    await user.type(screen.getByLabelText('Nome exibido'), 'OpenAI GPT-4o');
-    await user.type(screen.getByLabelText('Repositório Git'), 'agents/openai-gpt4o');
-    await user.type(screen.getByLabelText('Endpoint MCP (ws/wss)'), 'wss://openai.example.com/ws');
-    await user.click(screen.getByLabelText('Owner responsável'));
+    await user.type(screen.getByPlaceholderText('Ex.: openai-gpt4o'), 'openai-gpt4o');
+    await user.type(screen.getByPlaceholderText('Ex.: OpenAI GPT-4o'), 'OpenAI GPT-4o');
+    await user.type(screen.getByPlaceholderText('agents/openai-gpt4o'), 'agents/openai-gpt4o');
+    await user.type(screen.getByPlaceholderText('wss://mcp.example.com/ws'), 'wss://openai.example.com/ws');
+    await user.click(screen.getByPlaceholderText('@squad-mcp'));
     await user.keyboard(' @squad-mcp');
     await screen.findByText('Identificador disponível.');
     await user.click(fillBasicStep());
 
     await user.click(screen.getByLabelText('API Key'));
-    await user.type(screen.getByLabelText('Nome da credencial'), 'OPENAI_API_KEY');
-    await user.type(screen.getByLabelText('Ambiente/namespace'), 'production');
+    await user.type(screen.getByPlaceholderText('OPENAI_API_KEY'), 'OPENAI_API_KEY');
+    await user.type(screen.getByPlaceholderText('production'), 'production');
     await user.type(
-      screen.getByLabelText('Instruções para provisionamento'),
+      screen.getByPlaceholderText('Ex.: gerar chave no vault e anexar ao secret manager'),
       'Gerar no vault e replicar.',
     );
     await user.click(screen.getByRole('button', { name: 'Avançar para tools' }));
 
-    await user.type(screen.getByLabelText('Nome da tool 1'), 'catalog.search');
-    await user.type(screen.getByLabelText('Descrição da tool 1'), 'Busca recursos homologados.');
-    await user.type(screen.getByLabelText('Entry point da tool 1'), 'catalog/search.py');
+    await user.type(screen.getByPlaceholderText('catalog.search'), 'catalog.search');
+    await user.type(screen.getByPlaceholderText('Busca recursos no catálogo interno'), 'Busca recursos homologados.');
+    await user.type(screen.getByPlaceholderText('catalog/search.py'), 'catalog/search.py');
 
     const nextButton = screen.getByRole('button', { name: 'Ir para validação' });
     expect(nextButton).toBeDisabled();

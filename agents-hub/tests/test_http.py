@@ -4,44 +4,38 @@ from __future__ import annotations
 
 import logging
 
-import pytest
 
-
-@pytest.mark.asyncio
-async def test_health_endpoint(async_client) -> None:
-    response = await async_client.get("/health")
+def test_health_endpoint(test_client) -> None:
+    response = test_client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"ok": True}
 
 
-@pytest.mark.asyncio
-async def test_list_agents_returns_registered_metadata(settings, create_agent, app, async_client) -> None:
+def test_list_agents_returns_registered_metadata(settings, create_agent, app, test_client) -> None:
     create_agent("atlas")
     create_agent("zephyr")
     app.state.registry.reload()
 
-    response = await async_client.get("/agents")
+    response = test_client.get("/agents")
     assert response.status_code == 200
     payload = response.json()
     assert sorted(agent["name"] for agent in payload["agents"]) == ["atlas", "zephyr"]
 
 
-@pytest.mark.asyncio
-async def test_get_agent_returns_details(settings, create_agent, app, async_client) -> None:
+def test_get_agent_returns_details(settings, create_agent, app, test_client) -> None:
     create_agent("orion", manifest_overrides={"title": "Orion"})
     app.state.registry.reload()
 
-    response = await async_client.get("/agents/orion")
+    response = test_client.get("/agents/orion")
     assert response.status_code == 200
     assert response.json()["agent"]["title"] == "Orion"
 
 
-@pytest.mark.asyncio
-async def test_invoke_agent_success(settings, create_agent, app, async_client) -> None:
+def test_invoke_agent_success(settings, create_agent, app, test_client) -> None:
     create_agent("echo")
     app.state.registry.reload()
 
-    response = await async_client.post(
+    response = test_client.post(
         "/agents/echo/invoke",
         json={"input": {"message": "hello"}},
     )
@@ -49,8 +43,7 @@ async def test_invoke_agent_success(settings, create_agent, app, async_client) -
     assert response.json()["result"]["echo"] == {"message": "hello"}
 
 
-@pytest.mark.asyncio
-async def test_invoke_agent_validation_error(settings, create_agent, app, async_client) -> None:
+def test_invoke_agent_validation_error(settings, create_agent, app, test_client) -> None:
     validation_code = """
 from __future__ import annotations
 
@@ -84,7 +77,7 @@ def get_tools() -> list[dict[str, Any]]:
     create_agent("validator", code=validation_code)
     app.state.registry.reload()
 
-    response = await async_client.post(
+    response = test_client.post(
         "/agents/validator/invoke",
         json={"input": {}},
     )
@@ -94,20 +87,17 @@ def get_tools() -> list[dict[str, Any]]:
     assert "Missing 'message' in payload" in body["error"]
 
 
-@pytest.mark.asyncio
-async def test_unknown_agent_returns_404(app, async_client) -> None:
-    response = await async_client.get("/agents/unknown")
+def test_unknown_agent_returns_404(app, test_client) -> None:
+    response = test_client.get("/agents/unknown")
     assert response.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_invoke_unknown_agent_returns_404(app, async_client) -> None:
-    response = await async_client.post("/agents/unknown/invoke", json={"input": {}})
+def test_invoke_unknown_agent_returns_404(app, test_client) -> None:
+    response = test_client.post("/agents/unknown/invoke", json={"input": {}})
     assert response.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_agent_runtime_error_returns_500(settings, create_agent, app, async_client, caplog) -> None:
+def test_agent_runtime_error_returns_500(settings, create_agent, app, test_client, caplog) -> None:
     failing_code = """
 from __future__ import annotations
 
@@ -137,7 +127,7 @@ def get_tools() -> list[dict[str, Any]]:
     app.state.registry.reload()
 
     with caplog.at_level(logging.ERROR):
-        response = await async_client.post("/agents/explosive/invoke", json={"input": {}})
+        response = test_client.post("/agents/explosive/invoke", json={"input": {}})
 
     assert response.status_code == 500
     body = response.json()

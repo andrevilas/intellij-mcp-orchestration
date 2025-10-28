@@ -29,7 +29,7 @@
 - [ ] **TASK-UI-DATA-032** · Em validação — badges/progress aguardam correção de dados após nova rodada Playwright.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [x] **TASK-UI-FORM-040** · Controles disponíveis; suite inacessível impede validação contínua.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
 - [x] **TASK-UI-FORM-041** · Onboarding governado aprovado; validações de formulário passam nos cenários Playwright (`@onboarding-validation`, `@onboarding-accessibility`).【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
-- [ ] **TASK-UI-FORM-042** · Em validação — upload/download testados; falhas restantes são funcionais.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-FORM-042** · Upload/download aprovados na suíte `forms-controls` (28/10).【F:docs/evidence/TASK-UI-FORM-042/README.md†L1-L9】
 - [x] **TASK-UI-PG-070** · Dashboard validado com `dashboard-core.spec.ts` (fixtures) — ver rodada de 2025-10-28.【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L9】
 - [x] **TASK-UI-PG-071** · Servers governado opera com sucesso (`servers-core.spec.ts`, 2025-10-28).【F:docs/evidence/TASK-UI-PG-071/README.md†L1-L8】
 - [x] **TASK-UI-PG-072** · Console de segurança cobre identidades/API keys com sucesso (`keys-core.spec.ts`, 2025-10-28).【F:docs/evidence/TASK-UI-PG-072/README.md†L1-L7】
@@ -124,6 +124,7 @@
 ### TASK-UI-FORM-042 · Upload/Download
 - FA upload/download; barra de progresso; drag & drop opcional.
 - **DoD**: limites claros; mensagens de erro úteis.
+- **Atualização 2025-10-28:** `forms-controls.spec.ts` cobre upload via teclado, feedback de download e mensagens de erro — todos os asserts passaram com fixtures.
 
 **Entregáveis**: camada de forms pronta para Keys/Policies/Routing.
 

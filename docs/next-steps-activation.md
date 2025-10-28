@@ -71,8 +71,8 @@
   4. Testes Playwright focados em acessibilidade (tab/shift+tab, aria-invalid).
 - **Entregáveis:** Documentação e exemplos no UI Kit.
 - **Evidências:** relatório Playwright forms, captura de resumo de erros.
-- **Atualização 2025-10-28:** Fluxo de onboarding estabilizado com fixtures; cenários `@onboarding-validation` e `@onboarding-accessibility` aprovados.【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
-- **Bloqueios atuais:** uploads/downloads e formulários avançados ainda exigem validação; seguir pendências em [`audit-ui-m1-m6.md#sprint-m4`](audit-ui-m1-m6.md#sprint-m4).
+- **Atualização 2025-10-28:** Onboarding e controles de upload/download validados (`@onboarding-*`, `forms-controls`); evidências em `TASK-UI-FORM-041/042`.【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】【F:docs/evidence/TASK-UI-FORM-042/README.md†L1-L9】
+- **Bloqueios atuais:** monitorar telas derivadas (Policies, Routing) e registrar novas execuções conforme surgirem regressões.【F:docs/audit-ui-m1-m6.md†L44-L57】
 
 ### UI-ACT-005 — Desbloquear Sprint M5 (Páginas Core)
 - **Scope:** Dashboard, Servers, Keys, Policies, Routing Lab, FinOps com fluxos completos.
@@ -118,11 +118,11 @@
 - **Pré-requisitos:** BE-201/202 concluídos (OK), disponibilidade de dados de preço.
 - **Passos principais:**
   1. Definir contrato do simulador (input context/latency/task, outputs custo/latência).
-  2. Implementar serviço e endpoints REST/IPC.
-  3. Fornecer fixtures para UI (Routing Lab) e testes automatizados.
-  4. Documentar no runbook + README backend.
+  2. Implementar serviço e endpoints REST/IPC (✅ entregue em 2025-10-28 via `/api/v1/routing/simulate`).
+  3. Fornecer fixtures para UI (Routing Lab) e testes automatizados (✅ `tests/e2e/routing-core.spec.ts`, `server/tests/test_routes.py`).
+  4. Documentar no runbook + README backend (✅ `docs/evidence/TASK-BE-203`).
 - **Entregáveis:** API ativa com testes, mocks distribuídos ao frontend.
-- **Evidências:** testes automatizados (unit/integration), snippets curl.
+- **Evidências:** testes automatizados (pytest) e snippets curl; ver `docs/evidence/TASK-BE-203/README.md`.
 
 ### OPS-ACT-301 — Implantar Gestão de Segredos (Sprint OPS-3)
 - **Scope:** Executar `TASK-OPS-301 — Segredos` e `TASK-OPS-302 — Operações seguras`.

@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 import yaml
 from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_HUB_ROOT = PROJECT_ROOT / "agents-hub"
@@ -161,9 +160,3 @@ def test_client(app):
     with TestClient(app) as client:
         yield client
 
-
-@pytest.fixture
-async def async_client(app):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        yield client

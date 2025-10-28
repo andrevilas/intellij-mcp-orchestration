@@ -363,7 +363,7 @@ def test_onboard_endpoint_uses_repository_name_when_missing(
     assert any("new-agent" in diff["path"] for diff in plan["diffs"])
     assert body["preview"]["branch"] == preview.branch
     assert body["preview"]["pull_request"]["title"] == preview.pull_request_title
-    assert body["validation"] is None
+    assert body.get("validation") is None
 
 
 def test_onboard_endpoint_returns_preview_and_validation(

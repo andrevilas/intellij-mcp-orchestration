@@ -5,17 +5,17 @@ Este procedimento garante que a base SQLite utilizada pelo backend possua evento
 ## 1. Semear `telemetry_events`
 
 ```bash
-python -m server.scripts.seed_telemetry_events --db-path server/routes/fixtures/console.db
+python3 server/scripts/seed_telemetry_events.py --db-path server/routes/fixtures/console.db
 ```
 
-O script lê `server/routes/fixtures/finops_events.json`, limpa a tabela `telemetry_events` e insere o dataset completo (incluindo coortes de experimento). O log final reporta o caminho da base e a quantidade de eventos gravados.
+O script lê `server/routes/fixtures/finops_events.json`, limpa a tabela `telemetry_events` e insere o dataset completo (incluindo coortes de experimento). A execução de 2025-10-28 gravou **42** eventos no arquivo `server/routes/fixtures/console.db` (registrado nos logs `seeded_finops_dataset`/`completed_seeding`).
 
 ## 2. Validar exportações
 
 Utilize os helpers de `server/routes/finops.py` para emitir e inspecionar cada formato suportado:
 
 ```bash
-python - <<'PY'
+python3 - <<'PY'
 from datetime import datetime, timezone
 
 from server.routes.finops import export_finops_telemetry
@@ -38,7 +38,7 @@ Exporte os artefatos (`telemetry_export.csv`, `telemetry_export.html`, `telemetr
 ## 4. Executar testes automatizados
 
 ```bash
-pytest server/tests/test_finops_exports.py
+PYTHONPATH=server/src:server python3 -m pytest server/tests/test_finops_exports.py
 ```
 
 O teste cobre todos os formatos e confirma que o helper falha quando não há eventos na base, prevenindo regressões futuras.

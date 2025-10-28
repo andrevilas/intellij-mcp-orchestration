@@ -55,4 +55,3 @@ known_first_party = ["app"]
 minversion = "7.0"
 addopts = "-q"
 testpaths = ["tests"]
-asyncio_mode = "auto"

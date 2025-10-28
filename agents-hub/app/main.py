@@ -124,8 +124,10 @@ async def invoke_agent(
     config = invoke_request.config.model_dump(mode="json", by_alias=True, exclude_none=True)
 
     try:
-        async with asyncio.timeout(settings.request_timeout):
-            result = await registry.invoke(name, payload, config)
+        result = await asyncio.wait_for(
+            registry.invoke(name, payload, config),
+            timeout=settings.request_timeout,
+        )
     except asyncio.TimeoutError:
         message = f"Agent '{name}' invocation timed out"
         logger.warning(

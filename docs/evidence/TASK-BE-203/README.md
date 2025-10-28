@@ -43,9 +43,9 @@ Resposta resumida:
 }
 ```
 
-## Testes executados
+## Testes executados (2025-10-28)
 
-- `PYTHONPATH=src:.. pytest tests/test_routing_fixtures.py tests/test_routes.py::test_routing_simulation_uses_price_table tests/test_routes.py::test_routing_simulation_rejects_unknown_provider tests/test_routes.py::test_routing_simulation_endpoint_returns_distribution tests/test_routes.py::test_routing_simulation_endpoint_validates_provider_ids`
+- `PYTHONPATH=server/src:server python3 -m pytest server/tests/test_routing_fixtures.py server/tests/test_routes.py::test_routing_simulation_uses_price_table server/tests/test_routes.py::test_routing_simulation_rejects_unknown_provider server/tests/test_routes.py::test_routing_simulation_endpoint_returns_distribution server/tests/test_routes.py::test_routing_simulation_endpoint_validates_provider_ids`
 - `pnpm --dir app test -- src/api.test.ts src/pages/Routing.test.tsx`
 
 ## Validações extras

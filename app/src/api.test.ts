@@ -104,8 +104,8 @@ describe('api client', () => {
     globalThis.__CONSOLE_MCP_FIXTURES__ = 'ready';
   });
 
-  it('requests the server catalog when fetching providers', async () => {
-    const servers = [
+  it('requests the providers endpoint and maps the payload', async () => {
+    const providers = [
       {
         id: 'gemini',
         name: 'Gemini MCP',
@@ -118,12 +118,12 @@ describe('api client', () => {
         updated_at: '2024-05-02T12:00:00Z',
       },
     ];
-    fetchSpy.mockResolvedValueOnce(mockFetchResponse({ servers }));
+    fetchSpy.mockResolvedValueOnce(mockFetchResponse({ providers }));
 
     const result = await fetchProviders();
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/v1/servers',
+      '/api/v1/providers',
       expect.objectContaining({
         headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
       }),

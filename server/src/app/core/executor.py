@@ -210,8 +210,10 @@ class AgentExecutor:
             config_copy = deepcopy(agent_config)
             if self._timeout_policy.per_iteration is None:
                 return await agent_callable(payload, config_copy)
-            async with asyncio.timeout(self._timeout_policy.per_iteration):
-                return await agent_callable(payload, config_copy)
+            return await asyncio.wait_for(
+                agent_callable(payload, config_copy),
+                timeout=self._timeout_policy.per_iteration,
+            )
 
         async def _run_attempts() -> Any:
             nonlocal attempts, delay
@@ -249,8 +251,10 @@ class AgentExecutor:
 
         try:
             if self._timeout_policy.total is not None:
-                async with asyncio.timeout(self._timeout_policy.total):
-                    raw_result = await _run_attempts()
+                raw_result = await asyncio.wait_for(
+                    _run_attempts(),
+                    timeout=self._timeout_policy.total,
+                )
             else:
                 raw_result = await _run_attempts()
         except asyncio.TimeoutError as exc:

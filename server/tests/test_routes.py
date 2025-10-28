@@ -22,6 +22,13 @@ from console_mcp_server import diagnostics as diagnostics_module
 from console_mcp_server import secret_validation as secret_validation_module
 from console_mcp_server import telemetry as telemetry_module
 from console_mcp_server.security import hash_token, Role
+from console_mcp_server.fixtures import load_response_fixture
+from console_mcp_server.schemas import (
+    MCPServersResponse,
+    NotificationsResponse,
+    SessionsResponse,
+    TelemetryRunsResponse,
+)
 from server.tests.fixtures import SampleMarketplaceEntry, seed_marketplace_entries
 
 def resolve_repo_root(start: Path) -> Path:
@@ -135,7 +142,9 @@ def test_notifications_endpoint_handles_empty_sources(
     assert response.status_code == 200
 
     payload = response.json()
-    assert payload == {'notifications': []}
+    fixture = load_response_fixture(NotificationsResponse, "notifications")
+    assert fixture is not None
+    assert payload == fixture.model_dump(mode='json')
 
 
 def test_notifications_endpoint_surfaces_errors(
@@ -155,7 +164,9 @@ def test_notifications_endpoint_surfaces_errors(
 def test_session_provisioning_flow(client: TestClient) -> None:
     list_before = client.get('/api/v1/sessions')
     assert list_before.status_code == 200
-    assert list_before.json()['sessions'] == []
+    fixture = load_response_fixture(SessionsResponse, "sessions")
+    assert fixture is not None
+    assert list_before.json() == fixture.model_dump(mode='json')
 
     create_response = client.post(
         '/api/v1/providers/gemini/sessions',
@@ -913,7 +924,9 @@ def test_telemetry_runs_endpoint_supports_pagination(
         params={**params, 'lane': mismatch_lane},
     )
     assert empty_page.status_code == 200
-    assert empty_page.json()['items'] == []
+    runs_fixture = load_response_fixture(TelemetryRunsResponse, "telemetry_runs")
+    assert runs_fixture is not None
+    assert empty_page.json() == runs_fixture.model_dump(mode='json')
 
 
 def test_telemetry_timeseries_endpoint_supports_lane_filter(
@@ -1705,7 +1718,9 @@ def test_routing_simulation_requires_failover_in_subset(client: TestClient) -> N
 def test_mcp_servers_crud_flow(client: TestClient) -> None:
     list_empty = client.get('/api/v1/servers')
     assert list_empty.status_code == 200
-    assert list_empty.json() == {'servers': []}
+    fixture = load_response_fixture(MCPServersResponse, "servers")
+    assert fixture is not None
+    assert list_empty.json() == fixture.model_dump(mode='json')
 
     create_payload = {
         'id': 'anthropic',
