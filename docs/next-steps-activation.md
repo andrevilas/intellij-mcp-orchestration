@@ -41,8 +41,8 @@
   4. Construir Modais de confirmação/form com trap de foco e 2-cliques.
   5. Atualizar Playwright com casos de overlays e ações destrutivas.
 - **Entregáveis:** UI Kit com estados documentados, testes Playwright.
-- **Evidências:** vídeo curto (opcional), relatório Playwright overlays.
-- **Bloqueios atuais:** [`audit-ui-m1-m6.md#sprint-m2`](audit-ui-m1-m6.md#sprint-m2).
+- **Evidências:** Vitest direcionado (29/10) — `docs/evidence/TASK-UI-ACT-020/2025-10-29-vitest.txt`.
+- **Status atual:** ✅ Concluído (ver [`audit-ui-m1-m6.md#sprint-m2`](audit-ui-m1-m6.md#sprint-m2)).
 
 ### UI-ACT-003 — Desbloquear Sprint M3 (Dados & Estruturas)
 - **Scope:** Cards KPI/Lista/Detalhe, Tabela com sort/linha clicável, Badges & Progress.
@@ -56,8 +56,8 @@
   4. Stub de dados para testes (sem backend real).
   5. Playwright: fluxo de cards/tabelas com cenários de erro.
 - **Entregáveis:** Storybook/Docs, fixtures de dados.
-- **Evidências:** screenshots dark mode, relatório a11y (axe).
-- **Bloqueios atuais:** [`audit-ui-m1-m6.md#sprint-m3`](audit-ui-m1-m6.md#sprint-m3).
+- **Evidências:** Vitest direcionado (29/10) — `docs/evidence/TASK-UI-DATA-030/2025-10-29-vitest.txt`.
+- **Status atual:** ✅ Concluído (ver [`audit-ui-m1-m6.md#sprint-m3`](audit-ui-m1-m6.md#sprint-m3)).
 
 ### UI-ACT-004 — Desbloquear Sprint M4 (Formulários & Validação)
 - **Scope:** Form controls, validação Bootstrap + aria, upload/download com feedback.

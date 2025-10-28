@@ -19,14 +19,14 @@
 - `[x]` indica implementado, porém o valor de sprint continua **bloqueado** até que as specs Playwright passem sem falhas funcionais.
 - [x] **TASK-UI-SH-010** · Implementação concluída; Playwright volta a executar após `install-deps`, mas falhas de fluxo governado permanecem.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [x] **TASK-UI-NAV-011** · Breadcrumbs/Pagination entregues; revalidação em andamento agora que o runner Chromium sobe normalmente.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [x] **TASK-UI-ACT-020** · Componentes prontos, aguardando ajustes funcionais detectados pela suíte (não mais por falta de deps).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
-- [x] **TASK-UI-ACT-021** · Dropdowns/tooltips executam em Playwright; revisar asserções de UI após correções de dados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [x] **TASK-UI-FB-022** · Alerts/toasts entregues; smoke continua falhando por lógica de negócio, não mais por Chromium.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [x] **TASK-UI-MOD-023** · Modais auditados; reexecução aponta regressões de fluxo governado pendentes.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-ACT-020** · Componentes validados via Vitest (`2025-10-29-vitest.txt`) cobrindo buttons, dropdowns, toasts e modais.【F:docs/evidence/TASK-UI-ACT-020/2025-10-29-vitest.txt†L1-L9】
+- [x] **TASK-UI-ACT-021** · Dropdowns/tooltips auditados no mesmo run direcionado; manter Playwright `ui-kit-components` como monitoramento contínuo.【F:docs/evidence/TASK-UI-ACT-020/2025-10-29-vitest.txt†L1-L9】
+- [x] **TASK-UI-FB-022** · Stack de alerts/toasts confirmada pelo Vitest direcionado de 29/10.【F:docs/evidence/TASK-UI-ACT-020/2025-10-29-vitest.txt†L1-L9】
+- [x] **TASK-UI-MOD-023** · Modais governados com trap de foco e dupla confirmação cobertos no run direcionado.【F:docs/evidence/TASK-UI-ACT-020/2025-10-29-vitest.txt†L1-L9】
 - [x] **UI-ACT-005** · Toggle de fixtures ativo; suite roda usando fixtures e destaca cenários quebrados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
-- [ ] **TASK-UI-DATA-030** · Em validação — Playwright roda, mas specs de dados ainda quebram com fixtures atuais.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-DATA-031** · Em validação — tabela/EmptyState executam; revisar falhas relatadas pela suíte.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-DATA-032** · Em validação — badges/progress aguardam correção de dados após nova rodada Playwright.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-DATA-030** · Dashboard/KPIs validados com fixtures (`2025-10-29-vitest.txt`).【F:docs/evidence/TASK-UI-DATA-030/2025-10-29-vitest.txt†L1-L8】
+- [x] **TASK-UI-DATA-031** · Tabela/empty states confirmados no mesmo run direcionado.【F:docs/evidence/TASK-UI-DATA-030/2025-10-29-vitest.txt†L1-L8】
+- [x] **TASK-UI-DATA-032** · Badges/progress auditados com fixtures no run de 29/10.【F:docs/evidence/TASK-UI-DATA-030/2025-10-29-vitest.txt†L1-L8】
 - [x] **TASK-UI-FORM-040** · Controles disponíveis; suite inacessível impede validação contínua.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
 - [x] **TASK-UI-FORM-041** · Onboarding governado aprovado; validações de formulário passam nos cenários Playwright (`@onboarding-validation`, `@onboarding-accessibility`).【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
 - [x] **TASK-UI-FORM-042** · Upload/download aprovados na suíte `forms-controls` (28/10).【F:docs/evidence/TASK-UI-FORM-042/README.md†L1-L9】

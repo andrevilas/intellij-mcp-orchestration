@@ -1,0 +1,16 @@
+
+> mcp-console-app@0.1.0 test /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/app
+> vitest --run src/pages/Dashboard.test.tsx src/pages/Observability.test.tsx src/pages/FinOps.test.tsx -- --runInBand
+
+
+ RUN  v1.6.1 /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/app
+
+ ✓ src/pages/Dashboard.test.tsx  (6 tests) 462ms
+ ✓ src/pages/FinOps.test.tsx  (1 test) 1203ms
+ ✓ src/pages/Observability.test.tsx  (6 tests) 1948ms
+
+ Test Files  3 passed (3)
+      Tests  13 passed (13)
+   Start at  19:22:29
+   Duration  5.26s (transform 2.42s, setup 2.43s, collect 3.68s, tests 3.61s, environment 2.03s, prepare 685ms)
+

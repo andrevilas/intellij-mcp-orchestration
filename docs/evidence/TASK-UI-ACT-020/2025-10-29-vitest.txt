@@ -1,0 +1,17 @@
+
+> mcp-console-app@0.1.0 test /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/app
+> vitest --run src/components/actions/Button.test.tsx src/components/menus/Dropdown.test.tsx src/components/feedback/ToastProvider.test.tsx src/components/modals/index.test.tsx -- --runInBand
+
+
+ RUN  v1.6.1 /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/app
+
+ ✓ src/components/actions/Button.test.tsx  (5 tests) 266ms
+ ✓ src/components/feedback/ToastProvider.test.tsx  (3 tests) 486ms
+ ✓ src/components/menus/Dropdown.test.tsx  (6 tests) 561ms
+ ✓ src/components/modals/index.test.tsx  (4 tests) 982ms
+
+ Test Files  4 passed (4)
+      Tests  18 passed (18)
+   Start at  19:22:13
+   Duration  3.84s (transform 1.27s, setup 3.13s, collect 2.86s, tests 2.29s, environment 2.71s, prepare 936ms)
+
