@@ -140,7 +140,9 @@ export default function WizardModal({
 
   const effectiveNextLabel = activeStep?.nextLabel ?? (isLastStep ? confirmLabel : nextLabel);
   const armedLabel = isLastStep ? confirmArmedLabel : effectiveNextLabel;
-  const liveHint = isLastStep && requiresDoubleConfirm ? (isArmed ? confirmArmedHint : confirmHint) : undefined;
+  const armedHint = isCompleting ? confirmArmedHint : confirmHint;
+  const liveHint =
+    isLastStep && requiresDoubleConfirm ? (isArmed ? armedHint : confirmHint) : undefined;
 
   return (
     <ModalBase

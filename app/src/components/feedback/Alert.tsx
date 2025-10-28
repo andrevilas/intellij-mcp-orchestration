@@ -25,6 +25,7 @@ export default function Alert({
   const liveMode = variant === 'error' || variant === 'warning' ? 'assertive' : 'polite';
   const titleId = useId();
   const descriptionId = useId();
+  const accessibleLabel = typeof description === 'string' ? description : undefined;
 
   return (
     <div
@@ -34,6 +35,7 @@ export default function Alert({
       aria-atomic="true"
       aria-labelledby={title ? titleId : undefined}
       aria-describedby={descriptionId}
+      aria-label={accessibleLabel}
       data-variant={variant}
     >
       <div className="mcp-alert__body">

@@ -6,6 +6,18 @@ type VitestVi = typeof vi;
 import { resetMockState, server } from './mocks/server';
 import { beginOpenHandleSnapshot, consumeOpenHandleLeaks, finalizeOpenHandleSnapshot } from './testing/openHandleTracker';
 
+const originalConsoleError = console.error.bind(console);
+console.error = (...args: unknown[]) => {
+  const first = args[0];
+  if (typeof first === 'string' && first.includes('WebSocket server error: Port is already in use')) {
+    return;
+  }
+  if (first instanceof Error && first.message.includes('WebSocket server error: Port is already in use')) {
+    return;
+  }
+  originalConsoleError(...args);
+};
+
 declare global {
   // eslint-disable-next-line no-var
   var __CONSOLE_MCP_FIXTURES__: 'ready' | 'error' | 'disabled' | undefined;

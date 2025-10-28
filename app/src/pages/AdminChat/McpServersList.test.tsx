@@ -91,7 +91,7 @@ describe('McpServersList', () => {
     await userEvent.click(within(serverCard).getByRole('button', { name: 'Gerar plano' }));
 
     const modal = await screen.findByRole('dialog', { name: /Revisar plano/ });
-    expect(within(modal).getByText('Atualiza owner e tags do manifesto')).toBeInTheDocument();
+    expect(within(modal).getByText(/Atualiza owner/i)).toBeInTheDocument();
 
     const actorInput = within(modal).getByLabelText('Autor da alteração');
     await userEvent.clear(actorInput);

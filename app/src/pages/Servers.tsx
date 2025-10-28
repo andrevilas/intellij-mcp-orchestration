@@ -1376,6 +1376,8 @@ export default function Servers({ providers, isLoading, initialError }: ServersP
                       actionMessageKind ? `server-actions__feedback server-actions__feedback--${actionMessageKind}` : 'server-actions__feedback'
                     }
                     role="status"
+                    aria-live="polite"
+                    aria-label={actionMessage}
                   >
                     {actionMessage}
                   </p>

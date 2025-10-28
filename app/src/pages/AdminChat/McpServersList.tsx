@@ -11,7 +11,6 @@ import {
 } from '../../api';
 import PlanDiffViewer, { type PlanDiffItem } from '../../components/PlanDiffViewer';
 import ModalBase from '../../components/modals/ModalBase';
-import ConfirmationModal from '../../components/modals/ConfirmationModal';
 
 interface ServerDraft {
   name: string;
@@ -159,7 +158,6 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
   const [applyActorEmail, setApplyActorEmail] = useState(DEFAULT_ACTOR_EMAIL);
   const [applyCommitMessage, setApplyCommitMessage] = useState(DEFAULT_COMMIT_MESSAGE);
   const [applyNote, setApplyNote] = useState('');
-  const [isApplyConfirmOpen, setApplyConfirmOpen] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -291,18 +289,15 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
     }
   };
 
-  const handlePlanCancel = () => {
+  const handlePlanCancel = useCallback(() => {
     setPendingPlan(null);
     setApplyError(null);
-    setApplyConfirmOpen(false);
-  };
+  }, []);
 
   const executeApply = useCallback(async () => {
     if (!pendingPlan) {
       return;
     }
-
-    setApplyConfirmOpen(false);
 
     const trimmedActor = applyActor.trim();
     const trimmedEmail = applyActorEmail.trim();
@@ -560,7 +555,7 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
               <button
                 type="button"
                 className="button button--primary"
-                onClick={() => setApplyConfirmOpen(true)}
+                onClick={() => void executeApply()}
                 disabled={isApplyLoading}
               >
                 {isApplyLoading ? 'Aplicando…' : 'Aplicar atualização'}
@@ -636,16 +631,6 @@ export default function McpServersList({ planButtonAriaLabel }: McpServersListPr
           </form>
         </ModalBase>
       ) : null}
-      <ConfirmationModal
-        isOpen={isApplyConfirmOpen}
-        title={`Aplicar atualização · ${pendingPlan?.server.name ?? ''}`}
-        description={pendingPlan?.summary}
-        confirmLabel="Armar aplicação"
-        confirmArmedLabel="Aplicar agora"
-        onConfirm={executeApply}
-        onCancel={() => setApplyConfirmOpen(false)}
-        isLoading={isApplyLoading}
-      />
     </section>
   );
 }

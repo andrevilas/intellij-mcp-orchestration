@@ -153,9 +153,12 @@ export default function Dropdown({
         return;
       }
       setOpen(false);
-      requestAnimationFrame(() => {
-        triggerRef.current?.focus({ preventScroll: true });
-      });
+      const shouldRestoreFocus = !(related instanceof HTMLElement);
+      if (shouldRestoreFocus) {
+        requestAnimationFrame(() => {
+          triggerRef.current?.focus({ preventScroll: true });
+        });
+      }
     }
 
     document.addEventListener('mousedown', handleGlobalClick);
@@ -290,7 +293,12 @@ export default function Dropdown({
 
     if (resolvedLoading) {
       return (
-        <div className="mcp-dropdown__status mcp-dropdown__status--loading" role="status" aria-live="polite">
+        <div
+          className="mcp-dropdown__status mcp-dropdown__status--loading"
+          role="status"
+          aria-live="polite"
+          aria-label={loadingLabel ?? resolvedMessages.loading}
+        >
           <span className="mcp-dropdown__spinner" aria-hidden="true" />
           {loadingLabel ?? resolvedMessages.loading}
         </div>
@@ -300,13 +308,22 @@ export default function Dropdown({
     switch (resolvedStatus) {
       case 'empty':
         return (
-          <div className="mcp-dropdown__status" role="status" aria-live="polite">
+          <div
+            className="mcp-dropdown__status"
+            role="status"
+            aria-live="polite"
+            aria-label={resolvedMessages.empty}
+          >
             {resolvedMessages.empty}
           </div>
         );
       case 'error':
         return (
-          <div className="mcp-dropdown__status mcp-dropdown__status--error" role="alert">
+          <div
+            className="mcp-dropdown__status mcp-dropdown__status--error"
+            role="alert"
+            aria-label={resolvedMessages.error}
+          >
             {resolvedMessages.error}
           </div>
         );
