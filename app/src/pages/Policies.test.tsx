@@ -244,7 +244,8 @@ describe('Policies page integration with policy APIs', () => {
   });
 
   it('exibe erro quando não é possível carregar o histórico', async () => {
-    fetchDeploymentsMock.mockRejectedValueOnce(new Error('boom'));
+    fetchDeploymentsMock.mockRejectedValue(new Error('boom'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(
       <ThemeProvider>
@@ -258,5 +259,10 @@ describe('Policies page integration with policy APIs', () => {
     await waitFor(() =>
       expect(screen.getByText('Não foi possível carregar o histórico de deploys.')).toBeInTheDocument(),
     );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Failed to load policy deployments',
+      expect.objectContaining({ message: 'boom' }),
+    );
+    consoleErrorSpy.mockRestore();
   });
 });

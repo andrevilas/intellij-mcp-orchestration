@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { ProviderSummary } from '../../api';
 import ProvisioningDialog from '../ProvisioningDialog';
 import { ToastProvider } from '../feedback/ToastProvider';
+import { ThemeProvider } from '../../theme/ThemeContext';
 import ConfirmationModal from './ConfirmationModal';
 import FormModal from './FormModal';
 import WizardModal from './WizardModal';
@@ -92,15 +93,17 @@ describe('modal components', () => {
     };
 
     render(
-      <ToastProvider>
-        <ProvisioningDialog
-          isOpen
-          provider={provider}
-          isSubmitting={false}
-          onCancel={onCancel}
-          onConfirm={onConfirm}
-        />
-      </ToastProvider>,
+      <ThemeProvider>
+        <ToastProvider>
+          <ProvisioningDialog
+            isOpen
+            provider={provider}
+            isSubmitting={false}
+            onCancel={onCancel}
+            onConfirm={onConfirm}
+          />
+        </ToastProvider>
+      </ThemeProvider>,
     );
 
     const reasonInput = await screen.findByDisplayValue(`Provisionamento para ${provider.name}`);

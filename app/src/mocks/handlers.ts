@@ -47,6 +47,35 @@ const policyDeploymentsFixture = loadFixture<JsonBodyType>('policy_deployments',
 const telemetryExperimentsFixture = loadFixture<JsonBodyType>('telemetry_experiments');
 const telemetryLaneCostsFixture = loadFixture<JsonBodyType>('telemetry_lane_costs');
 const telemetryMarketplaceFixture = loadFixture<JsonBodyType>('telemetry_marketplace');
+const telemetryExportCsvFixture = [
+  'timestamp,provider_id,route,status,tokens_in,tokens_out,duration_ms,cost_estimated_usd',
+  '2025-03-07T10:00:00Z,fixture-provider,/fixtures,success,1200,3400,860,12.34',
+].join('\n');
+const telemetryExportHtmlFixture = `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Export · Fixtures</title>
+  </head>
+  <body>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Provider</th>
+          <th scope="col">Cost (USD)</th>
+          <th scope="col">Tokens In</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>fixture-provider</td>
+          <td>12.34</td>
+          <td>5678</td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>`;
 const providersFixture = loadFixture<JsonBodyType>('providers');
 const smokeEndpointsFixture = loadFixture<JsonBodyType>('smoke_endpoints', () => ({ endpoints: [] }));
 const agentsFixture = loadFixture<JsonBodyType>('agents');
@@ -2088,6 +2117,18 @@ export const handlers = [
   http.get(`${API_PREFIX}/telemetry/marketplace/performance`, () =>
     HttpResponse.json({ items: marketplaceEntries }),
   ),
+  http.get(`${API_PREFIX}/telemetry/export`, ({ request }) => {
+    const url = new URL(request.url);
+    const format = url.searchParams.get('format');
+    if (format === 'html') {
+      return new HttpResponse(telemetryExportHtmlFixture, {
+        headers: { 'Content-Type': 'text/html;charset=utf-8' },
+      });
+    }
+    return new HttpResponse(telemetryExportCsvFixture, {
+      headers: { 'Content-Type': 'text/csv;charset=utf-8' },
+    });
+  }),
   http.get(`${API_PREFIX}/telemetry/finops/sprints`, () => HttpResponse.json(finopsSprintsFixture)),
   http.get(`${API_PREFIX}/telemetry/finops/pull-requests`, () =>
     HttpResponse.json(finopsPullRequestsFixture),

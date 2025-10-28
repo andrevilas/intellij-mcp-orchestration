@@ -242,9 +242,10 @@ describe('App provider orchestration flow', () => {
     const pingButton = scoped.getByRole('button', { name: 'Ping agora' });
     await user.click(pingButton);
 
-    await waitFor(() => {
-      expect(scoped.queryAllByText('Ping realizado com sucesso via fixtures.').length).toBeGreaterThan(0);
+    const pingFeedback = await scoped.findByRole('status', {
+      name: 'Ping realizado com sucesso via fixtures.',
     });
+    expect(pingFeedback).toBeInTheDocument();
 
     const editButton = scoped.getByRole('button', { name: 'Editar servidor' });
     await user.click(editButton);
@@ -361,8 +362,16 @@ describe('App provider orchestration flow', () => {
 
     const createObjectURLMock = vi.fn(() => 'blob:finops');
     const revokeObjectURLMock = vi.fn();
-    (URL as unknown as Record<string, unknown>).createObjectURL = createObjectURLMock;
-    (URL as unknown as Record<string, unknown>).revokeObjectURL = revokeObjectURLMock;
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: createObjectURLMock,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: revokeObjectURLMock,
+    });
     const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
     try {
@@ -390,15 +399,21 @@ describe('App provider orchestration flow', () => {
       expect(revokeObjectURLMock).toHaveBeenCalled();
     } finally {
       anchorClickSpy.mockRestore();
-      if (originalCreateObjectURL) {
-        (URL as unknown as { createObjectURL: typeof originalCreateObjectURL }).createObjectURL =
-          originalCreateObjectURL;
+      if (typeof originalCreateObjectURL === 'function') {
+        Object.defineProperty(URL, 'createObjectURL', {
+          configurable: true,
+          writable: true,
+          value: originalCreateObjectURL,
+        });
       } else {
         delete (URL as unknown as Record<string, unknown>).createObjectURL;
       }
-      if (originalRevokeObjectURL) {
-        (URL as unknown as { revokeObjectURL: typeof originalRevokeObjectURL }).revokeObjectURL =
-          originalRevokeObjectURL;
+      if (typeof originalRevokeObjectURL === 'function') {
+        Object.defineProperty(URL, 'revokeObjectURL', {
+          configurable: true,
+          writable: true,
+          value: originalRevokeObjectURL,
+        });
       } else {
         delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
       }
@@ -558,10 +573,15 @@ describe('App provider orchestration flow', () => {
         LONG_WAIT,
       );
 
-      await waitFor(() => {
-        expect(notificationCenter).toHaveTextContent(FALLBACK_NOTIFICATION_TITLE);
-        expect(notificationCenter).toHaveTextContent(FALLBACK_NOTIFICATION_MESSAGE);
+      const fallbackNotification = await within(notificationCenter).findByRole('heading', {
+        level: 3,
+        name: FALLBACK_NOTIFICATION_TITLE,
       });
+      const fallbackItem = fallbackNotification.closest('li');
+      expect(fallbackItem).not.toBeNull();
+      if (fallbackItem) {
+        expect(fallbackItem).toHaveTextContent(FALLBACK_NOTIFICATION_MESSAGE);
+      }
 
       await waitFor(() => {
         const storedState = window.localStorage.getItem(NOTIFICATION_READ_STATE_KEY);
@@ -595,9 +615,11 @@ describe('App provider orchestration flow', () => {
       LONG_WAIT,
     );
 
-    await waitFor(() => {
-      expect(notificationCenter).toHaveTextContent(FALLBACK_NOTIFICATION_TITLE);
+    const fallbackNotification = await within(notificationCenter).findByRole('heading', {
+      level: 3,
+      name: FALLBACK_NOTIFICATION_TITLE,
     });
+    expect(fallbackNotification).toBeInTheDocument();
 
     expect(notificationsMock).toHaveBeenCalled();
     notificationsMock.mockRestore();

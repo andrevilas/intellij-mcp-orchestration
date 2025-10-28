@@ -172,8 +172,13 @@ describe('Security page', () => {
     await user.click(await screen.findByRole('button', { name: 'Novo usuário' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Convidar novo usuário' });
-    await user.type(within(dialog).getByLabelText('Nome completo'), 'Carla Nunes');
-    await user.type(within(dialog).getByLabelText('E-mail corporativo'), 'carla@empresa.com');
+    const nameInput = within(dialog).getByLabelText('Nome completo');
+    await user.click(nameInput);
+    await user.paste('Carla Nunes');
+
+    const emailInput = within(dialog).getByLabelText('E-mail corporativo');
+    await user.click(emailInput);
+    await user.paste('carla@empresa.com');
     await user.selectOptions(within(dialog).getByLabelText('Papéis atribuídos'), 'role-ops');
     await user.click(within(dialog).getByRole('button', { name: 'Enviar convite' }));
 

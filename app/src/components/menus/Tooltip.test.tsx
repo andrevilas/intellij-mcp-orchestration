@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -40,9 +40,14 @@ describe('Tooltip', () => {
   it('suporta estados loading e disabled com anúncios únicos', async () => {
     const user = userEvent.setup();
     render(
-      <Tooltip content="Original" loading loadingContent="Carregando tooltip" delay={{ open: 0, close: 0 }}>
-        <button type="button">Sincronizar</button>
-      </Tooltip>,
+      <>
+        <Tooltip content="Original" loading loadingContent="Carregando tooltip" delay={{ open: 0, close: 0 }}>
+          <button type="button">Sincronizar</button>
+        </Tooltip>
+        <Tooltip content="Não deve abrir" disabled delay={{ open: 0, close: 0 }}>
+          <button type="button">Inativo</button>
+        </Tooltip>
+      </>,
     );
 
     const trigger = screen.getByRole('button', { name: 'Sincronizar' });
@@ -51,15 +56,13 @@ describe('Tooltip', () => {
     expect(bubble).toHaveAttribute('aria-busy', 'true');
     expect(bubble).toHaveTextContent('Carregando tooltip');
     expect(bubble.querySelector('.mcp-tooltip__spinner')).toBeInTheDocument();
-
-    render(
-      <Tooltip content="Não deve abrir" disabled delay={{ open: 0, close: 0 }}>
-        <button type="button">Inativo</button>
-      </Tooltip>,
-    );
+    await user.unhover(trigger);
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
 
     const disabledTrigger = screen.getByRole('button', { name: 'Inativo' });
     await user.hover(disabledTrigger);
-    expect(screen.queryAllByRole('tooltip')).toHaveLength(1);
+    await waitFor(() => {
+      expect(screen.queryByRole('tooltip', { name: /Não deve abrir/ })).not.toBeInTheDocument();
+    });
   });
 });

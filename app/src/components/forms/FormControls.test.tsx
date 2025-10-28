@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { McpFormProvider, useMcpField, useMcpForm, useMcpFormContext } from '../../hooks/useMcpForm';
@@ -140,7 +140,7 @@ describe('Form controls integration', () => {
     expect(input).toBeTruthy();
 
     const file = new File([JSON.stringify({ ok: true })], 'artifact.json', { type: 'application/json' });
-    await user.upload(input as HTMLInputElement, file);
+    fireEvent.change(input as HTMLInputElement, { target: { files: [file] } });
 
     expect(onUpload).toHaveBeenCalledWith(file, expect.any(Function));
     expect(await screen.findByText(/Arquivo artifact\.json disponível para uso\./i)).toBeVisible();
@@ -157,7 +157,16 @@ describe('Form controls integration', () => {
 
     const input = container.querySelector('input[type="file"]');
     const file = new File(['conteúdo'], 'bundle.txt', { type: 'text/plain' });
-    await user.upload(input as HTMLInputElement, file);
+    Object.defineProperty(input as HTMLInputElement, 'files', {
+      configurable: true,
+      value: [file],
+    });
+    fireEvent.change(input as HTMLInputElement);
+
+    await waitFor(() => expect(onUpload).toHaveBeenCalledWith(file, expect.any(Function)));
+
+    await screen.findByText((content) => content.includes('Upload concluído: bundle.txt'));
+    await screen.findByText(/Arquivo bundle\.txt disponível para uso\./i);
 
     const downloadButton = await screen.findByRole('button', { name: /Baixar arquivo enviado/i });
     await user.click(downloadButton);

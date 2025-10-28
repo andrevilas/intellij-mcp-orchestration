@@ -4745,17 +4745,17 @@ export async function fetchTelemetryExportDocument(
       try {
         const { bypass } = await import('msw');
         const baseUrl = getApiBaseUrl();
-        const normalizedBase = /^https?:\/\//i.test(baseUrl)
-          ? baseUrl
-          : `${window.location.origin}${baseUrl.startsWith('/') ? '' : '/'}${baseUrl.replace(/^\//, '')}`;
-        const resolvedUrl = new URL(normalizedBase);
-        const basePath = resolvedUrl.pathname.replace(/\/$/, '');
-        const [pathOnly, searchPart] = apiPath.split('?');
-        resolvedUrl.pathname = `${basePath}/${pathOnly.replace(/^\/+/, '')}`;
-        resolvedUrl.search = searchPart ? `?${searchPart}` : '';
-        const absoluteUrl = resolvedUrl.toString();
-        const bypassedRequest = bypass(absoluteUrl, requestInit);
-        response = await fetch(bypassedRequest);
+        const resolvedUrl = new URL(baseUrl, window.location.origin);
+        const shouldBypass = resolvedUrl.origin !== window.location.origin;
+        if (shouldBypass) {
+          const basePath = resolvedUrl.pathname.replace(/\/$/, '');
+          const [pathOnly, searchPart] = apiPath.split('?');
+          resolvedUrl.pathname = `${basePath}/${pathOnly.replace(/^\/+/, '')}`;
+          resolvedUrl.search = searchPart ? `?${searchPart}` : '';
+          const absoluteUrl = resolvedUrl.toString();
+          const bypassedRequest = bypass(absoluteUrl, requestInit);
+          response = await fetch(bypassedRequest);
+        }
       } catch (bypassError) {
         console.warn('Failed to issue bypassed FinOps export request.', bypassError);
       }

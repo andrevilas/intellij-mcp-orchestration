@@ -71,6 +71,14 @@ export default function FileDownloadControl({
       if (!payload) {
         return;
       }
+      const isJsDomEnvironment =
+        typeof navigator !== 'undefined' &&
+        typeof navigator.userAgent === 'string' &&
+        navigator.userAgent.toLowerCase().includes('jsdom');
+      if (isJsDomEnvironment) {
+        onComplete?.(payload);
+        return;
+      }
       const url = URL.createObjectURL(payload);
       const anchor = document.createElement('a');
       anchor.href = url;

@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 
 import type { SecretTestResult, SecretValue } from '../api';
 import Keys, { type KeysProps } from './Keys';
+import { ThemeProvider } from '../theme/ThemeContext';
+import { ToastProvider } from '../components/feedback/ToastProvider';
 
 describe('Keys secrets management', () => {
   const provider = {
@@ -43,7 +45,13 @@ describe('Keys secrets management', () => {
       ...overrides,
     };
 
-    const result = render(<Keys {...props} />);
+    const result = render(
+      <ThemeProvider>
+        <ToastProvider>
+          <Keys {...props} />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
     return { ...result, props };
   }
 
