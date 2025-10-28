@@ -3094,16 +3094,17 @@ export async function deleteServerDefinition(serverId: string, signal?: AbortSig
 }
 
 export async function fetchProviders(signal?: AbortSignal): Promise<ProviderSummary[]> {
-  const servers = await fetchServerCatalog(signal);
-  return servers.map((server) => ({
-    id: server.id,
-    name: server.name,
-    command: server.command,
-    description: server.description ?? undefined,
-    tags: server.tags,
-    capabilities: server.capabilities,
-    transport: server.transport,
-    is_available: true,
+  const data = await request<ProvidersResponse | undefined>('/providers', { signal });
+  const providerList = Array.isArray(data?.providers) ? data.providers : [];
+  return providerList.map((provider) => ({
+    id: provider.id,
+    name: provider.name,
+    command: provider.command,
+    description: provider.description ?? undefined,
+    tags: provider.tags ?? [],
+    capabilities: provider.capabilities ?? [],
+    transport: provider.transport,
+    is_available: provider.is_available ?? true,
   }));
 }
 

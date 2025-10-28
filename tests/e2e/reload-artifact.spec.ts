@@ -136,7 +136,7 @@ test.describe('@config-reload governed flow', () => {
     });
 
     await page.goto('/');
-    await page.getByRole('button', { name: 'Segurança' }).click();
+    await page.getByRole('link', { name: 'Segurança' }).click();
     await page.getByRole('tab', { name: 'Auditoria' }).click();
     await expect(page.getByRole('heading', { name: 'Reload governado de configuração' })).toBeVisible();
 
@@ -186,7 +186,7 @@ test.describe('@config-reload governed flow', () => {
     });
 
     await page.goto('/');
-    await page.getByRole('button', { name: 'Segurança' }).click();
+    await page.getByRole('link', { name: 'Segurança' }).click();
     await page.getByRole('tab', { name: 'Auditoria' }).click();
     await expect(page.getByRole('heading', { name: 'Reload governado de configuração' })).toBeVisible();
 

@@ -4,7 +4,7 @@ test.describe('Atualizações assistidas de servidores MCP', () => {
   const serverCatalog = {
     servers: [
       {
-        id: 'server-1',
+        id: 'gemini',
         name: 'Gemini MCP',
         command: './run-mcp --profile production',
         description: 'Servidor MCP de faturamento',
@@ -17,34 +17,20 @@ test.describe('Atualizações assistidas de servidores MCP', () => {
     ],
   };
 
-  const planPayload = {
-    plan_id: 'plan-1',
-    summary: 'Atualizar manifesto do servidor MCP',
-    message: 'Plano gerado para revisar manifesto e descrição.',
-    diffs: [
-      {
-        id: 'diff-1',
-        title: 'agents/gemini/agent.yaml',
-        summary: 'Atualiza owner e tags do manifesto',
-        diff: '--- a/agent.yaml\n+++ b/agent.yaml\n+owner: platform-team',
-      },
-    ],
-  };
-
   const applyPayload = {
     status: 'applied',
-    message: 'Atualização enviada com sucesso.',
-    record_id: 'rec-1',
-    branch: 'feature/mcp-update',
+    message: 'Atualização enviada com sucesso via fixtures.',
+    record_id: 'mcp-update-record-fixture',
+    branch: 'feature/fixtures',
     pull_request: {
       provider: 'github',
-      id: 'pr-101',
+      id: 'pr-fixture',
       number: '101',
-      url: 'https://github.com/mcp/console/pull/101',
-      title: 'Atualizar manifesto Gemini MCP',
+      url: 'https://github.com/example/console-mcp/pull/101',
+      title: 'Atualizar manifesto Gemini MCP (fixtures)',
       state: 'open',
-      head_sha: 'abc123',
-      branch: 'feature/mcp-update',
+      head_sha: 'f1x7ur3',
+      branch: 'feature/fixtures',
       merged: false,
     },
   };
@@ -88,69 +74,85 @@ test.describe('Atualizações assistidas de servidores MCP', () => {
   });
 
   test('@mcp-update aplica plano de atualização de servidor MCP', async ({ page }) => {
-    const planRequests: Record<string, unknown>[] = [];
-    const applyRequests: Record<string, unknown>[] = [];
-
-    await page.route('**/api/v1/config/mcp/update', (route) => {
-      const body = route.request().postData();
-      const payload = body ? (JSON.parse(body) as Record<string, unknown>) : {};
-      if (payload.mode === 'plan') {
-        planRequests.push(payload);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(planPayload),
-        });
-      }
-      if (payload.mode === 'apply') {
-        applyRequests.push(payload);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(applyPayload),
-        });
-      }
-      return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({}) });
-    });
-
     await page.goto('/');
-    await page.getByRole('button', { name: 'Admin Chat' }).click();
-    await expect(page.getByRole('heading', { name: 'Servidores MCP assistidos' })).toBeVisible();
-
+    await page.waitForSelector('role=status[name="Carregando Dashboard…"]', { state: 'detached' });
+    await page.getByRole('link', { name: 'Admin Chat' }).click();
+    await page.waitForSelector('role=status[name="Carregando Admin Chat…"]', { state: 'detached' });
     const serverCard = page.getByRole('article', { name: 'Gemini MCP' });
     await serverCard.getByLabel('Descrição').fill('Servidor MCP com auditoria contínua');
-    await serverCard.getByRole('button', { name: 'Gerar plano' }).click();
+    const planResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/config/mcp/update') &&
+        response.request().method() === 'POST' &&
+        response.request().postData()?.includes('"mode":"plan"'),
+    );
+    const planRequestPromise = page.waitForRequest(
+      (request) =>
+        request.url().includes('/api/v1/config/mcp/update') &&
+        request.method() === 'POST' &&
+        request.postData()?.includes('"mode":"plan"'),
+    );
+    await Promise.all([
+      planResponsePromise,
+      serverCard.getByRole('button', { name: 'Gerar plano' }).click(),
+    ]);
+    const planRequest = await planRequestPromise;
+    const planPayloadCaptured = JSON.parse(planRequest.postData() ?? '{}') as {
+      mode?: string;
+      server_id?: string;
+      changes?: Record<string, unknown>;
+    };
+    expect(planPayloadCaptured.mode).toBe('plan');
+    expect(planPayloadCaptured.server_id).toBe('gemini');
+    expect(planPayloadCaptured.changes).toMatchObject({ description: 'Servidor MCP com auditoria contínua' });
+    const planResponseData = (await planResponsePromise.then((response) => response.json())) as {
+      plan_id?: string;
+    };
+    const planIdFromResponse =
+      typeof planResponseData.plan_id === 'string' ? planResponseData.plan_id : 'mcp-update-plan-fixture';
 
     const modal = page.getByRole('dialog', { name: /Revisar plano/ });
-    await expect(modal.getByText('Atualiza owner e tags do manifesto')).toBeVisible();
+    await expect(modal.getByText('Atualiza owner e descrição.')).toBeVisible();
 
     await modal.getByLabel('Autor da alteração').fill('Joana MCP');
     await modal.getByLabel('E-mail do autor').fill('joana@example.com');
     await modal.getByLabel('Mensagem do commit').fill('chore: atualizar manifesto gemini mcp');
     await modal.getByLabel('Nota adicional (opcional)').fill('Sincronizar owners com FinOps');
 
+    const applyRequestPromise = page.waitForRequest(
+      (request) =>
+        request.url().includes('/api/v1/config/mcp/update') &&
+        request.method() === 'POST' &&
+        request.postData()?.includes('"mode":"apply"'),
+    );
+    const applyResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/config/mcp/update') &&
+        response.request().method() === 'POST' &&
+        response.request().postData()?.includes('"mode":"apply"'),
+    );
     await modal.getByRole('button', { name: 'Aplicar atualização' }).click();
+    const applyRequestCaptured = await applyRequestPromise;
+    await applyResponsePromise;
+    const applyPayloadCaptured = JSON.parse(applyRequestCaptured.postData() ?? '{}') as {
+      mode?: string;
+      plan_id?: string;
+      actor?: string;
+      actor_email?: string;
+      note?: string | null;
+    };
 
-    const confirmationModal = page.getByRole('dialog', { name: /Aplicar atualização ·/ });
-    await expect(confirmationModal).toBeVisible();
-    await confirmationModal.getByRole('button', { name: 'Armar aplicação' }).click();
-    await confirmationModal.getByRole('button', { name: 'Aplicar agora' }).click();
+    const resultPanel = page.locator('.mcp-servers__result');
+    await expect(resultPanel).toBeVisible();
+    await expect(resultPanel).toContainText(applyPayload.message);
+    await expect(resultPanel).toContainText(`Registro: ${applyPayload.record_id}`);
+    await expect(resultPanel).toContainText(`Branch: ${applyPayload.branch}`);
+    await expect(resultPanel).toContainText(`PR: ${applyPayload.pull_request.url}`);
 
-    await expect(page.getByText(/Atualização enviada com sucesso\./)).toBeVisible();
-    await expect(page.getByText(/Registro: rec-1/)).toBeVisible();
-    await expect(page.getByText(/Branch: feature\/mcp-update/)).toBeVisible();
-    await expect(page.getByText(/PR: https:\/\/github.com\/mcp\/console\/pull\/101/)).toBeVisible();
-
-    expect(planRequests).toHaveLength(1);
-    expect(planRequests[0].mode).toBe('plan');
-    expect(planRequests[0].server_id).toBe('server-1');
-    expect(planRequests[0].changes).toMatchObject({ description: 'Servidor MCP com auditoria contínua' });
-
-    expect(applyRequests).toHaveLength(1);
-    expect(applyRequests[0].mode).toBe('apply');
-    expect(applyRequests[0].plan_id).toBe('plan-1');
-    expect(applyRequests[0].actor).toBe('Joana MCP');
-    expect(applyRequests[0].actor_email).toBe('joana@example.com');
-    expect(applyRequests[0].note).toBe('Sincronizar owners com FinOps');
+    expect(applyPayloadCaptured.mode).toBe('apply');
+    expect(applyPayloadCaptured.plan_id).toBe(planIdFromResponse);
+    expect(applyPayloadCaptured.actor).toBe('Joana MCP');
+    expect(applyPayloadCaptured.actor_email).toBe('joana@example.com');
+    expect(applyPayloadCaptured.note).toBe('Sincronizar owners com FinOps');
   });
 });

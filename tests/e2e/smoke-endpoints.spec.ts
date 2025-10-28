@@ -129,7 +129,7 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Agents' }).click();
+  await page.getByRole('link', { name: 'Agents' }).click();
 
   const panel = page.locator('.smoke-panel');
   await expect(panel.getByRole('row')).toHaveCount(3);
@@ -162,7 +162,7 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
   expect(parsed['internal-health']).toMatchObject({ triggeredBy: 'svc-smoke' });
 
   await page.reload();
-  await page.getByRole('button', { name: 'Agents' }).click();
+  await page.getByRole('link', { name: 'Agents' }).click();
 
   const reloadedRow = page.locator('[data-testid="smoke-row-internal-health"]');
   await expect(reloadedRow.locator('time')).toHaveText('10/01/2025 10:20 UTC');

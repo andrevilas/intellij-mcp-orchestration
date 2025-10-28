@@ -45,12 +45,7 @@ async function enableMocks(): Promise<void> {
     navigator.webdriver === true;
 
   if (isAutomation) {
-    console.info('MSW worker disabled in automation environment; relying on Playwright routes.');
-    setFixtureStatus('ready');
-    if (typeof window !== 'undefined') {
-      window.__mswWorker = undefined;
-    }
-    return;
+    console.info('Automation environment detected; inicializando worker MSW para fixtures.');
   }
 
   const { worker } = await import('./mocks/browser');

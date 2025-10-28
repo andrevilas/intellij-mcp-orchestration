@@ -7,7 +7,7 @@ test('gera e aplica plano de roteamento com intents customizadas', async ({ page
   const existingRules = (manifest.routing?.rules ?? []) as Array<{ id: string }>;
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Routing' }).click();
+  await page.getByRole('link', { name: 'Routing' }).click();
 
   await expect(page.getByRole('heading', { name: 'Intents direcionadas' })).toBeVisible();
 
@@ -113,7 +113,7 @@ test('gera e aplica plano de roteamento com intents customizadas', async ({ page
 
 test('exibe erros de validação quando campos obrigatórios estão vazios', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Routing' }).click();
+  await page.getByRole('link', { name: 'Routing' }).click();
 
   await expect(page.getByRole('heading', { name: 'Intents direcionadas' })).toBeVisible();
 

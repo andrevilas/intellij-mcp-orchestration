@@ -207,7 +207,7 @@ test('salva preferências de observabilidade com sucesso', async ({ page }) => {
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Observabilidade' }).click();
+  await page.getByRole('link', { name: 'Observabilidade' }).click();
 
   const evalsGroup = page.getByRole('group', { name: 'Evals' });
   const evalsToggle = evalsGroup.getByRole('checkbox');
@@ -250,7 +250,7 @@ test('exibe mensagem de erro quando atualização retorna 400', async ({ page })
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Observabilidade' }).click();
+  await page.getByRole('link', { name: 'Observabilidade' }).click();
 
   const metricsGroup = page.getByRole('group', { name: 'Métricas' });
   const metricsToggle = metricsGroup.getByRole('checkbox');
@@ -280,7 +280,7 @@ test('bloqueia formulário quando carregamento retorna 401', async ({ page }) =>
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Observabilidade' }).click();
+  await page.getByRole('link', { name: 'Observabilidade' }).click();
 
   await expect(
     page.getByText('Você não tem permissão para visualizar as preferências de observabilidade.'),

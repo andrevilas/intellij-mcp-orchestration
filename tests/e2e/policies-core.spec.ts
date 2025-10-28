@@ -39,7 +39,7 @@ test('@policies-core aplica e executa rollback de templates com fixtures', async
   }
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Políticas' }).click();
+  await page.getByRole('link', { name: 'Políticas' }).click();
 
   await expect(page.getByRole('heading', { name: 'Políticas MCP · roteamento inteligente' })).toBeVisible();
 

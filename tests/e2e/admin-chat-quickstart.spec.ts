@@ -70,9 +70,12 @@ test('@docs exibe quickstart com player, link para docs e exemplos rápidos', as
 
   const navigation = page.getByRole('navigation', { name: 'Navegação principal' });
   await expect(navigation).toBeVisible();
-  await navigation.getByRole('button', { name: 'Admin Chat' }).click();
+  await navigation.getByRole('link', { name: 'Admin Chat' }).click();
+  const adminPanel = page.getByRole('tabpanel', { name: 'Admin Chat' });
+  await adminPanel.waitFor();
+  await adminPanel.getByRole('region', { name: 'Comece rápido' }).waitFor({ state: 'visible' });
 
-  const quickstartRegion = page.getByRole('region', { name: 'Comece rápido' });
+  const quickstartRegion = adminPanel.getByRole('region', { name: 'Comece rápido' });
   await expect(quickstartRegion).toBeVisible();
 
   const demoButton = quickstartRegion.getByRole('button', { name: 'Assistir demo' });

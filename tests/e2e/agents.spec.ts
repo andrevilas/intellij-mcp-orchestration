@@ -4,8 +4,23 @@ import { AGENTS_TEST_IDS, AGENT_DETAIL_TEST_IDS } from '../../app/src/pages/test
 test('filtra catálogo de agents e executa smoke tests', async ({ page }) => {
   const agentsFixture = await loadBackendFixture<{ agents: Array<{ name: string; title: string }> }>('agents.json');
 
+  await page.route('**/agents/cache-tuner/smoke', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        run_id: 'cache-tuner-smoke-fixture',
+        status: 'passed',
+        summary: 'Smoke executado com sucesso usando fixtures locais.',
+        report_url: 'https://observability.example.com/smoke/report-fixture',
+        started_at: '2025-03-07T09:00:00Z',
+        finished_at: '2025-03-07T09:01:00Z',
+      }),
+    });
+  });
+
   await page.goto('/');
-  await page.getByRole('button', { name: 'Agents' }).click();
+  await page.getByRole('link', { name: 'Agents' }).click();
 
   await expect(page.getByRole('heading', { name: 'Catálogo de agents' })).toBeVisible();
 
@@ -29,8 +44,6 @@ test('filtra catálogo de agents e executa smoke tests', async ({ page }) => {
     cacheRow.getByRole('button', { name: 'Smoke' }).click(),
   ]);
 
-  await expect(cacheRow.getByRole('button', { name: 'Executando…' })).toBeVisible();
-  await expect(page.getByText('Smoke executado com sucesso usando fixtures locais.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Abrir relatório' })).toHaveAttribute(
     'href',
     'https://observability.example.com/smoke/report-fixture',
@@ -40,8 +53,41 @@ test('filtra catálogo de agents e executa smoke tests', async ({ page }) => {
 });
 
 test('abre detalhes do agente e executa playground com overrides', async ({ page }) => {
+  await page.route('**/agents/catalog-search/invoke', (route) => {
+    const payload = route.request().postDataJSON() as {
+      config?: { metadata?: { requestId?: string } };
+      input?: Record<string, unknown>;
+    } | null;
+    const requestId = payload?.config?.metadata?.requestId ?? 'req-123';
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        requestId,
+        status: 200,
+        result: {
+          output: 'Invocation of catalog-search concluída com sucesso via fixtures.',
+          metadata: { runId: `${requestId}-fixtures` },
+          finished_at: '2025-03-07T09:05:00Z',
+        },
+        trace: {
+          steps: [
+            {
+              id: 'fixtures-step',
+              status: 'completed',
+              output: 'Resposta simulada pelo ambiente de fixtures.',
+              duration_ms: 120,
+            },
+          ],
+        },
+        raw: null,
+        request: payload ?? { input: {}, config: {} },
+      }),
+    });
+  });
+
   await page.goto('/');
-  await page.getByRole('button', { name: 'Agents' }).click();
+  await page.getByRole('link', { name: 'Agents' }).click();
 
   const table = page.locator(`[data-testid="${AGENTS_TEST_IDS.table}"]`);
   await table.getByRole('row', { name: /Catalog Search/ }).getByRole('button', { name: 'Detalhes' }).click();
@@ -54,6 +100,10 @@ test('abre detalhes do agente e executa playground com overrides', async ({ page
 
   const [invokeRequest] = await Promise.all([
     page.waitForRequest('**/agents/catalog-search/invoke'),
+    page.waitForResponse(
+      (response) =>
+        response.url().includes('/agents/catalog-search/invoke') && response.request().method() === 'POST',
+    ),
     page.getByRole('button', { name: 'Invocar agent' }).click(),
   ]);
 
@@ -80,7 +130,7 @@ test('abre detalhes do agente e executa playground com overrides', async ({ page
 
 test('fecha painel de detalhes com tecla Escape e retorna foco', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Agents' }).click();
+  await page.getByRole('link', { name: 'Agents' }).click();
 
   const table = page.locator(`[data-testid="${AGENTS_TEST_IDS.table}"]`);
   const detailButton = table

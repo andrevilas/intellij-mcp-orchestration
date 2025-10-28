@@ -1,6 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { defineConfig } from 'vitest/config';
+
+const require = createRequire(import.meta.url);
+require('../tests/suppress-sass-warnings.cjs');
 
 process.env.SASS_SILENCE_DEPRECATIONS =
   process.env.SASS_SILENCE_DEPRECATIONS ?? 'legacy-js-api';

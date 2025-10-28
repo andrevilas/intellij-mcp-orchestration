@@ -1,10 +1,38 @@
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig, devices } from '@playwright/test';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(new URL('.', import.meta.url))));
+const require = createRequire(import.meta.url);
+const sassSilencerPath = resolve(workspaceRoot, 'suppress-sass-warnings.cjs');
+require(sassSilencerPath);
+
+function appendNodeRequire(nodeOptions: string | undefined, modulePath: string): string {
+  const flag = `--require=${modulePath}`;
+  if (!nodeOptions) {
+    return flag;
+  }
+
+  if (nodeOptions.includes(flag)) {
+    return nodeOptions;
+  }
+
+  return `${nodeOptions} ${flag}`;
+}
+
+const nodeOptionsWithSilencer = appendNodeRequire(process.env.NODE_OPTIONS, sassSilencerPath);
+process.env.NODE_OPTIONS = nodeOptionsWithSilencer;
+
+if (!process.env.SASS_SILENCE_DEPRECATIONS) {
+  process.env.SASS_SILENCE_DEPRECATIONS = 'all';
+}
+
+if (!process.env.SASS_SUPPRESS_DEPRECATIONS) {
+  process.env.SASS_SUPPRESS_DEPRECATIONS = '1';
+}
 
 function shouldInstallPlaywrightDeps(): boolean {
   const preference = process.env.PLAYWRIGHT_INSTALL_DEPS;
@@ -68,6 +96,9 @@ export default defineConfig({
     timeout: 120 * 1000,
     env: {
       CONSOLE_MCP_USE_FIXTURES: 'force',
+      SASS_SILENCE_DEPRECATIONS: 'all',
+      SASS_SUPPRESS_DEPRECATIONS: '1',
+      NODE_OPTIONS: nodeOptionsWithSilencer,
     },
   },
 });

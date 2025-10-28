@@ -190,7 +190,7 @@ test('painel de observabilidade exibe métricas e aciona evals @observability', 
 
   await page.goto('/');
 
-  await page.getByRole('button', { name: 'Observabilidade' }).click();
+  await page.getByRole('link', { name: 'Observabilidade' }).click();
 
   await expect(page.getByRole('heading', { name: 'Observabilidade unificada' })).toBeVisible();
   await expect(page.getByText('930 ms')).toBeVisible();

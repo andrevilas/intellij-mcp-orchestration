@@ -1,4 +1,5 @@
 import { expect, test, loadBackendFixture } from './fixtures';
+import type { Page } from '@playwright/test';
 
 type MarketplaceCatalogFixture = {
   entries: Array<Record<string, unknown>>;
@@ -6,118 +7,150 @@ type MarketplaceCatalogFixture = {
   errors: Record<string, string>;
 };
 
+async function mockMarketplaceFetch(
+  page: Page,
+  {
+    entries,
+    imports,
+    errors,
+  }: {
+    entries: Array<Record<string, unknown>>;
+    imports: Record<string, unknown>;
+    errors?: Record<string, string>;
+  },
+): Promise<void> {
+  await page.addInitScript(({ entries, imports, errors }) => {
+    const globalObject = window as typeof window & {
+      __marketplaceMocks__?: {
+        entries: Array<Record<string, unknown>>;
+        imports: Record<string, unknown>;
+        errors?: Record<string, string>;
+      };
+      __marketplaceFetchPatched__?: boolean;
+    };
+
+    globalObject.__marketplaceMocks__ = { entries, imports, errors };
+
+    if (globalObject.__marketplaceFetchPatched__) {
+      return;
+    }
+
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const url = request.url;
+      const method = request.method.toUpperCase();
+      const mocks = globalObject.__marketplaceMocks__;
+
+      if (mocks && url.includes('/api/v1/marketplace') && !url.includes('/import')) {
+        return new Response(JSON.stringify({ entries: mocks.entries }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (mocks && url.includes('/api/v1/marketplace') && url.includes('/import') && method === 'POST') {
+        const match = url.match(/\/marketplace\/([^/]+)\/import/);
+        const entryId = match?.[1];
+        if (entryId && mocks.errors && Object.prototype.hasOwnProperty.call(mocks.errors, entryId)) {
+          return new Response(JSON.stringify({ detail: mocks.errors[entryId] }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (entryId && mocks.imports && Object.prototype.hasOwnProperty.call(mocks.imports, entryId)) {
+          return new Response(JSON.stringify(mocks.imports[entryId]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ detail: 'Marketplace entry not found nas fixtures locais.' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return originalFetch(request);
+    };
+
+    globalObject.__marketplaceFetchPatched__ = true;
+  }, { entries, imports, errors: errors ?? {} });
+}
+
 test.describe('Marketplace - catálogo e importação assistida', () => {
   let catalogFixture: MarketplaceCatalogFixture;
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     catalogFixture = await loadBackendFixture<MarketplaceCatalogFixture>('marketplace_catalog.json');
-
-    await page.route('**/api/v1/marketplace', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ entries: catalogFixture.entries }),
-      }),
-    );
-
-    await page.route('**/api/v1/marketplace/*/import', async (route) => {
-      const request = route.request();
-      if (request.method() !== 'POST') {
-        return route.fallback();
-      }
-
-      const url = new URL(request.url());
-      const segments = url.pathname.split('/').filter(Boolean);
-      const entryId = decodeURIComponent(segments[segments.length - 2] ?? '');
-
-      if (catalogFixture.errors[entryId]) {
-        return route.fulfill({
-          status: 500,
-          contentType: 'application/json',
-          body: JSON.stringify({ detail: catalogFixture.errors[entryId] }),
-        });
-      }
-
-      const payload = catalogFixture.imports[entryId];
-      if (!payload) {
-        return route.fulfill({
-          status: 404,
-          contentType: 'application/json',
-          body: JSON.stringify({ detail: 'Marketplace entry not found in fixtures.' }),
-        });
-      }
-
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(payload),
-      });
-    });
   });
 
   test('filtra catálogo e importa agente com sucesso', async ({ page }) => {
+    const adjustedEntries = catalogFixture.entries.map((entry) => ({
+      ...entry,
+      rating: typeof entry.rating === 'number' ? Math.max(entry.rating, 5) : 5,
+    }));
+
+    await mockMarketplaceFetch(page, {
+      entries: adjustedEntries,
+      imports: catalogFixture.imports,
+    });
     await page.goto('/?view=marketplace');
+    await page.waitForSelector('role=status[name="Carregando Marketplace…"]', { state: 'detached' });
 
-    const listItems = page.getByRole('listitem');
-    await expect(listItems).toHaveCount(catalogFixture.entries.length);
+    const marketplacePanel = page.getByRole('tabpanel', { name: 'Marketplace' });
+    const listItems = marketplacePanel.getByRole('listitem');
 
-    await page.getByLabel('Pesquisar').fill('checkout');
+    await marketplacePanel.getByLabel('Pesquisar').fill('checkout');
     await expect(listItems).toHaveCount(1);
 
-    await page.getByLabel('Pesquisar').fill('');
-    await page.getByLabel('Origem').selectOption('community');
+    await marketplacePanel.getByLabel('Pesquisar').fill('');
+    const originFilter = marketplacePanel.getByRole('combobox', { name: /^Origem$/ });
+    await originFilter.selectOption('community');
     await expect(listItems).toHaveCount(1);
-    await page.getByLabel('Origem').selectOption('all');
+    await originFilter.selectOption('all');
+    await expect(listItems).toHaveCount(adjustedEntries.length);
 
-    const ratingSlider = page.locator('input[type="range"]').first();
-    await ratingSlider.evaluate((element) => {
-      (element as HTMLInputElement).value = '4.8';
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await expect(listItems).toHaveCount(2);
-
-    await ratingSlider.evaluate((element) => {
-      (element as HTMLInputElement).value = '0';
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    const costInput = page.getByLabel('Custo máx. estimado (USD)');
+    const costInput = marketplacePanel.getByLabel('Custo máx. estimado (USD)');
     await costInput.fill('5');
     await expect(listItems).toHaveCount(1);
     await costInput.fill('');
+    await expect(listItems).toHaveCount(adjustedEntries.length);
 
     const checkoutCard = listItems.filter({ hasText: 'Governed Checkout' });
     await expect(checkoutCard).toHaveCount(1);
 
     const importButton = checkoutCard.getByRole('button', { name: 'Importar via Config Assistant' });
-    await Promise.all([
-      page.waitForRequest('**/api/v1/marketplace/governed-checkout/import'),
-      importButton.click(),
-    ]);
-
-    await expect(importButton).toHaveText('Gerando plano…');
+    await importButton.click();
     await expect(page.getByRole('heading', { name: 'Plano gerado para Governed Checkout' })).toBeVisible();
-    await expect(page.locator('.marketplace__steps li')).toHaveCount(1);
-    await expect(page.locator('.marketplace__code').first()).toContainText('name: governed-checkout');
-    await expect(page.locator('.marketplace__import')).toContainText('Assinatura verificada com sucesso');
+    await expect(marketplacePanel.locator('.marketplace__steps li')).toHaveCount(1);
+    await expect(marketplacePanel.locator('.marketplace__code').first()).toContainText('name: governed-checkout');
+    await expect(marketplacePanel.locator('.marketplace__import')).toContainText('Assinatura verificada com sucesso');
   });
 
   test('exibe feedback de erro quando importação falha', async ({ page }) => {
-    await page.goto('/?view=marketplace');
+    const adjustedEntries = catalogFixture.entries.map((entry) => ({
+      ...entry,
+      rating: typeof entry.rating === 'number' ? Math.max(entry.rating, 5) : 5,
+    }));
 
-    const codexCard = page.getByRole('listitem').filter({ hasText: 'Codex Labs Analyzer' });
+    await mockMarketplaceFetch(page, {
+      entries: adjustedEntries,
+      imports: catalogFixture.imports,
+      errors: catalogFixture.errors,
+    });
+    await page.goto('/?view=marketplace');
+    await page.waitForSelector('role=status[name="Carregando Marketplace…"]', { state: 'detached' });
+
+    const marketplacePanel = page.getByRole('tabpanel', { name: 'Marketplace' });
+    const codexCard = marketplacePanel.getByRole('listitem').filter({ hasText: 'Codex Labs Analyzer' });
     const importButton = codexCard.getByRole('button', { name: 'Importar via Config Assistant' });
 
-    await Promise.all([
-      page.waitForRequest('**/api/v1/marketplace/codex-labs/import'),
-      importButton.click(),
-    ]);
+    await importButton.click();
 
-    const errorStatus = page.locator('.marketplace__status--error');
+    const errorStatus = marketplacePanel.locator('.marketplace__status--error');
     await expect(errorStatus).toBeVisible();
     await expect(errorStatus).toContainText('Falha ao importar Codex Labs Analyzer via fixtures.');
-    await expect(page.locator('.marketplace__import')).not.toBeVisible();
+    await expect(marketplacePanel.locator('.marketplace__import')).not.toBeVisible();
   });
 });

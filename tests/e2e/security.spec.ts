@@ -17,7 +17,7 @@ type AuditLogFixture = {
 test.describe('Console de segurança', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Segurança' }).click();
+    await page.getByRole('link', { name: 'Segurança' }).click();
     await expect(page.getByRole('heading', { name: 'Central de segurança' })).toBeVisible();
   });
 

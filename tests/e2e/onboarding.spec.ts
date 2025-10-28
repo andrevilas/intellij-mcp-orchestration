@@ -204,7 +204,7 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await registerOnboardingRoutes(page, fixtures, onboardPayloads);
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Admin Chat' }).click();
+  await page.getByRole('link', { name: 'Admin Chat' }).click();
 
   const basicNextButton = page.getByRole('button', { name: 'Avançar para autenticação' });
   await expect(basicNextButton).toBeDisabled();
@@ -312,7 +312,7 @@ test('@onboarding-accessibility validates keyboard flow and aria feedback', asyn
   await registerOnboardingRoutes(page, fixtures);
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Admin Chat' }).click();
+  await page.getByRole('link', { name: 'Admin Chat' }).click();
 
   const idInput = page.getByLabel('Identificador do agente');
   await idInput.click();

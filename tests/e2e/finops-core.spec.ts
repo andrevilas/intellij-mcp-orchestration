@@ -19,7 +19,7 @@ test('@finops-plan gera e aplica plano FinOps com fixtures', async ({ page }) =>
   ]);
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'FinOps' }).click();
+  await page.getByRole('link', { name: 'FinOps' }).click();
 
   const alertsSection = page.getByTestId(FINOPS_TEST_IDS.alerts.section);
   await expect(alertsSection.getByText('Escalada de custo diário')).toBeVisible();

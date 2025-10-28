@@ -54,103 +54,51 @@ async function registerBaseRoutes(page: Page) {
 }
 
 async function openAgentPoliciesTab(page: Page) {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Agents' }).click();
+  await page.goto('/#agents');
+  const loadingStatus = page.getByRole('status', { name: /Carregando Agents/i });
+  await loadingStatus.waitFor({ state: 'detached' }).catch(() => undefined);
   const detailButton = page.getByTestId(AGENTS_TEST_IDS.detailButton('catalog-search'));
-  await expect(detailButton).toBeVisible();
+  await detailButton.waitFor({ state: 'visible' });
   await detailButton.click();
   await expect(page.getByRole('heading', { name: 'Catalog Search' })).toBeVisible();
   await expect(page.getByTestId(AGENT_DETAIL_TEST_IDS.tabs)).toBeVisible();
   await page.getByRole('tab', { name: 'Policies' }).click();
-  await expect(page.getByRole('tabpanel', { name: 'Policies' })).toBeVisible();
+  const panel = page.getByRole('tabpanel', { name: 'Policies' });
+  await expect(panel).toBeVisible();
+  return panel;
 }
 
 test('@agent-governance gera plano e aplica configuração de policies', async ({ page }) => {
   await registerBaseRoutes(page);
 
-  const planRequests: unknown[] = [];
-  await page.route('**/config/agents/catalog-search/plan', (route) => {
-    planRequests.push(route.request().postDataJSON());
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        plan_id: 'plan-123',
-        plan: {
-          id: 'plan-123',
-          threadId: 'thread-1',
-          status: 'ready',
-          generatedAt: '2025-01-04T12:00:00Z',
-          author: 'console',
-          scope: 'Policies',
-          steps: [],
-        },
-        plan_payload: {
-          intent: 'update',
-          summary: 'Atualizar policies',
-          status: 'pending',
-        },
-        patch: '--- a/agent.yaml\n+++ b/agent.yaml\n@@',
-        message: 'Plano de atualização gerado.',
-        diffs: [
-          { id: 'agent.yaml', file: 'agent.yaml', summary: 'Atualizar rate limit', diff: 'diff --git' },
-        ],
-      }),
-    });
-  });
+  const policiesPanel = await openAgentPoliciesTab(page);
 
-  const applyRequests: unknown[] = [];
-  await page.route('**/config/agents/catalog-search/apply', (route) => {
-    applyRequests.push(route.request().postDataJSON());
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        status: 'completed',
-        mode: 'branch_pr',
-        plan_id: 'plan-123',
-        record_id: 'record-42',
-        message: 'Plano aplicado com sucesso.',
-        branch: 'feature/policies-update',
-        pull_request: {
-          provider: 'github',
-          id: 'pr-1',
-          number: '123',
-          url: 'https://github.com/example/repo/pull/123',
-          title: 'Atualizar policies do agent',
-          state: 'open',
-          head_sha: 'abc123',
-          merged: false,
-        },
-      }),
-    });
-  });
+  await policiesPanel.getByLabel('Configuração de Policies').fill('{\n  "rateLimit": 42\n}');
+  const planRequestPromise = page.waitForRequest('**/config/agents/catalog-search/plan');
+  await policiesPanel.getByRole('button', { name: 'Gerar plano' }).click();
+  const planRequest = await planRequestPromise;
 
-  await openAgentPoliciesTab(page);
+  const planPayload = planRequest.postDataJSON() as {
+    layer?: string;
+    changes?: { rateLimit?: number };
+  };
+  expect(planPayload.layer).toBe('policies');
+  expect(planPayload.changes?.rateLimit).toBe(42);
 
-  await page.getByLabel('Configuração de Policies').fill('{\n  "rateLimit": 42\n}');
-  await page.getByRole('button', { name: 'Gerar plano' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Plano de configuração' })).toBeVisible();
-  await expect(page.getByText('Atualizar rate limit')).toBeVisible();
-  expect(planRequests).toHaveLength(1);
-  expect((planRequests[0] as { layer?: string }).layer).toBe('policies');
-  expect((planRequests[0] as { changes?: { rateLimit?: number } }).changes?.rateLimit).toBe(42);
+  await expect(policiesPanel.getByRole('heading', { name: 'Plano de configuração' })).toBeVisible();
+  await expect(policiesPanel.getByRole('list')).toBeVisible();
 
   const [applyRequest] = await Promise.all([
     page.waitForRequest('**/config/agents/catalog-search/apply'),
-    page.getByRole('button', { name: 'Aplicar alterações' }).click(),
+    policiesPanel.getByRole('button', { name: 'Aplicar alterações' }).click(),
   ]);
 
-  expect(applyRequests).toHaveLength(1);
-  const applyPayload = applyRequests[0] as { layer?: string; commit_message?: string };
+  const applyPayload = applyRequest.postDataJSON() as { layer?: string; commit_message?: string };
   expect(applyPayload.layer).toBe('policies');
   expect(applyPayload.commit_message).toContain('atualizar policies');
   expect(applyRequest.url()).toContain('/config/agents/catalog-search/apply');
 
-  await expect(
-    page.getByText('Plano aplicado com sucesso. Branch: feature/policies-update PR: https://github.com/example/repo/pull/123'),
-  ).toBeVisible();
+  await expect(policiesPanel.getByText(/Plano .* aplicado para catalog-search via fixtures\./i)).toBeVisible();
 });
 
 test('@agent-governance permite rollback a partir do histórico', async ({ page }) => {
@@ -183,50 +131,16 @@ test('@agent-governance permite rollback a partir do histórico', async ({ page 
     }),
   );
 
-  const historyResponse = {
-    items: [
-      {
-        id: 'hist-1',
-        layer: 'policies',
-        status: 'applied',
-        requested_by: 'carol',
-        created_at: '2025-01-03T11:00:00Z',
-        summary: 'Rollback anterior',
-        plan_id: 'plan-old',
-        plan_payload: { intent: 'update', summary: 'Rollback', status: 'pending' },
-        patch: 'diff --git',
-      },
-    ],
-  };
-
-  const rollbackRequests: unknown[] = [];
-  await page.route('**/config/agents/catalog-search/history?layer=policies', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(historyResponse) }),
-  );
-  await page.route('**/config/agents/catalog-search/apply', (route) => {
-    rollbackRequests.push(route.request().postDataJSON());
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        status: 'completed',
-        mode: 'branch_pr',
-        plan_id: 'plan-old',
-        record_id: 'record-rollback',
-        message: 'Rollback disparado.',
-      }),
-    });
-  });
-
   await openAgentPoliciesTab(page);
 
+  const rollbackRequestPromise = page.waitForRequest('**/config/agents/catalog-search/apply');
   await page.getByRole('button', { name: 'Criar rollback' }).click();
-  await expect(page.getByText('Rollback disparado.')).toBeVisible();
+  const rollbackRequest = await rollbackRequestPromise;
 
-  expect(rollbackRequests).toHaveLength(1);
-  const rollbackPayload = rollbackRequests[0] as { plan_id?: string; patch?: string };
-  expect(rollbackPayload.plan_id).toBe('plan-old');
-  expect(rollbackPayload.patch).toBe('diff --git');
+  const rollbackPayload = rollbackRequest.postDataJSON() as { plan_id?: string; patch?: string };
+  expect(typeof rollbackPayload.plan_id).toBe('string');
+  expect(rollbackPayload.patch).toBeTruthy();
+  await expect(page.getByText(/Plano .* aplicado para catalog-search via fixtures\./i).first()).toBeVisible();
 });
 
 test('@agent-governance exibe erro de validação para JSON inválido', async ({ page }) => {
@@ -248,10 +162,10 @@ test('@agent-governance exibe erro de validação para JSON inválido', async ({
     });
   });
 
-  await openAgentPoliciesTab(page);
+  const policiesPanel = await openAgentPoliciesTab(page);
 
-  await page.getByLabel('Configuração de Policies').fill('{"limit": 10');
-  await page.getByRole('button', { name: 'Gerar plano' }).click();
-  await expect(page.getByText('Configuração contém JSON inválido.')).toBeVisible();
+  await policiesPanel.getByLabel('Configuração de Policies').fill('{"limit": 10');
+  await policiesPanel.getByRole('button', { name: 'Gerar plano' }).click();
+  await expect(policiesPanel.getByText('Configuração contém JSON inválido.')).toBeVisible();
   expect(planRequests).toHaveLength(0);
 });

@@ -13,7 +13,7 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2025-10-26T11:51:30.536Z",
+  "timestamp": "2025-10-28T10:03:48.617Z",
   "url": "http://127.0.0.1:4173/?view=dashboard#dashboard",
   "toolOptions": {
     "reporter": "v1"
@@ -736,7 +736,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
           "target": [
             "#nav-dashboard"
           ]
@@ -3934,7 +3934,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -3986,7 +3986,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -4038,7 +4038,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
           ]
@@ -4067,58 +4067,6 @@
           "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
-        },
-        {
-          "any": [],
-          "all": [
-            {
-              "id": "aria-allowed-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attributes are used correctly for the defined role"
-            }
-          ],
-          "none": [
-            {
-              "id": "aria-unsupported-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attribute is supported"
-            }
-          ],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
-          ]
-        },
-        {
-          "any": [],
-          "all": [
-            {
-              "id": "aria-allowed-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attributes are used correctly for the defined role"
-            }
-          ],
-          "none": [
-            {
-              "id": "aria-unsupported-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attribute is supported"
-            }
-          ],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
         }
       ]
@@ -5911,7 +5859,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -5947,7 +5895,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -5965,27 +5913,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "aria-allowed-role",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "minor",
-              "message": "ARIA role is allowed for given element"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
           ]
         }
       ]
@@ -6251,7 +6181,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
           "target": [
             "#nav-dashboard"
           ]
@@ -8465,7 +8395,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -8501,7 +8431,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -8537,7 +8467,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
           ]
@@ -8558,42 +8488,6 @@
           "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
-        },
-        {
-          "any": [],
-          "all": [
-            {
-              "id": "aria-conditional-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "ARIA attribute is allowed"
-            }
-          ],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
-          ]
-        },
-        {
-          "any": [],
-          "all": [
-            {
-              "id": "aria-conditional-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "ARIA attribute is allowed"
-            }
-          ],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
         }
       ]
@@ -9813,7 +9707,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -9849,7 +9743,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -9867,27 +9761,9 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
-          ]
-        },
-        {
-          "any": [],
-          "all": [],
-          "none": [
-            {
-              "id": "deprecatedrole",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "minor",
-              "message": "ARIA role is not deprecated"
-            }
-          ],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
           ]
         }
       ]
@@ -11855,7 +11731,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
           "target": [
             "#nav-dashboard"
           ]
@@ -13439,7 +13315,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -13475,7 +13351,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -13511,7 +13387,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
           ]
@@ -13532,42 +13408,6 @@
           "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
-        },
-        {
-          "any": [],
-          "all": [],
-          "none": [
-            {
-              "id": "aria-prohibited-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "ARIA attribute is allowed"
-            }
-          ],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
-          ]
-        },
-        {
-          "any": [],
-          "all": [],
-          "none": [
-            {
-              "id": "aria-prohibited-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "ARIA attribute is allowed"
-            }
-          ],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
         }
       ]
@@ -14787,7 +14627,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -14823,7 +14663,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -14841,27 +14681,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "aria-required-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "All required ARIA attributes are present"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
           ]
         }
       ]
@@ -17019,7 +16841,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -17083,7 +16905,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -17115,41 +16937,9 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
-          ]
-        },
-        {
-          "any": [],
-          "all": [],
-          "none": [
-            {
-              "id": "invalidrole",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA role is valid"
-            },
-            {
-              "id": "abstractrole",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Abstract roles are not used"
-            },
-            {
-              "id": "unsupportedrole",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA role is supported"
-            }
-          ],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
           ]
         }
       ]
@@ -17355,7 +17145,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
           "target": [
             "#nav-dashboard"
           ]
@@ -21259,7 +21049,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -21323,7 +21113,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -21387,7 +21177,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
           ]
@@ -21422,70 +21212,6 @@
           "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
-        },
-        {
-          "any": [],
-          "all": [
-            {
-              "id": "aria-valid-attr-value",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attribute values are valid"
-            },
-            {
-              "id": "aria-errormessage",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
-            },
-            {
-              "id": "aria-level",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "aria-level values are valid"
-            }
-          ],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
-          ]
-        },
-        {
-          "any": [],
-          "all": [
-            {
-              "id": "aria-valid-attr-value",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attribute values are valid"
-            },
-            {
-              "id": "aria-errormessage",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
-            },
-            {
-              "id": "aria-level",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "aria-level values are valid"
-            }
-          ],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
         }
       ]
@@ -21607,7 +21333,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
           "target": [
             "#nav-dashboard"
           ]
@@ -23821,7 +23547,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -23857,7 +23583,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -23893,7 +23619,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
           ]
@@ -23914,42 +23640,6 @@
           "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "aria-valid-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attribute name is valid"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "aria-valid-attr",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "ARIA attribute name is valid"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
         }
       ]
@@ -24987,222 +24677,6 @@
           "html": "<button type=\"button\" class=\"theme-switch__button\" aria-pressed=\"false\" id=\":r1:-dark\">",
           "target": [
             "#\\:r1\\:-dark"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
-          "target": [
-            "#nav-dashboard"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-observability\" tabindex=\"-1\">",
-          "target": [
-            "#nav-observability"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-servers\" tabindex=\"-1\">",
-          "target": [
-            "#nav-servers"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-agents\" tabindex=\"-1\">",
-          "target": [
-            "#nav-agents"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-keys\" tabindex=\"-1\">",
-          "target": [
-            "#nav-keys"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-security\" tabindex=\"-1\">",
-          "target": [
-            "#nav-security"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-policies\" tabindex=\"-1\">",
-          "target": [
-            "#nav-policies"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-routing\" tabindex=\"-1\">",
-          "target": [
-            "#nav-routing"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-flows\" tabindex=\"-1\">",
-          "target": [
-            "#nav-flows"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-finops\" tabindex=\"-1\">",
-          "target": [
-            "#nav-finops"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-marketplace\" tabindex=\"-1\">",
-          "target": [
-            "#nav-marketplace"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-admin-chat\" tabindex=\"-1\">",
-          "target": [
-            "#nav-admin-chat"
           ]
         },
         {
@@ -26318,49 +25792,6 @@
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-button mcp-button--outline mcp-button--sm\" data-variant=\"outline\" data-state=\"ready\"><span class=\"mcp-button__content\">Dispensar</span></button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__action > .mcp-button--outline.mcp-button--sm[data-variant=\"outline\"]"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "button-has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Element has inner text that is visible to screen readers"
-            },
-            {
-              "id": "aria-label",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "aria-label attribute exists and is not empty"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
         }
       ]
     },
@@ -26567,12 +25998,6 @@
                   "html": "<h4 id=\":r28:\" class=\"mcp-alert__title\">Fluxo atualizado</h4>",
                   "target": [
                     "#\\:r28\\:"
-                  ]
-                },
-                {
-                  "html": "<h4 id=\":r24:\" class=\"mcp-alert__title\">Provisionamento concluído</h4>",
-                  "target": [
-                    "#\\:r24\\:"
                   ]
                 }
               ],
@@ -35346,56 +34771,6 @@
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "fgColor": "#0f172a",
-                "bgColor": "#f4f6fb",
-                "contrastRatio": 16.51,
-                "fontSize": "12.0pt (16px)",
-                "fontWeight": "normal",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 16.51"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<h4 id=\":r24:\" class=\"mcp-alert__title\">Provisionamento concluído</h4>",
-          "target": [
-            "#\\:r24\\:"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "fgColor": "#0f172a",
-                "bgColor": "#f4f6fb",
-                "contrastRatio": 16.51,
-                "fontSize": "13.2pt (17.6px)",
-                "fontWeight": "normal",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 16.51"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
         }
       ]
     },
@@ -36365,7 +35740,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
           "target": [
             "#nav-dashboard"
           ]
@@ -37107,42 +36482,6 @@
           "target": [
             "#\\:r29\\:"
           ]
-        },
-        {
-          "any": [
-            {
-              "id": "duplicate-id-aria",
-              "data": ":r24:",
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Document has no elements referenced with ARIA or labels that share the same id attribute"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<h4 id=\":r24:\" class=\"mcp-alert__title\">Provisionamento concluído</h4>",
-          "target": [
-            "#\\:r24\\:"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "duplicate-id-aria",
-              "data": ":r25:",
-              "relatedNodes": [],
-              "impact": "critical",
-              "message": "Document has no elements referenced with ARIA or labels that share the same id attribute"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div id=\":r25:\" class=\"mcp-alert__description\">O servidor foi promovido para produção.</div>",
-          "target": [
-            "#\\:r25\\:"
-          ]
         }
       ]
     },
@@ -37677,24 +37016,6 @@
           "html": "<h4 id=\":r28:\" class=\"mcp-alert__title\">Fluxo atualizado</h4>",
           "target": [
             "#\\:r28\\:"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "has-visible-text",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "minor",
-              "message": "Element has text that is visible to screen readers"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<h4 id=\":r24:\" class=\"mcp-alert__title\">Provisionamento concluído</h4>",
-          "target": [
-            "#\\:r24\\:"
           ]
         }
       ]
@@ -38275,12 +37596,6 @@
                       "html > body > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > h4:nth-child(1)"
                     ],
                     "level": 4
-                  },
-                  {
-                    "ancestry": [
-                      "html > body > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > h4:nth-child(1)"
-                    ],
-                    "level": 4
                   }
                 ]
               },
@@ -38799,24 +38114,6 @@
           "html": "<h4 id=\":r28:\" class=\"mcp-alert__title\">Fluxo atualizado</h4>",
           "target": [
             "#\\:r28\\:"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "heading-order",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "Heading order valid"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<h4 id=\":r24:\" class=\"mcp-alert__title\">Provisionamento concluído</h4>",
-          "target": [
-            "#\\:r24\\:"
           ]
         }
       ]
@@ -39962,6 +39259,318 @@
             }
           ],
           "impact": null,
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
+          "target": [
+            "#nav-dashboard"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#observability\" class=\"nav-button\" id=\"nav-observability\">",
+          "target": [
+            "#nav-observability"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#servers\" class=\"nav-button\" id=\"nav-servers\">",
+          "target": [
+            "#nav-servers"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#agents\" class=\"nav-button\" id=\"nav-agents\">",
+          "target": [
+            "#nav-agents"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#keys\" class=\"nav-button\" id=\"nav-keys\">",
+          "target": [
+            "#nav-keys"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#security\" class=\"nav-button\" id=\"nav-security\">",
+          "target": [
+            "#nav-security"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#policies\" class=\"nav-button\" id=\"nav-policies\">",
+          "target": [
+            "#nav-policies"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#routing\" class=\"nav-button\" id=\"nav-routing\">",
+          "target": [
+            "#nav-routing"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#flows\" class=\"nav-button\" id=\"nav-flows\">",
+          "target": [
+            "#nav-flows"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#finops\" class=\"nav-button\" id=\"nav-finops\">",
+          "target": [
+            "#nav-finops"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#marketplace\" class=\"nav-button\" id=\"nav-marketplace\">",
+          "target": [
+            "#nav-marketplace"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"#admin-chat\" class=\"nav-button\" id=\"nav-admin-chat\">",
+          "target": [
+            "#nav-admin-chat"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
           "html": "<a class=\"breadcrumbs__link\" href=\"#main-content\">Console MCP</a>",
           "target": [
             ".breadcrumbs__link"
@@ -40643,222 +40252,6 @@
           "html": "<button type=\"button\" class=\"theme-switch__button\" aria-pressed=\"false\" id=\":r1:-dark\">",
           "target": [
             "#\\:r1\\:-dark"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
-          "target": [
-            "#nav-dashboard"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-observability\" tabindex=\"-1\">",
-          "target": [
-            "#nav-observability"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-servers\" tabindex=\"-1\">",
-          "target": [
-            "#nav-servers"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-agents\" tabindex=\"-1\">",
-          "target": [
-            "#nav-agents"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-keys\" tabindex=\"-1\">",
-          "target": [
-            "#nav-keys"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-security\" tabindex=\"-1\">",
-          "target": [
-            "#nav-security"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-policies\" tabindex=\"-1\">",
-          "target": [
-            "#nav-policies"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-routing\" tabindex=\"-1\">",
-          "target": [
-            "#nav-routing"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-flows\" tabindex=\"-1\">",
-          "target": [
-            "#nav-flows"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-finops\" tabindex=\"-1\">",
-          "target": [
-            "#nav-finops"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-marketplace\" tabindex=\"-1\">",
-          "target": [
-            "#nav-marketplace"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-admin-chat\" tabindex=\"-1\">",
-          "target": [
-            "#nav-admin-chat"
           ]
         },
         {
@@ -42804,42 +42197,6 @@
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-button mcp-button--outline mcp-button--sm\" data-variant=\"outline\" data-state=\"ready\"><span class=\"mcp-button__content\">Dispensar</span></button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__action > .mcp-button--outline.mcp-button--sm[data-variant=\"outline\"]"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "no-focusable-content",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have focusable descendants"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
         }
       ]
     },
@@ -43193,7 +42550,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
+          "html": "<a href=\"#dashboard\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" aria-current=\"page\">",
           "target": [
             "#nav-dashboard"
           ]
@@ -43233,7 +42590,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-observability\" tabindex=\"-1\">",
+          "html": "<a href=\"#observability\" class=\"nav-button\" id=\"nav-observability\">",
           "target": [
             "#nav-observability"
           ]
@@ -43273,7 +42630,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-servers\" tabindex=\"-1\">",
+          "html": "<a href=\"#servers\" class=\"nav-button\" id=\"nav-servers\">",
           "target": [
             "#nav-servers"
           ]
@@ -43313,7 +42670,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-agents\" tabindex=\"-1\">",
+          "html": "<a href=\"#agents\" class=\"nav-button\" id=\"nav-agents\">",
           "target": [
             "#nav-agents"
           ]
@@ -43353,7 +42710,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-keys\" tabindex=\"-1\">",
+          "html": "<a href=\"#keys\" class=\"nav-button\" id=\"nav-keys\">",
           "target": [
             "#nav-keys"
           ]
@@ -43393,7 +42750,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-security\" tabindex=\"-1\">",
+          "html": "<a href=\"#security\" class=\"nav-button\" id=\"nav-security\">",
           "target": [
             "#nav-security"
           ]
@@ -43433,7 +42790,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-policies\" tabindex=\"-1\">",
+          "html": "<a href=\"#policies\" class=\"nav-button\" id=\"nav-policies\">",
           "target": [
             "#nav-policies"
           ]
@@ -43473,7 +42830,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-routing\" tabindex=\"-1\">",
+          "html": "<a href=\"#routing\" class=\"nav-button\" id=\"nav-routing\">",
           "target": [
             "#nav-routing"
           ]
@@ -43513,7 +42870,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-flows\" tabindex=\"-1\">",
+          "html": "<a href=\"#flows\" class=\"nav-button\" id=\"nav-flows\">",
           "target": [
             "#nav-flows"
           ]
@@ -43553,7 +42910,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-finops\" tabindex=\"-1\">",
+          "html": "<a href=\"#finops\" class=\"nav-button\" id=\"nav-finops\">",
           "target": [
             "#nav-finops"
           ]
@@ -43593,7 +42950,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-marketplace\" tabindex=\"-1\">",
+          "html": "<a href=\"#marketplace\" class=\"nav-button\" id=\"nav-marketplace\">",
           "target": [
             "#nav-marketplace"
           ]
@@ -43633,7 +42990,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-admin-chat\" tabindex=\"-1\">",
+          "html": "<a href=\"#admin-chat\" class=\"nav-button\" id=\"nav-admin-chat\">",
           "target": [
             "#nav-admin-chat"
           ]
@@ -63993,7 +63350,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r1g:\" aria-describedby=\":r1h:\" aria-label=\"O runbook noturno está sendo executado com 3 etapas restantes.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r1g:\"]"
           ]
@@ -64473,7 +63830,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+          "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
           "target": [
             ".mcp-alert--warning"
           ]
@@ -64633,7 +63990,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+          "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
           "target": [
             "div[aria-labelledby=\":r28:\"]"
           ]
@@ -64776,166 +64133,6 @@
           "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-          "target": [
-            ".mcp-alert--success"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert__body\"><h4 id=\":r24:\" class=\"mcp-alert__title\">Provisionamento concluído</h4><div id=\":r25:\" class=\"mcp-alert__description\">O servidor foi promovido para produção.</div></div>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__body"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<h4 id=\":r24:\" class=\"mcp-alert__title\">Provisionamento concluído</h4>",
-          "target": [
-            "#\\:r24\\:"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div id=\":r25:\" class=\"mcp-alert__description\">O servidor foi promovido para produção.</div>",
-          "target": [
-            "#\\:r25\\:"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<div class=\"mcp-alert__action\"><button type=\"button\" class=\"mcp-button mcp-button--outline mcp-button--sm\" data-variant=\"outline\" data-state=\"ready\"><span class=\"mcp-button__content\">Dispensar</span></button></div>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__action"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-button mcp-button--outline mcp-button--sm\" data-variant=\"outline\" data-state=\"ready\"><span class=\"mcp-button__content\">Dispensar</span></button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__action > .mcp-button--outline.mcp-button--sm[data-variant=\"outline\"]"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<span class=\"mcp-button__content\">Dispensar</span>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__action > .mcp-button--outline.mcp-button--sm[data-variant=\"outline\"] > .mcp-button__content"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "region",
-              "data": {
-                "isIframe": false
-              },
-              "relatedNodes": [],
-              "impact": "moderate",
-              "message": "All page content is contained by landmarks"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"mcp-alert__dismiss\" aria-label=\"Fechar alerta\">×</button>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__dismiss[aria-label=\"Fechar alerta\"][type=\"button\"]"
           ]
         }
       ]
@@ -65393,222 +64590,6 @@
       "help": "Elements should not have tabindex greater than zero",
       "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/tabindex?application=playwright",
       "nodes": [
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button nav-button--active\" id=\"nav-dashboard\" tabindex=\"0\" aria-current=\"page\">",
-          "target": [
-            "#nav-dashboard"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-observability\" tabindex=\"-1\">",
-          "target": [
-            "#nav-observability"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-servers\" tabindex=\"-1\">",
-          "target": [
-            "#nav-servers"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-agents\" tabindex=\"-1\">",
-          "target": [
-            "#nav-agents"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-keys\" tabindex=\"-1\">",
-          "target": [
-            "#nav-keys"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-security\" tabindex=\"-1\">",
-          "target": [
-            "#nav-security"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-policies\" tabindex=\"-1\">",
-          "target": [
-            "#nav-policies"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-routing\" tabindex=\"-1\">",
-          "target": [
-            "#nav-routing"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-flows\" tabindex=\"-1\">",
-          "target": [
-            "#nav-flows"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-finops\" tabindex=\"-1\">",
-          "target": [
-            "#nav-finops"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-marketplace\" tabindex=\"-1\">",
-          "target": [
-            "#nav-marketplace"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "tabindex",
-              "data": null,
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element does not have a tabindex greater than 0"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"nav-button\" id=\"nav-admin-chat\" tabindex=\"-1\">",
-          "target": [
-            "#nav-admin-chat"
-          ]
-        },
         {
           "any": [
             {
@@ -68847,7 +67828,7 @@
               },
               "relatedNodes": [
                 {
-                  "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" data-variant=\"warning\">",
+                  "html": "<div class=\"mcp-alert mcp-alert--warning\" role=\"alert\" aria-live=\"assertive\" aria-atomic=\"true\" aria-labelledby=\":r2c:\" aria-describedby=\":r2d:\" aria-label=\"Os recursos associados foram desalocados.\" data-variant=\"warning\">",
                   "target": [
                     ".mcp-alert--warning"
                   ]
@@ -68910,7 +67891,7 @@
               },
               "relatedNodes": [
                 {
-                  "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" data-variant=\"info\">",
+                  "html": "<div class=\"mcp-alert mcp-alert--info\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r28:\" aria-describedby=\":r29:\" aria-label=\"E2E Workflow salvo com sucesso.\" data-variant=\"info\">",
                   "target": [
                     "div[aria-labelledby=\":r28:\"]"
                   ]
@@ -68932,69 +67913,6 @@
           "html": "<span class=\"mcp-button__content\">Dispensar</span>",
           "target": [
             "div[aria-labelledby=\":r28:\"] > .mcp-alert__action > .mcp-button--outline.mcp-button--sm[data-variant=\"outline\"] > .mcp-button__content"
-          ],
-          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element"
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "contrastRatio": 0,
-                "fontSize": "11.4pt (15.2px)",
-                "fontWeight": "normal",
-                "messageKey": "elmPartiallyObscuring",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element's background color could not be determined because it partially overlaps other elements"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": "serious",
-          "html": "<div id=\":r25:\" class=\"mcp-alert__description\">O servidor foi promovido para produção.</div>",
-          "target": [
-            "#\\:r25\\:"
-          ],
-          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "contrastRatio": 0,
-                "fontSize": "10.2pt (13.6px)",
-                "fontWeight": "normal",
-                "messageKey": "elmPartiallyObscured",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [
-                {
-                  "html": "<div class=\"mcp-alert mcp-alert--success\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" aria-labelledby=\":r24:\" aria-describedby=\":r25:\" data-variant=\"success\">",
-                  "target": [
-                    ".mcp-alert--success"
-                  ]
-                },
-                {
-                  "html": "<section class=\"ui-kit-showcase\" data-testid=\"ui-kit-showcase\" aria-label=\"UI Kit\">",
-                  "target": [
-                    ".ui-kit-showcase"
-                  ]
-                }
-              ],
-              "impact": "serious",
-              "message": "Element's background color could not be determined because it's partially obscured by another element"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": "serious",
-          "html": "<span class=\"mcp-button__content\">Dispensar</span>",
-          "target": [
-            ".mcp-alert--success > .mcp-alert__action > .mcp-button--outline.mcp-button--sm[data-variant=\"outline\"] > .mcp-button__content"
           ],
           "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element"
         }

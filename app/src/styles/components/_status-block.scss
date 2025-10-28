@@ -1,3 +1,5 @@
+@use 'sass:map';
+
 $statuses: (
   default: (
     surface: var(--mcp-status-surface-default),
@@ -37,11 +39,11 @@ $statuses: (
 );
 
 @function status-token($status, $token) {
-  @if map-has-key($statuses, $status) {
-    $values: map-get($statuses, $status);
+  @if map.has-key($statuses, $status) {
+    $values: map.get($statuses, $status);
 
-    @if map-has-key($values, $token) {
-      @return map-get($values, $token);
+    @if map.has-key($values, $token) {
+      @return map.get($values, $token);
     }
   }
 

@@ -42,6 +42,7 @@ async function registerBaseRoutes(page: Page) {
 test('suporta navegação por teclado no formulário do UI Kit', async ({ page }) => {
   await registerBaseRoutes(page);
   await page.goto('/');
+  await page.waitForSelector('role=status[name="Carregando Dashboard…"]', { state: 'detached' });
 
   const form = page.getByTestId('form-controls-demo');
   await form.scrollIntoViewIfNeeded();
@@ -87,6 +88,7 @@ test('suporta navegação por teclado no formulário do UI Kit', async ({ page }
 test('aciona upload de arquivo via teclado no UI Kit', async ({ page }) => {
   await registerBaseRoutes(page);
   await page.goto('/');
+  await page.waitForSelector('role=status[name="Carregando Dashboard…"]', { state: 'detached' });
 
   await mkdir(evidenceDir, { recursive: true });
   const uploadFixture = resolve(evidenceDir, 'sample-upload.json');
@@ -99,7 +101,7 @@ test('aciona upload de arquivo via teclado no UI Kit', async ({ page }) => {
 
   const [fileChooser] = await Promise.all([
     page.waitForEvent('filechooser'),
-    page.keyboard.press('Enter'),
+    uploadButton.press('Enter'),
   ]);
 
   await fileChooser.setFiles(uploadFixture);
@@ -111,6 +113,7 @@ test('aciona upload de arquivo via teclado no UI Kit', async ({ page }) => {
 test('exibe alerta de download bem sucedido no UI Kit', async ({ page }) => {
   await registerBaseRoutes(page);
   await page.goto('/');
+  await page.waitForSelector('role=status[name="Carregando Dashboard…"]', { state: 'detached' });
 
   const downloadButton = page.getByRole('button', { name: 'Baixar agora' });
   await downloadButton.scrollIntoViewIfNeeded();

@@ -11,7 +11,7 @@ test('gera e aplica plano de políticas com HITL usando fixtures', async ({ page
   }>;
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Políticas' }).click();
+  await page.getByRole('link', { name: 'Políticas' }).click();
 
   await expect(page.getByRole('heading', { name: 'Runtime, timeouts e tracing' })).toBeVisible();
 

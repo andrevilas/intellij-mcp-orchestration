@@ -53,7 +53,7 @@ test('gerencia servidores MCP usando fixtures locais', async ({ page }) => {
   }
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Servidores' }).click();
+  await page.getByRole('link', { name: 'Servidores' }).click();
 
   const statusSection = page.getByTestId(SERVERS_TEST_IDS.status.section);
   await expect(statusSection.getByTestId(SERVERS_TEST_IDS.status.online)).toHaveText(String(runningCount));

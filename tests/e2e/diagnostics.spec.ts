@@ -136,7 +136,7 @@ test('executa diagnóstico agregando health, providers e invoke', async ({ page 
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Servidores' }).click();
+  await page.getByRole('link', { name: 'Servidores' }).click();
 
   const section = page.locator('.servers__diagnostics');
   await expect(section).toBeVisible();

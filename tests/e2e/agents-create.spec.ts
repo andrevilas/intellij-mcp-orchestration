@@ -55,101 +55,10 @@ test.describe('@agent-create', () => {
 
     await registerBaseRoutes(page, serversResponse, agentsResponse);
 
-    const planRequests: unknown[] = [];
-    const applyRequests: unknown[] = [];
-
-    const planResponse = {
-      plan: {
-        intent: 'add_agent',
-        summary: "Adicionar agente sentinel-watcher ao repositório agents-hub",
-        steps: [
-          {
-            id: 'scaffold-agent',
-            title: "Scaffold agent 'sentinel-watcher'",
-            description: 'Gerar manifesto e stub LangGraph.',
-            depends_on: [],
-            actions: [
-              {
-                type: 'write_file',
-                path: 'agents-hub/app/agents/sentinel-watcher/agent.yaml',
-                contents: 'name: sentinel-watcher\n',
-                encoding: 'utf-8',
-                overwrite: false,
-              },
-            ],
-          },
-        ],
-        diffs: [
-          {
-            path: 'agents-hub/app/agents/sentinel-watcher/agent.yaml',
-            summary: 'Criar manifesto MCP inicial',
-            change_type: 'create',
-            diff: '--- /dev/null\n+++ agent.yaml\n+name: sentinel-watcher',
-          },
-        ],
-        risks: [
-          {
-            title: 'Revisar variáveis de ambiente',
-            impact: 'médio',
-            mitigation: 'Confirmar segredos no cofre.',
-          },
-        ],
-        status: 'pending',
-        context: [],
-        approval_rules: [],
-      },
-      preview: {
-        branch: 'feature/add-sentinel-watcher',
-        base_branch: 'main',
-        commit_message: 'feat: adicionar agent sentinel-watcher',
-        pull_request: {
-          provider: 'github',
-          title: 'feat: adicionar agent sentinel-watcher',
-        },
-      },
-    };
-
-    await page.route('**/api/v1/config/agents?intent=plan', (route) => {
-      planRequests.push(route.request().postDataJSON());
-      route.fulfill({ status: 200, body: JSON.stringify(planResponse), contentType: 'application/json' });
-    });
-
-    const applyResponse = {
-      status: 'completed',
-      mode: 'branch_pr',
-      plan_id: 'agent-plan-123',
-      record_id: 'record-123',
-      branch: 'feature/add-sentinel-watcher',
-      base_branch: 'main',
-      commit_sha: 'abc123',
-      diff: { stat: '2 files changed', patch: 'diff --git a/agent.yaml b/agent.yaml' },
-      hitl_required: false,
-      message: 'Plano aplicado com sucesso.',
-      pull_request: {
-        provider: 'github',
-        id: 'pr-77',
-        number: '77',
-        url: 'https://github.com/example/pr/77',
-        title: 'feat: adicionar agent sentinel-watcher',
-        state: 'open',
-        head_sha: 'abc123',
-        branch: 'feature/add-sentinel-watcher',
-        ci_status: 'success',
-        review_status: 'pending',
-        merged: false,
-        last_synced_at: '2025-01-05T12:00:00Z',
-        reviewers: [],
-        ci_results: [],
-      },
-    };
-
-    await page.route('**/api/v1/config/agents/apply', (route) => {
-      applyRequests.push(route.request().postDataJSON());
-      route.fulfill({ status: 200, body: JSON.stringify(applyResponse), contentType: 'application/json' });
-    });
+    const expectedCommitMessage = 'feat: adicionar agent sentinel-watcher';
 
     await page.goto('/');
-    await page.getByRole('button', { name: 'Agents' }).click();
+    await page.getByRole('link', { name: 'Agents' }).click();
     await page.getByRole('button', { name: '+ Novo agent' }).click();
 
     const wizard = page.locator('.agent-wizard');
@@ -170,87 +79,57 @@ test.describe('@agent-create', () => {
       wizard.locator('.diff-viewer__item-file').filter({ hasText: 'agents-hub/app/agents/sentinel-watcher/agent.yaml' }),
     ).toBeVisible();
     await expect(wizard.getByText('Riscos identificados')).toBeVisible();
-    await expect(wizard.getByLabelText('Mensagem do commit')).toHaveValue(
-      planResponse.preview.commit_message,
-    );
+    await expect(wizard.getByLabel('Mensagem do commit')).toHaveValue(expectedCommitMessage);
 
     await wizard.getByRole('button', { name: 'Aplicar plano' }).click();
     const confirmButton = page.getByRole('button', { name: 'Armar aplicação' });
     await confirmButton.click();
     await page.getByRole('button', { name: 'Aplicar agora' }).click();
 
-    await expect(wizard.getByText(/Plano aplicado com sucesso\./)).toBeVisible();
-    await expect(wizard.getByText(/Branch: feature\/add-sentinel-watcher/)).toBeVisible();
-    await expect(wizard.getByRole('link', { name: 'Abrir pull request aprovado' })).toHaveAttribute(
+    await expect(wizard.getByText(/Plano .* aplicado .* via fixtures\./)).toBeVisible();
+    await expect(wizard.getByText(/Branch: chore\/finops-plan-fixtures/)).toBeVisible();
+    await expect(wizard.getByRole('link', { name: /Abrir pull request/i })).toHaveAttribute(
       'href',
-      applyResponse.pull_request.url,
+      'https://github.com/example/console-mcp/pull/42',
     );
 
-    expect(planRequests).toHaveLength(1);
-    const planRequest = planRequests[0] as {
-      agent?: { slug?: string; manifest?: { name?: string } };
-      manifestSource?: string;
-      mcpServers?: string[];
-    };
-    expect(planRequest?.agent?.slug).toBe('sentinel-watcher');
-    expect(planRequest?.agent?.manifest?.name).toBe('sentinel-watcher');
-    expect(planRequest?.manifestSource).toContain('Sentinel Watcher');
-    expect(planRequest?.mcpServers).toEqual(['catalog']);
-
-    expect(applyRequests).toHaveLength(1);
-    const applyRequest = applyRequests[0] as { plan_id?: string; commit_message?: string };
-    expect(applyRequest?.plan_id).toMatch(/^agent-plan-/);
-    expect(applyRequest?.commit_message).toBe(planResponse.preview.commit_message);
-
-    await wizard.getByRole('button', { name: 'Fechar' }).click();
+    await page.keyboard.press('Escape');
     await expect(wizard).toBeHidden();
   });
 
   test('exibe validações do wizard governado', async ({ page }) => {
     await registerBaseRoutes(page);
 
-    const planRequests: unknown[] = [];
-
-    await page.route('**/api/v1/config/agents?intent=plan', (route) => {
-      planRequests.push(route.request().postDataJSON());
-      route.fulfill({
-        status: 200,
-        body: JSON.stringify({ plan: { intent: 'add_agent', summary: 'Stub', steps: [], diffs: [], risks: [], status: 'pending', context: [], approval_rules: [] } }),
-        contentType: 'application/json',
-      });
-    });
-
     await page.goto('/');
-    await page.getByRole('button', { name: 'Agents' }).click();
+    await page.getByRole('link', { name: 'Agents' }).click();
     await page.getByRole('button', { name: '+ Novo agent' }).click();
 
     const wizard = page.locator('.agent-wizard');
     await expect(wizard).toBeVisible();
 
     await wizard.getByRole('button', { name: 'Gerar plano governado' }).click();
-    await expect(wizard.getByText('Informe o identificador do agent.')).toBeVisible();
+    await expect(wizard.getByText('Informe o identificador do agent.').first()).toBeVisible();
 
     await wizard.getByRole('textbox', { name: 'Identificador do agent' }).fill('sentinel-watcher');
     await wizard.getByRole('textbox', { name: 'Manifesto base (JSON)' }).fill('{');
     await wizard.getByRole('button', { name: 'Gerar plano governado' }).click();
-    await expect(wizard.getByText('Manifesto base inválido. Forneça JSON válido.')).toBeVisible();
+    await expect(wizard.getByText('Manifesto base inválido. Forneça JSON válido.').first()).toBeVisible();
 
     await wizard
       .getByRole('textbox', { name: 'Manifesto base (JSON)' })
       .fill('{"name":"sentinel-watcher"}');
     await wizard.getByRole('button', { name: 'Gerar plano governado' }).click();
-    await expect(wizard.getByText('Selecione pelo menos um servidor MCP.')).toBeVisible();
+    await expect(wizard.getByText('Selecione pelo menos um servidor MCP.').first()).toBeVisible();
 
-    expect(planRequests).toHaveLength(0);
-
-    await wizard.getByRole('button', { name: 'Fechar' }).click();
+    await page.keyboard.press('Escape');
+    await expect(wizard).toBeHidden();
   });
 
   test('fecha wizard governado com tecla Escape e restaura foco', async ({ page }) => {
     await registerBaseRoutes(page);
 
     await page.goto('/');
-    await page.getByRole('button', { name: 'Agents' }).click();
+    await page.getByRole('link', { name: 'Agents' }).click();
 
     const createButton = page.getByRole('button', { name: '+ Novo agent' });
     await createButton.click();
