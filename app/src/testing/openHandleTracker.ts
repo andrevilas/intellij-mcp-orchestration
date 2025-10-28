@@ -48,21 +48,29 @@ function buildTaskLabel(task: Task): string {
 }
 
 export function beginOpenHandleSnapshot(context: TestContext): void {
+  const task = (context as { task?: Task }).task;
+  if (!task) {
+    return;
+  }
   const handles = getActiveHandles();
-  state.baselines.set(context.task.id, handles);
+  state.baselines.set(task.id, handles);
 }
 
 export function finalizeOpenHandleSnapshot(context: TestContext): void {
-  const baseline = state.baselines.get(context.task.id) ?? [];
-  state.baselines.delete(context.task.id);
+  const task = (context as { task?: Task }).task;
+  if (!task) {
+    return;
+  }
+  const baseline = state.baselines.get(task.id) ?? [];
+  state.baselines.delete(task.id);
   const active = getActiveHandles();
   const leakedHandles = active.filter((handle) => !baseline.includes(handle));
   if (leakedHandles.length === 0) {
     return;
   }
   state.leaks.push({
-    testId: context.task.id,
-    testName: buildTaskLabel(context.task),
+    testId: task.id,
+    testName: buildTaskLabel(task),
     handles: leakedHandles.map(describeHandle),
   });
 }

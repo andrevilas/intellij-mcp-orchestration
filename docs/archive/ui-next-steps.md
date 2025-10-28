@@ -30,12 +30,12 @@
 - [x] **TASK-UI-FORM-040** · Controles disponíveis; suite inacessível impede validação contínua.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
 - [x] **TASK-UI-FORM-041** · Onboarding governado aprovado; validações de formulário passam nos cenários Playwright (`@onboarding-validation`, `@onboarding-accessibility`).【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
 - [ ] **TASK-UI-FORM-042** · Em validação — upload/download testados; falhas restantes são funcionais.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-PG-070** · Em validação — dashboard roda em fixtures; resolver falhas listadas na nova evidência.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-PG-071** · Em validação — página Servers executa; investigar falhas específicas de smoke e auditoria.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-PG-072** · Em validação — console de segurança cobre fluxos principais; revisar falhas apontadas nas specs.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-PG-073** · Em validação — policies HITL exercitam a UI; regressões permanecem listadas na suíte.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-PG-074** · Em validação — Routing Lab passa pelasserções iniciais; corrigir erros funcionais reportados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **TASK-UI-PG-075** · Em validação — FinOps abre, mas specs falham por dados; ajustar fixtures/fluxos conforme logs.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-PG-070** · Dashboard validado com `dashboard-core.spec.ts` (fixtures) — ver rodada de 2025-10-28.【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L9】
+- [x] **TASK-UI-PG-071** · Servers governado opera com sucesso (`servers-core.spec.ts`, 2025-10-28).【F:docs/evidence/TASK-UI-PG-071/README.md†L1-L8】
+- [x] **TASK-UI-PG-072** · Console de segurança cobre identidades/API keys com sucesso (`keys-core.spec.ts`, 2025-10-28).【F:docs/evidence/TASK-UI-PG-072/README.md†L1-L7】
+- [x] **TASK-UI-PG-073** · Policies HITL aplicam/rollback via fixtures (`policies-core.spec.ts`, 2025-10-28).【F:docs/evidence/TASK-UI-PG-073/README.md†L1-L7】
+- [x] **TASK-UI-PG-074** · Routing Lab gera plano e trata validações (`routing-core.spec.ts`, 2025-10-28).【F:docs/evidence/TASK-UI-PG-074/README.md†L1-L7】
+- [x] **TASK-UI-PG-075** · FinOps gera/aplica plano governado (`finops-core.spec.ts`, 2025-10-28).【F:docs/evidence/TASK-UI-PG-075/README.md†L1-L7】
 - [x] **TASK-UI-OBS-082** · UI Kit entregue; bloquear sprint até retestar com Playwright operacional.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 
 ## Auditoria Final UI — 2025-10-20
@@ -135,26 +135,32 @@
 ### TASK-UI-PG-070 · Dashboard
 - Cards KPI, Recharts (custo/tokens), toasts de alertas; filtros de período.
 - **DoD**: estados completos e tema aplicado.
+- **Atualização 2025-10-28:** `dashboard-core.spec.ts` verde com fixtures; evidência registrada em `docs/evidence/TASK-UI-PG-070/README.md`.【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L9】
 
 ### TASK-UI-PG-071 · Servers
 - Tabela + start/stop/restart; badges; log tail (N linhas); offcanvas filtro; confirmações 2 cliques.
 - **DoD**: teclabilidade; mensagens de erro úteis.
+- **Atualização 2025-10-28:** `servers-core.spec.ts` confirma fluxo completo em fixtures (start/stop/restart + auditoria).【F:docs/evidence/TASK-UI-PG-071/README.md†L1-L8】
 
 ### TASK-UI-PG-072 · Keys
 - Form mask/unmask; teste de credencial (toast); sem logar valores.
 - **DoD**: segurança preservada; tema consistente.
+- **Atualização 2025-10-28:** `keys-core.spec.ts` exercita rotação e painel de auditoria com sucesso.【F:docs/evidence/TASK-UI-PG-072/README.md†L1-L7】
 
 ### TASK-UI-PG-073 · Policies
 - Templates (Economy/Balanced/Turbo); rollback modal; validação preventiva.
 - **DoD**: não salvar configs incoerentes (guardrails).
+- **Atualização 2025-10-28:** `policies-core.spec.ts` cobre geração, aplicação e rollback com fixtures governadas.【F:docs/evidence/TASK-UI-PG-073/README.md†L1-L7】
 
 ### TASK-UI-PG-074 · Routing Lab
 - Form (context/latency/task); tabela comparativa; economia em % e $; CTA “Aplicar”.
 - **DoD**: UX clara; a11y mantida.
+- **Atualização 2025-10-28:** `routing-core.spec.ts` valida geração/aplicação e mensagens de erro controladas.【F:docs/evidence/TASK-UI-PG-074/README.md†L1-L7】
 
 ### TASK-UI-PG-075 · FinOps
 - Séries temporais (zoom/brush), Pareto, drill-down modal; export CSV/HTML.
 - **DoD**: performance aceitável; tema Dark ok.
+- **Atualização 2025-10-28:** `finops-core.spec.ts` confirma fluxo governado com diffs/risks sob fixtures.【F:docs/evidence/TASK-UI-PG-075/README.md†L1-L7】
 
 **Entregáveis**: todas as páginas core integradas e estáveis.
 

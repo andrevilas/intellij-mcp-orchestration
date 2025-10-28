@@ -10,3 +10,4 @@ Os relatórios (`test-results/**/trace.zip`) foram mantidos na pasta padrão `te
 ## Histórico de reexecuções
 
 - **2025-10-26 10:05 UTC** — `pnpm --dir tests exec playwright test` executa 49 specs Chromium com Vite em modo fixtures. Asserções de negócio ainda falham (ex.: agent governance, marketplace), mas não há mais abortos por dependências ausentes. Ver detalhes em `2025-10-26-playwright.md`.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- **2025-10-28 15:20 UTC** — `pnpm --dir tests exec playwright test tests/e2e/dashboard-core.spec.ts` confirma o dashboard governado com fixtures (KPIs, recortes estendidos) em ambiente local estável. Log preservado no histórico padrão (`tests/test-results`).【F:tests/e2e/dashboard-core.spec.ts†L1-L120】

@@ -5,7 +5,7 @@ import AsyncStateTable from '../../components/async/AsyncStateTable';
 import type { ResourceTableColumn } from '../../components/ResourceTable';
 import StatusBadge from '../../components/indicators/StatusBadge';
 import Pagination from '../../components/navigation/Pagination';
-import type { StatusMessageOverrides } from '../../components/status/statusUtils';
+import type { AsyncContentStatus, StatusMessageOverrides } from '../../components/status/statusUtils';
 
 interface SessionHistorySectionProps {
   sessions: Session[];

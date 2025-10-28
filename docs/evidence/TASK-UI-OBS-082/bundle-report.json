@@ -1,142 +1,154 @@
 {
-  "generatedAt": "2025-10-26T18:57:45.315Z",
+  "generatedAt": "2025-10-28T17:28:52.806Z",
   "distDir": "dist",
   "totals": {
-    "size": 1676003,
-    "gzip": 468474
+    "size": 1682667,
+    "gzip": 483535
   },
   "assets": [
     {
-      "file": "assets/vendor-recharts-CPRMPhAO.js",
-      "size": 412761,
-      "gzip": 108837,
+      "file": "assets/generateCategoricalChart-CgO3yDsp.js",
+      "size": 364787,
+      "gzip": 99446,
       "type": "js"
     },
     {
-      "file": "assets/vendor-reactflow-ZVTnSMpK.js",
-      "size": 290981,
-      "gzip": 94354,
+      "file": "assets/index-E8zTdNPG.js",
+      "size": 316927,
+      "gzip": 98074,
       "type": "js"
     },
     {
-      "file": "assets/view-admin-chat-BZhbUW_4.js",
-      "size": 253637,
-      "gzip": 74342,
+      "file": "assets/Flows-Br6YXNZi.js",
+      "size": 151386,
+      "gzip": 48392,
       "type": "js"
     },
     {
-      "file": "assets/view-finops-CKDsogRx.js",
-      "size": 70326,
-      "gzip": 18750,
+      "file": "assets/FinOps-CFcWD5qg.js",
+      "size": 64564,
+      "gzip": 16496,
       "type": "js"
     },
     {
-      "file": "assets/view-admin-chat-BOnUYAmx.css",
-      "size": 61609,
-      "gzip": 9839,
+      "file": "assets/index-CD-vx779.js",
+      "size": 60008,
+      "gzip": 16673,
+      "type": "js"
+    },
+    {
+      "file": "assets/UiKitShowcase-BNmV1dOf.js",
+      "size": 49812,
+      "gzip": 15783,
+      "type": "js"
+    },
+    {
+      "file": "assets/Agents-C3huNBUJ.js",
+      "size": 47113,
+      "gzip": 13045,
+      "type": "js"
+    },
+    {
+      "file": "assets/visual-sections-DypSsalq.js",
+      "size": 42861,
+      "gzip": 11024,
+      "type": "js"
+    },
+    {
+      "file": "assets/Security-DsLqV7UC.js",
+      "size": 40274,
+      "gzip": 11454,
+      "type": "js"
+    },
+    {
+      "file": "assets/index-DtwPWf7g.css",
+      "size": 38774,
+      "gzip": 6591,
       "type": "css"
     },
     {
-      "file": "assets/view-agents--seYyXOD.js",
-      "size": 53008,
-      "gzip": 14830,
-      "type": "js"
-    },
-    {
-      "file": "assets/view-ui-kit-BjyihfDZ.js",
-      "size": 50200,
-      "gzip": 15775,
-      "type": "js"
-    },
-    {
-      "file": "assets/index-BrmabLhA.js",
-      "size": 40224,
-      "gzip": 13233,
-      "type": "js"
-    },
-    {
-      "file": "assets/view-security-CljM04qA.js",
-      "size": 40213,
-      "gzip": 11410,
-      "type": "js"
-    },
-    {
-      "file": "assets/view-finops-RU1ND4dF.css",
+      "file": "assets/FinOps-RU1ND4dF.css",
       "size": 37765,
       "gzip": 5405,
       "type": "css"
     },
     {
-      "file": "assets/view-policies-DTh50eEd.js",
-      "size": 34936,
-      "gzip": 9986,
+      "file": "assets/Policies-DiPV8T_c.js",
+      "size": 35122,
+      "gzip": 10104,
       "type": "js"
     },
     {
-      "file": "assets/view-dashboard-CDNKMH83.js",
-      "size": 33292,
-      "gzip": 10486,
+      "file": "assets/Routing-D3e43S2E.js",
+      "size": 32719,
+      "gzip": 9061,
       "type": "js"
     },
     {
-      "file": "assets/view-routing-PpdR_ypd.js",
-      "size": 32685,
-      "gzip": 9030,
+      "file": "assets/FormErrorSummary-PivN-hsG.js",
+      "size": 30268,
+      "gzip": 11374,
       "type": "js"
     },
     {
-      "file": "assets/view-servers-BKqnWPE-.js",
-      "size": 31385,
-      "gzip": 8448,
-      "type": "js"
-    },
-    {
-      "file": "assets/view-dashboard-D22SCckd.css",
-      "size": 26853,
-      "gzip": 4163,
+      "file": "assets/index-CO0EfDLo.css",
+      "size": 30002,
+      "gzip": 5439,
       "type": "css"
     },
     {
-      "file": "assets/index-CJXmYrAf.css",
-      "size": 23797,
-      "gzip": 4389,
-      "type": "css"
-    },
-    {
-      "file": "assets/view-observability-BWMH1qRj.js",
-      "size": 22285,
-      "gzip": 6992,
+      "file": "assets/Servers-CQ2i2sQK.js",
+      "size": 27086,
+      "gzip": 7688,
       "type": "js"
     },
     {
-      "file": "assets/view-ui-kit-BtLxPJnC.css",
+      "file": "assets/Dashboard-Cer3FxEu.js",
+      "size": 24280,
+      "gzip": 8097,
+      "type": "js"
+    },
+    {
+      "file": "assets/Observability-CGtRGcTF.js",
+      "size": 22418,
+      "gzip": 7086,
+      "type": "js"
+    },
+    {
+      "file": "assets/UiKitShowcase-BtLxPJnC.css",
       "size": 14472,
       "gzip": 2803,
       "type": "css"
     },
     {
-      "file": "assets/view-routing-DykQXAln.css",
+      "file": "assets/file-transfer-CFmmB-L6.css",
+      "size": 13729,
+      "gzip": 2459,
+      "type": "css"
+    },
+    {
+      "file": "assets/Routing-DykQXAln.css",
       "size": 13085,
       "gzip": 2340,
       "type": "css"
     },
     {
-      "file": "assets/view-flows-opGXufr8.js",
-      "size": 11577,
-      "gzip": 3660,
+      "file": "assets/AreaChart-VWlhIHLa.js",
+      "size": 11026,
+      "gzip": 4097,
       "type": "js"
     },
     {
-      "file": "assets/view-observability-B9EF9Jl9.css",
+      "file": "assets/Observability-B9EF9Jl9.css",
       "size": 10971,
       "gzip": 2040,
       "type": "css"
     },
     {
-      "file": "assets/view-keys-bb8YOIzI.js",
-      "size": 10526,
-      "gzip": 3624,
-      "type": "js"
+      "file": "assets/ResourceTable-BkNpq9qP.css",
+      "size": 10389,
+      "gzip": 1948,
+      "type": "css"
     },
     {
       "file": "assets/NotificationCenter-CBATBXDB.css",
@@ -145,9 +157,21 @@
       "type": "css"
     },
     {
-      "file": "assets/view-marketplace-DcSzkdYI.js",
-      "size": 9363,
-      "gzip": 3241,
+      "file": "assets/Keys-CIM7bCog.js",
+      "size": 9959,
+      "gzip": 3347,
+      "type": "js"
+    },
+    {
+      "file": "assets/FileUploadControl-B0dcIUHY.js",
+      "size": 9576,
+      "gzip": 3741,
+      "type": "js"
+    },
+    {
+      "file": "assets/Marketplace-BAKcX0bE.js",
+      "size": 9317,
+      "gzip": 3231,
       "type": "js"
     },
     {
@@ -157,87 +181,171 @@
       "type": "js"
     },
     {
-      "file": "assets/view-policies-ReGi_66C.css",
+      "file": "assets/file-transfer-DfjIfeT8.js",
+      "size": 9084,
+      "gzip": 2515,
+      "type": "js"
+    },
+    {
+      "file": "assets/string-CFFdVFMV.js",
+      "size": 8420,
+      "gzip": 3620,
+      "type": "js"
+    },
+    {
+      "file": "assets/Policies-ReGi_66C.css",
       "size": 7331,
       "gzip": 1573,
       "type": "css"
     },
     {
-      "file": "assets/vendor-reactflow-BF-29JoD.css",
+      "file": "assets/Flows-BF-29JoD.css",
       "size": 7257,
       "gzip": 1579,
       "type": "css"
     },
     {
-      "file": "assets/ProvisioningDialog-DsxN-Ded.js",
-      "size": 5701,
-      "gzip": 2064,
+      "file": "assets/PlanSummary-9SDBvXda.js",
+      "size": 5997,
+      "gzip": 1910,
       "type": "js"
     },
     {
-      "file": "assets/NotificationCenter-2_cqji2b.js",
-      "size": 5582,
-      "gzip": 2203,
+      "file": "assets/StatusBadge-Vu0n3kY-.css",
+      "size": 5846,
+      "gzip": 1082,
+      "type": "css"
+    },
+    {
+      "file": "assets/ResourceTable-CcxnGBBY.js",
+      "size": 5821,
+      "gzip": 2058,
       "type": "js"
     },
     {
-      "file": "assets/CommandPalette-YInGaQTl.js",
-      "size": 5127,
-      "gzip": 2196,
+      "file": "assets/create-Bvo38Dd1.js",
+      "size": 5788,
+      "gzip": 2421,
       "type": "js"
     },
     {
-      "file": "assets/visual-sections-B1WbBfx8.js",
-      "size": 4864,
-      "gzip": 1961,
+      "file": "assets/ProvisioningDialog-CWhxrtM4.js",
+      "size": 5588,
+      "gzip": 2028,
+      "type": "js"
+    },
+    {
+      "file": "assets/NotificationCenter-DhYyDg1Y.js",
+      "size": 5545,
+      "gzip": 2189,
+      "type": "js"
+    },
+    {
+      "file": "assets/Dashboard-DNjNbdq8.css",
+      "size": 5420,
+      "gzip": 1306,
+      "type": "css"
+    },
+    {
+      "file": "assets/KpiCard-61rjNYjV.css",
+      "size": 5201,
+      "gzip": 1171,
+      "type": "css"
+    },
+    {
+      "file": "assets/CommandPalette-DPZ1jP0v.js",
+      "size": 5084,
+      "gzip": 2186,
       "type": "js"
     },
     {
       "file": "assets/policy_templates-BWGi_e3Y.js",
-      "size": 4049,
-      "gzip": 1144,
+      "size": 4103,
+      "gzip": 1183,
       "type": "js"
     },
     {
-      "file": "assets/view-marketplace-D3_nfEj7.css",
+      "file": "assets/Marketplace-D3_nfEj7.css",
       "size": 4035,
       "gzip": 865,
       "type": "css"
     },
     {
-      "file": "assets/ThemeSwitch-v1G1UG7r.js",
-      "size": 2618,
-      "gzip": 1241,
+      "file": "assets/testIds-D5QUWbbB.js",
+      "size": 3281,
+      "gzip": 1092,
       "type": "js"
     },
     {
-      "file": "assets/metrics-visuals-BxmBshBp.js",
-      "size": 2603,
-      "gzip": 1015,
+      "file": "assets/useAgent-CEm4vqeJ.js",
+      "size": 2979,
+      "gzip": 1262,
+      "type": "js"
+    },
+    {
+      "file": "assets/ModalBase-Cb1aTjSL.css",
+      "size": 2903,
+      "gzip": 903,
+      "type": "css"
+    },
+    {
+      "file": "assets/metrics-visuals-BUj7m6dV.js",
+      "size": 2781,
+      "gzip": 1118,
+      "type": "js"
+    },
+    {
+      "file": "assets/ThemeSwitch-COUVghnV.js",
+      "size": 2566,
+      "gzip": 1226,
       "type": "js"
     },
     {
       "file": "assets/policy_manifest-CW-RK_Qe.js",
-      "size": 2399,
-      "gzip": 1154,
+      "size": 2452,
+      "gzip": 1201,
       "type": "js"
     },
     {
-      "file": "index.html",
-      "size": 2029,
-      "gzip": 702,
-      "type": "html"
+      "file": "assets/ModalBase-BZVzV9nP.js",
+      "size": 2435,
+      "gzip": 1144,
+      "type": "js"
+    },
+    {
+      "file": "assets/server_processes-BjCMrQsP.js",
+      "size": 2192,
+      "gzip": 614,
+      "type": "js"
+    },
+    {
+      "file": "assets/server_health-CaS6SInV.js",
+      "size": 2107,
+      "gzip": 464,
+      "type": "js"
+    },
+    {
+      "file": "assets/KpiCard-BVJhmBKn.js",
+      "size": 2098,
+      "gzip": 848,
+      "type": "js"
     },
     {
       "file": "assets/routing_simulation-EoBkZMSU.js",
-      "size": 1938,
-      "gzip": 793,
+      "size": 1994,
+      "gzip": 840,
       "type": "js"
     },
     {
       "file": "assets/index-lJe8_kgQ.js",
-      "size": 1774,
-      "gzip": 979,
+      "size": 1817,
+      "gzip": 1015,
+      "type": "js"
+    },
+    {
+      "file": "assets/StatusBadge-DT5JqOvd.js",
+      "size": 1572,
+      "gzip": 754,
       "type": "js"
     },
     {
@@ -247,39 +355,75 @@
       "type": "css"
     },
     {
+      "file": "assets/servers-BCKC9tjO.js",
+      "size": 1474,
+      "gzip": 604,
+      "type": "js"
+    },
+    {
+      "file": "assets/statusUtils-fWp00NWC.js",
+      "size": 1298,
+      "gzip": 467,
+      "type": "js"
+    },
+    {
       "file": "assets/telemetry_timeseries-7CkgkJnZ.js",
-      "size": 1187,
-      "gzip": 393,
+      "size": 1245,
+      "gzip": 450,
       "type": "js"
     },
     {
       "file": "assets/policy_deployments-D_Jwp4yk.js",
-      "size": 1179,
-      "gzip": 493,
+      "size": 1235,
+      "gzip": 532,
       "type": "js"
     },
     {
-      "file": "assets/FinOpsTimeseriesChart-X0tF1KCI.js",
-      "size": 1124,
-      "gzip": 664,
+      "file": "assets/PlanDiffViewer-rA9irtT1.js",
+      "size": 1228,
+      "gzip": 566,
+      "type": "js"
+    },
+    {
+      "file": "assets/FinOpsTimeseriesChart-BmcFdhQp.js",
+      "size": 1209,
+      "gzip": 711,
+      "type": "js"
+    },
+    {
+      "file": "assets/ConfirmationModal-scxs0B_I.js",
+      "size": 1187,
+      "gzip": 686,
       "type": "js"
     },
     {
       "file": "assets/finops_pull_requests-w8oLInr3.js",
-      "size": 1112,
-      "gzip": 484,
+      "size": 1170,
+      "gzip": 531,
       "type": "js"
     },
     {
       "file": "assets/telemetry_marketplace-Bv0FdXMj.js",
-      "size": 1077,
-      "gzip": 417,
+      "size": 1136,
+      "gzip": 460,
       "type": "js"
     },
     {
       "file": "assets/telemetry_runs-B6YhljqV.js",
-      "size": 1054,
-      "gzip": 481,
+      "size": 1106,
+      "gzip": 525,
+      "type": "js"
+    },
+    {
+      "file": "index.html",
+      "size": 1106,
+      "gzip": 521,
+      "type": "html"
+    },
+    {
+      "file": "assets/agents-BHg9KxZN.js",
+      "size": 1088,
+      "gzip": 594,
       "type": "js"
     },
     {
@@ -289,46 +433,70 @@
       "type": "css"
     },
     {
-      "file": "assets/agents-BHg9KxZN.js",
-      "size": 1044,
-      "gzip": 557,
-      "type": "js"
-    },
-    {
-      "file": "assets/Breadcrumbs-CFf_udlg.js",
-      "size": 880,
-      "gzip": 436,
+      "file": "assets/Breadcrumbs-BSt7qHZq.js",
+      "size": 832,
+      "gzip": 424,
       "type": "js"
     },
     {
       "file": "assets/finops_sprints-Ce6IDwDx.js",
-      "size": 745,
-      "gzip": 383,
+      "size": 797,
+      "gzip": 428,
       "type": "js"
     },
     {
       "file": "assets/telemetry_pareto-CvkG2zQi.js",
-      "size": 688,
-      "gzip": 340,
+      "size": 742,
+      "gzip": 387,
+      "type": "js"
+    },
+    {
+      "file": "assets/FormModal-D_dRPsdy.js",
+      "size": 706,
+      "gzip": 413,
+      "type": "js"
+    },
+    {
+      "file": "assets/useToastNotification-CyaW6fYs.js",
+      "size": 626,
+      "gzip": 407,
+      "type": "js"
+    },
+    {
+      "file": "assets/readFile-3EAXWqik.js",
+      "size": 619,
+      "gzip": 423,
       "type": "js"
     },
     {
       "file": "assets/telemetry_experiments-FcSeIt49.js",
-      "size": 461,
-      "gzip": 254,
+      "size": 520,
+      "gzip": 303,
       "type": "js"
     },
     {
       "file": "assets/telemetry_lane_costs-FLSt-TCO.js",
-      "size": 403,
-      "gzip": 215,
+      "size": 461,
+      "gzip": 266,
+      "type": "js"
+    },
+    {
+      "file": "assets/BarChart-BdfQCfTJ.js",
+      "size": 364,
+      "gzip": 266,
+      "type": "js"
+    },
+    {
+      "file": "assets/stateMessages-DSFrQDfL.js",
+      "size": 340,
+      "gzip": 255,
       "type": "js"
     }
   ],
   "css": {
     "limit": 225280,
-    "size": 219846,
-    "gzip": 37898,
+    "size": 219851,
+    "gzip": 40406,
     "isWithinBudget": true
   }
 }

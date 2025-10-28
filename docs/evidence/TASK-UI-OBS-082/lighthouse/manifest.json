@@ -2,12 +2,12 @@
   {
     "url": "http://127.0.0.1:4173/?view=observability",
     "isRepresentativeRun": true,
-    "htmlPath": "/home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/docs/evidence/TASK-UI-OBS-082/lighthouse/127_0_0_1-_-2025_10_26_18_57_51.report.html",
-    "jsonPath": "/home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/docs/evidence/TASK-UI-OBS-082/lighthouse/127_0_0_1-_-2025_10_26_18_57_51.report.json",
+    "htmlPath": "/home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/docs/evidence/TASK-UI-OBS-082/lighthouse/127_0_0_1-_-2025_10_28_17_26_39.report.html",
+    "jsonPath": "/home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/docs/evidence/TASK-UI-OBS-082/lighthouse/127_0_0_1-_-2025_10_28_17_26_39.report.json",
     "summary": {
       "performance": 0.9,
       "accessibility": 0.94,
-      "best-practices": 1,
+      "best-practices": 0.96,
       "seo": 0.82
     }
   }

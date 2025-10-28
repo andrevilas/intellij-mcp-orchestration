@@ -15,20 +15,155 @@ type AuditLogFixture = {
 };
 
 test.describe('Console de segurança', () => {
+  let users: SecurityUserFixture[];
+  let roles: SecurityRoleFixture[];
+  let apiKeys: SecurityApiKeyFixture[];
+  let auditTrail: AuditTrailFixture;
   test.beforeEach(async ({ page }) => {
+    const [usersFixture, rolesFixture, keysFixture, auditTrailFixture] = await Promise.all([
+      loadBackendFixture<{ users: SecurityUserFixture[] }>('security_users.json'),
+      loadBackendFixture<{ roles: SecurityRoleFixture[] }>('security_roles.json'),
+      loadBackendFixture<{ keys: SecurityApiKeyFixture[] }>('security_api_keys.json'),
+      loadBackendFixture<AuditTrailFixture>('security_audit_trail.json'),
+    ]);
+    users = usersFixture.users.map((item) => ({ ...item }));
+    roles = rolesFixture.roles.map((item) => ({ ...item }));
+    apiKeys = keysFixture.keys.map((item) => ({ ...item }));
+    auditTrail = {
+      events: Object.fromEntries(
+        Object.entries(auditTrailFixture.events).map(([key, value]) => [key, value.map((item) => ({ ...item }))]),
+      ),
+    };
+    await page.addInitScript(() => {
+      (globalThis as { __CONSOLE_MCP_FIXTURES__?: string }).__CONSOLE_MCP_FIXTURES__ = 'ready';
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register = async () =>
+            ({
+              scope: window.location.origin,
+              update: async () => undefined,
+              unregister: async () => true,
+              addEventListener: () => undefined,
+              removeEventListener: () => undefined,
+              dispatchEvent: () => false,
+            } as unknown as ServiceWorkerRegistration);
+        }
+      } catch (error) {
+        console.warn('Não foi possível preparar o ambiente de fixtures da central de segurança.', error);
+      }
+    });
+    await page.route('**/api/v1/security/users**', async (route) => {
+      const request = route.request();
+      const method = request.method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ users }),
+        });
+        return;
+      }
+      if (method === 'POST') {
+        const payload = JSON.parse(request.postData() ?? '{}') as {
+          name?: string;
+          email?: string;
+          roles?: string[];
+          status?: string;
+          mfa_enabled?: boolean;
+        };
+        const newUser = {
+          id: `user-${Date.now()}`,
+          name: payload.name ?? 'Novo usuário',
+          email: payload.email ?? 'novo@example.com',
+          roles: payload.roles ?? [],
+          status: payload.status ?? 'active',
+          created_at: new Date('2025-03-08T10:00:00Z').toISOString(),
+          last_seen_at: null,
+          mfa_enabled: payload.mfa_enabled ?? false,
+        };
+        users = [newUser, ...users];
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify(newUser),
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.route('**/api/v1/security/roles**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ roles }),
+      }),
+    );
+    await page.route('**/api/v1/security/api-keys**', (route) => {
+      const request = route.request();
+      if (request.method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ keys: apiKeys }),
+        });
+      }
+      return route.fallback();
+    });
+    await page.route('**/api/v1/security/api-keys/*/rotate', async (route) => {
+      const request = route.request();
+      if (request.method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
+      const url = new URL(request.url());
+      const segments = url.pathname.split('/').filter(Boolean);
+      const keyId = decodeURIComponent(segments[segments.length - 2] ?? '');
+      const existing = apiKeys.find((key) => key.id === keyId);
+      if (existing) {
+        const secret = `secret-${existing.id}-${Date.now().toString(36)}`;
+        const updated = {
+          ...existing,
+          token_preview: `${secret.slice(0, 3)}***`,
+          last_used_at: new Date('2025-03-07T10:00:00Z').toISOString(),
+        };
+        apiKeys = apiKeys.map((key) => (key.id === keyId ? updated : key));
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ key: updated, secret }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'API key not found' }),
+      });
+    });
+    await page.route('**/api/v1/security/audit/*/*', async (route) => {
+      const request = route.request();
+      if (request.method() !== 'GET') {
+        await route.fallback();
+        return;
+      }
+      const url = new URL(request.url());
+      const segments = url.pathname.split('/').filter(Boolean);
+      const resource = decodeURIComponent(segments[segments.length - 2] ?? '');
+      const resourceId = decodeURIComponent(segments[segments.length - 1] ?? '');
+      const key = `${resource}:${resourceId}`;
+      const events = auditTrail.events[key] ?? [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ events }),
+      });
+    });
     await page.goto('/');
     await page.getByRole('link', { name: 'Segurança' }).click();
     await expect(page.getByRole('heading', { name: 'Central de segurança' })).toBeVisible();
   });
 
   test('@security gerencia identidades e credenciais MCP', async ({ page }) => {
-    const [{ users }, { roles }, { keys }, auditTrail] = await Promise.all([
-      loadBackendFixture<{ users: SecurityUserFixture[] }>('security_users.json'),
-      loadBackendFixture<{ roles: SecurityRoleFixture[] }>('security_roles.json'),
-      loadBackendFixture<{ keys: SecurityApiKeyFixture[] }>('security_api_keys.json'),
-      loadBackendFixture<AuditTrailFixture>('security_audit_trail.json'),
-    ]);
-
     const usersTable = page.getByRole('table', { name: /Tabela de usuários/i });
     const primaryUser = users[0];
     await expect(usersTable.getByText(primaryUser.name)).toBeVisible();
@@ -72,7 +207,7 @@ test.describe('Console de segurança', () => {
 
     await page.getByRole('tab', { name: 'API keys' }).click();
     const keysTable = page.getByRole('table', { name: /Tabela de API keys/i });
-    const primaryKey = keys[0];
+    const primaryKey = apiKeys[0];
     await expect(keysTable.getByText(primaryKey.name)).toBeVisible();
 
     const keyRow = keysTable.locator('tbody tr', { hasText: primaryKey.name }).first();
@@ -107,38 +242,57 @@ test.describe('Console de segurança', () => {
     const sortedEvents = [...auditFixture.events].sort((a, b) =>
       a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0,
     );
+    await page.route('**/api/v1/audit/logs**', (route) => {
+      const request = route.request();
+      if (request.method() !== 'GET') {
+        return route.fallback();
+      }
+      const url = new URL(request.url());
+      const pageParam = Number(url.searchParams.get('page') ?? '1');
+      const pageSizeParam = Number(url.searchParams.get('page_size') ?? '20');
+      const actorFilter = (url.searchParams.get('actor') ?? '').trim().toLowerCase();
+      const targetEvents = actorFilter
+        ? sortedEvents.filter((event) => (event.actor_name ?? '').toLowerCase().includes(actorFilter))
+        : sortedEvents;
+      const pageIndex = Number.isFinite(pageParam) && pageParam > 0 ? pageParam - 1 : 0;
+      const pageSize = Number.isFinite(pageSizeParam) && pageSizeParam > 0 ? pageSizeParam : 20;
+      const start = pageIndex * pageSize;
+      const slice = targetEvents.slice(start, start + pageSize);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          events: slice,
+          total: targetEvents.length,
+          page: pageIndex + 1,
+          page_size: pageSize,
+          total_pages: Math.max(1, Math.ceil(targetEvents.length / pageSize)),
+        }),
+      });
+    });
 
     await page.getByRole('tab', { name: 'Auditoria' }).click();
-    const initialResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/v1/audit/logs') && response.request().method() === 'GET',
-    );
     const table = page.getByRole('table', {
       name: /Tabela de eventos de auditoria com filtros avançados/i,
     });
-    await initialResponse;
     await expect(table.getByText(sortedEvents[0].action)).toBeVisible();
-
-    const pageSizeResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/v1/audit/logs') && response.request().method() === 'GET',
-    );
     await page.getByLabel('Itens por página').selectOption('1');
-    await pageSizeResponse;
+    await expect
+      .poll(async () => await table.locator('tbody tr').count())
+      .toBe(1);
     await expect(table.getByText(sortedEvents[0].action)).toBeVisible();
 
-    const nextPageResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/v1/audit/logs') && response.request().method() === 'GET',
-    );
     await page.getByRole('button', { name: 'Próxima página' }).click();
-    await nextPageResponse;
-    await expect(table.getByText(sortedEvents[1].action)).toBeVisible();
+    await expect
+      .poll(async () => await table.getByText(sortedEvents[1].action).count())
+      .toBe(1);
+    await expect(table.getByText(sortedEvents[0].action)).toHaveCount(0);
 
-    const filterResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/v1/audit/logs') && response.request().method() === 'GET',
-    );
     await page.getByLabel('Filtro por ator').fill('Sistema');
     await page.getByRole('button', { name: 'Aplicar filtros' }).click();
-    await filterResponse;
-    await expect(table.getByText(sortedEvents[1].action)).toBeVisible();
+    await expect
+      .poll(async () => await table.getByText(sortedEvents[1].action).count())
+      .toBe(1);
     await expect(table.getByText(sortedEvents[0].action)).toHaveCount(0);
 
     const csvDownload = page.waitForEvent('download');

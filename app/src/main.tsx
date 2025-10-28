@@ -50,7 +50,7 @@ async function enableMocks(): Promise<void> {
 
   const { worker } = await import('./mocks/browser');
   const workerOptions = {
-    onUnhandledRequest: 'error',
+    onUnhandledRequest: 'error' as const,
     serviceWorker: {
       url: '/mockServiceWorker.js',
     },

@@ -22,10 +22,8 @@ const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
 
 beforeAll(() => {
-  // @ts-expect-error jsdom permite sobrescrever métodos de URL.
-  URL.createObjectURL = vi.fn(() => 'blob:mock-url');
-  // @ts-expect-error jsdom permite sobrescrever métodos de URL.
-  URL.revokeObjectURL = vi.fn();
+  URL.createObjectURL = vi.fn(() => 'blob:mock-url') as unknown as typeof URL.createObjectURL;
+  URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
 });
 
 afterAll(() => {

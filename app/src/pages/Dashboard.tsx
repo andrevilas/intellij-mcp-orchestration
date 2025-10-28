@@ -714,9 +714,16 @@ export function Dashboard({
     return { start, end };
   }, [sessionSource, currentSessionPage]);
 
-  const telemetryError = forcedScenario === 'error' ? telemetryMessages.error : initialError;
-  const sessionsError = forcedScenario === 'error' ? sessionMessages.error : initialError;
-  const bootstrapError = forcedScenario === 'error' ? providerMessages.error : initialError;
+  const telemetryError =
+    forcedScenario === 'error'
+      ? telemetryMessages.error ?? 'Falha ao carregar indicadores de telemetria.'
+      : initialError ?? null;
+  const defaultSessionError = sessionMessages.error ?? 'Falha ao carregar histórico de sessões.';
+  const sessionsError = forcedScenario === 'error' ? defaultSessionError : initialError ?? null;
+  const bootstrapError =
+    forcedScenario === 'error'
+      ? providerMessages.error ?? 'Falha ao carregar lista de provedores.'
+      : initialError ?? null;
   const providersLoading = forcedScenario === 'loading' ? true : isLoading;
 
   const telemetryStatus: AsyncContentStatus = (() => {
@@ -762,15 +769,18 @@ export function Dashboard({
 
   const sessionsIsLoading =
     forcedScenario === 'loading' || forcedScenario === 'skeleton' ? true : isLoading;
-  const sessionStatusMessages = useMemo<StatusMessageOverrides>(
-    () => ({
-      loading: sessionMessages.loading,
-      skeleton: sessionMessages.skeleton ?? sessionMessages.loading,
-      empty: sessionMessages.empty ?? SESSION_EMPTY_DESCRIPTION,
-      error: sessionsError ?? sessionMessages.error,
-    }),
-    [sessionMessages, sessionsError],
-  );
+  const sessionStatusMessages = useMemo<StatusMessageOverrides>(() => {
+    const loadingMessage = sessionMessages.loading ?? 'Carregando histórico de sessões…';
+    const emptyMessage = sessionMessages.empty ?? SESSION_EMPTY_DESCRIPTION;
+    const defaultErrorMessage = sessionMessages.error ?? 'Falha ao carregar histórico de sessões.';
+    const errorMessage: string = sessionsError ?? defaultErrorMessage;
+    return {
+      loading: loadingMessage,
+      skeleton: sessionMessages.skeleton ?? loadingMessage,
+      empty: emptyMessage,
+      error: errorMessage,
+    };
+  }, [sessionMessages, sessionsError]);
 
   const handleSessionPageChange = useCallback((page: number) => {
     setCurrentSessionPage(page);
@@ -1193,7 +1203,7 @@ export function Dashboard({
 
               <button
                 className="provision-button"
-                onClick={() => onProvision(provider)}
+                onClick={() => onProvision?.(provider)}
                 disabled={provisioningId === provider.id}
               >
                 {provisioningId === provider.id ? 'Provisionando…' : 'Criar sessão de provisionamento'}

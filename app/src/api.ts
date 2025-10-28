@@ -620,7 +620,7 @@ export interface McpServer {
 
 export type ServerProcessLifecycle = 'running' | 'stopped' | 'error';
 
-export type ServerHealthStatus = 'healthy' | 'degraded' | 'error';
+export type ServerHealthStatus = 'healthy' | 'degraded' | 'error' | 'unknown';
 
 export interface ServerHealthCheck {
   status: ServerHealthStatus;

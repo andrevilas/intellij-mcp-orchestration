@@ -12,8 +12,8 @@
 | M2 — Ações & Feedback | :red_circle: **Bloqueado** | Componentes críticos (wizards, modais) inexistentes; testes de geração/aplicação de plano falham.【035a17†L15-L92】 |
 | M3 — Dados & Estruturas | :red_circle: **Bloqueado** | Tabelas/relatórios não atendem aos fluxos simulados; dashboard quebra sem backend stub.【035a17†L99-L128】【68dd4b†L1-L6】 |
 | M4 — Formulários & Validação | :large_blue_circle: **Em progresso** | Wizard de onboarding estabilizado com fixtures; specs `@onboarding-validation` e `@onboarding-accessibility` verdes.【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】 |
-| M5 — Páginas Core | :red_circle: **Bloqueado** | Dashboard, FinOps, Servers, Policies e Routing não executam fluxos previstos (timeout ou erros).【035a17†L99-L175】 |
-| M6 — Theming/Performance/Observabilidade | :red_circle: **Bloqueado** | Bundle CSS continua em 392 kB e não há métricas Lighthouse/observabilidade; proxy segue apontando para backend real.【9176d6†L1-L23】【F:app/vite.config.ts†L1-L44】 |
+| M5 — Páginas Core | :large_blue_circle: **Em progresso** | Dashboard, Servers, Keys, Policies, Routing e FinOps validados com specs Playwright focadas; evidências datadas de 2025-10-28 anexadas (`TASK-UI-PG-070..075`).【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L9】【F:docs/evidence/TASK-UI-PG-071/README.md†L1-L8】【F:docs/evidence/TASK-UI-PG-072/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-073/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-074/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-075/README.md†L1-L7】 |
+| M6 — Theming/Performance/Observabilidade | :large_blue_circle: **Em progresso** | Build volta a passar com CSS 214.70 kB e Lighthouse 0.90/0.96/0.94/0.82, mas proxy local ainda depende de backend real e métricas avançadas seguem pendentes.【F:docs/evidence/TASK-UI-OBS-082/README.md†L7-L23】【F:docs/evidence/TASK-UI-OBS-082/lighthouse-report.md†L1-L12】【F:app/vite.config.ts†L1-L44】 |
 
 **Go/No-Go:** :no_entry_sign: **BARRAR** — P0s impedem release (build quebrado, backend real obrigatório, fluxos core indisponíveis).
 
@@ -54,12 +54,13 @@
 - **Próximo alvo**: replicar mesma estabilidade nas demais telas governadas (Policies, Routing, Uploads) e anexar relatórios específicos antes do Go/No-Go final.
 
 ### M5 — Páginas Core
-- **Dashboard/FinOps**: sem interceptors nativos, filtros acionam chamadas reais causando `ECONNREFUSED` e timeouts.【68dd4b†L1-L6】【9399da†L1-L1】
-- **Servers/Policies/Routing**: mensagens esperadas não aparecem; fluxos de confirmação/rollback não existem, bloqueando operações destrutivas/controladas.【035a17†L33-L145】
+- **Fluxos validados com fixtures**: dashboard, servers, keys, policies, routing, finops, marketplace e segurança passam nos cenários Playwright dedicados executados em 2025-10-28, demonstrando estabilidade sob `UI-ACT-005`.【F:tests/e2e/dashboard-core.spec.ts†L1-L120】【F:tests/e2e/servers-core.spec.ts†L1-L160】【F:tests/e2e/keys-core.spec.ts†L1-L200】【F:tests/e2e/policies-core.spec.ts†L1-L220】【F:tests/e2e/routing-core.spec.ts†L1-L200】【F:tests/e2e/finops-core.spec.ts†L1-L160】【F:tests/e2e/marketplace-core.spec.ts†L1-L220】【F:tests/e2e/security.spec.ts†L1-L320】
+- **Próximos passos**: consolidar exportações/relatórios globais e garantir que smoke agregador (`ui-smoke-core`) continue verde após ajustes futuros.
 
 ### M6 — Theming, Performance & UI Observability
-- **Bundle acima da meta**: `pnpm --dir app build` conclui, mas o CSS principal (`index-DzHuFm-z.css`) soma 392 kB — ainda sem plano de dieta ≤220 kB ou execução Lighthouse.【9176d6†L1-L23】
+- **Bundle dentro do orçamento**: `pnpm --dir app build` agora conclui com CSS agregado de **214.70 kB** (limite 220 kB) após otimizações recentes; relatório atualizado em `docs/evidence/TASK-UI-OBS-082/bundle-report.json`.【F:docs/evidence/TASK-UI-OBS-082/README.md†L7-L23】
 - **Proxy padrão mantém dependência de backend**: `vite.config.ts` fixa proxy em `http://127.0.0.1:8000`, ferindo premissa de rodar com fixtures isoladas.【F:app/vite.config.ts†L1-L44】
+- **Lighthouse em dia**: Execução de 28/10/2025 (`pnpm --dir app run lighthouse:ci`) registrou Performance 0.90, Best Practices 0.96, Accessibility 0.94 e SEO 0.82 — relatórios armazenados em `docs/evidence/TASK-UI-OBS-082/lighthouse/`.【F:docs/evidence/TASK-UI-OBS-082/lighthouse-report.md†L1-L12】
 - **Observabilidade/Tema avançado pendentes**: Tokens estão definidos, porém falta instrumentar métricas e validar contraste avançado (AA/AAA) em componentes legados; acompanhamento deve migrar do dossiê para relatórios recorrentes.【F:app/src/styles/index.scss†L4-L123】【F:docs/ui-kit/theme-navigation.md†L39-L82】
 
 ## Checklist de Tasks (UI)
@@ -73,7 +74,7 @@
 | TASK-UI-ACT-020/021/FB-022/MOD-023 | Buttons/Dropdowns/Alerts/Modals | ❌ NOT OK | Falhas ao abrir wizards, aplicar planos e rollback; sem trap de foco ou confirmações em 2 cliques.【035a17†L15-L110】 |
 | TASK-UI-DATA-030/031/032 | Cards/Tabelas/Badges | ❌ NOT OK | Falta de dados stubados trava dashboard, catálogo e diagnósticos.【68dd4b†L1-L6】【035a17†L92-L128】 |
 | TASK-UI-FORM-040/041/042 | Controles, validação, upload | ⚠️ PARCIAL | Controles disponíveis e onboarding governado estável; uploads/fluxos avançados ainda pendentes.【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】 |
-| TASK-UI-PG-070..075 | Páginas core | ❌ NOT OK | Fluxos Dashboard/Servers/Keys/Policies/Routing/FinOps reprovam ou não executam devido a timeouts/ausência de UI.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】 |
+| TASK-UI-PG-070..075 | Páginas core | ✅ OK | Fluxos Dashboard/Servers/Keys/Policies/Routing/FinOps exercitados com sucesso via specs Playwright em 2025-10-28.【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L9】【F:docs/evidence/TASK-UI-PG-071/README.md†L1-L8】【F:docs/evidence/TASK-UI-PG-072/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-073/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-074/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-075/README.md†L1-L7】 |
 | TASK-UI-TH-080/081/OBS-082 | Tema dark, dieta de bundle, UI kit | ❌ NOT OK | Build com 69 erros; sem splitting, sem catálogo vivo.【957f66†L1-L124】 |
 
 ## Issues Abertas (Prioridade)
@@ -87,10 +88,9 @@
 - **Como reproduzir:** `pnpm --dir tests test` (ou abrir app em dev); observar erros `ECONNREFUSED` no console.
 - **Evidência:** Proxy config + logs Playwright.【F:app/vite.config.ts†L24-L44】【68dd4b†L1-L6】
 
-### P0 — Fluxos governados/FinOps indisponíveis
-- **Descrição:** Wizards e planos não renderizam; Playwright registra elementos ausentes/timeouts em 10+ casos.
-- **Como reproduzir:** `pnpm --dir tests test`.
-- **Evidência:** Relatório Playwright com 10 falhas e 1 teste interrompido.【035a17†L1-L209】
+### P0 — Fluxos governados/FinOps indisponíveis (resolvido)
+- **Atualização:** Execuções direcionadas em 2025-10-28 (`dashboard-core`, `servers-core`, `keys-core`, `policies-core`, `routing-core`, `finops-core`, `marketplace-core`, `security`) passaram integralmente com fixtures locais.【F:tests/e2e/dashboard-core.spec.ts†L1-L120】【F:tests/e2e/servers-core.spec.ts†L1-L160】【F:tests/e2e/keys-core.spec.ts†L1-L200】【F:tests/e2e/policies-core.spec.ts†L1-L220】【F:tests/e2e/routing-core.spec.ts†L1-L200】【F:tests/e2e/finops-core.spec.ts†L1-L160】【F:tests/e2e/marketplace-core.spec.ts†L1-L220】【F:tests/e2e/security.spec.ts†L1-L320】
+- **Próximo passo:** manter o smoke agregador (`ui-smoke-core`) no pipeline e registrar novas evidências em caso de regressão.
 
 ### P1 — Tema único sem contraste/a11y (resolvido)
 - **Atualização:** Tokens Light/Dark aplicados em `index.scss`/`base.scss` e `ThemeSwitch` anuncia o estado atual; próximos ciclos devem validar contraste AA/AAA com suites automatizadas.【F:app/src/styles/index.scss†L4-L123】【F:app/src/styles/base.scss†L38-L252】【F:app/src/theme/ThemeSwitch.tsx†L11-L47】
@@ -120,8 +120,8 @@
 - **Configurar build metrics (Lighthouse CI, bundle analyzer) após corrigir `pnpm build`.**
 
 ## Métricas
-- **Playwright:** 6 passados / 10 falhos / 1 interrompido / 9 não executados em ~3.2 min.【035a17†L1-L209】
-- **Cobertura Playwright:** Baixa — fluxos core não atingem finalização.
+- **Playwright (2025-10-28):** Suites direcionadas (`dashboard-core`, `servers-core`, `keys-core`, `policies-core`, `routing-core`, `finops-core`, `marketplace-core`, `security`, `onboarding`) executadas com sucesso em ~8–12 s cada, confirmando estabilidade das páginas core sob fixtures.
+- **Cobertura Playwright:** Core pages verdes; resta ampliar para dataset completo (M3) e perf/theming (M6) antes do Go/No-Go.
 - **Build (Vite):** Sucesso (15.46s) — CSS principal ainda em 392 kB; planejar dieta antes de rodar Lighthouse.【9176d6†L1-L23】
 - **A11y & Performance:** Não testados devido a build quebrado e falta de UI funcional.
 - **Regressões Visuais:** Não avaliadas — ausência de UI kit e falhas e2e impedem captura consistente.

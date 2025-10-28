@@ -89,7 +89,8 @@
   7. Playwright: smoke + fluxos E2E para cada página.
 - **Entregáveis:** Páginas integradas no console, scripts de dados mockados.
 - **Evidências:** suite Playwright E2E, vídeos/screen captures.
-- **Bloqueios atuais:** [`audit-ui-m1-m6.md#sprint-m5`](audit-ui-m1-m6.md#sprint-m5).
+- **Atualização 2025-10-28:** Execuções direcionadas (`dashboard-core`, `servers-core`, `keys-core`, `policies-core`, `routing-core`, `finops-core`, `marketplace-core`, `security`) verdes com fixtures; evidências documentadas em `docs/evidence/TASK-UI-PG-070..075/`.
+- **Bloqueios atuais:** monitorar smoke agregado e cobertura de dados M3 conforme [`audit-ui-m1-m6.md#sprint-m5`](audit-ui-m1-m6.md#sprint-m5).
 
 ### UI-ACT-006 — Desbloquear Sprint M6 (Theming, Performance & Observabilidade)
 - **Scope:** Refinar tema Dark, otimizar bundle (CSS ≤ 220KB), code splitting, UI Kit vivo atualizado.
