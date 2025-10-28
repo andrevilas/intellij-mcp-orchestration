@@ -23,6 +23,15 @@
 - **Ops controls** — [ops-controls-report.json](ops-controls-report.json) gerado pelo comando `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json`.
 - **GitHub Actions (CI)** — Jobs `security` e `ops_compliance` executados em 2025-10-21 ([workflow CI](../../.github/workflows/ci.yml)); atualizar com o link direto da *run* (`actions/runs/<id>`).
 
+## Registro complementar — 2025-10-28
+
+- **Janela:** 2025-10-28 14:55 UTC
+- **Responsáveis:** Squad Ops/SRE (`@platform-ops`)
+- **Ações executadas:**
+  - Reexecução de `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` confirmando `status: pass`.
+  - Revisão do workflow `.github/workflows/ci.yml` preservando `permissions: contents: read` para todos os jobs e mantendo `ops_compliance` como gate antes de `lint`, `test`, `smoke` e `playwright`.
+- **Evidências:** [ops-controls-report.json](ops-controls-report.json) atualizado (timestamp 2025-10-28T14:55:26Z).
+
 ## Próximos passos
 
 - Reexecutar o checklist semanalmente (`auditoria-operacional.md`).

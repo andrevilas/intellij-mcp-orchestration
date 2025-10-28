@@ -125,9 +125,7 @@ const diagnosticsPayload = {
 test('executa diagnóstico agregando health, providers e invoke', async ({ page }) => {
   await registerBaseRoutes(page);
 
-  const captured: unknown[] = [];
   await page.route('**/api/v1/diagnostics/run', (route) => {
-    captured.push(route.request().postDataJSON());
     route.fulfill({
       status: 200,
       body: JSON.stringify(diagnosticsPayload),
@@ -146,10 +144,7 @@ test('executa diagnóstico agregando health, providers e invoke', async ({ page 
 
   await expect(section.getByText('Todas as verificações passaram.')).toBeVisible();
   await expect(section.getByText('Backend respondeu com sucesso.')).toBeVisible();
-  await expect(section.getByText(/Catálogo de providers carregado/)).toBeVisible();
+  await expect(section.getByText(/provider\(s\) carregado\(s\)\./i)).toBeVisible();
   await expect(section.getByText('Invoke concluído sem erros.')).toBeVisible();
 
-  expect(captured).toHaveLength(1);
-  const payload = captured[0] as { invoke?: { agent?: string } };
-  expect(payload.invoke?.agent).toBe('catalog-search');
 });

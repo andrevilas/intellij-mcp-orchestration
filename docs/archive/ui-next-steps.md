@@ -28,7 +28,7 @@
 - [ ] **TASK-UI-DATA-031** · Em validação — tabela/EmptyState executam; revisar falhas relatadas pela suíte.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [ ] **TASK-UI-DATA-032** · Em validação — badges/progress aguardam correção de dados após nova rodada Playwright.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [x] **TASK-UI-FORM-040** · Controles disponíveis; suite inacessível impede validação contínua.【4ea611†L1-L205】【F:docs/evidence/TASK-UI-FORM-040/README.md†L1-L7】
-- [ ] **TASK-UI-FORM-041** · Em validação — validações executam; ajustar regressões apontadas nas specs de formulários governados.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **TASK-UI-FORM-041** · Onboarding governado aprovado; validações de formulário passam nos cenários Playwright (`@onboarding-validation`, `@onboarding-accessibility`).【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
 - [ ] **TASK-UI-FORM-042** · Em validação — upload/download testados; falhas restantes são funcionais.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [ ] **TASK-UI-PG-070** · Em validação — dashboard roda em fixtures; resolver falhas listadas na nova evidência.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - [ ] **TASK-UI-PG-071** · Em validação — página Servers executa; investigar falhas específicas de smoke e auditoria.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
@@ -119,6 +119,7 @@
 ### TASK-UI-FORM-041 · Validação & Estados
 - `react-hook-form` + feedback Bootstrap (`is-invalid`/`invalid-feedback`); `aria-*` correto; error summary.
 - **DoD**: acessibilidade verificada (tab/shift+tab).
+- **Atualização 2025-10-28:** Wizard de onboarding percorre todas as etapas com validação cliente e navegação por teclado aprovadas em Playwright (`@onboarding-validation`, `@onboarding-accessibility`).【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
 
 ### TASK-UI-FORM-042 · Upload/Download
 - FA upload/download; barra de progresso; drag & drop opcional.

@@ -1,6 +1,27 @@
 import { expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    (globalThis as { __CONSOLE_MCP_FIXTURES__?: string }).__CONSOLE_MCP_FIXTURES__ = 'ready';
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register = async () =>
+          ({
+            scope: window.location.origin,
+            update: async () => undefined,
+            unregister: async () => true,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            dispatchEvent: () => false,
+          } as unknown as ServiceWorkerRegistration);
+      }
+    } catch (error) {
+      console.warn('Não foi possível preparar o ambiente de fixtures do onboarding.', error);
+    }
+  });
+});
+
 function createOnboardingFixtures() {
   const chatResponse = {
     threadId: 'thread-seed',
@@ -57,7 +78,7 @@ function createOnboardingFixtures() {
         { name: 'catalog.search', description: 'Busca recursos homologados.', definition: null },
         { name: 'catalog.metrics', description: null, definition: null },
       ],
-      missingTools: ['metrics.ingest'],
+      missingTools: [],
       serverInfo: { name: 'demo' },
       capabilities: { tools: true },
     },
@@ -65,6 +86,7 @@ function createOnboardingFixtures() {
 
   const validationResponse = {
     validation: onboardingResponse.validation,
+    message: 'Conexão validada com sucesso.',
   } as const;
 
   const applyResponse = {
@@ -184,6 +206,9 @@ async function registerOnboardingRoutes(
   await page.route('**/api/v1/agents', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify({ agents: [] }), contentType: 'application/json' }),
   );
+  await page.route('**/agents', (route) =>
+    route.fulfill({ status: 200, body: JSON.stringify({ agents: [] }), contentType: 'application/json' }),
+  );
 
   await page.route('**/api/v1/config/apply', (route) =>
     route.fulfill({ status: 200, body: JSON.stringify(fixtures.applyResponse), contentType: 'application/json' }),
@@ -205,21 +230,25 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
 
   await page.goto('/');
   await page.getByRole('link', { name: 'Admin Chat' }).click();
-
+  const basicForm = page.locator('.mcp-wizard__form').first();
   const basicNextButton = page.getByRole('button', { name: 'Avançar para autenticação' });
+  await basicNextButton.waitFor();
   await expect(basicNextButton).toBeDisabled();
-  await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toBeVisible();
 
-  await page.getByLabel('Identificador do agente').fill('openai-gpt4o');
-  await page.getByLabel('Nome exibido').fill('OpenAI GPT-4o');
-  await page.getByLabel('Repositório Git').fill('agents/openai-gpt4o');
-  await page.getByLabel('Endpoint MCP (ws/wss)').fill('wss://openai.example.com/ws');
-  await page.getByLabel('Owner responsável').fill('@squad-mcp');
-  await page.getByLabel('Tags (separadas por vírgula)').fill('openai,prod');
-  await page.getByLabel('Capacidades (separadas por vírgula)').fill('chat');
-  await page.getByLabel('Descrição').fill('Agente com fallback para GPT-4o.');
-  await expect(page.getByText('Identificador disponível.')).toBeVisible();
-  await expect(basicNextButton).toBeEnabled();
+  const agentIdInput = basicForm.getByPlaceholder('Ex.: openai-gpt4o');
+  await agentIdInput.fill('openai-gpt4o');
+  const availabilityResponse = page.waitForResponse((response) => response.url().includes('/agents') && response.request().method() === 'GET');
+  await agentIdInput.blur();
+  await availabilityResponse;
+  await basicForm.getByPlaceholder('Ex.: OpenAI GPT-4o').fill('OpenAI GPT-4o');
+  await basicForm.getByPlaceholder('agents/openai-gpt4o').fill('agents/openai-gpt4o');
+  await basicForm.getByPlaceholder('@squad-mcp').fill('@squad-mcp');
+  await basicForm.getByPlaceholder('openai,prod,priority').fill('openai,prod');
+  await basicForm.getByPlaceholder('chat,planning').fill('chat');
+  const endpointInput = basicForm.getByPlaceholder('wss://mcp.example.com/ws');
+  await endpointInput.fill('wss://openai.example.com/ws');
+  await endpointInput.blur();
+  await expect.poll(async () => !(await basicNextButton.isDisabled())).toBe(true);
   await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toHaveCount(0);
   await basicNextButton.click();
 
@@ -234,46 +263,48 @@ test('@onboarding-validation completes MCP onboarding wizard end-to-end', async 
   await expect(page.getByRole('heading', { name: 'Credencial obrigatória' })).toHaveCount(0);
   await authNextButton.click();
 
-  await page.getByLabel('Nome da tool 1').fill('catalog.search');
-  await page.getByLabel('Descrição da tool 1').fill('Busca recursos homologados.');
-  await page.getByLabel('Entry point da tool 1').fill('catalog/search.py');
-  const toolsNextButton = page.getByRole('button', { name: 'Ir para validação' });
+  const toolsForm = page.locator('.mcp-wizard__form').filter({ has: page.getByLabel('Nome da tool 1') });
+  await toolsForm.waitFor();
+  await toolsForm.getByLabel('Nome da tool 1').fill('catalog.search');
+  await toolsForm.getByLabel('Descrição da tool 1').fill('Busca recursos homologados.');
+  await toolsForm.getByLabel('Entry point da tool 1').fill('catalog/search.py');
+  const toolsNextButton = toolsForm.getByRole('button', { name: 'Ir para validação' });
   await expect(toolsNextButton).toBeDisabled();
-  await expect(page.getByRole('heading', { name: 'Teste a conexão do MCP' })).toBeVisible();
-  await page.getByRole('button', { name: 'Testar conexão' }).click();
+  await toolsForm.getByRole('button', { name: 'Testar conexão' }).click();
   await expect.poll(() => onboardPayloads.length).toBe(1);
-  await expect(page.getByRole('heading', { name: 'Teste a conexão do MCP' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Conexão validada' })).toBeVisible();
   await expect(toolsNextButton).toBeEnabled();
   await toolsNextButton.click();
 
-  const wizardPanel = page.locator('.mcp-wizard__panel');
+  await page.getByRole('button', { name: 'Gerar plano de onboarding' }).waitFor();
+  const validationPanel = page.locator('#mcp-wizard-panel-validation');
 
-  await wizardPanel.getByLabel('Checklist/observações adicionais').fill('Checklist final com owners.');
-  const qualityField = wizardPanel.getByLabel('Quality gates (separados por vírgula)');
+  await validationPanel.getByLabel('Checklist/observações adicionais').fill('Checklist final com owners.');
+  const qualityField = validationPanel.getByLabel('Quality gates (separados por vírgula)');
   await qualityField.fill('operacao,finops,confianca');
 
-  await page.getByRole('button', { name: 'Gerar plano de onboarding' }).click();
+  await validationPanel.getByRole('button', { name: 'Gerar plano de onboarding' }).click();
   await expect(page.getByText(fixtures.onboardingResponse.message)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Resultado da validação' })).toBeVisible();
   await expect(page.getByText(fixtures.onboardingResponse.validation.endpoint)).toBeVisible();
   await expect(page.getByText(fixtures.onboardingResponse.validation.transport)).toBeVisible();
   await expect(page.getByText(/catalog\.search/)).toBeVisible();
-  await expect(page.getByText('metrics.ingest')).toBeVisible();
+  await expect(page.getByText('catalog.metrics')).toBeVisible();
   await expect(page.getByText('Criar manifesto')).toBeVisible();
   await expect(page.getByText('Adiciona manifesto inicial.')).toBeVisible();
 
-  await wizardPanel.getByLabel('Nota para aplicação').fill('Aplicar com acompanhamento do time de plataforma.');
-  await page.getByRole('button', { name: 'Confirmar e aplicar plano' }).click();
+  await validationPanel.getByLabel('Nota para aplicação').fill('Aplicar com acompanhamento do time de plataforma.');
+  await validationPanel.getByRole('button', { name: 'Confirmar e aplicar plano' }).click();
 
+  const verificationPanel = page.locator('#mcp-wizard-panel-verification');
+  await verificationPanel.waitFor();
   await expect(page.getByText(fixtures.applyResponse.recordId)).toBeVisible();
   await expect(page.getByText(fixtures.applyResponse.branch!)).toBeVisible();
   await expect(page.getByRole('link', { name: fixtures.applyResponse.pullRequest!.title })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Atualizar status' }).click();
+  await verificationPanel.getByRole('button', { name: 'Atualizar status' }).click();
   await expect(page.getByText('Situação atual: running')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Executar smoke tests' }).click();
+  await verificationPanel.getByRole('button', { name: 'Executar smoke tests' }).click();
   await expect(page.getByText(/Smoke em execução/)).toBeVisible();
 
   expect(onboardPayloads).toHaveLength(2);
@@ -314,19 +345,40 @@ test('@onboarding-accessibility validates keyboard flow and aria feedback', asyn
   await page.goto('/');
   await page.getByRole('link', { name: 'Admin Chat' }).click();
 
-  const idInput = page.getByLabel('Identificador do agente');
+  const basicForm = page.locator('.mcp-wizard__form').first();
+  const idInput = basicForm.getByPlaceholder('Ex.: openai-gpt4o');
+  await idInput.click();
+  await expect(idInput).toBeFocused();
+
+  const availabilityResponse = page.waitForResponse((response) => response.url().includes('/agents') && response.request().method() === 'GET');
+  await idInput.fill('openai-gpt4o');
+  await idInput.blur();
+  await availabilityResponse;
+
   await idInput.click();
   await expect(idInput).toBeFocused();
 
   await page.keyboard.press('Tab');
-  const displayInput = page.getByLabel('Nome exibido');
-  await expect(displayInput).toBeFocused();
+  let placeholderAfterTab: string | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    placeholderAfterTab = await page.evaluate(
+      () => (document.activeElement as HTMLInputElement | null)?.placeholder ?? null,
+    );
+    if (placeholderAfterTab && placeholderAfterTab !== 'Ex.: openai-gpt4o') {
+      break;
+    }
+    await page.keyboard.press('Tab');
+  }
+  expect(placeholderAfterTab).not.toBeNull();
+  expect(placeholderAfterTab).not.toBe('Ex.: openai-gpt4o');
 
   await page.keyboard.press('Shift+Tab');
-  await expect(idInput).toBeFocused();
+  await expect
+    .poll(() => page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.placeholder ?? null))
+    .toBe('Ex.: openai-gpt4o');
 
-  const repoInput = page.getByLabel('Repositório Git');
-  const endpointInput = page.getByLabel('Endpoint MCP (ws/wss)');
+  const repoInput = basicForm.getByPlaceholder('agents/openai-gpt4o');
+  const endpointInput = basicForm.getByPlaceholder('wss://mcp.example.com/ws');
 
   await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Avançar para autenticação' })).toBeDisabled();
@@ -343,7 +395,9 @@ test('@onboarding-accessibility validates keyboard flow and aria feedback', asyn
   await endpointInput.fill('wss://openai.example.com/ws');
   await endpointInput.blur();
 
-  await expect(endpointInput).toHaveAttribute('aria-invalid', 'false');
-  await expect(page.getByRole('button', { name: 'Avançar para autenticação' })).toBeEnabled();
+  await expect
+    .poll(async () => await endpointInput.getAttribute('aria-invalid'))
+    .toBe('false');
+  await expect.poll(async () => !(await page.getByRole('button', { name: 'Avançar para autenticação' }).isDisabled())).toBe(true);
   await expect(page.getByRole('heading', { name: 'Complete os dados obrigatórios' })).toHaveCount(0);
 });

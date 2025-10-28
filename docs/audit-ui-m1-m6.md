@@ -11,7 +11,7 @@
 | M1 — Fundamentos & Shell | :large_blue_circle: **Em progresso** | Bootstrap/Font Awesome modularizados, ThemeProvider ativo e tokens Light/Dark aplicados no shell e layouts centrais.【F:app/package.json†L13-L35】【F:app/src/main.tsx†L1-L21】【F:app/src/styles/base.scss†L38-L206】 |
 | M2 — Ações & Feedback | :red_circle: **Bloqueado** | Componentes críticos (wizards, modais) inexistentes; testes de geração/aplicação de plano falham.【035a17†L15-L92】 |
 | M3 — Dados & Estruturas | :red_circle: **Bloqueado** | Tabelas/relatórios não atendem aos fluxos simulados; dashboard quebra sem backend stub.【035a17†L99-L128】【68dd4b†L1-L6】 |
-| M4 — Formulários & Validação | :red_circle: **Bloqueado** | Wizard de onboarding não renderiza, validações indisponíveis; testes interrompidos.【035a17†L175-L209】 |
+| M4 — Formulários & Validação | :large_blue_circle: **Em progresso** | Wizard de onboarding estabilizado com fixtures; specs `@onboarding-validation` e `@onboarding-accessibility` verdes.【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】 |
 | M5 — Páginas Core | :red_circle: **Bloqueado** | Dashboard, FinOps, Servers, Policies e Routing não executam fluxos previstos (timeout ou erros).【035a17†L99-L175】 |
 | M6 — Theming/Performance/Observabilidade | :red_circle: **Bloqueado** | Bundle CSS continua em 392 kB e não há métricas Lighthouse/observabilidade; proxy segue apontando para backend real.【9176d6†L1-L23】【F:app/vite.config.ts†L1-L44】 |
 
@@ -50,8 +50,8 @@
 - **Estruturas não exibem estados alternativos**: E2E de catálogo/diagnósticos falham por ausência de registros e componentes de fallback.【035a17†L92-L118】
 
 ### M4 — Formulários & Validação
-- **Onboarding bloqueado**: wizard não progride; botões continuam desabilitados e componentes esperados não existem, impedindo validações e resumo de erros.【035a17†L209-L230】
-- **Tests unitários mal configurados**: suites legadas em `src/test/*.test.tsx` foram migradas para Vitest (`app/vitest.config.ts`) e reorganizadas em `src/pages/**`/`src/components/**`, eliminando dependências de `jest` globals e o travamento antes do bundle.【F:app/vitest.config.ts†L1-L14】【F:app/src/pages/AdminChat/AdminChat.test.tsx†L1-L552】
+- **Wizard liberado com fixtures**: onboarding percorre todas as etapas (dados básicos → autenticação → tools → validação → verificação) com validações preservadas; specs `@onboarding-validation` e `@onboarding-accessibility` verdes。【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
+- **Próximo alvo**: replicar mesma estabilidade nas demais telas governadas (Policies, Routing, Uploads) e anexar relatórios específicos antes do Go/No-Go final.
 
 ### M5 — Páginas Core
 - **Dashboard/FinOps**: sem interceptors nativos, filtros acionam chamadas reais causando `ECONNREFUSED` e timeouts.【68dd4b†L1-L6】【9399da†L1-L1】
@@ -72,7 +72,7 @@
 | TASK-UI-NAV-011 | Breadcrumbs/Pagination | ✅ OK | Componentes publicados com tokens de foco/cor e documentação no UI Kit.【F:app/src/styles/index.scss†L132-L179】【F:docs/ui-kit/theme-navigation.md†L39-L102】 |
 | TASK-UI-ACT-020/021/FB-022/MOD-023 | Buttons/Dropdowns/Alerts/Modals | ❌ NOT OK | Falhas ao abrir wizards, aplicar planos e rollback; sem trap de foco ou confirmações em 2 cliques.【035a17†L15-L110】 |
 | TASK-UI-DATA-030/031/032 | Cards/Tabelas/Badges | ❌ NOT OK | Falta de dados stubados trava dashboard, catálogo e diagnósticos.【68dd4b†L1-L6】【035a17†L92-L128】 |
-| TASK-UI-FORM-040/041/042 | Controles, validação, upload | ❌ NOT OK | Formulários principais não renderizam; botões permanecem desabilitados.【035a17†L145-L209】 |
+| TASK-UI-FORM-040/041/042 | Controles, validação, upload | ⚠️ PARCIAL | Controles disponíveis e onboarding governado estável; uploads/fluxos avançados ainda pendentes.【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】 |
 | TASK-UI-PG-070..075 | Páginas core | ❌ NOT OK | Fluxos Dashboard/Servers/Keys/Policies/Routing/FinOps reprovam ou não executam devido a timeouts/ausência de UI.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】 |
 | TASK-UI-TH-080/081/OBS-082 | Tema dark, dieta de bundle, UI kit | ❌ NOT OK | Build com 69 erros; sem splitting, sem catálogo vivo.【957f66†L1-L124】 |
 
@@ -128,4 +128,3 @@
 
 ## Go/No-Go
 - **Recomendação:** **BARRAR** go-live até sanar P0s: build TypeScript, mocks de backend e implementação efetiva das páginas core. Plano de ação detalhado acima.
-

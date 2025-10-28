@@ -270,6 +270,7 @@ export default function OnboardingWizard() {
   const authInstructionsValue = useWatch({ control, name: 'authInstructions' });
   const authEnvironmentValue = useWatch({ control, name: 'authEnvironment' });
   const toolsValue = useWatch({ control, name: 'tools' }) ?? [];
+  const connectionInputsRef = useRef<string | null>(null);
   const connectionTestedValue = useWatch({ control, name: 'connectionTested' }) ?? false;
   const [isPlanning, setPlanning] = useState(false);
   const [isApplying, setApplying] = useState(false);
@@ -336,7 +337,38 @@ export default function OnboardingWizard() {
   );
 
   useEffect(() => {
-    invalidateConnection();
+    const normalizedTools = Array.isArray(toolsValue)
+      ? toolsValue.map((tool) => ({
+          name: typeof tool?.name === 'string' ? tool.name.trim() : '',
+          entryPoint: typeof tool?.entryPoint === 'string' ? tool.entryPoint.trim() : '',
+          description: typeof tool?.description === 'string' ? tool.description.trim() : '',
+        }))
+      : [];
+    const normalizedKey = JSON.stringify({
+      agentId: typeof agentIdValue === 'string' ? agentIdValue.trim() : '',
+      displayName: typeof displayNameValue === 'string' ? displayNameValue.trim() : '',
+      repository: typeof repositoryValue === 'string' ? repositoryValue.trim() : '',
+      endpoint: typeof endpointValue === 'string' ? endpointValue.trim() : '',
+      description: typeof descriptionValue === 'string' ? descriptionValue.trim() : '',
+      owner: typeof ownerValue === 'string' ? ownerValue.trim() : '',
+      tags: typeof tagsValue === 'string' ? tagsValue.trim() : '',
+      capabilities: typeof capabilitiesValue === 'string' ? capabilitiesValue.trim() : '',
+      authMode: authModeValue,
+      secretName: typeof secretNameValue === 'string' ? secretNameValue.trim() : '',
+      authInstructions: typeof authInstructionsValue === 'string' ? authInstructionsValue.trim() : '',
+      authEnvironment: typeof authEnvironmentValue === 'string' ? authEnvironmentValue.trim() : '',
+      tools: normalizedTools,
+    });
+
+    if (connectionInputsRef.current === normalizedKey) {
+      return;
+    }
+
+    if (connectionInputsRef.current !== null) {
+      invalidateConnection();
+    }
+
+    connectionInputsRef.current = normalizedKey;
   }, [
     agentIdValue,
     displayNameValue,

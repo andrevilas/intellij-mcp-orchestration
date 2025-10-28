@@ -139,6 +139,27 @@ const evalRunResponse = {
   window_end: observabilityMetrics.window_end,
 };
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register = async () =>
+          ({
+            scope: window.location.origin,
+            update: async () => undefined,
+            unregister: async () => true,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            dispatchEvent: () => false,
+          } as unknown as ServiceWorkerRegistration);
+      }
+      (globalThis as { __CONSOLE_MCP_FIXTURES__?: string }).__CONSOLE_MCP_FIXTURES__ = 'ready';
+    } catch (error) {
+      console.warn('Não foi possível preparar ambiente de fixtures para observability.', error);
+    }
+  });
+});
+
 test('painel de observabilidade exibe métricas e aciona evals @observability', async ({ page }) => {
   await page.route('**/api/v1/servers**', (route) =>
     route.fulfill({
@@ -162,6 +183,10 @@ test('painel de observabilidade exibe métricas e aciona evals @observability', 
 
   await page.route('**/api/v1/observability/preferences', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(observabilityPreferences) }),
+  );
+
+  await page.route('**/api/v1/providers', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers }) }),
   );
 
   await page.route('**/api/v1/observability/metrics**', (route) =>
@@ -211,7 +236,7 @@ test('painel de observabilidade exibe métricas e aciona evals @observability', 
 
   await page.getByRole('tab', { name: /Tracing/ }).click();
   await expect(page.getByRole('table', { name: /Visão agregada dos spans/ })).toBeVisible();
-  await expect(page.getByRole('row', { name: /GLM 46/ })).toBeVisible();
+  await expect(page.getByRole('rowheader', { name: 'glm' })).toBeVisible();
 
   await page.getByRole('tab', { name: /Evals/ }).click();
   await page.getByRole('button', { name: 'Disparar eval agora' }).click();

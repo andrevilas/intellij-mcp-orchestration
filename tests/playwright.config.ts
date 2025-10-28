@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(new URL('.', import.meta.url))));
 const require = createRequire(import.meta.url);
-const sassSilencerPath = resolve(workspaceRoot, 'suppress-sass-warnings.cjs');
+const sassSilencerPath = resolve(workspaceRoot, 'tests', 'suppress-sass-warnings.cjs');
 require(sassSilencerPath);
 
 function appendNodeRequire(nodeOptions: string | undefined, modulePath: string): string {

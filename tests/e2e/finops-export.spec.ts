@@ -1,6 +1,5 @@
 import { expect, test } from './fixtures';
 import manifestFixture from '../fixtures/backend/data/policy_manifest.json' assert { type: 'json' };
-import { FINOPS_TEST_IDS } from '../../app/src/pages/testIds';
 
 const manifestResponse = JSON.parse(JSON.stringify(manifestFixture)) as typeof manifestFixture;
 
@@ -20,8 +19,6 @@ const timeseriesResponse = {
 };
 
 test('@finops-export baixa CSV e HTML via backend', async ({ page }) => {
-  const exportRequests: string[] = [];
-
   await page.route('**/api/v1/**', (route) => {
     const url = new URL(route.request().url());
     const pathname = url.pathname.replace('/api/v1', '');
@@ -64,7 +61,6 @@ test('@finops-export baixa CSV e HTML via backend', async ({ page }) => {
     }
 
     if (pathname === '/telemetry/export') {
-      exportRequests.push(route.request().url());
       const format = url.searchParams.get('format');
       if (format === 'csv') {
         return route.fulfill({
@@ -119,29 +115,36 @@ test('@finops-export baixa CSV e HTML via backend', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'FinOps' }).click();
 
-  const csvButton = page.getByTestId(FINOPS_TEST_IDS.exports.csvButton);
+  const csvButton = page.getByRole('button', { name: 'Exportar CSV' });
   await expect(csvButton).toBeEnabled();
 
+  const csvRequestPromise = page.waitForRequest(
+    (request) => request.url().includes('/telemetry/export') && request.url().includes('format=csv'),
+  );
   const csvDownload = page.waitForEvent('download');
   await csvButton.click();
   const csvFile = await csvDownload;
+  const csvRequest = await csvRequestPromise;
   await expect(csvButton).toBeEnabled();
   expect(csvFile.suggestedFilename()).toMatch(/finops-telemetry-\d{4}-\d{2}-\d{2}\.csv/);
-
-  const htmlButton = page.getByTestId(FINOPS_TEST_IDS.exports.htmlButton);
-  await expect(htmlButton).toBeEnabled();
-
-  const htmlDownload = page.waitForEvent('download');
-  await htmlButton.click();
-  const htmlFile = await htmlDownload;
-  await expect(htmlButton).toBeEnabled();
-  expect(htmlFile.suggestedFilename()).toMatch(/finops-telemetry-\d{4}-\d{2}-\d{2}\.html/);
-
-  expect(exportRequests).toHaveLength(2);
-  const [csvUrl, htmlUrl] = exportRequests.map((value) => new URL(value));
+  const csvUrl = new URL(csvRequest.url());
   expect(csvUrl.searchParams.get('format')).toBe('csv');
-  expect(htmlUrl.searchParams.get('format')).toBe('html');
   expect(csvUrl.searchParams.has('start')).toBe(true);
   expect(csvUrl.searchParams.has('end')).toBe(true);
   expect(csvUrl.searchParams.has('provider_id')).toBe(false);
+
+  const htmlButton = page.getByRole('button', { name: 'Exportar HTML' });
+  await expect(htmlButton).toBeEnabled();
+
+  const htmlRequestPromise = page.waitForRequest(
+    (request) => request.url().includes('/telemetry/export') && request.url().includes('format=html'),
+  );
+  const htmlDownload = page.waitForEvent('download');
+  await htmlButton.click();
+  const htmlFile = await htmlDownload;
+  const htmlRequest = await htmlRequestPromise;
+  await expect(htmlButton).toBeEnabled();
+  expect(htmlFile.suggestedFilename()).toMatch(/finops-telemetry-\d{4}-\d{2}-\d{2}\.html/);
+  const htmlUrl = new URL(htmlRequest.url());
+  expect(htmlUrl.searchParams.get('format')).toBe('html');
 });

@@ -29,5 +29,6 @@ O relatório anexado é reutilizado como evidência de auditoria e deve ser atua
 | ---- | -------- | --------- |
 | 2025-10-21 | `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` | [ops-controls-report.json](ops-controls-report.json) |
 | 2025-10-21 | GitHub Actions — jobs `security` e `ops_compliance` (branch `main`) | [Workflow CI](../../.github/workflows/ci.yml) |
+| 2025-10-28 | `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` | [ops-controls-report.json](ops-controls-report.json) |
 
 > Atualize esta tabela sempre que houver novas rotações, auditorias ou incidentes, adicionando o link direto para a execução (ex.: `https://github.com/<org>/<repo>/actions/runs/<id>`).

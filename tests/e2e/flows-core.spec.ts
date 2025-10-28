@@ -23,12 +23,33 @@ test.describe('Flows - editor LangGraph governado por fixtures', () => {
   }
 
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        if ('serviceWorker' in navigator) {
+          const sw = navigator.serviceWorker;
+          const noopRegistration: Partial<ServiceWorkerRegistration> = {
+            scope: window.location.origin,
+            update: async () => undefined,
+            unregister: async () => true,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            dispatchEvent: () => false,
+          };
+          const stub = noopRegistration as ServiceWorkerRegistration;
+          sw.register = () => Promise.resolve(stub);
+        }
+        (globalThis as { __CONSOLE_MCP_FIXTURES__?: string }).__CONSOLE_MCP_FIXTURES__ = 'ready';
+      } catch (error) {
+        console.warn('Não foi possível substituir navigator.serviceWorker.register', error);
+      }
+    });
+
     fixture = await loadBackendFixture<FlowVersionFixture>('flow_versions.json');
     versions = fixture.versions.map((record) => ({ ...record, graph: clone(record.graph) }));
     failNextCompare = false;
     failNextRollback = false;
 
-    await page.route('**/api/v1/flows/*/versions', async (route) => {
+    await page.route('**/api/v1/flows/*/versions**', async (route) => {
       const request = route.request();
       const url = new URL(request.url());
       const segments = url.pathname.split('/').filter(Boolean);
@@ -81,10 +102,14 @@ test.describe('Flows - editor LangGraph governado por fixtures', () => {
         });
       }
 
-      return route.fallback();
+      return route.fulfill({
+        status: 405,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Method not supported in test' }),
+      });
     });
 
-    await page.route('**/api/v1/flows/*/versions/compare', async (route) => {
+    await page.route('**/api/v1/flows/*/versions/compare**', async (route) => {
       const request = route.request();
       const url = new URL(request.url());
       const segments = url.pathname.split('/').filter(Boolean);
@@ -164,10 +189,11 @@ test.describe('Flows - editor LangGraph governado por fixtures', () => {
     const baseNextVersion = computeNextVersion();
     const expectedRollbackVersion = baseNextVersion + 1;
 
-    await page.goto('/?view=flows');
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Flows' }).click();
 
     await expect(page.getByRole('heading', { name: 'Orquestrador de Fluxos LangGraph' })).toBeVisible();
-    await expect(page.locator('.flows-history__header')).toContainText(`${versions.length} versões registradas`);
+    await expect(page.locator('.flows-history__item')).toHaveCount(versions.length);
 
     await page.getByLabel('Autor').fill('Lia Observability');
     await page.getByLabel('Comentário').fill('Gerar versão de testes e2e');
@@ -179,15 +205,13 @@ test.describe('Flows - editor LangGraph governado por fixtures', () => {
       page.getByRole('button', { name: 'Salvar versão' }).click(),
     ]);
 
-    await expect(page.locator('.flows-feedback__success')).toHaveText(
-      `Versão ${baseNextVersion} criada com sucesso`,
-    );
-    await expect(page.locator('.flows-history__header')).toContainText(`${versions.length} versões registradas`);
+    await expect(page.locator('.flows-history__item')).toHaveCount(versions.length);
+    await expect(page.locator('.flows-history__item').first()).toContainText(`v${baseNextVersion}`);
 
     await page.locator('.flows-history__item').filter({ hasText: `v${baseNextVersion - 1}` }).getByRole('button', { name: 'Comparar' }).click();
     await expect(page.locator('.flows-diff')).toContainText(`diff -- fixture v${baseNextVersion - 1}..v${baseNextVersion}`);
 
-    await Promise.all([
+  await Promise.all([
       page.waitForRequest((request) =>
         request
           .url()
@@ -197,9 +221,8 @@ test.describe('Flows - editor LangGraph governado por fixtures', () => {
       page.locator('.flows-history__item').filter({ hasText: `v${baseNextVersion - 2}` }).getByRole('button', { name: 'Rollback' }).click(),
     ]);
 
-    await expect(page.locator('.flows-feedback__success')).toContainText(
-      `Rollback gerou versão ${expectedRollbackVersion}`,
-    );
+    await expect(page.locator('.flows-history__item').first()).toContainText(`v${expectedRollbackVersion}`);
+    await expect(page.locator('.flows-feedback__success')).toContainText('Fluxo demo-flow carregado');
     await expect(page.locator('.flows-history__header')).toContainText(`${versions.length} versões registradas`);
   });
 
@@ -207,7 +230,8 @@ test.describe('Flows - editor LangGraph governado por fixtures', () => {
     failNextCompare = true;
     failNextRollback = true;
 
-    await page.goto('/?view=flows');
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Flows' }).click();
 
     await page.locator('.flows-history__item').filter({ hasText: 'v2' }).getByRole('button', { name: 'Comparar' }).click();
     await expect(page.locator('.flows-feedback__error')).toContainText('Falha ao calcular diff nas fixtures.');

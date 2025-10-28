@@ -88,6 +88,27 @@ const observabilityTracing = {
   providers: telemetryMetrics.providers,
 };
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register = async () =>
+          ({
+            scope: window.location.origin,
+            update: async () => undefined,
+            unregister: async () => true,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            dispatchEvent: () => false,
+          } as unknown as ServiceWorkerRegistration);
+      }
+      (globalThis as { __CONSOLE_MCP_FIXTURES__?: string }).__CONSOLE_MCP_FIXTURES__ = 'ready';
+    } catch (error) {
+      console.warn('Não foi possível preparar o ambiente de fixtures para observability tests.', error);
+    }
+  });
+});
+
 async function setupCommonRoutes(
   page: Page,
   options: {
@@ -256,7 +277,8 @@ test('exibe mensagem de erro quando atualização retorna 400', async ({ page })
   const metricsToggle = metricsGroup.getByRole('checkbox');
   await metricsToggle.check();
 
-  await metricsGroup.getByLabel('Endpoint').fill('collector');
+  await metricsGroup.getByLabel('Provider').selectOption('otlp');
+  await metricsGroup.getByLabel('Endpoint').fill('https://collector.exemplo.com');
   await page.getByRole('button', { name: 'Salvar preferências' }).click();
 
   await expect(page.getByText('endpoint é obrigatório para providers OTLP.')).toBeVisible();
@@ -267,6 +289,7 @@ test('bloqueia formulário quando carregamento retorna 401', async ({ page }) =>
     preferencesGet: {},
   });
 
+  await page.unroute('**/api/v1/observability/preferences');
   await page.route('**/api/v1/observability/preferences', (route) => {
     if (route.request().method() === 'GET') {
       route.fulfill({
@@ -282,9 +305,9 @@ test('bloqueia formulário quando carregamento retorna 401', async ({ page }) =>
   await page.goto('/');
   await page.getByRole('link', { name: 'Observabilidade' }).click();
 
-  await expect(
-    page.getByText('Você não tem permissão para visualizar as preferências de observabilidade.'),
-  ).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText(
+    'Você não tem permissão para visualizar as preferências de observabilidade.',
+  );
 
   await expect(page.getByRole('button', { name: 'Salvar preferências' })).toBeDisabled();
 });

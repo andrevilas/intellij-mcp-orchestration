@@ -135,7 +135,7 @@
 
 ### Sprint OPS-3 — Segurança
 - [x] **TASK-OPS-301 — Segredos**【F:docs/evidence/TASK-OPS-301/README.md†L1-L21】
-- [ ] **TASK-OPS-302 — Operações seguras**
+- [x] **TASK-OPS-302 — Operações seguras**【F:docs/evidence/TASK-OPS-302/README.md†L1-L37】【F:docs/evidence/TASK-OPS-302/runbooks-activation.md†L1-L36】
 
 ### Sprint OPS-4 — Packaging
 - [x] **TASK-OPS-401 — Build local**

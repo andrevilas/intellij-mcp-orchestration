@@ -71,7 +71,8 @@
   4. Testes Playwright focados em acessibilidade (tab/shift+tab, aria-invalid).
 - **Entregáveis:** Documentação e exemplos no UI Kit.
 - **Evidências:** relatório Playwright forms, captura de resumo de erros.
-- **Bloqueios atuais:** [`audit-ui-m1-m6.md#sprint-m4`](audit-ui-m1-m6.md#sprint-m4).
+- **Atualização 2025-10-28:** Fluxo de onboarding estabilizado com fixtures; cenários `@onboarding-validation` e `@onboarding-accessibility` aprovados.【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】
+- **Bloqueios atuais:** uploads/downloads e formulários avançados ainda exigem validação; seguir pendências em [`audit-ui-m1-m6.md#sprint-m4`](audit-ui-m1-m6.md#sprint-m4).
 
 ### UI-ACT-005 — Desbloquear Sprint M5 (Páginas Core)
 - **Scope:** Dashboard, Servers, Keys, Policies, Routing Lab, FinOps com fluxos completos.
@@ -148,4 +149,3 @@
 - **UI:** @design-systems-lead / @frontend-lead
 - **Backend:** @mcp-core-lead
 - **Ops/SRE:** @platform-ops
-
