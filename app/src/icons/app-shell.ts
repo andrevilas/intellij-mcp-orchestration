@@ -14,6 +14,14 @@ import { faDiagramProject } from '@fortawesome/free-solid-svg-icons/faDiagramPro
 import { faTableColumns } from '@fortawesome/free-solid-svg-icons/faTableColumns';
 import { faStore } from '@fortawesome/free-solid-svg-icons/faStore';
 import { faMessage } from '@fortawesome/free-solid-svg-icons/faMessage';
+import { faXmark } from '@fortawesome/free-solid-svg-icons/faXmark';
+import { faChevronDown } from '@fortawesome/free-solid-svg-icons/faChevronDown';
+import { faComments } from '@fortawesome/free-solid-svg-icons/faComments';
+import { faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons/faWandMagicSparkles';
+import { faSliders } from '@fortawesome/free-solid-svg-icons/faSliders';
+import { faCircleInfo } from '@fortawesome/free-solid-svg-icons/faCircleInfo';
+import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
+import { faTrash } from '@fortawesome/free-solid-svg-icons/faTrash';
 
 config.autoAddCss = false;
 
@@ -33,4 +41,12 @@ library.add(
   faTableColumns,
   faStore,
   faMessage,
+  faXmark,
+  faChevronDown,
+  faComments,
+  faWandMagicSparkles,
+  faSliders,
+  faCircleInfo,
+  faFire,
+  faTrash,
 );

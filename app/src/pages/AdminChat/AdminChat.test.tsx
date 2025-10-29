@@ -20,6 +20,7 @@ import {
   postConfigReload,
   postPolicyPlanApply,
   fetchNotifications,
+  fetchAgents,
 } from '../../api';
 
 type ApiModule = typeof import('../../api');
@@ -307,6 +308,7 @@ describe('AdminChat view', () => {
   };
 
   const postChatMock = postConfigChat as unknown as Mock;
+  const fetchAgentsMock = fetchAgents as unknown as Mock;
   const postPlanMock = postConfigPlan as unknown as Mock;
   const postApplyMock = postConfigApply as unknown as Mock;
   const postReloadMock = postConfigReload as unknown as Mock;
@@ -315,6 +317,19 @@ describe('AdminChat view', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchAgentsMock.mockResolvedValue([
+      {
+        name: 'console-admin',
+        title: 'Console Admin',
+        version: '1.0.0',
+        description: 'Agente administrativo configurado para o console MCP.',
+        capabilities: ['plans', 'orchestration'],
+        model: null,
+        status: 'healthy',
+        lastDeployedAt: null,
+        owner: 'Platform Team',
+      },
+    ]);
     postChatMock.mockResolvedValue(chatResponse);
     postPlanMock.mockImplementation((payload: unknown) => {
       const typed = payload as { intent: string };
@@ -339,9 +354,23 @@ describe('AdminChat view', () => {
     await userEvent.type(textarea, 'Quais guardrails devo atualizar?');
     await userEvent.click(screen.getByRole('button', { name: 'Enviar mensagem' }));
 
-    await waitFor(() =>
-      expect(postChatMock).toHaveBeenCalledWith({ intent: 'message', prompt: 'Quais guardrails devo atualizar?', threadId: null }),
-    );
+    await waitFor(() => expect(postChatMock).toHaveBeenCalled());
+    const firstIntent = postChatMock.mock.calls[0][0] as {
+      intent: string;
+      prompt: string;
+      threadId: string | null;
+      context?: string;
+    };
+    expect(firstIntent).toMatchObject({
+      intent: 'message',
+      prompt: 'Quais guardrails devo atualizar?',
+      threadId: null,
+    });
+    expect(firstIntent.context).toBeDefined();
+    const parsedContext = JSON.parse(firstIntent.context as string);
+    expect(parsedContext).toMatchObject({ agent: 'console-admin', knowledgeBase: 'platform-docs' });
+    expect(typeof parsedContext.instructions).toBe('string');
+    expect(parsedContext.instructions).toContain('Console MCP');
     await waitFor(() => expect(screen.getByText(chatResponse.messages[1].content)).toBeInTheDocument());
 
     const scopeInput = screen.getByLabelText('Escopo do plano');
@@ -396,7 +425,9 @@ describe('AdminChat view', () => {
     });
     expect(screen.getByText('Aplicado')).toBeInTheDocument();
 
-    expect(screen.getByTestId('onboarding-wizard')).toBeInTheDocument();
+    const onboardingButton = screen.getAllByRole('button', { name: 'Onboarding assistido MCP' })[0];
+    await userEvent.click(onboardingButton);
+    await waitFor(() => expect(screen.getByTestId('onboarding-wizard')).toBeInTheDocument());
   });
 
   it('exibe metadados do branch, do PR e dos revisores no resumo do plano', async () => {

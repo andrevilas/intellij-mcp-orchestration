@@ -1,0 +1,259 @@
+.command-palette__overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+  background: color-mix(in srgb, var(--mcp-backdrop) 88%, rgba(12, 19, 36, 0.82));
+  backdrop-filter: blur(6px);
+  z-index: var(--mcp-z-modal, 80);
+}
+
+.command-palette {
+  width: min(640px, 100%);
+  max-height: min(80vh, 700px);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: var(--mcp-surface);
+  color: var(--mcp-surface-contrast);
+  border-radius: 1.5rem;
+  border: 1px solid var(--mcp-border-subtle);
+  box-shadow: 0 36px 70px color-mix(in srgb, var(--mcp-surface-contrast) 22%, transparent);
+  padding: 1.75rem 1.75rem 1.5rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.command-palette__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.command-palette__title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.command-palette__eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mcp-interactive);
+}
+
+.command-palette__title h2 {
+  margin: 0;
+  font-size: 1.55rem;
+}
+
+.command-palette__close {
+  border: none;
+  background: transparent;
+  color: var(--mcp-surface-contrast);
+  border-radius: 0.75rem;
+  padding: 0.35rem;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+
+.command-palette__close:hover {
+  background: var(--mcp-interactive-soft);
+  transform: scale(1.05);
+}
+
+.command-palette__close:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  outline-offset: 2px;
+}
+
+.command-palette__hint {
+  margin: -0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--mcp-text-subtle);
+  max-width: 38rem;
+}
+
+.command-palette__search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--mcp-surface-subtle);
+  border: 1px solid var(--mcp-border-subtle);
+  border-radius: 0.9rem;
+  padding: 0.65rem 0.85rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mcp-overlay-soft) 35%, transparent);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.command-palette__search:focus-within {
+  border-color: color-mix(in srgb, var(--mcp-interactive) 40%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--mcp-focus-ring) 32%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--mcp-interactive) 28%, transparent);
+}
+
+.command-palette__search-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: color-mix(in srgb, var(--mcp-surface-contrast) 80%, transparent);
+  flex-shrink: 0;
+}
+
+.command-palette__search input {
+  flex: 1 1 auto;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  outline: none;
+  min-width: 0;
+}
+
+.command-palette__search input::placeholder {
+  color: color-mix(in srgb, var(--mcp-surface-contrast) 55%, transparent);
+}
+
+.command-palette__shortcut {
+  font-size: 0.75rem;
+  border-radius: 0.65rem;
+  padding: 0.2rem 0.55rem;
+  background: var(--mcp-interactive-soft);
+  border: 1px solid var(--mcp-border-subtle);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--mcp-surface-contrast) 20%, transparent);
+  color: var(--mcp-surface-contrast);
+}
+
+.command-palette__agent-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--mcp-text-subtle);
+}
+
+.command-palette__agent-hint--error {
+  color: var(--mcp-danger-strong);
+}
+
+.command-palette__results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  padding-bottom: 0.25rem;
+}
+
+.command-palette__results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.command-palette__results::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--mcp-scroll-thumb, rgba(148, 163, 184, 0.45)) 90%, transparent);
+  border-radius: 999px;
+}
+
+.command-palette__results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.command-palette__empty {
+  padding: 1.25rem 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--mcp-text-muted);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--mcp-surface-subtle) 92%, transparent);
+}
+
+.command-palette__option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: 0.95rem;
+  padding: 0.85rem 1rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.command-palette__option:hover {
+  background: color-mix(in srgb, var(--mcp-interactive) 18%, transparent);
+  box-shadow: 0 18px 32px color-mix(in srgb, var(--mcp-interactive) 24%, transparent);
+  transform: translateY(-1px);
+}
+
+.command-palette__option:focus-visible {
+  outline: 3px solid var(--mcp-focus-ring);
+  outline-offset: 2px;
+}
+
+.command-palette__option--active {
+  background: color-mix(in srgb, var(--mcp-interactive) 32%, transparent);
+  box-shadow: 0 24px 42px color-mix(in srgb, var(--mcp-interactive) 28%, transparent);
+}
+
+.command-palette__option-title {
+  font-weight: 600;
+  font-size: 0.98rem;
+  letter-spacing: 0.01em;
+}
+
+.command-palette__option--active .command-palette__option-title {
+  color: var(--mcp-action-primary-fg);
+}
+
+.command-palette__option-subtitle {
+  grid-column: 1 / -1;
+  font-size: 0.82rem;
+  color: var(--mcp-text-subtle);
+}
+
+.command-palette__option-shortcut {
+  align-self: flex-start;
+  justify-self: end;
+  font-size: 0.75rem;
+  border-radius: 0.65rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--mcp-interactive-soft);
+  border: 1px solid var(--mcp-border-subtle);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--mcp-surface-contrast) 18%, transparent);
+}
+
+@media (max-width: 720px) {
+  .command-palette {
+    padding: 1.5rem 1.25rem 1.25rem;
+    gap: 1rem;
+  }
+
+  .command-palette__hint {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .command-palette__overlay {
+    padding: 1.5rem 1rem;
+  }
+
+  .command-palette__option {
+    grid-template-columns: 1fr;
+  }
+
+  .command-palette__option-shortcut {
+    justify-self: flex-start;
+    margin-top: 0.25rem;
+  }
+}

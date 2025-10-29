@@ -20,7 +20,10 @@
   border-radius: 1.25rem;
   box-shadow: var(--mcp-shadow-modal);
   padding: 1.5rem;
-  width: min(32rem, calc(100vw - 2rem));
+  width: min(
+    var(--modal-max-width, 32rem),
+    calc((100vw - 2rem) * var(--modal-viewport-factor, 1))
+  );
   max-height: calc(100vh - 4rem);
   overflow-y: auto;
   display: flex;
@@ -29,11 +32,13 @@
 }
 
 .mcp-modal__dialog[data-size='lg'] {
-  width: min(48rem, calc(100vw - 2rem));
+  --modal-max-width: 48rem;
+  --modal-viewport-factor: 0.95;
 }
 
 .mcp-modal__dialog[data-size='xl'] {
-  width: min(64rem, calc(100vw - 2rem));
+  --modal-max-width: 64rem;
+  --modal-viewport-factor: 1;
 }
 
 .mcp-modal__dialog:focus {

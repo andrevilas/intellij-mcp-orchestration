@@ -9,6 +9,8 @@ import './icons/app-shell';
 import './styles/app-shell.scss';
 import {
   VIEW_DEFINITIONS,
+  VIEW_GROUPS,
+  type ViewGroupId,
   type ViewId,
   getViewComponent,
   getViewLoader,
@@ -44,6 +46,7 @@ import type { NotificationItem } from './components/NotificationCenter';
 import type { ProvisioningSubmission } from './components/ProvisioningDialog';
 import type { BreadcrumbItem } from './components/navigation/Breadcrumbs';
 import { ToastProvider } from './components/feedback/ToastProvider';
+import AdminChatLauncher from './components/AdminChatLauncher';
 import type { AppFixtureSnapshot } from './utils/appFixtures';
 import { createAppFixtureSnapshot } from './utils/appFixtures';
 import { getFixtureStatus } from './utils/fixtureStatus';
@@ -278,10 +281,42 @@ function App() {
   const [isProvisionDialogOpen, setProvisionDialogOpen] = useState(false);
   const [isProvisionSubmitting, setProvisionSubmitting] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<ViewGroupId, boolean>>(() =>
+    Object.fromEntries(VIEW_GROUPS.map((group) => [group.id, true])) as Record<ViewGroupId, boolean>,
+  );
   const mainRef = useRef<HTMLElement | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const notificationButtonRef = useRef<HTMLButtonElement | null>(null);
   const commandButtonRef = useRef<HTMLButtonElement | null>(null);
+  const viewDefinitionMap = useMemo(() => {
+    const map = {} as Record<ViewId, (typeof VIEW_DEFINITIONS)[number]>;
+    for (const definition of VIEW_DEFINITIONS) {
+      map[definition.id] = definition;
+    }
+    return map;
+  }, []);
+  const viewToGroupMap = useMemo(() => {
+    const map = {} as Record<ViewId, ViewGroupId>;
+    for (const group of VIEW_GROUPS) {
+      for (const viewId of group.items) {
+        map[viewId] = group.id;
+      }
+    }
+    return map;
+  }, []);
+  const toggleGroup = useCallback(
+    (groupId: ViewGroupId, force?: boolean) => {
+      setExpandedGroups((current) => {
+        const currentValue = current[groupId] ?? true;
+        const nextValue = typeof force === 'boolean' ? force : !currentValue;
+        if (nextValue === currentValue) {
+          return current;
+        }
+        return { ...current, [groupId]: nextValue };
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     if (didReportLoadRef.current || isLoading) {
@@ -328,6 +363,18 @@ function App() {
     url.hash = `#${activeView}`;
     window.history.replaceState(null, '', url.toString());
   }, [activeView]);
+  useEffect(() => {
+    const groupId = viewToGroupMap[activeView];
+    if (!groupId) {
+      return;
+    }
+    setExpandedGroups((current) => {
+      if (current[groupId]) {
+        return current;
+      }
+      return { ...current, [groupId]: true };
+    });
+  }, [activeView, viewToGroupMap]);
 
   const applyNotifications = useCallback(
     (items: NotificationSummary[]) => {
@@ -620,7 +667,7 @@ function App() {
         return;
       }
 
-      const keysToHandle = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+      const keysToHandle = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
       if (!keysToHandle.includes(event.key)) {
         return;
       }
@@ -650,9 +697,9 @@ function App() {
 
       let nextIndex = currentIndex;
 
-      if (event.key === 'ArrowRight') {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
         nextIndex = (currentIndex + 1) % navItems.length;
-      } else if (event.key === 'ArrowLeft') {
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
         nextIndex = (currentIndex - 1 + navItems.length) % navItems.length;
       } else if (event.key === 'Home') {
         nextIndex = 0;
@@ -938,165 +985,235 @@ function App() {
         >
           Ir para o conteúdo principal
         </a>
-        <header className="app-shell__header">
-          <div className="app-shell__branding">
+        {isSidebarOpen ? (
+          <div
+            className="app-shell__sidebar-overlay"
+            role="presentation"
+            onClick={() => setSidebarOpen(false)}
+          />
+        ) : null}
+        <aside
+          className={clsx('app-shell__sidebar', isSidebarOpen && 'app-shell__sidebar--open')}
+          aria-label="Menu lateral principal"
+        >
+          <div className="app-shell__sidebar-header">
+            <div>
+              <span className="app-shell__eyebrow app-shell__sidebar-eyebrow">Promenade Agent Hub</span>
+              <p className="app-shell__sidebar-title">Navegação</p>
+            </div>
             <button
               type="button"
-              className="app-shell__sidebar-toggle app-shell__sidebar-toggle--mobile-only"
-              aria-expanded={isSidebarOpen}
-              aria-controls="primary-navigation"
+              className="app-shell__sidebar-close"
               onClick={handleToggleSidebar}
             >
-              <FontAwesomeIcon icon="bars" className="icon-leading" fixedWidth aria-hidden="true" />
-              Menu
+              <FontAwesomeIcon icon="xmark" fixedWidth aria-hidden="true" />
+              <span className="visually-hidden">Fechar menu</span>
             </button>
-            <div>
-              <span className="app-shell__eyebrow">Promenade Agent Hub</span>
-              <h1>Operações unificadas</h1>
-            </div>
           </div>
-          <div className="app-shell__actions">
+          <nav
+            aria-label="Navegação principal"
+            id="primary-navigation"
+            className="app-shell__nav"
+            data-open={isSidebarOpen}
+            ref={navRef}
+            onKeyDown={handleNavKeyDown}
+          >
+            <ul className="nav-groups" role="list">
+              {VIEW_GROUPS.map((group) => {
+                const isOpen = expandedGroups[group.id] ?? true;
+                const listId = `nav-group-${group.id}`;
+                return (
+                  <li
+                    key={group.id}
+                    className={clsx('nav-group', isOpen && 'nav-group--open')}
+                    data-group={group.id}
+                  >
+                    <button
+                      type="button"
+                      className="nav-group__toggle"
+                      aria-expanded={isOpen}
+                      aria-controls={listId}
+                      onClick={() => toggleGroup(group.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'ArrowRight') {
+                          event.preventDefault();
+                          toggleGroup(group.id, true);
+                        } else if (event.key === 'ArrowLeft') {
+                          event.preventDefault();
+                          toggleGroup(group.id, false);
+                        }
+                      }}
+                    >
+                      <span className="nav-group__text">
+                        <span className="nav-group__label">{group.label}</span>
+                        {group.description ? (
+                          <span className="nav-group__subtitle">{group.description}</span>
+                        ) : null}
+                      </span>
+                      <FontAwesomeIcon
+                        icon="chevron-down"
+                        fixedWidth
+                        className="nav-group__chevron"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {isOpen ? (
+                      <ul className="nav-group__list" id={listId} role="list">
+                        {group.items.map((viewId) => {
+                          const view = viewDefinitionMap[viewId];
+                          if (!view) {
+                            return null;
+                          }
+                          const isActive = activeView === viewId;
+                          return (
+                            <li key={viewId} className="nav-group__item">
+                              <a
+                                href={`#${viewId}`}
+                                className={clsx('nav-button', {
+                                  'nav-button--active': isActive,
+                                })}
+                                id={`nav-${viewId}`}
+                                aria-current={isActive ? 'page' : undefined}
+                                onFocus={() => {
+                                  preloadView(viewId);
+                                  handleNavigate(viewId, { focusContent: false, trigger: 'keyboard' });
+                                }}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  preloadView(viewId);
+                                  handleNavigate(viewId, { trigger: 'click' });
+                                }}
+                              >
+                                <FontAwesomeIcon
+                                  icon={VIEW_ICON_MAP[viewId]}
+                                  fixedWidth
+                                  className="icon-leading"
+                                  aria-hidden="true"
+                                />
+                                <span className="nav-button__label">{view.label}</span>
+                              </a>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        </aside>
+        <div className="app-shell__main">
+          <header className="app-shell__header">
+            <div className="app-shell__branding">
+              <button
+                type="button"
+                className="app-shell__sidebar-toggle"
+                aria-expanded={isSidebarOpen}
+                aria-controls="primary-navigation"
+                onClick={handleToggleSidebar}
+              >
+                <FontAwesomeIcon icon="bars" className="icon-leading" fixedWidth aria-hidden="true" />
+                Menu
+              </button>
+              <div>
+                <span className="app-shell__eyebrow">Promenade Agent Hub</span>
+                <h1>Operações unificadas</h1>
+              </div>
+            </div>
+            <div className="app-shell__actions">
               <Suspense
                 fallback={
-                  <div
-                    className="app-shell__theme-switch app-shell__theme-switch--desktop theme-switch-placeholder"
-                    aria-hidden="true"
-                  />
+                  <div className="app-shell__theme-switch theme-switch-placeholder" aria-hidden="true" />
                 }
               >
-                <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--desktop" />
+                <ThemeSwitch className="app-shell__theme-switch" />
               </Suspense>
-            <nav
-              aria-label="Navegação principal"
-              id="primary-navigation"
-              className={clsx('app-shell__nav', isSidebarOpen && 'app-shell__nav--open')}
-              data-open={isSidebarOpen}
-              ref={navRef}
-              onKeyDown={handleNavKeyDown}
-            >
-              {VIEW_DEFINITIONS.map((view) => (
-                <a
-                  key={view.id}
-                  href={`#${view.id}`}
-                  className={clsx('nav-button', {
-                    'nav-button--active': activeView === view.id,
-                  })}
-                  id={`nav-${view.id}`}
-                  aria-current={activeView === view.id ? 'page' : undefined}
-                  onFocus={() => {
-                    preloadView(view.id);
-                    handleNavigate(view.id, { focusContent: false, trigger: 'keyboard' });
-                  }}
+              <div className="app-shell__quick-actions">
+                <button
+                  type="button"
+                  className="notification-button"
+                  aria-haspopup="dialog"
+                  aria-expanded={isNotificationOpen}
+                  aria-controls="notification-center-panel"
                   onClick={(event) => {
-                    event.preventDefault();
-                    preloadView(view.id);
-                    handleNavigate(view.id, { trigger: 'click' });
+                    void notificationCenterLoader();
+                    setNotificationOpen(true);
+                    setPaletteOpen(false);
+                    const trigger = event.detail === 0 ? 'keyboard' : 'click';
+                    telemetry.panelOpened('notification_center', {
+                      trigger,
+                      unread: unreadCount,
+                    });
                   }}
+                  onMouseEnter={() => void notificationCenterLoader()}
+                  onFocus={() => void notificationCenterLoader()}
+                  aria-label={notificationButtonLabel}
+                  ref={notificationButtonRef}
                 >
-                  <FontAwesomeIcon
-                    icon={VIEW_ICON_MAP[view.id]}
-                    fixedWidth
-                    className="icon-leading"
-                    aria-hidden="true"
-                  />
-                  <span className="nav-button__label">{view.label}</span>
-                </a>
-              ))}
-              <Suspense
-                fallback={
-                  <div
-                    className="app-shell__theme-switch app-shell__theme-switch--mobile theme-switch-placeholder"
-                    aria-hidden="true"
-                  />
-                }
-              >
-                <ThemeSwitch className="app-shell__theme-switch app-shell__theme-switch--mobile" />
-              </Suspense>
-            </nav>
-            <div className="app-shell__quick-actions">
-              <button
-                type="button"
-                className="notification-button"
-                aria-haspopup="dialog"
-                aria-expanded={isNotificationOpen}
-                aria-controls="notification-center-panel"
-                onClick={(event) => {
-                  void notificationCenterLoader();
-                  setNotificationOpen(true);
-                  setPaletteOpen(false);
-                  const trigger = event.detail === 0 ? 'keyboard' : 'click';
-                  telemetry.panelOpened('notification_center', {
-                    trigger,
-                    unread: unreadCount,
-                  });
-                }}
-                onMouseEnter={() => void notificationCenterLoader()}
-                onFocus={() => void notificationCenterLoader()}
-                aria-label={notificationButtonLabel}
-                ref={notificationButtonRef}
-              >
-                <FontAwesomeIcon icon="bell" className="icon-leading" fixedWidth aria-hidden="true" />
-                <span className="notification-button__text">Notificações</span>
-                <span
-                  className={
-                    unreadCount > 0
-                      ? 'notification-button__badge'
-                      : 'notification-button__badge notification-button__badge--muted'
-                  }
-                  aria-hidden={unreadCount === 0}
+                  <FontAwesomeIcon icon="bell" className="icon-leading" fixedWidth aria-hidden="true" />
+                  <span className="notification-button__text">Notificações</span>
+                  <span
+                    className={
+                      unreadCount > 0
+                        ? 'notification-button__badge'
+                        : 'notification-button__badge notification-button__badge--muted'
+                    }
+                    aria-hidden={unreadCount === 0}
+                  >
+                    {unreadCount}
+                  </span>
+                  <kbd aria-hidden="true">⇧⌘N</kbd>
+                </button>
+                <button
+                  type="button"
+                  className="command-button"
+                  aria-haspopup="dialog"
+                  aria-expanded={isPaletteOpen}
+                  onClick={(event) => {
+                    void commandPaletteLoader();
+                    setPaletteOpen(true);
+                    setNotificationOpen(false);
+                    const trigger = event.detail === 0 ? 'keyboard' : 'click';
+                    telemetry.panelOpened('command_palette', {
+                      trigger,
+                      active_view: activeView,
+                    });
+                  }}
+                  onMouseEnter={() => void commandPaletteLoader()}
+                  onFocus={() => void commandPaletteLoader()}
+                  ref={commandButtonRef}
                 >
-                  {unreadCount}
-                </span>
-                <kbd aria-hidden="true">⇧⌘N</kbd>
-              </button>
-              <button
-                type="button"
-                className="command-button"
-                aria-haspopup="dialog"
-                aria-expanded={isPaletteOpen}
-                onClick={(event) => {
-                  void commandPaletteLoader();
-                  setPaletteOpen(true);
-                  setNotificationOpen(false);
-                  const trigger = event.detail === 0 ? 'keyboard' : 'click';
-                  telemetry.panelOpened('command_palette', {
-                    trigger,
-                    active_view: activeView,
-                  });
-                }}
-                onMouseEnter={() => void commandPaletteLoader()}
-                onFocus={() => void commandPaletteLoader()}
-                ref={commandButtonRef}
-              >
-                <FontAwesomeIcon icon="circle-half-stroke" className="icon-leading" fixedWidth aria-hidden="true" />
-                <span className="command-button__text">Command palette</span>
-                <kbd aria-hidden="true">⌘K</kbd>
-              </button>
+                  <FontAwesomeIcon icon="circle-half-stroke" className="icon-leading" fixedWidth aria-hidden="true" />
+                  <span className="command-button__text">Command palette</span>
+                  <kbd aria-hidden="true">⌘K</kbd>
+                </button>
+              </div>
             </div>
+          </header>
+          <div className="app-shell__breadcrumbs">
+            <Suspense
+              fallback={<div className="breadcrumbs-loading" aria-hidden="true" role="presentation" />}
+            >
+              <Breadcrumbs items={breadcrumbs} />
+            </Suspense>
           </div>
-        </header>
-      <div className="app-shell__breadcrumbs">
-        <Suspense
-          fallback={<div className="breadcrumbs-loading" aria-hidden="true" role="presentation" />}
-        >
-          <Breadcrumbs items={breadcrumbs} />
-        </Suspense>
-      </div>
-      <main
-        className="app-shell__content"
-        role="main"
-        aria-live="polite"
-        tabIndex={-1}
-        id="main-content"
-        ref={mainRef}
-      >
-        <Suspense fallback={renderFallbackPanel(activeView)}>
-          {renderActivePanel()}
-        </Suspense>
-      </main>
-      <footer className="app-shell__footer">
-        © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
-      </footer>
+          <main
+            className="app-shell__content"
+            role="main"
+            aria-live="polite"
+            tabIndex={-1}
+            id="main-content"
+            ref={mainRef}
+          >
+            <Suspense fallback={renderFallbackPanel(activeView)}>
+              {renderActivePanel()}
+            </Suspense>
+          </main>
+          <footer className="app-shell__footer">
+            © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
+          </footer>
+        </div>
       {isProvisionDialogOpen && pendingProvider !== null ? (
         <Suspense fallback={null}>
           <ProvisioningDialog
@@ -1124,6 +1241,7 @@ function App() {
           <CommandPalette isOpen onClose={handleClosePalette} commands={commandOptions} />
         </Suspense>
       ) : null}
+      <AdminChatLauncher />
       </div>
     </ToastProvider>
   );

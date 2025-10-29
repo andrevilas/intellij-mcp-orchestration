@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useCallback, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
 
 import './admin-chat.scss';
 
@@ -185,11 +186,15 @@ function generatePlanId(): string {
   return `reload-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+export type AdminChatVariant = 'page' | 'compact';
+
 export interface AdminChatProps {
   onNotificationsUpdate?: (items: NotificationSummary[]) => void;
+  variant?: AdminChatVariant;
 }
 
-export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
+export default function AdminChat({ onNotificationsUpdate, variant = 'page' }: AdminChatProps) {
+  const isCompact = variant === 'compact';
   const {
     messages,
     plan,
@@ -209,10 +214,14 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
     clearStatus,
     clearError,
     hasConversation,
+    assistantAgentId,
+    agentDisplayName,
+    isAgentConfigured,
   } = useAdminChat();
 
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
   const scopeInputRef = useRef<HTMLInputElement | null>(null);
+  const [isOnboardingOpen, setOnboardingOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [scope, setScope] = useState('');
   const [note, setNote] = useState('');
@@ -535,6 +544,10 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
       diff: diff.diff ?? normalizedPatch,
     }));
   }, [reloadPlanResponse]);
+  const agentLabel = agentDisplayName ?? assistantAgentId ?? 'Carregando agente…';
+  const agentInfoLine = isAgentConfigured
+    ? `Agente: ${agentLabel} · Documentação da plataforma disponível.`
+    : `Agente: ${agentLabel} (configuração padrão) · Documentação da plataforma disponível.`;
 
   const planActions = (
     <div className="admin-chat__plan-actions">
@@ -631,13 +644,165 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
     </div>
   );
 
+  const summaryContent = (
+    <>
+      <PlanSummary plan={plan} isLoading={isPlanLoading} actions={planActions} />
+      {!isCompact ? (
+        <section
+          className="admin-chat__quickstart"
+          role="region"
+          aria-labelledby="admin-chat-quickstart-title"
+        >
+          <h2 id="admin-chat-quickstart-title">Comece rápido</h2>
+          <p className="admin-chat__quickstart-lead">
+            Explore o fluxo assistido com uma demo visual e um guia com exemplos reais.
+          </p>
+          <div className="admin-chat__quickstart-grid">
+            {QUICKSTART_RESOURCES.map((resource) => {
+              const titleId = `${resource.id}-title`;
+              const descriptionId = `${resource.id}-description`;
+              const hasActions = Boolean(resource.media || resource.href);
+
+              return (
+                <article
+                  key={resource.id}
+                  className="admin-chat__quickstart-card"
+                  aria-labelledby={titleId}
+                  aria-describedby={descriptionId}
+                >
+                  <span className="admin-chat__quickstart-badge">{resource.badge}</span>
+                  {resource.media?.thumbnail ? (
+                    <button
+                      type="button"
+                      className="admin-chat__quickstart-media"
+                      onClick={() => handleQuickstartMediaOpen(resource)}
+                      aria-label={`Pré-visualizar ${resource.title}`}
+                    >
+                      <img
+                        src={resource.media.thumbnail}
+                        alt={resource.media.thumbnailAlt ?? resource.title}
+                        loading="lazy"
+                      />
+                    </button>
+                  ) : null}
+                  <h3 id={titleId}>{resource.title}</h3>
+                  <p id={descriptionId}>{resource.description}</p>
+                  {resource.examples ? (
+                    <ul className="admin-chat__quickstart-examples">
+                      {resource.examples.map((example) => {
+                        const exampleDescriptionId = `${example.id}-description`;
+                        return (
+                          <li key={example.id}>
+                            <button
+                              type="button"
+                              className="admin-chat__quickstart-example-button"
+                              onClick={() => handleQuickstartExample(example)}
+                              aria-describedby={
+                                example.description ? exampleDescriptionId : undefined
+                              }
+                            >
+                              {example.label}
+                            </button>
+                            {example.description ? (
+                              <p
+                                id={exampleDescriptionId}
+                                className="admin-chat__quickstart-example-description"
+                              >
+                                {example.description}
+                              </p>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                  {hasActions ? (
+                    <div className="admin-chat__quickstart-actions">
+                      {resource.media ? (
+                        <button
+                          type="button"
+                          className="admin-chat__quickstart-button"
+                          onClick={() => handleQuickstartMediaOpen(resource)}
+                        >
+                          {resource.cta}
+                        </button>
+                      ) : null}
+                      {resource.href ? (
+                        <a
+                          className="admin-chat__quickstart-link"
+                          href={resource.href}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                        >
+                          {resource.hrefLabel ?? resource.cta}
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+      <PlanDiffViewer diffs={planDiffItems} />
+      <section className="admin-chat__risks">
+        <h2>Riscos e checkpoints</h2>
+        {hasRisks ? (
+          <div className="admin-chat__risks-grid">
+            {risks.map((risk) => (
+              <RiskCard key={risk.id} risk={risk} />
+            ))}
+          </div>
+        ) : (
+          <p className="admin-chat__placeholder">
+            Nenhum risco elevado encontrado. Gere um plano para visualizar checkpoints sugeridos.
+          </p>
+        )}
+      </section>
+      <section className="admin-chat__assistant-docs">
+        <h2>Templates suportados</h2>
+        <ul>
+          {SUPPORTED_ARTIFACTS.map((artifact) => (
+            <li key={artifact.id}>
+              <h3>{artifact.title}</h3>
+              <p>{artifact.description}</p>
+              <p className="admin-chat__assistant-risk">{artifact.risk}</p>
+              <div className="admin-chat__assistant-actions">
+                <button
+                  type="button"
+                  className="admin-chat__button"
+                  onClick={() => handleOpenReloadModal(artifact)}
+                  disabled={isReloadGenerating || isReloadApplying}
+                >
+                  Regenerar artefato
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  );
   return (
-    <div className="admin-chat">
+    <div className={clsx('admin-chat', isCompact && 'admin-chat--compact')}>
       <div className="admin-chat__layout">
         <section className="admin-chat__panel admin-chat__panel--conversation">
           <header className="admin-chat__header">
-            <h1>Assistente administrativo MCP</h1>
-            <p>Converse com o copiloto para gerar planos, revisar diffs e aplicar mudanças com segurança.</p>
+            <div className="admin-chat__header-text">
+              <h1>Assistente administrativo MCP</h1>
+              <p>Converse com o copiloto para gerar planos, revisar diffs e aplicar mudanças com segurança.</p>
+              <p className="admin-chat__agent-info">{agentInfoLine}</p>
+            </div>
+            <div className="admin-chat__header-actions">
+              <button
+                type="button"
+                className="admin-chat__button admin-chat__button--ghost"
+                onClick={() => setOnboardingOpen(true)}
+              >
+                Onboarding assistido MCP
+              </button>
+            </div>
           </header>
 
           {statusMessage ? (
@@ -714,147 +879,33 @@ export default function AdminChat({ onNotificationsUpdate }: AdminChatProps) {
             </div>
           </form>
 
-          <OnboardingWizard />
-          <McpServersList planButtonAriaLabel={(server) => `Gerar plano para ${server.name || server.id}`} />
+          {!isCompact ? (
+            <McpServersList planButtonAriaLabel={(server) => `Gerar plano para ${server.name || server.id}`} />
+          ) : null}
         </section>
 
-        <aside className="admin-chat__panel admin-chat__panel--summary">
-          <PlanSummary plan={plan} isLoading={isPlanLoading} actions={planActions} />
-          <section
-            className="admin-chat__quickstart"
-            role="region"
-            aria-labelledby="admin-chat-quickstart-title"
-          >
-            <h2 id="admin-chat-quickstart-title">Comece rápido</h2>
-            <p className="admin-chat__quickstart-lead">
-              Explore o fluxo assistido com uma demo visual e um guia com exemplos reais.
-            </p>
-            <div className="admin-chat__quickstart-grid">
-              {QUICKSTART_RESOURCES.map((resource) => {
-                const titleId = `${resource.id}-title`;
-                const descriptionId = `${resource.id}-description`;
-                const hasActions = Boolean(resource.media || resource.href);
-
-                return (
-                  <article
-                    key={resource.id}
-                    className="admin-chat__quickstart-card"
-                    aria-labelledby={titleId}
-                    aria-describedby={descriptionId}
-                  >
-                    <span className="admin-chat__quickstart-badge">{resource.badge}</span>
-                    {resource.media?.thumbnail ? (
-                      <button
-                        type="button"
-                        className="admin-chat__quickstart-media"
-                        onClick={() => handleQuickstartMediaOpen(resource)}
-                        aria-label={`Pré-visualizar ${resource.title}`}
-                      >
-                        <img
-                          src={resource.media.thumbnail}
-                          alt={resource.media.thumbnailAlt ?? resource.title}
-                          loading="lazy"
-                        />
-                      </button>
-                    ) : null}
-                    <h3 id={titleId}>{resource.title}</h3>
-                    <p id={descriptionId}>{resource.description}</p>
-                    {resource.examples ? (
-                      <ul className="admin-chat__quickstart-examples">
-                        {resource.examples.map((example) => {
-                          const exampleDescriptionId = `${example.id}-description`;
-                          return (
-                            <li key={example.id}>
-                              <button
-                                type="button"
-                                className="admin-chat__quickstart-example-button"
-                                onClick={() => handleQuickstartExample(example)}
-                                aria-describedby={
-                                  example.description ? exampleDescriptionId : undefined
-                                }
-                              >
-                                {example.label}
-                              </button>
-                              {example.description ? (
-                                <p
-                                  id={exampleDescriptionId}
-                                  className="admin-chat__quickstart-example-description"
-                                >
-                                  {example.description}
-                                </p>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                    {hasActions ? (
-                      <div className="admin-chat__quickstart-actions">
-                        {resource.media ? (
-                          <button
-                            type="button"
-                            className="admin-chat__quickstart-button"
-                            onClick={() => handleQuickstartMediaOpen(resource)}
-                          >
-                            {resource.cta}
-                          </button>
-                        ) : null}
-                        {resource.href ? (
-                          <a
-                            className="admin-chat__quickstart-link"
-                            href={resource.href}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                          >
-                            {resource.hrefLabel ?? resource.cta}
-                          </a>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
+        {!isCompact ? (
+          <aside className="admin-chat__panel admin-chat__panel--summary">{summaryContent}</aside>
+        ) : (
+          <section className="admin-chat__panel admin-chat__panel--summary admin-chat__panel--summary-compact">
+            {summaryContent}
           </section>
-          <PlanDiffViewer diffs={planDiffItems} />
-          <section className="admin-chat__risks">
-            <h2>Riscos e checkpoints</h2>
-            {hasRisks ? (
-              <div className="admin-chat__risks-grid">
-                {risks.map((risk) => (
-                  <RiskCard key={risk.id} risk={risk} />
-                ))}
-              </div>
-            ) : (
-              <p className="admin-chat__placeholder">
-                Nenhum risco elevado encontrado. Gere um plano para visualizar checkpoints sugeridos.
-              </p>
-            )}
-          </section>
-          <section className="admin-chat__assistant-docs">
-            <h2>Templates suportados</h2>
-            <ul>
-              {SUPPORTED_ARTIFACTS.map((artifact) => (
-                <li key={artifact.id}>
-                  <h3>{artifact.title}</h3>
-                  <p>{artifact.description}</p>
-                  <p className="admin-chat__assistant-risk">{artifact.risk}</p>
-                  <div className="admin-chat__assistant-actions">
-                    <button
-                      type="button"
-                      className="admin-chat__button"
-                      onClick={() => handleOpenReloadModal(artifact)}
-                      disabled={isReloadGenerating || isReloadApplying}
-                    >
-                      Regenerar artefato
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </aside>
+        )}
       </div>
+      {isOnboardingOpen ? (
+        <ModalBase
+          isOpen={isOnboardingOpen}
+          onClose={() => setOnboardingOpen(false)}
+          title="Onboarding assistido MCP"
+          description="Configure um servidor MCP com validações orientadas etapa a etapa."
+          size="xl"
+          dialogClassName="modal"
+          contentClassName="modal__body"
+          closeOnBackdrop={false}
+        >
+          <OnboardingWizard hideHeading />
+        </ModalBase>
+      ) : null}
       {openQuickstartResource?.media ? (
         <MediaLightbox
           open={Boolean(openQuickstartResource)}

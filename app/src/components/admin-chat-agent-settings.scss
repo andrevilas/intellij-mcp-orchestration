@@ -1,0 +1,78 @@
+.admin-chat-agent-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-chat-agent-settings__header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-chat-agent-settings__header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.admin-chat-agent-settings__header p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--mcp-text-muted);
+}
+
+.admin-chat-agent-settings__field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.admin-chat-agent-settings__field label {
+  font-weight: 600;
+}
+
+.admin-chat-agent-settings__field select {
+  border-radius: 0.85rem;
+  border: 1px solid var(--mcp-border-muted);
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+  background: var(--mcp-surface);
+  color: var(--mcp-surface-contrast);
+}
+
+.admin-chat-agent-settings__field select:focus-visible {
+  outline: none;
+  border-color: var(--mcp-interactive);
+  box-shadow: var(--mcp-shadow-focus-ring);
+}
+
+.admin-chat-agent-settings__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--mcp-text-muted);
+}
+
+.admin-chat-agent-settings__knowledge {
+  display: grid;
+  gap: 0.5rem;
+  background: var(--mcp-overlay-soft);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.admin-chat-agent-settings__knowledge h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-chat-agent-settings__knowledge ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--mcp-text-muted);
+}
+
+.admin-chat-agent-settings__knowledge li {
+  margin-bottom: 0.35rem;
+}
+
+.admin-chat-agent-settings__knowledge li:last-child {
+  margin-bottom: 0;
+}

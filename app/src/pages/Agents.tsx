@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 import type { AgentSmokeRun, AgentStatus, AgentSummary } from '../api';
-import { ApiError, fetchAgents, postAgentSmokeRun } from '../api';
+import { ApiError, fetchAgents, postAgentSmokeRun, deleteAgent } from '../api';
 import AgentDetail from './Agents/AgentDetail';
 import NewAgentWizard from './Agents/NewAgentWizard';
 import SmokeEndpointsPanel from '../components/SmokeEndpointsPanel';
 import { formatAgentTimestamp, formatModel, formatStatus, STATUS_CLASS } from '../utils/agents';
 import { describeFixtureRequest } from '../utils/fixtureStatus';
 import { AGENTS_TEST_IDS } from './testIds';
+import ModalBase from '../components/modals/ModalBase';
+import Tooltip from '../components/menus/Tooltip';
 
 type StatusFilter = 'all' | AgentStatus;
 
@@ -44,6 +47,9 @@ function Agents(): JSX.Element {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [activeAgent, setActiveAgent] = useState<AgentSummary | null>(null);
   const [isCreateWizardOpen, setCreateWizardOpen] = useState(false);
+  const [isSmokeModalOpen, setSmokeModalOpen] = useState(false);
+  const [agentPendingDeletion, setAgentPendingDeletion] = useState<AgentSummary | null>(null);
+  const [isDeletingAgent, setDeletingAgent] = useState(false);
   const smokeControllers = useRef(new Map<string, AbortController>());
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -89,6 +95,14 @@ function Agents(): JSX.Element {
     },
     [reloadAgents],
   );
+
+  const handleOpenSmokePanel = useCallback(() => {
+    setSmokeModalOpen(true);
+  }, []);
+
+  const handleCloseSmokePanel = useCallback(() => {
+    setSmokeModalOpen(false);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -252,6 +266,51 @@ function Agents(): JSX.Element {
     setActiveAgent(null);
   }, []);
 
+  const handleRequestDelete = useCallback((agent: AgentSummary) => {
+    setAgentPendingDeletion(agent);
+  }, []);
+
+  const handleCancelDelete = useCallback(() => {
+    setAgentPendingDeletion(null);
+    setDeletingAgent(false);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!agentPendingDeletion) {
+      return;
+    }
+    setDeletingAgent(true);
+    try {
+      await deleteAgent(agentPendingDeletion.name);
+      setToast({
+        kind: 'success',
+        title: `Agent ${agentPendingDeletion.title} removido.`,
+        description: null,
+        run: null,
+        agent: agentPendingDeletion,
+      });
+      setAgentPendingDeletion(null);
+      if (activeAgent && activeAgent.name === agentPendingDeletion.name) {
+        setActiveAgent(null);
+      }
+      reloadAgents();
+    } catch (cause) {
+      const message =
+        cause instanceof ApiError && cause.message
+          ? cause.message
+          : 'Falha ao remover agent. Tente novamente.';
+      setToast({
+        kind: 'error',
+        title: `Não foi possível remover ${agentPendingDeletion.title}.`,
+        description: message,
+        run: null,
+        agent: agentPendingDeletion,
+      });
+    } finally {
+      setDeletingAgent(false);
+    }
+  }, [agentPendingDeletion, activeAgent, reloadAgents]);
+
   const renderTable = filteredAgents.length > 0;
 
   return (
@@ -303,10 +362,12 @@ function Agents(): JSX.Element {
           >
             + Novo agent
           </button>
+          <button type="button" className="agents__smoke-overview" onClick={handleOpenSmokePanel}>
+            Smoke endpoints
+          </button>
         </div>
       </header>
 
-      <SmokeEndpointsPanel />
 
       {toast ? (
         <div
@@ -401,25 +462,39 @@ function Agents(): JSX.Element {
                   <td>{agent.owner ?? '—'}</td>
                   <td>
                     <div className="agents__actions">
-                      <button
-                        type="button"
-                        className="agents__detail-button"
-                        onClick={() => handleDetail(agent)}
-                        aria-label={`Abrir detalhes de ${agent.title}`}
-                        data-testid={AGENTS_TEST_IDS.detailButton(agent.name)}
-                      >
-                        Detalhes
-                      </button>
-                      <button
-                        type="button"
-                        className="agents__smoke-button"
-                        onClick={() => handleSmoke(agent)}
-                        disabled={pendingSmoke === agent.name}
-                        aria-label={`Executar smoke para ${agent.title}`}
-                        data-testid={AGENTS_TEST_IDS.smokeButton(agent.name)}
-                      >
-                        {pendingSmoke === agent.name ? 'Executando…' : 'Smoke'}
-                      </button>
+                      <Tooltip content="Abrir detalhes">
+                        <button
+                          type="button"
+                          className="agents__icon-button"
+                          onClick={() => handleDetail(agent)}
+                          aria-label={`Abrir detalhes de ${agent.title}`}
+                          data-testid={AGENTS_TEST_IDS.detailButton(agent.name)}
+                        >
+                          <FontAwesomeIcon icon="circle-info" fixedWidth />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content={pendingSmoke === agent.name ? 'Smoke em execução' : 'Executar smoke'}>
+                        <button
+                          type="button"
+                          className="agents__icon-button agents__icon-button--primary"
+                          onClick={() => handleSmoke(agent)}
+                          disabled={pendingSmoke === agent.name}
+                          aria-label={`Executar smoke para ${agent.title}`}
+                          data-testid={AGENTS_TEST_IDS.smokeButton(agent.name)}
+                        >
+                          <FontAwesomeIcon icon="fire" fixedWidth />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Remover agent">
+                        <button
+                          type="button"
+                          className="agents__icon-button agents__icon-button--danger"
+                          onClick={() => handleRequestDelete(agent)}
+                          aria-label={`Remover ${agent.title}`}
+                        >
+                          <FontAwesomeIcon icon="trash" fixedWidth />
+                        </button>
+                      </Tooltip>
                     </div>
                   </td>
                 </tr>
@@ -465,23 +540,37 @@ function Agents(): JSX.Element {
                       : 'Sem capabilities cadastradas'}
                   </span>
                   <div className="agents__card-actions">
-                    <button
-                      type="button"
-                      className="agents__detail-button"
-                      onClick={() => handleDetail(agent)}
-                      aria-label={`Abrir detalhes de ${agent.title}`}
-                    >
-                      Detalhes
-                    </button>
-                    <button
-                      type="button"
-                      className="agents__smoke-button"
-                      onClick={() => handleSmoke(agent)}
-                      disabled={pendingSmoke === agent.name}
-                      aria-label={`Executar smoke para ${agent.title}`}
-                    >
-                      {pendingSmoke === agent.name ? 'Executando…' : 'Smoke'}
-                    </button>
+                    <Tooltip content="Abrir detalhes">
+                      <button
+                        type="button"
+                        className="agents__icon-button"
+                        onClick={() => handleDetail(agent)}
+                        aria-label={`Abrir detalhes de ${agent.title}`}
+                      >
+                        <FontAwesomeIcon icon="circle-info" fixedWidth />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={pendingSmoke === agent.name ? 'Smoke em execução' : 'Executar smoke'}>
+                      <button
+                        type="button"
+                        className="agents__icon-button agents__icon-button--primary"
+                        onClick={() => handleSmoke(agent)}
+                        disabled={pendingSmoke === agent.name}
+                        aria-label={`Executar smoke para ${agent.title}`}
+                      >
+                        <FontAwesomeIcon icon="fire" fixedWidth />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Remover agent">
+                      <button
+                        type="button"
+                        className="agents__icon-button agents__icon-button--danger"
+                        onClick={() => handleRequestDelete(agent)}
+                        aria-label={`Remover ${agent.title}`}
+                      >
+                        <FontAwesomeIcon icon="trash" fixedWidth />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
               </li>
@@ -490,7 +579,64 @@ function Agents(): JSX.Element {
         </>
       )}
       {activeAgent ? (
-        <AgentDetail key={activeAgent.name} agent={activeAgent} onClose={handleCloseDetail} />
+        <ModalBase
+          isOpen
+          onClose={handleCloseDetail}
+          title={activeAgent.title}
+          description={`Agent ${activeAgent.name} · v${activeAgent.version}`}
+          size="xl"
+          closeOnBackdrop={false}
+          dialogClassName="modal modal--xl"
+          contentClassName="modal__body"
+        >
+          <AgentDetail key={activeAgent.name} agent={activeAgent} onClose={handleCloseDetail} variant="modal" />
+        </ModalBase>
+      ) : null}
+      {isSmokeModalOpen ? (
+        <ModalBase
+          isOpen
+          onClose={handleCloseSmokePanel}
+          title="Smoke endpoints"
+          description="Dispare smoke tests e acompanhe logs sem sair da tela de gestão."
+          size="xl"
+          closeOnBackdrop
+          dialogClassName="modal modal--xl"
+          contentClassName="modal__body"
+        >
+          <SmokeEndpointsPanel />
+        </ModalBase>
+      ) : null}
+      {agentPendingDeletion ? (
+        <ModalBase
+          isOpen
+          onClose={handleCancelDelete}
+          title={`Remover ${agentPendingDeletion.title}`}
+          description="A remoção não pode ser desfeita e apagará configurações e histórico do agent."
+          size="md"
+          closeOnBackdrop={false}
+          dialogClassName="modal modal--md"
+          contentClassName="modal__body"
+          footer={
+            <div className="modal__footer">
+              <button type="button" className="button button--ghost" onClick={handleCancelDelete} disabled={isDeletingAgent}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button button--danger"
+                onClick={handleConfirmDelete}
+                disabled={isDeletingAgent}
+              >
+                {isDeletingAgent ? 'Removendo…' : 'Remover agent'}
+              </button>
+            </div>
+          }
+        >
+          <p>
+            Confirme a exclusão do agent <strong>{agentPendingDeletion.title}</strong> ({agentPendingDeletion.name}).
+            Essa ação removerá o manifesto do catálogo e encerrará os smoke tests associados.
+          </p>
+        </ModalBase>
       ) : null}
       <NewAgentWizard
         isOpen={isCreateWizardOpen}

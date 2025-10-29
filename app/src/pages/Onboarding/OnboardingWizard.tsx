@@ -206,7 +206,11 @@ function StepErrorSummary({ step, visible }: { step: WizardStep; visible: boolea
   return <FormErrorSummary items={items} />;
 }
 
-export default function OnboardingWizard() {
+export interface OnboardingWizardProps {
+  hideHeading?: boolean;
+}
+
+export default function OnboardingWizard({ hideHeading = false }: OnboardingWizardProps = {}) {
   const [activeStep, setActiveStep] = useState<WizardStep>('basic');
   const [submittedStep, setSubmittedStep] = useState<WizardStep | null>(null);
   const formMethods = useMcpForm<WizardFormValues>({
@@ -311,14 +315,6 @@ export default function OnboardingWizard() {
   const goToStep = (step: WizardStep) => {
     setActiveStep(step);
     setSubmittedStep(null);
-  };
-
-  const handleStepChange = (nextStep: WizardStep) => {
-    const currentIndex = stepIndex;
-    const nextIndex = STEP_DEFINITIONS.findIndex((step) => step.id === nextStep);
-    if (nextIndex <= currentIndex) {
-      goToStep(nextStep);
-    }
   };
 
   const invalidateConnection = useCallback(
@@ -690,54 +686,43 @@ export default function OnboardingWizard() {
   return (
     <McpFormProvider {...formMethods}>
       <section className="mcp-wizard" aria-labelledby="mcp-wizard-heading">
-        <header className="mcp-wizard__header">
-        <div>
-          <h2 id="mcp-wizard-heading">Onboarding assistido MCP</h2>
-          <p>Preencha as etapas para gerar plano, aplicar branch/PR e executar smoke tests automaticamente.</p>
+        <header className={hideHeading ? 'mcp-wizard__header mcp-wizard__header--minimal' : 'mcp-wizard__header'}>
+          <div>
+            <h2 id="mcp-wizard-heading" className={hideHeading ? 'visually-hidden' : undefined}>
+              Onboarding assistido MCP
+            </h2>
+            {hideHeading ? null : (
+              <p>Preencha as etapas para gerar plano, aplicar branch/PR e executar smoke tests automaticamente.</p>
+            )}
+          </div>
+        </header>
+        <div className="mcp-wizard__progress" role="presentation">
+          <div className="mcp-wizard__progress-meta">
+            <span className="mcp-wizard__progress-step">
+              Etapa {stepIndex + 1} de {STEP_DEFINITIONS.length}
+            </span>
+            <h3 id={`mcp-wizard-step-${activeStep}`}>{STEP_DEFINITIONS[stepIndex]?.title}</h3>
+            <p>{STEP_DEFINITIONS[stepIndex]?.description}</p>
+          </div>
+          <div
+            className="mcp-wizard__progress-bar"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(((stepIndex + 1) / STEP_DEFINITIONS.length) * 100)}
+          >
+            <span
+              className="mcp-wizard__progress-fill"
+              style={{ width: `${((stepIndex + 1) / STEP_DEFINITIONS.length) * 100}%` }}
+            />
+          </div>
         </div>
-      </header>
-      <ol className="mcp-wizard__steps" role="tablist">
-        {STEP_DEFINITIONS.map((step, index) => {
-          const isActive = step.id === activeStep;
-          const isCompleted = index < stepIndex;
-          return (
-            <li
-              key={step.id}
-              className={
-                isActive
-                  ? 'mcp-wizard__step mcp-wizard__step--active'
-                  : isCompleted
-                  ? 'mcp-wizard__step mcp-wizard__step--completed'
-                  : 'mcp-wizard__step'
-              }
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-current={isActive ? 'step' : undefined}
-                tabIndex={isActive ? 0 : -1}
-                aria-controls={`mcp-wizard-panel-${step.id}`}
-                id={`mcp-wizard-tab-${step.id}`}
-                disabled={!isActive && !isCompleted}
-                onClick={() => handleStepChange(step.id)}
-              >
-                <span className="mcp-wizard__step-index">{index + 1}</span>
-                <span className="mcp-wizard__step-content">
-                  <strong>{step.title}</strong>
-                  <span>{step.description}</span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-      <div
-        id={`mcp-wizard-panel-${activeStep}`}
-        role="tabpanel"
-        aria-labelledby={`mcp-wizard-tab-${activeStep}`}
-        className="mcp-wizard__panel"
-      >
+        <div
+          id={`mcp-wizard-panel-${activeStep}`}
+          role="tabpanel"
+          aria-labelledby={`mcp-wizard-step-${activeStep}`}
+          className="mcp-wizard__panel"
+        >
         {renderStep()}
       </div>
       </section>

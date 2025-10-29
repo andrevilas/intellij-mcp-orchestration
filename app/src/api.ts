@@ -2871,6 +2871,14 @@ export async function fetchAgents(signal?: AbortSignal): Promise<AgentSummary[]>
   return data.agents.map(mapAgentSummary);
 }
 
+export async function deleteAgent(agentName: string, signal?: AbortSignal): Promise<void> {
+  const encoded = encodeURIComponent(agentName);
+  await requestAgents(`/${encoded}`, {
+    method: 'DELETE',
+    signal,
+  });
+}
+
 export async function postAgentSmokeRun(
   agentName: string,
   signal?: AbortSignal,

@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 import { useAgent, type AgentError } from '../hooks/useAgent';
+import './command-palette.scss';
 
 export interface CommandOption {
   id: string;
@@ -57,6 +59,7 @@ export default function CommandPalette({
     },
   });
   const [isAgentUnavailable, setAgentUnavailable] = useState(false);
+  const hintId = useId();
 
   useEffect(() => {
     if (isAgentFallback) {
@@ -289,20 +292,31 @@ export default function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-labelledby="command-palette-title"
+        aria-describedby={hintId}
         ref={dialogRef}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="command-palette__header">
-          <div>
+          <div className="command-palette__title">
             <p className="command-palette__eyebrow">Command Palette</p>
             <h2 id="command-palette-title">Ações rápidas</h2>
           </div>
-          <p className="command-palette__hint">
-            Pesquise superfícies e ações. Use <kbd>↑</kbd>/<kbd>↓</kbd> para navegar.
-          </p>
+          <button
+            type="button"
+            className="command-palette__close"
+            onClick={onClose}
+            aria-label="Fechar command palette"
+          >
+            <FontAwesomeIcon icon="xmark" fixedWidth aria-hidden="true" />
+            <span className="visually-hidden">Fechar</span>
+          </button>
         </header>
+        <p className="command-palette__hint" id={hintId}>
+          Pesquise superfícies e ações. Use <kbd>↑</kbd>/<kbd>↓</kbd> para navegar, Enter para executar e Esc
+          para fechar.
+        </p>
         <div className="command-palette__search">
-          <svg aria-hidden="true" viewBox="0 0 20 20">
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="command-palette__search-icon">
             <path
               fill="currentColor"
               d="M12.9 14.32a6.5 6.5 0 1 1 1.41-1.41l3.4 3.39-1.4 1.41-3.41-3.39ZM8.5 13a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z"

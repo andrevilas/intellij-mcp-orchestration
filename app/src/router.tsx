@@ -84,6 +84,42 @@ export const VIEW_DEFINITIONS = [
 
 export type ViewId = (typeof VIEW_DEFINITIONS)[number]['id'];
 
+export interface ViewGroupDefinition {
+  id: string;
+  label: string;
+  description?: string;
+  items: readonly ViewId[];
+}
+
+export const VIEW_GROUPS = [
+  {
+    id: 'monitoring-insights',
+    label: 'Monitoramento & Insights',
+    description: 'KPIs, observabilidade e custos consolidados',
+    items: ['dashboard', 'observability', 'finops'],
+  },
+  {
+    id: 'infrastructure',
+    label: 'Infraestrutura MCP',
+    description: 'Provisionamento de servidores, agents e chaves',
+    items: ['servers', 'agents', 'keys'],
+  },
+  {
+    id: 'governance',
+    label: 'Governança & Controles',
+    description: 'Segurança e políticas aplicadas',
+    items: ['security', 'policies'],
+  },
+  {
+    id: 'orchestration',
+    label: 'Orquestração & Automação',
+    description: 'Roteamento, fluxos e automações guiadas',
+    items: ['routing', 'flows', 'admin-chat', 'marketplace'],
+  },
+] as const satisfies readonly ViewGroupDefinition[];
+
+export type ViewGroupId = (typeof VIEW_GROUPS)[number]['id'];
+
 type ViewModule = { default: ComponentType<any> };
 export type ViewLoader = () => Promise<ViewModule>;
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
   AdminChatMessage,
@@ -8,7 +8,24 @@ import type {
   AdminRiskItem,
   ConfigChatResponse,
 } from '../api';
-import { postConfigApply, postConfigChat, postConfigPlan } from '../api';
+import { fetchAgents, postConfigApply, postConfigChat, postConfigPlan, type AgentSummary } from '../api';
+
+const FALLBACK_AGENT_ID = 'mcp-admin-assistant';
+const FALLBACK_AGENT_NAME = 'MCP Admin Assistant';
+const ASSISTANT_AGENT_STORAGE_KEY = 'admin-chat.assistant-agent';
+const PLATFORM_KNOWLEDGE_SUMMARY = `
+A plataforma Console MCP oferece capacidades completas para orquestração de agentes e servidores MCP.
+- Observabilidade: métricas, traces (HTTP GET /telemetry/*) e heatmaps em tempo real.
+- Servidores: lifecycle dos MCP servers com operações start/stop/restart e inspeção de logs (HTTP POST /servers/:id/actions).
+- Agents: catálogo com manifests versionados, smoke tests e owners (HTTP GET /agents, POST /agents/:id/smoke).
+- Chaves: armazenamento de credenciais, teste integrado e rotação assistida (HTTP GET/POST /secrets).
+- Segurança e Políticas: guardrails, auditoria HITL e políticas de acesso em /policies e /security.
+- Roteamento e Flows: definição de rotas, simulações what-if e editor de LangGraph com checkpoints HITL (HTTP POST /routing, /flows).
+- FinOps: dashboards de custo com séries temporais e alertas (HTTP GET /finops/*).
+- Marketplace: importação assistida de agentes externos com verificação de assinatura.
+- Admin Chat & Onboarding: geração de planos, aplicação via branch/PR e execução de smoke tests usando as rotas /config/*.
+O agente pode invocar as APIs administrativas expostas pela própria plataforma (endpoints /config/chat, /config/plan, /config/apply, /config/onboard, etc.) para executar ações solicitadas.
+`;
 
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -41,9 +58,18 @@ export interface UseAdminChatState {
   clearStatus: () => void;
   clearError: () => void;
   hasConversation: boolean;
+  assistantAgentId: string | null;
+  isAgentConfigured: boolean;
+  agentDisplayName: string | null;
+  availableAgents: AgentSummary[];
+  selectAssistantAgent: (agentId: string) => void;
 }
 
 export default function useAdminChat(): UseAdminChatState {
+  const [assistantAgentId, setAssistantAgentId] = useState<string | null>(FALLBACK_AGENT_ID);
+  const [agentDisplayName, setAgentDisplayName] = useState<string | null>(FALLBACK_AGENT_NAME);
+  const [isAgentConfigured, setAgentConfigured] = useState(false);
+  const [availableAgents, setAvailableAgents] = useState<AgentSummary[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AdminChatMessage[]>([]);
   const [plan, setPlan] = useState<AdminPlanSummary | null>(null);
@@ -57,6 +83,74 @@ export default function useAdminChat(): UseAdminChatState {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const hasConversation = useMemo(() => messages.length > 0, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveAssistantAgent() {
+      try {
+        const agents = await fetchAgents();
+        if (cancelled) {
+          return;
+        }
+        setAvailableAgents(agents);
+        const storedAgentId = (() => {
+          try {
+            return window.localStorage.getItem(ASSISTANT_AGENT_STORAGE_KEY);
+          } catch {
+            return null;
+          }
+        })();
+        if (agents.length > 0) {
+          const preferredCandidate = storedAgentId
+            ? agents.find((agent) => agent.name === storedAgentId)
+            : agents.find((agent) => agent.status !== 'inactive');
+          const selected = preferredCandidate ?? agents[0];
+          setAssistantAgentId(selected.name);
+          setAgentDisplayName(selected.title || selected.name);
+          setAgentConfigured(true);
+          try {
+            window.localStorage.setItem(ASSISTANT_AGENT_STORAGE_KEY, selected.name);
+          } catch {
+            // ignore
+          }
+          return;
+        }
+        setAvailableAgents([]);
+        setAssistantAgentId(FALLBACK_AGENT_ID);
+        setAgentDisplayName(FALLBACK_AGENT_NAME);
+        setAgentConfigured(false);
+        try {
+          window.localStorage.removeItem(ASSISTANT_AGENT_STORAGE_KEY);
+        } catch {
+          // ignore
+        }
+      } catch (error) {
+        console.error('Falha ao carregar agentes MCP para o Admin Chat.', error);
+        if (cancelled) {
+          return;
+        }
+        setAvailableAgents([]);
+        setAssistantAgentId(FALLBACK_AGENT_ID);
+        setAgentDisplayName(FALLBACK_AGENT_NAME);
+        setAgentConfigured(false);
+      }
+    }
+    void resolveAssistantAgent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const chatContext = useMemo(() => {
+    if (!assistantAgentId) {
+      return undefined;
+    }
+    return JSON.stringify({
+      agent: assistantAgentId,
+      knowledgeBase: 'platform-docs',
+      instructions: PLATFORM_KNOWLEDGE_SUMMARY,
+    });
+  }, [assistantAgentId]);
 
   const updateConversation = useCallback((response: ConfigChatResponse) => {
     setThreadId(response.threadId);
@@ -73,6 +167,7 @@ export default function useAdminChat(): UseAdminChatState {
           intent: 'message',
           prompt,
           threadId,
+          context: chatContext,
         });
         updateConversation(response);
       } catch (cause) {
@@ -82,7 +177,7 @@ export default function useAdminChat(): UseAdminChatState {
         setChatLoading(false);
       }
     },
-    [threadId, updateConversation],
+    [chatContext, threadId, updateConversation],
   );
 
   const loadHistory = useCallback(async () => {
@@ -266,5 +361,31 @@ export default function useAdminChat(): UseAdminChatState {
     clearStatus,
     clearError,
     hasConversation,
+    assistantAgentId,
+    agentDisplayName,
+    isAgentConfigured,
+    availableAgents,
+    selectAssistantAgent: (agentId: string) => {
+      const resolved = availableAgents.find((agent) => agent.name === agentId);
+      if (resolved) {
+        setAssistantAgentId(resolved.name);
+        setAgentDisplayName(resolved.title || resolved.name);
+        setAgentConfigured(true);
+        try {
+          window.localStorage.setItem(ASSISTANT_AGENT_STORAGE_KEY, resolved.name);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      setAssistantAgentId(FALLBACK_AGENT_ID);
+      setAgentDisplayName(FALLBACK_AGENT_NAME);
+      setAgentConfigured(false);
+      try {
+        window.localStorage.removeItem(ASSISTANT_AGENT_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+    },
   };
 }

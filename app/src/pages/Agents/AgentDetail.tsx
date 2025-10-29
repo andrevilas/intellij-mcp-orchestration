@@ -16,6 +16,7 @@ import AgentConfigLayerEditor, {
 interface AgentDetailProps {
   agent: AgentSummary;
   onClose: () => void;
+  variant?: 'panel' | 'modal';
 }
 
 type PlaygroundInput = Record<string, unknown>;
@@ -75,7 +76,8 @@ function parseEditorValue<T extends Record<string, unknown>>(
   }
 }
 
-export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.Element {
+export default function AgentDetail({ agent, onClose, variant = 'panel' }: AgentDetailProps): JSX.Element {
+  const isModal = variant === 'modal';
   const [activeTab, setActiveTab] = useState<
     'playground' | 'config' | 'policies' | 'routing' | 'finops' | 'observability'
   >('playground');
@@ -318,6 +320,10 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
     : undefined);
 
   useEffect(() => {
+    if (isModal) {
+      return undefined;
+    }
+
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
@@ -356,16 +362,18 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
         }
       }
     };
-  }, [onClose]);
+  }, [onClose, isModal]);
+
+  const ContainerTag = isModal ? 'div' : 'aside';
 
   return (
-    <aside
-      className="agent-detail"
+    <ContainerTag
+      className={isModal ? 'agent-detail agent-detail--modal' : 'agent-detail'}
       aria-labelledby="agent-detail-title"
-      role="dialog"
+      role={isModal ? undefined : 'dialog'}
       data-testid={AGENT_DETAIL_TEST_IDS.root}
-      ref={containerRef}
-      tabIndex={-1}
+      ref={containerRef as any}
+      tabIndex={isModal ? undefined : -1}
     >
       <header className="agent-detail__header">
         <div>
@@ -390,9 +398,11 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
             Criar rollback
           </button>
         </div>
-        <button type="button" className="agent-detail__close" onClick={onClose} aria-label="Fechar detalhes">
-          ×
-        </button>
+        {isModal ? null : (
+          <button type="button" className="agent-detail__close" onClick={onClose} aria-label="Fechar detalhes">
+            ×
+          </button>
+        )}
       </header>
 
       {alert ? (
@@ -706,6 +716,6 @@ export default function AgentDetail({ agent, onClose }: AgentDetailProps): JSX.E
           onHistoryUpdate={(items) => handleHistoryUpdate('observability', items)}
         />
       </section>
-    </aside>
+    </ContainerTag>
   );
 }
