@@ -1,7 +1,8 @@
 main.dashboard {
-  margin: 0 auto;
-  max-width: 1200px;
-  padding: 3.5rem 1.75rem 4rem;
+  margin: 0;
+  max-width: none;
+  padding: 0;
+  padding-bottom: clamp(3rem, 6vw, 4.5rem);
   display: flex;
   flex-direction: column;
   gap: 3.5rem;
@@ -267,4 +268,3 @@ main.dashboard {
   font-size: 0.85rem;
   color: var(--dashboard-text-muted);
 }
-

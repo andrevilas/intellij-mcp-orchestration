@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
+import './servers.scss';
+
 import {
   ApiError,
   type McpServer,

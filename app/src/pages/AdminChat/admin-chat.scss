@@ -1,8 +1,10 @@
 .admin-chat {
   width: 100%;
-  padding: clamp(1.5rem, 4vw, 2.5rem);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: clamp(1.75rem, 3vw, 2.5rem);
+  padding: 0;
+  align-items: stretch;
 }
 
 .admin-chat--compact {
@@ -62,7 +64,6 @@
   display: grid;
   gap: clamp(1rem, 3vw, 1.75rem);
   width: 100%;
-  max-width: 1200px;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
 }
 @media (max-width: 1024px) {
@@ -1873,10 +1874,193 @@
 .agent-detail__capabilities p {
   color: var(--mcp-text-subtle);
 }
-.agent-config-editor__history-actions {
-  @extend %admin-chat-inline;
-  gap: 0.5rem;
+.agent-config-editor {
+  @extend %admin-chat-column;
+  gap: clamp(1.25rem, 2.5vw, 1.75rem);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  border-radius: 1.35rem;
+  background: var(--mcp-surface-elevated);
+  box-shadow: var(--mcp-shadow-elevated);
+}
+.agent-detail--modal .agent-config-editor {
+  background: var(--mcp-surface);
+  box-shadow: none;
+}
+.agent-config-editor__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
   flex-wrap: wrap;
+}
+.agent-config-editor__header h4 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.5vw, 1.4rem);
+  color: var(--mcp-surface-contrast);
+}
+.agent-config-editor__subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: var(--mcp-text-muted);
+}
+.agent-config-editor__history {
+  border: 1px solid color-mix(in srgb, var(--mcp-interactive) 55%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.5rem 1.1rem;
+  background: var(--mcp-surface);
+  color: var(--mcp-info-strong);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  min-width: 0;
+}
+.agent-config-editor__history:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mcp-info-soft) 60%, var(--mcp-surface));
+  border-color: var(--mcp-interactive);
+  transform: translateY(-1px);
+  box-shadow: var(--mcp-shadow-elevated);
+}
+.agent-config-editor__history:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+.agent-config-editor__form {
+  @extend %admin-chat-column;
+  gap: clamp(1rem, 3vw, 1.4rem);
+}
+.agent-config-editor__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.agent-config-editor__primary {
+  border: none;
+  border-radius: 0.9rem;
+  padding: 0.6rem 1.5rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--mcp-action-primary-fg);
+  background: linear-gradient(135deg, var(--mcp-success-strong), var(--mcp-info-emphasis));
+  cursor: pointer;
+  box-shadow: var(--mcp-shadow-accent);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.agent-config-editor__primary:disabled {
+  opacity: 0.65;
+  cursor: default;
+  box-shadow: none;
+}
+.agent-config-editor__primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--mcp-shadow-accent-strong);
+}
+.agent-config-editor__secondary {
+  border: 1px solid color-mix(in srgb, var(--mcp-interactive) 45%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.6rem 1.4rem;
+  font: inherit;
+  font-weight: 600;
+  background: transparent;
+  color: var(--mcp-info-strong);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.agent-config-editor__secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mcp-info-soft) 70%, transparent);
+  border-color: var(--mcp-interactive);
+  transform: translateY(-1px);
+}
+.agent-config-editor__secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+.agent-config-editor__message {
+  border-radius: 0.9rem;
+  padding: 0.85rem 1.1rem;
+  font-size: 0.95rem;
+  background: var(--mcp-overlay-soft);
+  color: var(--mcp-info-strong);
+}
+.agent-config-editor__message--error {
+  background: var(--mcp-danger-soft);
+  color: var(--mcp-danger-strong);
+}
+.agent-config-editor__history-list {
+  @extend %admin-chat-column;
+  gap: 1rem;
+  padding: 1.1rem;
+  border-radius: 1.1rem;
+  background: var(--mcp-overlay-soft);
+}
+.agent-config-editor__history-list h5 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--mcp-surface-contrast);
+}
+.agent-config-editor__history-list ul {
+  @extend %admin-chat-column;
+  gap: 0.75rem;
+}
+.agent-config-editor__history-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  background: var(--mcp-surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mcp-border-muted) 80%, transparent);
+}
+.agent-config-editor__history-item p {
+  margin: 0;
+}
+.agent-config-editor__history-summary {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--mcp-text-muted);
+}
+.agent-config-editor__history-actions {
+  @extend %admin-chat-column;
+  gap: 0.6rem;
+  align-items: flex-end;
+  min-width: 180px;
+}
+.agent-config-editor__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--mcp-border-muted);
+  color: var(--mcp-text-muted);
+}
+.agent-config-editor__chip--applied,
+.agent-config-editor__chip--success {
+  background: var(--mcp-success-soft);
+  color: var(--mcp-success-strong);
+}
+.agent-config-editor__chip--failed,
+.agent-config-editor__chip--error {
+  background: var(--mcp-danger-soft);
+  color: var(--mcp-danger-strong);
+}
+.agent-config-editor__chip--pending {
+  background: var(--mcp-warning-soft);
+  color: var(--mcp-warning-strong);
+}
+.agent-config-editor__chip--running {
+  background: var(--mcp-info-soft);
+  color: var(--mcp-info-strong);
 }
 .agent-config-editor__history-actions-buttons {
   display: inline-flex;
@@ -1891,6 +2075,26 @@
 .agent-config-editor__history-link:hover,
 .agent-config-editor__history-link:focus-visible {
   text-decoration: underline;
+}
+.agent-config-editor__history-rollback {
+  border: 1px solid color-mix(in srgb, var(--mcp-danger-strong) 45%, transparent);
+  border-radius: 0.8rem;
+  padding: 0.45rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  background: transparent;
+  color: var(--mcp-danger-strong);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.agent-config-editor__history-rollback:hover {
+  background: color-mix(in srgb, var(--mcp-danger-soft) 70%, transparent);
+  border-color: var(--mcp-danger-strong);
+  transform: translateY(-1px);
+}
+.agent-config-editor__history-rollback:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--mcp-danger-strong) 60%, transparent);
+  outline-offset: 2px;
 }
 .json-editor {
   @extend %admin-chat-column;

@@ -408,7 +408,11 @@ const AgentConfigLayerEditor = forwardRef<AgentConfigLayerEditorHandle, AgentCon
                           Audit log
                         </a>
                       ) : null}
-                      <button type="button" onClick={() => handleRollback(item)}>
+                      <button
+                        type="button"
+                        className="agent-config-editor__history-rollback"
+                        onClick={() => handleRollback(item)}
+                      >
                         Rollback
                       </button>
                     </div>

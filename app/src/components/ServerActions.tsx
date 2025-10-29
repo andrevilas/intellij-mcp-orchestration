@@ -52,13 +52,28 @@ export default function ServerActions({
 
   return (
     <div className="server-actions" role="group" aria-label="Ações do servidor">
-      <button type="button" onClick={onStart} disabled={disableStart} className="server-action-button">
+      <button
+        type="button"
+        onClick={onStart}
+        disabled={disableStart}
+        className="server-action-button server-action-button--start"
+      >
         {pendingAction === 'start' ? pendingLabel : ACTION_LABEL.start}
       </button>
-      <button type="button" onClick={onStop} disabled={disableStop} className="server-action-button">
+      <button
+        type="button"
+        onClick={onStop}
+        disabled={disableStop}
+        className="server-action-button server-action-button--stop"
+      >
         {pendingAction === 'stop' ? pendingLabel : ACTION_LABEL.stop}
       </button>
-      <button type="button" onClick={onRestart} disabled={disableRestart} className="server-action-button">
+      <button
+        type="button"
+        onClick={onRestart}
+        disabled={disableRestart}
+        className="server-action-button server-action-button--restart"
+      >
         {pendingAction === 'restart' ? pendingLabel : ACTION_LABEL.restart}
       </button>
       {children && <div className="server-actions__extra">{children}</div>}
