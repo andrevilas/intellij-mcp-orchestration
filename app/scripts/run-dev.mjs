@@ -18,6 +18,63 @@ const modeAliases = new Map([
   ['off', 'off'],
 ]);
 
+const env = { ...process.env };
+
+const normalizeHostPort = (value) => {
+  if (!value) {
+    return {};
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return {};
+  }
+  if (trimmed.includes('://')) {
+    try {
+      const url = new URL(trimmed);
+      return {
+        host: url.hostname,
+        port: url.port || undefined,
+        origin: url.origin,
+      };
+    } catch (error) {
+      console.warn('[dev] Valor inválido para backend/proxy (%s): %s', value, error.message);
+      return {};
+    }
+  }
+  const [hostPart, portPart] = trimmed.split(':');
+  if (portPart !== undefined) {
+    return {
+      host: hostPart || undefined,
+      port: portPart || undefined,
+    };
+  }
+  if (/^\d+$/.test(trimmed)) {
+    return { port: trimmed };
+  }
+  return { host: trimmed };
+};
+
+const applyBackendTarget = (input) => {
+  const { host, port, origin } = normalizeHostPort(input);
+  if (host) {
+    env.CONSOLE_MCP_SERVER_HOST = host;
+  }
+  if (port) {
+    env.CONSOLE_MCP_SERVER_PORT = port;
+  }
+  if (origin) {
+    env.CONSOLE_MCP_API_PROXY = origin;
+    env.CONSOLE_MCP_AGENTS_PROXY = origin;
+    return;
+  }
+  if (host || port) {
+    const resolvedHost = env.CONSOLE_MCP_SERVER_HOST || '127.0.0.1';
+    const resolvedPort = env.CONSOLE_MCP_SERVER_PORT || '8000';
+    env.CONSOLE_MCP_API_PROXY = `http://${resolvedHost}:${resolvedPort}`;
+    env.CONSOLE_MCP_AGENTS_PROXY = env.CONSOLE_MCP_API_PROXY;
+  }
+};
+
 for (const arg of argv) {
   if (arg === '--fixtures' || arg === '--msw') {
     requestedMode = 'force';
@@ -26,6 +83,20 @@ for (const arg of argv) {
 
   if (arg === '--proxy' || arg === '--backend') {
     requestedMode = 'off';
+    continue;
+  }
+
+  if (arg.startsWith('--proxy=')) {
+    const value = arg.split('=')[1];
+    requestedMode = 'off';
+    applyBackendTarget(value);
+    continue;
+  }
+
+  if (arg.startsWith('--backend=')) {
+    const value = arg.split('=')[1];
+    requestedMode = 'off';
+    applyBackendTarget(value);
     continue;
   }
 
@@ -47,8 +118,6 @@ for (const arg of argv) {
 
   passthroughArgs.push(arg);
 }
-
-const env = { ...process.env };
 
 if (requestedMode) {
   env.CONSOLE_MCP_USE_FIXTURES = requestedMode;

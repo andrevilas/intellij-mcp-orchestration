@@ -1,0 +1,17 @@
+
+Running 13 tests using 4 workers
+
+[1A[2K[1/13] [chromium] › e2e/flows-core.spec.ts:188:3 › Flows - editor LangGraph governado por fixtures › cria nova versão, compara e executa rollback com sucesso
+[1A[2K[2/13] [chromium] › e2e/finops-core.spec.ts:15:1 › @finops-plan gera e aplica plano FinOps com fixtures
+[1A[2K[3/13] [chromium] › e2e/dashboard-core.spec.ts:3:1 › exibe métricas extendidas no dashboard usando fixtures
+[1A[2K[4/13] [chromium] › e2e/flows-core.spec.ts:229:3 › Flows - editor LangGraph governado por fixtures › exibe mensagens de erro quando diff ou rollback falham
+[1A[2K[5/13] [chromium] › e2e/keys-core.spec.ts:137:3 › Gestão de chaves MCP › realiza cadastro, teste e remoção de credenciais com feedback visual
+[1A[2K[6/13] [chromium] › e2e/marketplace-core.spec.ts:88:3 › Marketplace - catálogo e importação assistida › filtra catálogo e importa agente com sucesso
+[1A[2K[7/13] [chromium] › e2e/marketplace-core.spec.ts:131:3 › Marketplace - catálogo e importação assistida › exibe feedback de erro quando importação falha
+[1A[2K[8/13] [chromium] › e2e/policies-core.spec.ts:21:1 › @policies-core aplica e executa rollback de templates com fixtures
+[1A[2K[9/13] [chromium] › e2e/routing-core.spec.ts:4:1 › gera e aplica plano de roteamento com intents customizadas
+[1A[2K[10/13] [chromium] › e2e/routing-core.spec.ts:114:1 › exibe erros de validação quando campos obrigatórios estão vazios
+[1A[2K[11/13] [chromium] › e2e/servers-core.spec.ts:4:1 › gerencia servidores MCP usando fixtures locais
+[1A[2K[12/13] [chromium] › e2e/ui-smoke-core.spec.ts:5:3 › @ui-smoke fixtures coverage › dashboard renders KPI snapshot using fixtures
+[1A[2K[13/13] [chromium] › e2e/ui-smoke-core.spec.ts:20:3 › @ui-smoke fixtures coverage › policies page loads rollout fixtures and CTA flow
+[1A[2K  13 passed (25.9s)

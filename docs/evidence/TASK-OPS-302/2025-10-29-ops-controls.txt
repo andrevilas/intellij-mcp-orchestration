@@ -1,0 +1,5 @@
+Comando: python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json
+Data: 2025-10-29 23:50 UTC
+Commit: afdfe67591a1aeaa1a1cac4dbe4e072b5779d30d
+Resultado: ✅ Controles OPS-302 aprovados (plaintext secrets, workflow perms, runbooks, evidences)
+Notas: Relatório atualizado em docs/evidence/TASK-OPS-302/ops-controls-report.json.

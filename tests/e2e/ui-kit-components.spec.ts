@@ -157,7 +157,7 @@ test('interage com o showcase do UI Kit', async ({ page }) => {
   const geminiChecks = serverHealthFixture.checks.gemini ?? [];
   const expectedGeminiStatus = geminiChecks[0]?.status === 'healthy' ? 'Saudável' : 'Verificar';
 
-  await page.goto('/');
+  await page.goto('/dev/ui-kit');
 
   const showcase = page.getByTestId('ui-kit-showcase');
   await expect(showcase.getByText('UI Kit')).toBeVisible();

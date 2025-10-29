@@ -1,0 +1,157 @@
+
+> mcp-console-app@0.1.0 test /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/app
+> vitest --run
+
+
+ RUN  v1.6.1 /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/app
+
+ ✓ src/api.test.ts  (47 tests) 155ms
+ ✓ src/pages/Dashboard.test.tsx  (6 tests) 981ms
+ ✓ src/pages/FinOps.test.tsx  (1 test) 2504ms
+ ✓ src/pages/Observability.test.tsx  (6 tests) 3533ms
+ ✓ src/pages/Policies.test.tsx  (2 tests) 2816ms
+ ✓ src/pages/Agents/NewAgentWizard.test.tsx  (2 tests) 2923ms
+ ✓ src/pages/Security.test.tsx  (4 tests) 2217ms
+ ✓ src/pages/Keys.test.tsx  (6 tests) 2041ms
+ ✓ src/components/modals/index.test.tsx  (4 tests) 1734ms
+ ✓ src/components/forms/FormControls.test.tsx  (5 tests) 1153ms
+ ✓ src/pages/AdminChat/McpServersList.test.tsx  (3 tests) 2718ms
+ ✓ src/pages/AdminChat/AdminChat.test.tsx  (4 tests) 11138ms
+ ✓ src/pages/Routing.test.tsx  (3 tests) 1656ms
+ ✓ src/components/menus/Dropdown.test.tsx  (6 tests) 1034ms
+ ✓ src/components/ConfigReloadAction.test.tsx  (2 tests) 2025ms
+ ✓ src/components/actions/Button.test.tsx  (5 tests) 470ms
+ ✓ src/components/feedback/ToastProvider.test.tsx  (3 tests) 668ms
+ ✓ src/components/menus/Tooltip.test.tsx  (3 tests) 450ms
+ ✓ src/components/menus/index.test.tsx  (1 test) 479ms
+ ✓ src/components/indicators/StatusBadge.test.tsx  (3 tests) 324ms
+ ✓ src/components/actions/index.test.tsx  (1 test) 286ms
+ ✓ src/components/actions/ButtonGroup.test.tsx  (2 tests) 182ms
+ ✓ src/pages/Onboarding/OnboardingWizard.test.tsx  (2 tests) 4791ms
+stdout | src/App.test.tsx > App provider orchestration flow > apresenta filtros de FinOps e exporta CSV da série temporal
+FinOps export starting csv
+FinOps export download triggered finops-telemetry-2025-10-28.csv
+
+stdout | src/App.test.tsx > App provider orchestration flow > apresenta filtros de FinOps e exporta CSV da série temporal
+FinOps export download triggered finops-experiments-1761692349005.csv
+
+stdout | src/App.test.tsx > App provider orchestration flow > apresenta filtros de FinOps e exporta CSV da série temporal
+FinOps export download triggered finops-experiments-1761692349339.json
+
+stdout | src/App.test.tsx > App provider orchestration flow > apresenta filtros de FinOps e exporta CSV da série temporal
+FinOps export download triggered finops-lane-costs-1761692349655.csv
+
+stdout | src/App.test.tsx > App provider orchestration flow > apresenta filtros de FinOps e exporta CSV da série temporal
+FinOps export download triggered finops-marketplace-1761692349987.json
+
+ ✓ src/App.test.tsx  (14 tests) 30306ms
+
+ Test Files  24 passed (24)
+      Tests  135 passed (135)
+   Start at  19:58:42
+   Duration  34.89s (transform 8.51s, setup 19.58s, collect 25.23s, tests 76.58s, environment 28.80s, prepare 7.83s)
+
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-8.4.2, pluggy-1.6.0
+rootdir: /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/server
+configfile: pyproject.toml
+plugins: anyio-4.11.0
+collected 141 items
+
+tests/test_agent_executor.py .....                                       [  3%]
+tests/test_agent_overrides.py ...                                        [  5%]
+tests/test_agents_plan.py ..                                             [  7%]
+tests/test_artifact_generators.py ...                                    [  9%]
+tests/test_audit_log.py ...                                              [ 11%]
+tests/test_config_routes.py ............                                 [ 19%]
+tests/test_database.py ..                                                [ 21%]
+tests/test_finops_exports.py ....                                        [ 24%]
+tests/test_finops_manifest.py ..                                         [ 25%]
+tests/test_generate_artifact.py ...                                      [ 27%]
+tests/test_git_providers.py ...                                          [ 29%]
+tests/test_langgraph.py ..                                               [ 31%]
+tests/test_marketplace.py ..                                             [ 32%]
+tests/test_observability.py ....                                         [ 35%]
+tests/test_onboard_validate.py ..                                        [ 36%]
+tests/test_plan_executor.py ......                                       [ 41%]
+tests/test_planner.py ..........                                         [ 48%]
+tests/test_rag.py ...                                                    [ 50%]
+tests/test_rbac.py ....                                                  [ 53%]
+tests/test_rbac_api.py ...                                               [ 55%]
+tests/test_routes.py ................................................    [ 89%]
+tests/test_routing_bandit.py ...                                         [ 91%]
+tests/test_routing_fixtures.py .                                         [ 92%]
+tests/test_routing_simulator.py ....                                     [ 95%]
+tests/test_telemetry.py .......                                          [100%]
+
+=============================== warnings summary ===============================
+src/console_mcp_server/main.py:117: 1 warning
+tests/test_agent_overrides.py: 3 warnings
+tests/test_agents_plan.py: 2 warnings
+tests/test_audit_log.py: 3 warnings
+tests/test_config_routes.py: 12 warnings
+tests/test_observability.py: 3 warnings
+tests/test_onboard_validate.py: 2 warnings
+tests/test_rbac.py: 4 warnings
+tests/test_rbac_api.py: 3 warnings
+tests/test_routes.py: 48 warnings
+tests/test_routing_simulator.py: 1 warning
+  /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/server/src/console_mcp_server/main.py:117: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../.local/lib/python3.10/site-packages/fastapi/applications.py:4575: 2 warnings
+tests/test_agent_overrides.py: 6 warnings
+tests/test_agents_plan.py: 4 warnings
+tests/test_audit_log.py: 6 warnings
+tests/test_config_routes.py: 24 warnings
+tests/test_observability.py: 6 warnings
+tests/test_onboard_validate.py: 4 warnings
+tests/test_rbac.py: 8 warnings
+tests/test_rbac_api.py: 6 warnings
+tests/test_routes.py: 96 warnings
+tests/test_routing_simulator.py: 2 warnings
+  /home/andre/.local/lib/python3.10/site-packages/fastapi/applications.py:4575: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+src/console_mcp_server/main.py:123: 1 warning
+tests/test_agent_overrides.py: 3 warnings
+tests/test_agents_plan.py: 2 warnings
+tests/test_audit_log.py: 3 warnings
+tests/test_config_routes.py: 12 warnings
+tests/test_observability.py: 3 warnings
+tests/test_onboard_validate.py: 2 warnings
+tests/test_rbac.py: 4 warnings
+tests/test_rbac_api.py: 3 warnings
+tests/test_routes.py: 48 warnings
+tests/test_routing_simulator.py: 1 warning
+  /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/server/src/console_mcp_server/main.py:123: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 141 passed, 328 warnings in 41.95s ======================
+..........................                                               [100%]
+26 passed in 3.78s
+
+Running pnpm --dir app test (cwd=/home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration)
+================================================================================================
+
+Running /usr/bin/python3 -m pytest (cwd=/home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/server)
+==============================================================================================================
+
+Running /usr/bin/python3 -m pytest (cwd=/home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/agents-hub)
+==================================================================================================================

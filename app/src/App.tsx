@@ -195,8 +195,6 @@ const Flows = getViewComponent('flows');
 const FinOps = getViewComponent('finops');
 const Marketplace = getViewComponent('marketplace');
 const AdminChat = getViewComponent('admin-chat');
-const UiKitShowcase = lazy(() => import('./components/UiKitShowcase'));
-
 const VIEW_ICON_MAP: Record<ViewId, IconProp> = {
   dashboard: 'gauge-high',
   observability: 'satellite-dish',
@@ -1096,17 +1094,6 @@ function App() {
           {renderActivePanel()}
         </Suspense>
       </main>
-      <aside className="app-shell__ui-kit" aria-label="Mostruário UI Kit">
-        <Suspense
-          fallback={
-            <div className="ui-kit-loading" role="status" aria-live="polite">
-              Carregando catálogo de componentes…
-            </div>
-          }
-        >
-          <UiKitShowcase />
-        </Suspense>
-      </aside>
       <footer className="app-shell__footer">
         © {new Date().getFullYear()} Promenade Agent Hub. Todos os direitos reservados.
       </footer>

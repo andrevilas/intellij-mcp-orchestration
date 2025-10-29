@@ -12,10 +12,10 @@
 | M2 — Ações & Feedback | :large_green_circle: **Concluído** | Vitest direcionado (`Button`, `Dropdown`, `ToastProvider`, `Modal`) passou em 2025-10-29; evidência registrada em `TASK-UI-ACT-020/2025-10-29-vitest.txt`. |
 | M3 — Dados & Estruturas | :large_green_circle: **Concluído** | Dashboard, FinOps e Observability validados via Vitest em 2025-10-29 (`TASK-UI-DATA-030/2025-10-29-vitest.txt`). |
 | M4 — Formulários & Validação | :large_blue_circle: **Em progresso** | Wizard de onboarding e controles de upload/download validados com Playwright (`@onboarding-*`, `forms-controls`).【F:docs/evidence/TASK-UI-FORM-041/README.md†L1-L27】【F:docs/evidence/TASK-UI-FORM-042/README.md†L1-L9】 |
-| M5 — Páginas Core | :large_blue_circle: **Em progresso** | Dashboard, Servers, Keys, Policies, Routing e FinOps validados com specs Playwright focadas; evidências datadas de 2025-10-28 anexadas (`TASK-UI-PG-070..075`).【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L9】【F:docs/evidence/TASK-UI-PG-071/README.md†L1-L8】【F:docs/evidence/TASK-UI-PG-072/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-073/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-074/README.md†L1-L7】【F:docs/evidence/TASK-UI-PG-075/README.md†L1-L7】 |
+| M5 — Páginas Core | :large_green_circle: **Concluído** | Matriz Playwright completa verde (51/51) em 2025-10-29 (`TASK-UI-PG-070/2025-10-29-playwright-full.txt`).【F:docs/evidence/TASK-UI-PG-070/README.md†L1-L18】 |
 | M6 — Theming/Performance/Observabilidade | :large_blue_circle: **Em progresso** | Build volta a passar com CSS 214.70 kB e Lighthouse 0.90/0.96/0.94/0.82, mas proxy local ainda depende de backend real e métricas avançadas seguem pendentes.【F:docs/evidence/TASK-UI-OBS-082/README.md†L7-L23】【F:docs/evidence/TASK-UI-OBS-082/lighthouse-report.md†L1-L12】【F:app/vite.config.ts†L1-L44】 |
 
-**Go/No-Go:** :no_entry_sign: **BARRAR** — P0s remanescentes: performance/observabilidade (M6) e manutenção do smoke core com fixtures.
+**Go/No-Go:** :no_entry_sign: **BARRAR** — P0 remanescente: performance/observabilidade (M6); UI M5 consolidado com Playwright verde.
 
 ## Atualização 2025-10-20 — Encerramento
 
@@ -54,8 +54,8 @@
 - **Próximo alvo**: manter cobertura nas páginas que reutilizam os controles (Policies, Routing) e documentar regressões pontuais antes do Go/No-Go final.
 
 ### M5 — Páginas Core
-- **Fluxos validados com fixtures**: dashboard, servers, keys, policies, routing, finops, marketplace e segurança passam nos cenários Playwright dedicados executados em 2025-10-28, demonstrando estabilidade sob `UI-ACT-005`.【F:tests/e2e/dashboard-core.spec.ts†L1-L120】【F:tests/e2e/servers-core.spec.ts†L1-L160】【F:tests/e2e/keys-core.spec.ts†L1-L200】【F:tests/e2e/policies-core.spec.ts†L1-L220】【F:tests/e2e/routing-core.spec.ts†L1-L200】【F:tests/e2e/finops-core.spec.ts†L1-L160】【F:tests/e2e/marketplace-core.spec.ts†L1-L220】【F:tests/e2e/security.spec.ts†L1-L320】
-- **Próximos passos**: consolidar exportações/relatórios globais e garantir que smoke agregador (`ui-smoke-core`) continue verde após ajustes futuros.
+- **Matriz Playwright 51/51 (2025-10-29)**: rodada `pnpm --dir tests exec playwright test --trace on --reporter=line` confirma dashboards, servers, keys, policies, routing, finops, marketplace e segurança íntegros em modo fixtures.【F:docs/evidence/TASK-UI-PG-070/2025-10-29-playwright-full.txt†L1-L5】
+- **Próximos passos**: monitorar `ui-smoke-core` e specs focadas a cada release para evitar regressões de conteúdo.
 
 ### M6 — Theming, Performance & UI Observability
 - **Bundle dentro do orçamento**: `pnpm --dir app build` agora conclui com CSS agregado de **214.70 kB** (limite 220 kB) após otimizações recentes; relatório atualizado em `docs/evidence/TASK-UI-OBS-082/bundle-report.json`.【F:docs/evidence/TASK-UI-OBS-082/README.md†L7-L23】
@@ -89,8 +89,8 @@
 - **Evidência:** Proxy config + logs Playwright.【F:app/vite.config.ts†L24-L44】【68dd4b†L1-L6】
 
 ### P0 — Fluxos governados/FinOps indisponíveis (resolvido)
-- **Atualização:** Execuções direcionadas em 2025-10-28 (`dashboard-core`, `servers-core`, `keys-core`, `policies-core`, `routing-core`, `finops-core`, `marketplace-core`, `security`) passaram integralmente com fixtures locais.【F:tests/e2e/dashboard-core.spec.ts†L1-L120】【F:tests/e2e/servers-core.spec.ts†L1-L160】【F:tests/e2e/keys-core.spec.ts†L1-L200】【F:tests/e2e/policies-core.spec.ts†L1-L220】【F:tests/e2e/routing-core.spec.ts†L1-L200】【F:tests/e2e/finops-core.spec.ts†L1-L160】【F:tests/e2e/marketplace-core.spec.ts†L1-L220】【F:tests/e2e/security.spec.ts†L1-L320】
-- **Próximo passo:** manter o smoke agregador (`ui-smoke-core`) no pipeline e registrar novas evidências em caso de regressão.
+- **Atualização:** Matriz Playwright 2025-10-29 (`2025-10-29-playwright-full.txt`) cobre dashboard/servers/keys/policies/routing/finops/marketplace/security com fixtures determinísticas.【F:docs/evidence/TASK-UI-PG-070/2025-10-29-playwright-full.txt†L1-L5】
+- **Próximo passo:** manter `ui-smoke-core` e cenários core no pipeline, abrindo follow-up se regressões reaparecerem.
 
 ### P1 — Tema único sem contraste/a11y (resolvido)
 - **Atualização:** Tokens Light/Dark aplicados em `index.scss`/`base.scss` e `ThemeSwitch` anuncia o estado atual; próximos ciclos devem validar contraste AA/AAA com suites automatizadas.【F:app/src/styles/index.scss†L4-L123】【F:app/src/styles/base.scss†L38-L252】【F:app/src/theme/ThemeSwitch.tsx†L11-L47】
@@ -120,11 +120,11 @@
 - **Configurar build metrics (Lighthouse CI, bundle analyzer) após corrigir `pnpm build`.**
 
 ## Métricas
-- **Playwright (2025-10-28):** Suites direcionadas (`dashboard-core`, `servers-core`, `keys-core`, `policies-core`, `routing-core`, `finops-core`, `marketplace-core`, `security`, `onboarding`) executadas com sucesso em ~8–12 s cada, confirmando estabilidade das páginas core sob fixtures.
-- **Cobertura Playwright:** Core pages verdes; resta ampliar para dataset completo (M3) e perf/theming (M6) antes do Go/No-Go.
+- **Playwright (2025-10-29):** Matriz completa (`pnpm --dir tests exec playwright test --trace on --reporter=line`) passou 51/51 specs incluindo smoke agregador e fluxos governados.
+- **Cobertura Playwright:** Core pages verdes; resta ampliar cenários de dataset (M3) e focar em perf/theming (M6) antes do Go/No-Go.
 - **Build (Vite):** Sucesso (15.46s) — CSS principal ainda em 392 kB; planejar dieta antes de rodar Lighthouse.【9176d6†L1-L23】
 - **A11y & Performance:** Não testados devido a build quebrado e falta de UI funcional.
 - **Regressões Visuais:** Não avaliadas — ausência de UI kit e falhas e2e impedem captura consistente.
 
 ## Go/No-Go
-- **Recomendação:** **BARRAR** go-live até sanar P0s: build TypeScript, mocks de backend e implementação efetiva das páginas core. Plano de ação detalhado acima.
+- **Recomendação:** **BARRAR** go-live até mitigar P0s restantes de M6 (performance/observabilidade) e isolar proxy/backend real. Plano de ação detalhado acima.

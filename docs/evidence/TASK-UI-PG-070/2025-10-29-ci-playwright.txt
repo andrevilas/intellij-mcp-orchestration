@@ -1,0 +1,225 @@
+
+Running 51 tests using 4 workers
+
+[1A[2K[1/51] [chromium] › e2e/agent-config.spec.ts:104:1 › @agent-governance permite rollback a partir do histórico
+[1A[2K[2/51] [chromium] › e2e/agent-config.spec.ts:71:1 › @agent-governance gera plano e aplica configuração de policies
+[1A[2K[3/51] [chromium] › e2e/agent-config.spec.ts:146:1 › @agent-governance exibe erro de validação para JSON inválido
+[1A[2K[4/51] [chromium] › e2e/admin-chat-quickstart.spec.ts:43:1 › @docs exibe quickstart com player, link para docs e exemplos rápidos
+[1A[2K[5/51] [chromium] › e2e/agents-create.spec.ts:50:3 › @agent-create › cria novo agent governado e aplica plano
+[1A[2K[6/51] [chromium] › e2e/agents-create.spec.ts:100:3 › @agent-create › exibe validações do wizard governado
+[1A[2K[7/51] [chromium] › e2e/agents-create.spec.ts:128:3 › @agent-create › fecha wizard governado com tecla Escape e restaura foco
+[1A[2K[8/51] [chromium] › e2e/agents.spec.ts:4:1 › filtra catálogo de agents e executa smoke tests
+[1A[2K[9/51] [chromium] › e2e/agents.spec.ts:55:1 › abre detalhes do agente e executa playground com overrides
+[1A[2K[10/51] [chromium] › e2e/agents.spec.ts:131:1 › fecha painel de detalhes com tecla Escape e retorna foco
+[1A[2K[11/51] [chromium] › e2e/catalog-states.spec.ts:4:3 › Marketplace - estados alternativos › exibe mensagem de carregamento do catálogo
+[1A[2K[12/51] [chromium] › e2e/catalog-states.spec.ts:13:3 › Marketplace - estados alternativos › exibe estado vazio do catálogo quando o cenário força ausência de agentes
+[1A[2K[13/51] [chromium] › e2e/catalog-states.spec.ts:24:3 › Marketplace - estados alternativos › exibe estado de erro quando a simulação falha via fixtures
+[1A[2K[14/51] [chromium] › e2e/dashboard-core.spec.ts:3:1 › exibe métricas extendidas no dashboard usando fixtures
+[1A[2K[15/51] [chromium] › e2e/dashboard-states.spec.ts:3:1 › exibe estados de carregamento para indicadores e sessões
+[1A[2K[16/51] [chromium] › e2e/dashboard-states.spec.ts:17:1 › exibe placeholders skeleton durante o bootstrap
+[1A[2K[17/51] [chromium] › e2e/dashboard-states.spec.ts:29:1 › exibe estados vazios quando não há dados de telemetria ou sessões
+[1A[2K[18/51] [chromium] › e2e/dashboard-states.spec.ts:47:1 › exibe estados de erro quando a sincronização falha
+[1A[2K[19/51] [chromium] › e2e/diagnostics.spec.ts:125:1 › executa diagnóstico agregando health, providers e invoke
+[1A[2K[20/51] [chromium] › e2e/finops-core.spec.ts:15:1 › @finops-plan gera e aplica plano FinOps com fixtures
+[1A[2K[21/51] [chromium] › e2e/finops-export.spec.ts:21:1 › @finops-export baixa CSV e HTML via backend
+[1A[2K[22/51] [chromium] › e2e/flows-core.spec.ts:188:3 › Flows - editor LangGraph governado por fixtures › cria nova versão, compara e executa rollback com sucesso
+[1A[2K[23/51] [chromium] › e2e/flows-core.spec.ts:229:3 › Flows - editor LangGraph governado por fixtures › exibe mensagens de erro quando diff ou rollback falham
+[1A[2K[24/51] [chromium] › e2e/forms-controls.spec.ts:42:1 › suporta navegação por teclado no formulário do UI Kit
+[1A[2K[25/51] [chromium] › e2e/forms-controls.spec.ts:88:1 › aciona upload de arquivo via teclado no UI Kit
+[1A[2K[26/51] [chromium] › e2e/forms-controls.spec.ts:113:1 › exibe alerta de download bem sucedido no UI Kit
+[1A[2K[27/51] [chromium] › e2e/keys-core.spec.ts:137:3 › Gestão de chaves MCP › realiza cadastro, teste e remoção de credenciais com feedback visual
+[1A[2K[28/51] [chromium] › e2e/marketplace-core.spec.ts:88:3 › Marketplace - catálogo e importação assistida › filtra catálogo e importa agente com sucesso
+[1A[2K[29/51] [chromium] › e2e/marketplace-core.spec.ts:131:3 › Marketplace - catálogo e importação assistida › exibe feedback de erro quando importação falha
+[1A[2K[30/51] [chromium] › e2e/mcp-update.spec.ts:76:3 › Atualizações assistidas de servidores MCP › @mcp-update aplica plano de atualização de servidor MCP
+[1A[2K[31/51] [chromium] › e2e/observability-preferences.spec.ts:199:1 › salva preferências de observabilidade com sucesso
+[1A[2K[32/51] [chromium] › e2e/observability-preferences.spec.ts:253:1 › exibe mensagem de erro quando atualização retorna 400
+[1A[2K[33/51] [chromium] › e2e/observability-preferences.spec.ts:287:1 › bloqueia formulário quando carregamento retorna 401
+[1A[2K[34/51] [chromium] › e2e/observability.spec.ts:163:1 › painel de observabilidade exibe métricas e aciona evals @observability
+[1A[2K[35/51] [chromium] › e2e/onboarding.spec.ts:226:1 › @onboarding-validation completes MCP onboarding wizard end-to-end
+[1A[2K[36/51] [chromium] › e2e/onboarding.spec.ts:341:1 › @onboarding-accessibility validates keyboard flow and aria feedback
+[1A[2K[37/51] [chromium] › e2e/policies-core.spec.ts:21:1 › @policies-core aplica e executa rollback de templates com fixtures
+[1A[2K[38/51] [chromium] › e2e/policies-hitl.spec.ts:4:1 › gera e aplica plano de políticas com HITL usando fixtures
+[1A[2K[39/51] [chromium] › e2e/reload-artifact.spec.ts:126:3 › @config-reload governed flow › aplica plano governado após revisão
+[1A[2K[40/51] [chromium] › e2e/reload-artifact.spec.ts:176:3 › @config-reload governed flow › permite limpar plano governado antes de aplicar
+[1A[2K[41/51] [chromium] › e2e/routing-core.spec.ts:4:1 › gera e aplica plano de roteamento com intents customizadas
+[1A[2K  1) [chromium] › e2e/policies-hitl.spec.ts:4:1 › gera e aplica plano de políticas com HITL usando fixtures 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  - 0[39m
+    [31m+ Received  + 1[39m
+
+    [2m  Object {[22m
+    [2m    "enabled": true,[22m
+    [31m+   "exporter": null,[39m
+    [2m    "sample_rate": 0.15,[22m
+    [2m  }[22m
+
+      63 |   expect(planPayload.changes.runtime.timeouts.per_iteration).toBe(45);
+      64 |   expect(planPayload.changes.runtime.timeouts.total).toBe(200);
+    > 65 |   expect(planPayload.changes.runtime.tracing).toEqual({ enabled: true, sample_rate: 0.15 });
+         |                                               ^
+      66 |
+      67 |   expect(planPayload.changes.hitl.enabled).toBe(true);
+      68 |   expect(planPayload.changes.hitl.checkpoints).toHaveLength(initialCheckpoints.length + 1);
+        at /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/tests/e2e/policies-hitl.spec.ts:65:47
+
+    Error Context: test-results/policies-hitl-gera-e-aplic-6d226-as-com-HITL-usando-fixtures-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/policies-hitl-gera-e-aplic-6d226-as-com-HITL-usando-fixtures-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/policies-hitl-gera-e-aplic-6d226-as-com-HITL-usando-fixtures-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  2) [chromium] › e2e/reload-artifact.spec.ts:176:3 › @config-reload governed flow › permite limpar plano governado antes de aplicar 
+
+    Error: locator.click: Error: strict mode violation: getByRole('button', { name: 'Limpar', exact: true }) resolved to 2 elements:
+        1) <button type="button" class="config-reload__secondary">Limpar</button> aka getByLabel('Reload governado de configura').getByRole('button', { name: 'Limpar' })
+        2) <button type="button" data-state="ready" data-variant="outline" class="mcp-button mcp-button--outline mcp-button--md">…</button> aka getByTestId('form-controls-demo').getByRole('button', { name: 'Limpar' })
+
+    Call log:
+    [2m  - waiting for getByRole('button', { name: 'Limpar', exact: true })[22m
+
+
+      196 |     await expect(page.getByRole('heading', { name: 'Plano gerado' })).toBeVisible();
+      197 |
+    > 198 |     await page.getByRole('button', { name: 'Limpar', exact: true }).click();
+          |                                                                     ^
+      199 |     await expect(page.getByRole('heading', { name: 'Plano gerado' })).toHaveCount(0);
+      200 |     expect(applyRequests).toHaveLength(0);
+      201 |   });
+        at /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/tests/e2e/reload-artifact.spec.ts:198:69
+
+    Error Context: test-results/reload-artifact--config-re-84a6b--governado-antes-de-aplicar-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/reload-artifact--config-re-84a6b--governado-antes-de-aplicar-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/reload-artifact--config-re-84a6b--governado-antes-de-aplicar-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K[42/51] [chromium] › e2e/routing-core.spec.ts:114:1 › exibe erros de validação quando campos obrigatórios estão vazios
+[1A[2K[43/51] [chromium] › e2e/security.spec.ts:166:3 › Console de segurança › @security gerencia identidades e credenciais MCP
+[1A[2K[44/51] [chromium] › e2e/security.spec.ts:240:3 › Console de segurança › @audit acompanha eventos de auditoria paginados
+[1A[2K  3) [chromium] › e2e/reload-artifact.spec.ts:126:3 › @config-reload governed flow › aplica plano governado após revisão 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.config-reload__success')
+    Expected substring: [32m"Artefato regenerado com sucesso"[39m
+    Received string:    [31m"Plano aplicado com sucesso via fixtures. Branch: chore/finops-plan-fixtures PR: https://github.com/example/console-mcp/pull/42"[39m
+    Timeout: 5000ms
+
+    Call log:
+    [2m  - Expect "toContainText" with timeout 5000ms[22m
+    [2m  - waiting for locator('.config-reload__success')[22m
+    [2m    9 × locator resolved to <div role="status" class="config-reload__success">Plano aplicado com sucesso via fixtures. Branch: …</div>[22m
+    [2m      - unexpected value "Plano aplicado com sucesso via fixtures. Branch: chore/finops-plan-fixtures PR: https://github.com/example/console-mcp/pull/42"[22m
+
+
+      158 |     await confirmation.getByRole('button', { name: 'Aplicar agora' }).click();
+      159 |
+    > 160 |     await expect(page.locator('.config-reload__success')).toContainText('Artefato regenerado com sucesso');
+          |                                                           ^
+      161 |     await expect(page.getByText(/Executor: Ana Operator/)).toBeVisible();
+      162 |
+      163 |     await page.getByRole('button', { name: 'Ver auditoria' }).click();
+        at /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/tests/e2e/reload-artifact.spec.ts:160:59
+
+    Error Context: test-results/reload-artifact--config-re-34b0d-lano-governado-após-revisão-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/reload-artifact--config-re-34b0d-lano-governado-após-revisão-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/reload-artifact--config-re-34b0d-lano-governado-após-revisão-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K[45/51] [chromium] › e2e/smoke-endpoints.spec.ts:52:1 › executa smoke endpoints, exibe logs e persiste metadados
+[1A[2K[46/51] [chromium] › e2e/servers-core.spec.ts:4:1 › gerencia servidores MCP usando fixtures locais
+[1A[2K[47/51] [chromium] › e2e/ui-actions.spec.ts:4:1 › valida estados de botões e dropdowns no showcase
+[1A[2K[48/51] [chromium] › e2e/ui-kit-components.spec.ts:109:1 › interage com o showcase do UI Kit
+[1A[2K[49/51] [chromium] › e2e/ui-overlays.spec.ts:4:1 › valida overlays com confirmação dupla e fechamento por ESC
+[1A[2K  4) [chromium] › e2e/smoke-endpoints.spec.ts:52:1 › executa smoke endpoints, exibe logs e persiste metadados 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveCount[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator:  locator('.smoke-panel').getByRole('row')
+    Expected: [32m3[39m
+    Received: [31m0[39m
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "toHaveCount" with timeout 5000ms[22m
+    [2m  - waiting for locator('.smoke-panel').getByRole('row')[22m
+    [2m    8 × locator resolved to 0 elements[22m
+    [2m      - unexpected value "0"[22m
+
+
+      133 |
+      134 |   const panel = page.locator('.smoke-panel');
+    > 135 |   await expect(panel.getByRole('row')).toHaveCount(3);
+          |                                        ^
+      136 |
+      137 |   const publicRow = panel.getByTestId('smoke-row-public-health');
+      138 |   await expect(publicRow).toContainText('Public API');
+        at /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/tests/e2e/smoke-endpoints.spec.ts:135:40
+
+    Error Context: test-results/smoke-endpoints-executa-sm-a8034-e-logs-e-persiste-metadados-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/smoke-endpoints-executa-sm-a8034-e-logs-e-persiste-metadados-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/smoke-endpoints-executa-sm-a8034-e-logs-e-persiste-metadados-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K[50/51] [chromium] › e2e/ui-smoke-core.spec.ts:20:3 › @ui-smoke fixtures coverage › policies page loads rollout fixtures and CTA flow
+[1A[2K[51/51] [chromium] › e2e/ui-smoke-core.spec.ts:5:3 › @ui-smoke fixtures coverage › dashboard renders KPI snapshot using fixtures
+[1A[2K  5) [chromium] › e2e/ui-overlays.spec.ts:4:1 › valida overlays com confirmação dupla e fechamento por ESC 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByRole('button', { name: /Notificações/ })[22m
+
+
+       7 |
+       8 |   const notificationTrigger = page.getByRole('button', { name: /Notificações/ });
+    >  9 |   await notificationTrigger.click();
+         |                             ^
+      10 |   const notificationDialog = page.getByRole('dialog', { name: 'Status operacionais e FinOps' });
+      11 |   await expect(notificationDialog).toBeVisible();
+      12 |   await page.keyboard.press('Escape');
+        at /home/andre/Trabalho/Pessoal/github/intellij-mcp-orchestration/tests/e2e/ui-overlays.spec.ts:9:29
+
+    Error Context: test-results/ui-overlays-valida-overlay-ac1f4--dupla-e-fechamento-por-ESC-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-overlays-valida-overlay-ac1f4--dupla-e-fechamento-por-ESC-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/ui-overlays-valida-overlay-ac1f4--dupla-e-fechamento-por-ESC-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  5 failed
+    [chromium] › e2e/policies-hitl.spec.ts:4:1 › gera e aplica plano de políticas com HITL usando fixtures 
+    [chromium] › e2e/reload-artifact.spec.ts:126:3 › @config-reload governed flow › aplica plano governado após revisão 
+    [chromium] › e2e/reload-artifact.spec.ts:176:3 › @config-reload governed flow › permite limpar plano governado antes de aplicar 
+    [chromium] › e2e/smoke-endpoints.spec.ts:52:1 › executa smoke endpoints, exibe logs e persiste metadados 
+    [chromium] › e2e/ui-overlays.spec.ts:4:1 › valida overlays com confirmação dupla e fechamento por ESC 
+  46 passed (1.9m)

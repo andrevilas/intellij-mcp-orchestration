@@ -1,5 +1,5 @@
 # Promenade Agent Hub — Next Steps (Node + Vite)
-**Status do plano:** bloqueado (aguardando ambiente Playwright)
+**Status do plano:** em acompanhamento (Playwright M5 verde; pendências em M6/perf)
 **Missão:** console unificado para **gerenciar MCP servers**, **chaves/policies**, e **FinOps** com foco **custo/benefício** e **DX**.
 
 > Atualização 2025-10-15 08:29: roadmap revisado com **sprints explícitas (M1–M6)** e inclusão de **suporte a temas (Light/Dark)** para a UI. Consulte `ui-next-steps.md` para o detalhamento operacional.
@@ -15,17 +15,17 @@
 - [ ] **M1 — Fundamentos & Shell** · Em reteste — shell configurado e a suíte Playwright volta a executar após `pnpm --dir tests exec playwright install-deps`; falhas atuais são funcionais nas specs governadas (ver nova evidência).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
   - [x] **TASK-UI-SH-010** — Shell com `skip-link`, roving tabindex e atalhos documentados.
   - [x] **TASK-UI-NAV-011** — Breadcrumbs + Pagination com tokens `--mcp-*` e foco visível.
-- [ ] **M2 — Ações & Feedback** · Em validação — componentes aguardam revisão porque as specs Playwright ainda falham, mas o runner Chromium já sobe normalmente (ver histórico atualizado).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/TASK-UI-ACT-020/README.md†L1-L17】
-- [ ] **M3 — Dados & Estruturas** · Em validação — Playwright roda em modo fixtures, porém specs de dados ainda quebram; desbloqueio depende de correções funcionais e não mais de libs nativas.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
+- [x] **M2 — Ações & Feedback** · Concluído — stack de buttons/dropdowns/toasts/modais validada via Vitest direcionado (`docs/evidence/TASK-UI-ACT-020/2025-10-29-vitest.txt`). Fixtures seguem verdes em Playwright core (29/10).【F:docs/evidence/TASK-UI-ACT-020/README.md†L5-L18】【F:docs/evidence/TASK-UI-PG-070/2025-10-29-playwright-core.txt†L1-L13】
+- [x] **M3 — Dados & Estruturas** · Concluído — dashboards, observability e FinOps verificados com Vitest em modo fixtures (`docs/evidence/TASK-UI-DATA-030/2025-10-29-vitest.txt`), com smoke Playwright core confirmando estabilidade.【F:docs/evidence/TASK-UI-DATA-030/README.md†L5-L18】【F:docs/evidence/TASK-UI-PG-070/2025-10-29-playwright-core.txt†L1-L13】
 - [ ] **M4 — Formulários & Validação** · Em validação — suite executa e cobre formulários, mas regressões persistem em fluxos governados; requer ajuste funcional antes de marcar como concluído.【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
-- [ ] **M5 — Páginas Core** · Em validação — Playwright alcança asserções das páginas core; falhas agora são específicas de conteúdo (Dashboard, Marketplace, FinOps).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】【F:docs/evidence/UI-ACT-005/README.md†L1-L17】
+- [x] **M5 — Páginas Core** · Concluído — Matriz Playwright completa 2025-10-29 (`2025-10-29-playwright-full.txt`) cobre Dashboard/Servers/Keys/Policies/Routing/FinOps/Marketplace/Security em fixtures.【F:docs/evidence/TASK-UI-PG-070/2025-10-29-playwright-full.txt†L1-L5】
 - [ ] **M6 — Performance & Observabilidade** · Bloqueado — métricas paralisadas até restabelecer as suites e telemetria (ver [Audit UI M1–M6](../audit-ui-m1-m6.md)).【4ea611†L1-L205】【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 
 ## Auditoria Final — 2025-10-20
 - `pnpm i` e `pnpm -r dev` executados sem erros imediatos (processos encerrados manualmente após o boot) confirmam que a toolchain continua instalável em modo dev.【231433†L1-L9】【2b58dd†L1-L5】
 - Backend FastAPI validado end-to-end: `/api/v1/healthz` responde 200, templates de policies permanecem disponíveis, o simulador de routing retorna distribuição/custos coerentes e os relatórios FinOps exibem dados determinísticos dos fixtures.【2c5a62†L1-L6】【c5de4c†L1-L18】【4318f3†L1-L9】【0c07a3†L1-L39】【d2ef4c†L1-L17】【c6d23f†L1-L17】【6e0762†L1-L20】
 - Export CSV/HTML permanece acessível (HTTP 200), porém apenas o cabeçalho é gerado enquanto a base SQLite está vazia — risco de ausência de histórico até que novas ingestas/fixtures sejam aplicadas.【82a64e†L1-L2】【a7a14c†L1-L3】
-- Bloqueios críticos seguem concentrados na sprint M5: o smoke Playwright das páginas core ainda falha e o link FinOps permanece congelando a navegação inicial.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+- Bloqueios críticos agora concentram-se em M6: proxy/backend real e lacunas de observabilidade/performance permanecem sem cobertura automatizada.【F:app/vite.config.ts†L24-L44】【F:docs/evidence/TASK-UI-OBS-082/README.md†L1-L23】
 - Reforço 2025-10-25: a tentativa mais recente registrou falha geral (`browserType.launch`) com 45 testes abortados por dependências nativas ausentes — consultar `docs/evidence/2025-10-25/README.md` antes de qualquer rebaseline.【F:docs/evidence/2025-10-25/README.md†L1-L16】
 - Atualização 2025-10-26: após instalar deps via `pnpm --dir tests exec playwright install-deps`, a suíte executa 49 specs em modo fixtures; falhas remanescentes são funcionais (ver evidência dedicada).【F:docs/evidence/TASK-UI-PG-070/2025-10-26-playwright.md†L1-L6】
 - Recomendação: manter **No-Go** até estabilizar smoke UI/FinOps e restaurar a telemetria; ver detalhamento atualizado no Audit Report.【F:docs/audit-ui-m1-m6.md†L1-L200】
@@ -152,7 +152,7 @@
 
 ## Próximo ciclo de auditoria (handover)
 1. Reaplique `python scripts/generate_finops_fixtures.py` para atualizar os fixtures consumidos pelo backend e, em seguida, `python scripts/generate_finops_fixtures.py --seed-db --db-path <caminho/console.db>` para recarregar `telemetry_events`/`price_entries` no SQLite. Depois exporte `CONSOLE_MCP_DB_PATH=<caminho/console.db>` e repita `GET /api/v1/telemetry/finops/sprints`, `GET /api/v1/telemetry/finops/pull-requests`, `GET /api/v1/telemetry/export?format=csv` e `GET /api/v1/telemetry/export?format=html` usando a janela recomendada (duas sprints consecutivas: `start=2025-10-08T00:00:00Z`, `end=2025-10-21T23:59:59Z`, `window_days=7`). Armazene os relatórios resultantes no cofre interno de evidências em vez de `docs/evidence/` e registre o link seguro no dossiê do PR.【F:scripts/generate_finops_fixtures.py†L19-L118】【F:scripts/generate_finops_fixtures.py†L307-L347】【F:docs/evidence/2025-10-21/README.md†L1-L4】【F:docs/observability/finops-telemetry-seeding.md†L33-L43】
-2. Estabilizar as páginas core (TASK-UI-PG-070..075) antes de reexecutar a suíte Playwright e atualizar os evidenciais das rotas de FinOps/Policies.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
+2. Monitorar as páginas core (TASK-UI-PG-070..075) mantendo a matriz Playwright em cronograma e registrando novas evidências em caso de regressão.【F:docs/evidence/TASK-UI-PG-070/README.md†L11-L18】
 3. Automatizar no CI a rotina `pnpm i → pnpm -r dev → healthz/simulate/export` para sinalizar rapidamente futuras regressões de infraestrutura ou políticas.【231433†L1-L9】【2b58dd†L1-L5】【6e0762†L1-L20】
 4. Atualizar o runbook/handbook com o plano de ingestão FinOps e os limites atuais dos endpoints para orientar o próximo time durante o handover.【c6d23f†L1-L17】【82a64e†L1-L2】
 

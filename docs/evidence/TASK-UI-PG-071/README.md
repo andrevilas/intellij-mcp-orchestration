@@ -1,7 +1,8 @@
 # Evidência — TASK-UI-PG-071 (Servers)
 
-- **Data:** 2025-10-28 15:22 UTC  
-- **Execução:** `pnpm --dir tests exec playwright test tests/e2e/servers-core.spec.ts`
-- **Resultado:** ✅ Passou — fluxo de gerenciamento de servidores MCP (start/stop/restart, badges de status e painel de auditoria) validado com fixtures locais.
+- **2025-10-28 15:22 UTC** — `pnpm --dir tests exec playwright test tests/e2e/servers-core.spec.ts`
+  - ✅ Passou — fluxo de start/stop/restart auditado com fixtures locais.
+- **2025-10-29 19:22 UTC** — `pnpm --dir tests exec playwright test tests/e2e/*core.spec.ts --trace on --reporter=line` (commit `afdfe67`)
+  - ✅ Passou — suite core completa com fixtures; trace anexo (`2025-10-29-servers-trace.zip`).
 
-Os artefatos de execução permanecem em `tests/test-results`. Qualquer regressão futura deve anexar novos relatórios a este diretório e atualizar `docs/audit-ui-m1-m6.md`.
+Os artefatos históricos permanecem em `tests/test-results`. Para novas execuções, anexar o trace/resultados a este diretório e atualizar `docs/audit-ui-m1-m6.md`.

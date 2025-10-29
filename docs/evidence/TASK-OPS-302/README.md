@@ -30,5 +30,9 @@ O relatório anexado é reutilizado como evidência de auditoria e deve ser atua
 | 2025-10-21 | `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` | [ops-controls-report.json](ops-controls-report.json) |
 | 2025-10-21 | GitHub Actions — jobs `security` e `ops_compliance` (branch `main`) | [Workflow CI](../../.github/workflows/ci.yml) |
 | 2025-10-28 | `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` | [ops-controls-report.json](ops-controls-report.json) |
+| 2025-10-29 | `python3 scripts/ops_controls.py --output docs/evidence/TASK-OPS-302/ops-controls-report.json` | [2025-10-29-ops-controls.txt](2025-10-29-ops-controls.txt) |
+
+### Follow-ups abertos (2025-10-29)
+- Nenhum follow-up pendente após a rodada Playwright de 2025-10-29 23:50 UTC. Logs atualizados em `../TASK-UI-PG-070/2025-10-29-playwright-full.txt`.
 
 > Atualize esta tabela sempre que houver novas rotações, auditorias ou incidentes, adicionando o link direto para a execução (ex.: `https://github.com/<org>/<repo>/actions/runs/<id>`).

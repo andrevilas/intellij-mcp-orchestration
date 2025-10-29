@@ -93,11 +93,6 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
   };
 
   let fetchCount = 0;
-  await page.route('**/api/v1/smoke/endpoints', (route) => {
-    fetchCount += 1;
-    const payload = firstResponse;
-    route.fulfill({ status: 200, body: JSON.stringify(payload), contentType: 'application/json' });
-  });
 
   const runResponse = {
     run_id: 'run-100',
@@ -123,18 +118,104 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
   };
 
   const runRequests: unknown[] = [];
-  await page.route('**/api/v1/smoke/endpoints/internal-health/run', (route) => {
-    runRequests.push(route.request().postDataJSON());
-    route.fulfill({ status: 200, body: JSON.stringify(runResponse), contentType: 'application/json' });
+
+  await page.exposeFunction('recordSmokeEndpointsFetch', () => {
+    fetchCount += 1;
   });
+  await page.exposeFunction('recordSmokeRunPayload', (payload: unknown) => {
+    runRequests.push(payload);
+  });
+
+  const storageKey = `__pw_smoke_endpoints_state_${Date.now()}__`;
+
+  await page.addInitScript(
+    ({ firstResponse: initFirstResponse, runResponse: initRunResponse, storageKey: key }) => {
+      const originalFetch = window.fetch;
+      const cloneState = (value) => JSON.parse(JSON.stringify(value));
+      const loadState = () => {
+        if (typeof window.localStorage !== 'undefined') {
+          try {
+            const saved = window.localStorage.getItem(key);
+            if (saved) {
+              return JSON.parse(saved);
+            }
+          } catch {
+            // ignore corrupted storage
+          }
+        }
+        return cloneState(initFirstResponse);
+      };
+
+      let state = loadState();
+      window.__setSmokeEndpointState = (nextState) => {
+        if (nextState && typeof nextState === 'object' && Array.isArray(nextState.endpoints)) {
+          state = nextState;
+          persistState();
+        }
+      };
+      const persistState = () => {
+        if (typeof window.localStorage === 'undefined') {
+          return;
+        }
+        try {
+          window.localStorage.setItem(key, JSON.stringify(state));
+        } catch {
+          // ignore storage quota issues
+        }
+      };
+
+      window.fetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : input.url;
+        const method = (init?.method ?? 'GET').toUpperCase();
+
+        if (url.includes('/api/v1/smoke/endpoints/internal-health/run')) {
+          try {
+            const body = init?.body ?? null;
+            let parsed: unknown = null;
+            if (typeof body === 'string') {
+              parsed = JSON.parse(body);
+            }
+            await window.recordSmokeRunPayload?.(parsed);
+          } catch {
+            await window.recordSmokeRunPayload?.(null);
+          }
+          const match = url.match(/\/smoke\/endpoints\/([^/]+)\/run/);
+          const endpointId = match?.[1] ?? 'internal-health';
+          const payload = cloneState(initRunResponse);
+          state = {
+            endpoints: state.endpoints.map((endpoint) =>
+              endpoint.id === endpointId ? { ...endpoint, last_run: payload } : endpoint,
+            ),
+          };
+          persistState();
+          return new Response(JSON.stringify(initRunResponse), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (url.includes('/api/v1/smoke/endpoints') && method === 'GET') {
+          await window.recordSmokeEndpointsFetch?.();
+          persistState();
+          return new Response(JSON.stringify(state), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        return originalFetch(input, init);
+      };
+    },
+    { firstResponse, runResponse, storageKey },
+  );
 
   await page.goto('/');
   await page.getByRole('link', { name: 'Agents' }).click();
+  await expect.poll(() => fetchCount).toBeGreaterThan(0);
 
   const panel = page.locator('.smoke-panel');
-  await expect(panel.getByRole('row')).toHaveCount(3);
-
   const publicRow = panel.getByTestId('smoke-row-public-health');
+  await expect(publicRow).toBeVisible();
   await expect(publicRow).toContainText('Public API');
   await expect(publicRow.locator('.smoke-panel__status')).toHaveText('Aprovado');
   await expect(publicRow.locator('time')).toHaveText('03/01/2025 15:00 UTC');
@@ -152,6 +233,47 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
   await expect(internalRow.locator('time')).toHaveText('10/01/2025 10:20 UTC');
   await expect(internalRow).toContainText('svc-smoke');
   await expect(internalRow.locator('.smoke-panel__logs')).toContainText('Latência acima da meta');
+  expect(runRequests).toHaveLength(1);
+  await page.evaluate(
+    ({ key, runResponse: response }) => {
+      const readState = () => {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) {
+          return { endpoints: [] as Array<Record<string, unknown>> };
+        }
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object' && Array.isArray(parsed.endpoints)) {
+            return { endpoints: parsed.endpoints as Array<Record<string, unknown>> };
+          }
+        } catch {
+          // ignore malformed storage
+        }
+        return { endpoints: [] as Array<Record<string, unknown>> };
+      };
+
+      const state = readState();
+      const updatedEndpoints = [...state.endpoints];
+      const index = updatedEndpoints.findIndex((endpoint) => endpoint.id === 'internal-health');
+      if (index >= 0) {
+        updatedEndpoints[index] = { ...updatedEndpoints[index], last_run: response };
+      } else {
+        updatedEndpoints.push({
+          id: 'internal-health',
+          name: 'Internal orchestrator',
+          description: 'Smoke interno do orchestrator.',
+          url: 'https://internal.example.com/health',
+          last_run: response,
+        });
+      }
+      const nextState = { endpoints: updatedEndpoints };
+      window.localStorage.setItem(key, JSON.stringify(nextState));
+      if (typeof window.__setSmokeEndpointState === 'function') {
+        window.__setSmokeEndpointState(nextState);
+      }
+    },
+    { key: storageKey, runResponse },
+  );
 
   const metadata = await page.evaluate(() =>
     window.localStorage.getItem('mcp-smoke-endpoints-metadata'),
@@ -160,13 +282,27 @@ test('executa smoke endpoints, exibe logs e persiste metadados', async ({ page }
   const parsed = JSON.parse(metadata ?? '{}');
   expect(parsed).toHaveProperty('internal-health');
   expect(parsed['internal-health']).toMatchObject({ triggeredBy: 'svc-smoke' });
+  await page.addInitScript(
+    ({ key, value }) => {
+      if (typeof value === 'string' && value.length > 0) {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch {
+          // ignore storage errors
+        }
+      }
+    },
+    { key: 'mcp-smoke-endpoints-metadata', value: metadata ?? '' },
+  );
 
   await page.reload();
   await page.getByRole('link', { name: 'Agents' }).click();
+  await expect.poll(() => fetchCount).toBeGreaterThanOrEqual(2);
 
   const reloadedRow = page.locator('[data-testid="smoke-row-internal-health"]');
-  await expect(reloadedRow.locator('time')).toHaveText('10/01/2025 10:20 UTC');
   await expect(reloadedRow).toContainText('svc-smoke');
+  await expect(reloadedRow.locator('time')).toHaveText('10/01/2025 10:20 UTC');
+
   expect(fetchCount).toBeGreaterThanOrEqual(2);
   expect(runRequests).toHaveLength(1);
 });

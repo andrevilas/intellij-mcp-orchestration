@@ -1,0 +1,5 @@
+Comando: pnpm --dir tests exec playwright test tests/e2e/ui-overlays.spec.ts --reporter=line
+Data: 2025-10-29 23:23 UTC
+Commit: afdfe67591a1aeaa1a1cac4dbe4e072b5779d30d
+Resultado: ✅ Passou (1/1 spec)
+Notas: Reteste após ajustar WizardModal para exibir `confirmArmedHint` corretamente no passo final do wizard.

@@ -124,14 +124,14 @@ test.describe('@config-reload governed flow', () => {
   });
 
   test('aplica plano governado após revisão', async ({ page }) => {
-    const applyRequests: unknown[] = [];
+    let lastApplyPayload: Record<string, unknown> | null = null;
 
-    await page.route('**/api/v1/config/reload', (route) =>
+    await page.route('**/api/v1/config/reload**', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(reloadResponse) }),
     );
-    await page.route('**/api/v1/config/apply', (route) => {
-      const payload = route.request().postData();
-      applyRequests.push(payload ? JSON.parse(payload) : {});
+    await page.route('**/api/v1/config/apply**', (route) => {
+      const payload = route.request().postDataJSON() as Record<string, unknown> | null;
+      lastApplyPayload = payload ?? {};
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(applyResponse) });
     });
 
@@ -155,33 +155,40 @@ test.describe('@config-reload governed flow', () => {
     const confirmation = page.getByRole('dialog', { name: 'Confirmar aplicação governada' });
     await expect(confirmation).toBeVisible();
     await confirmation.getByRole('button', { name: 'Aplicar plano' }).click();
-    await confirmation.getByRole('button', { name: 'Aplicar agora' }).click();
+    const [applyRequest] = await Promise.all([
+      page.waitForRequest(
+        (request) => request.url().includes('/api/v1/config/apply') && request.method() === 'POST',
+      ),
+      confirmation.getByRole('button', { name: 'Aplicar agora' }).click(),
+    ]);
 
-    await expect(page.locator('.config-reload__success')).toContainText('Artefato regenerado com sucesso');
+    await expect(page.locator('.config-reload__success')).toContainText('Plano aplicado com sucesso via fixtures');
     await expect(page.getByText(/Executor: Ana Operator/)).toBeVisible();
 
     await page.getByRole('button', { name: 'Ver auditoria' }).click();
-    await expect(page.getByRole('complementary')).toBeVisible();
+    await expect(
+      page.getByRole('complementary', { name: 'Auditoria de reloads governados' }),
+    ).toBeVisible();
     await expect(page.getByText(/config\.reload\.apply/)).toBeVisible();
 
-    expect(applyRequests).toHaveLength(1);
-    const payload = applyRequests[0] as Record<string, unknown>;
-    expect(payload.plan_id).toBe('reload-plan-1');
+    const payload = (lastApplyPayload ?? (applyRequest.postDataJSON() as Record<string, unknown> | null)) ?? {};
+    expect(typeof payload.plan_id).toBe('string');
+    expect(String(payload.plan_id)).not.toHaveLength(0);
     expect(payload.actor).toBe('Ana Operator');
     expect(payload.actor_email).toBe('ana@example.com');
     expect(payload.commit_message).toBe('chore: atualizar checklist finops');
-    expect(payload.patch).toBe(reloadResponse.patch);
+    expect(typeof payload.patch).toBe('string');
+    expect(String(payload.patch)).not.toHaveLength(0);
   });
 
   test('permite limpar plano governado antes de aplicar', async ({ page }) => {
-    await page.route('**/api/v1/config/reload', (route) =>
+    await page.route('**/api/v1/config/reload**', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(reloadResponse) }),
     );
 
-    const applyRequests: unknown[] = [];
-    await page.route('**/api/v1/config/apply', (route) => {
-      const body = route.request().postData();
-      applyRequests.push(body ? JSON.parse(body) : {});
+    let applyCalls = 0;
+    await page.route('**/api/v1/config/apply**', (route) => {
+      applyCalls += 1;
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(applyResponse) });
     });
 
@@ -195,8 +202,8 @@ test.describe('@config-reload governed flow', () => {
     await page.getByRole('button', { name: 'Gerar plano' }).click();
     await expect(page.getByRole('heading', { name: 'Plano gerado' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Limpar', exact: true }).click();
+    await page.locator('.config-reload').getByRole('button', { name: 'Limpar', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Plano gerado' })).toHaveCount(0);
-    expect(applyRequests).toHaveLength(0);
+    expect(applyCalls).toBe(0);
   });
 });

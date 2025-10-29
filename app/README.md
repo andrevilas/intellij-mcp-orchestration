@@ -24,7 +24,8 @@ pnpm preview   # serve o build final localmente
 
 1. Inicie o servidor FastAPI em outro terminal (`console-mcp-server-dev`).
 2. Rode `pnpm dev` neste diretório. O proxy embutido encaminha chamadas `/api/*` para o host/porta do backend
-   (`CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`, padrão `127.0.0.1:8000`).
+   (`CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`, padrão `127.0.0.1:8000`). Para apontar para outra porta diretamente pelo comando, use
+   `pnpm dev --backend=8899` ou `pnpm dev --backend=api.internal:8899`.
 3. A UI exibirá os provedores do manifesto versionado e permitirá criar sessões mock com um clique.
 
 Variáveis de ambiente úteis:
@@ -35,10 +36,11 @@ Variáveis de ambiente úteis:
 - `CONSOLE_MCP_API_PROXY`: redefine o destino do proxy HTTP utilizado pelo dev server do Vite (por padrão usa os valores
   de `CONSOLE_MCP_SERVER_HOST`/`CONSOLE_MCP_SERVER_PORT`).
 - `CONSOLE_MCP_AGENTS_PROXY`: sobrescreve apenas o alvo do proxy `/agents` quando o hub de agentes roda em host/porta separados.
-- `CONSOLE_MCP_USE_FIXTURES`: aceita `auto` (padrão), `force` ou `off`. Em `auto`, o Console MCP inicia diretamente com as
-    fixtures locais (`app/src/mocks/handlers.ts`) espelhadas de `server/routes/fixtures`. Use `off` (ou `0`, `false`) para
-    habilitar o proxy HTTP do backend real; se o backend não responder, o Vite retorna automaticamente ao modo fixtures. O
-    modo `force` mantém o MSW ativo independentemente do backend.
+- `CONSOLE_MCP_USE_FIXTURES`: aceita `auto` (padrão), `force` ou `off`. Em `auto` ou `force`, o Console MCP ativa o MSW e serve
+    apenas os fixtures locais (`app/src/mocks/handlers.ts`), sem tentar conectar ao backend real. Use `off` (ou `0`, `false`) para
+    habilitar o proxy HTTP (`/api`, `/agents`) apontando para `CONSOLE_MCP_SERVER_HOST` / `CONSOLE_MCP_SERVER_PORT`
+    (sobreponha com `CONSOLE_MCP_API_PROXY`/`CONSOLE_MCP_AGENTS_PROXY` se precisar de hosts distintos).
+- O showcase do UI Kit agora fica isolado em `/dev/ui-kit`, útil para QA e design sem interferir nas páginas produtivas.
 
 ### Modo offline com fixtures
 

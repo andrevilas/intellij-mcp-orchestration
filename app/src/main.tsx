@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import DevUiKitPage from './pages/DevUiKit';
 import './styles/index.scss';
 import './styles/base.scss';
 import { ThemeProvider } from './theme/ThemeContext';
@@ -83,10 +84,14 @@ async function bootstrap(): Promise<void> {
     throw new Error('Root element not found');
   }
 
+  const isDevUiKitRoute =
+    typeof window !== 'undefined' && window.location.pathname === '/dev/ui-kit';
+  const RootComponent = isDevUiKitRoute ? DevUiKitPage : App;
+
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ThemeProvider>
-        <App />
+        <RootComponent />
       </ThemeProvider>
     </React.StrictMode>,
   );

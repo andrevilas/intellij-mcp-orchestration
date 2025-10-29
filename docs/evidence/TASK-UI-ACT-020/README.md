@@ -5,7 +5,8 @@ Este diretório centraliza os registros para a entrega dos componentes de açõe
 ## Conteúdo
 - `playwright-ui-kit-report.txt`: saída resumida dos testes/execuções manuais sobre o UI Kit.
 - `ui-kit-interactions.webm` (gerado localmente): captura curta com dropdown, tooltip, toasts e modais empilhados.
-- `2025-10-29-vitest.txt`: execução direcionada do Vitest (`Button`, `Dropdown`, `ToastProvider`, `Modal`) comprovando o comportamento após correções da sprint UI M2.
+- `2025-10-29-vitest.txt`: execução direcionada do Vitest (`Button`, `Dropdown`, `ToastProvider`, `Modal`) comprovando o comportamento após correções da sprint UI M2 (commit `afdfe67`).
+- `2025-10-29-vitest.md`: rodada completa `pnpm --dir app test -- --runInBand` (Node 20 via nvm) antes do Go/No-Go.
 
 ## Como reproduzir
 ```bash
@@ -17,7 +18,11 @@ pnpm --dir app test \
   src/components/menus/Dropdown.test.tsx \
   src/components/feedback/ToastProvider.test.tsx \
   src/components/modals/index.test.tsx \
-  -- --runInBand
+  -- --runInBand  # commit afdfe67591a1aeaa1a1cac4dbe4e072b5779d30d
+
+# Rodada completa (Go/No-Go pré 2025-10-29)
+source ~/.nvm/nvm.sh && nvm use 20
+pnpm --dir app test -- --runInBand  # commit afdfe67591a1aeaa1a1cac4dbe4e072b5779d30d
 ```
 
 O comando acima sobrescreve os artefatos com uma nova execução em modo headless.

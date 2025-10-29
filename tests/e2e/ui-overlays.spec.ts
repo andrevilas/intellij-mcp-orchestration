@@ -5,7 +5,10 @@ test('valida overlays com confirmação dupla e fechamento por ESC', async ({ pa
   await registerShowcaseRoutes(page);
   await page.goto('/');
 
-  const notificationTrigger = page.getByRole('button', { name: /Notificações/ });
+  await page.waitForLoadState('networkidle');
+
+  const notificationTrigger = page.getByRole('button', { name: /central de notificações/i }).first();
+  await expect(notificationTrigger).toBeVisible();
   await notificationTrigger.click();
   const notificationDialog = page.getByRole('dialog', { name: 'Status operacionais e FinOps' });
   await expect(notificationDialog).toBeVisible();

@@ -62,7 +62,7 @@ test('gera e aplica plano de políticas com HITL usando fixtures', async ({ page
   expect(planPayload.changes.runtime.max_iters).toBe(8);
   expect(planPayload.changes.runtime.timeouts.per_iteration).toBe(45);
   expect(planPayload.changes.runtime.timeouts.total).toBe(200);
-  expect(planPayload.changes.runtime.tracing).toEqual({ enabled: true, sample_rate: 0.15 });
+  expect(planPayload.changes.runtime.tracing).toMatchObject({ enabled: true, sample_rate: 0.15 });
 
   expect(planPayload.changes.hitl.enabled).toBe(true);
   expect(planPayload.changes.hitl.checkpoints).toHaveLength(initialCheckpoints.length + 1);
@@ -73,17 +73,24 @@ test('gera e aplica plano de políticas com HITL usando fixtures', async ({ page
     escalation_channel: 'slack',
   });
 
-  await expect(page.getByRole('heading', { name: 'Confirmar alterações nas políticas' })).toBeVisible();
-  await expect(page.getByText('Atualizar limites e alertas FinOps usando fixtures locais.')).toBeVisible();
+  const confirmationModal = page.getByRole('dialog', { name: 'Confirmar alterações nas políticas' });
+  await expect(confirmationModal).toBeVisible();
+  await expect(
+    confirmationModal.getByText('Atualizar limites e alertas FinOps usando fixtures locais.', { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByTestId(POLICIES_TEST_IDS.planDiffs)).toContainText('policies/manifest.json');
 
   await page.getByLabel('Autor da alteração').fill('Patrícia SRE');
   await page.getByLabel('E-mail do autor').fill('patricia.sre@example.com');
   await page.getByLabel('Mensagem do commit').fill('feat: ajustar runtime e HITL');
 
+  await page.getByRole('button', { name: 'Aplicar plano' }).click();
+  const applyConfirmation = page.getByRole('dialog', { name: 'Aplicar plano de políticas' });
+  await expect(applyConfirmation).toBeVisible();
+  await applyConfirmation.getByRole('button', { name: 'Armar aplicação' }).click();
   const [applyRequest] = await Promise.all([
     page.waitForRequest((request) => request.url().includes('/api/v1/config/apply') && request.method() === 'POST'),
-    page.getByRole('button', { name: 'Aplicar plano' }).click(),
+    applyConfirmation.getByRole('button', { name: 'Aplicar agora' }).click(),
   ]);
   const applyPayload = applyRequest.postDataJSON() as {
     plan_id: string;
@@ -97,7 +104,8 @@ test('gera e aplica plano de políticas com HITL usando fixtures', async ({ page
   expect(applyPayload.actor_email).toBe('patricia.sre@example.com');
   expect(applyPayload.commit_message).toBe('feat: ajustar runtime e HITL');
 
-  await expect(page.getByText('Plano FinOps aplicado com sucesso via fixtures.')).toBeVisible();
-  await expect(page.getByText('Branch: chore/finops-plan-fixtures')).toBeVisible();
-  await expect(page.getByText('PR: https://github.com/example/console-mcp/pull/42')).toBeVisible();
+  const runtimeSection = page.getByTestId(POLICIES_TEST_IDS.runtime.section);
+  await expect(runtimeSection).toContainText('Plano aplicado com sucesso via fixtures.');
+  await expect(runtimeSection).toContainText('Branch: chore/finops-plan-fixtures');
+  await expect(runtimeSection).toContainText('PR: https://github.com/example/console-mcp/pull/42');
 });

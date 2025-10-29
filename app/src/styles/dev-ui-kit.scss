@@ -1,0 +1,86 @@
+@use './tokens' as *;
+
+.dev-ui-kit {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--mcp-surface);
+  color: var(--mcp-text-primary);
+  padding: 2rem clamp(1rem, 4vw, 3rem);
+  gap: 2rem;
+}
+
+.dev-ui-kit__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.dev-ui-kit__back-link {
+  font-size: 0.95rem;
+  color: var(--mcp-link);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.dev-ui-kit__back-link:hover,
+.dev-ui-kit__back-link:focus-visible {
+  text-decoration: underline;
+}
+
+.dev-ui-kit__theme-placeholder {
+  min-width: 7rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--mcp-surface-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.dev-ui-kit__theme-switch {
+  min-width: 220px;
+}
+
+.dev-ui-kit__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: color-mix(in srgb, var(--mcp-surface) 92%, transparent);
+  border: 1px solid var(--mcp-border-subtle);
+  border-radius: 1.5rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--mcp-shadow-strong) 12%, transparent);
+}
+
+.dev-ui-kit__loading {
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  color: var(--mcp-text-muted);
+  min-height: 40vh;
+}
+
+.dev-ui-kit__footer {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--mcp-text-muted);
+}
+
+@media (max-width: 768px) {
+  .dev-ui-kit {
+    padding: 1.5rem 1rem;
+  }
+
+  .dev-ui-kit__main {
+    padding: 1.5rem;
+  }
+
+  .dev-ui-kit__theme-switch {
+    min-width: unset;
+  }
+}
